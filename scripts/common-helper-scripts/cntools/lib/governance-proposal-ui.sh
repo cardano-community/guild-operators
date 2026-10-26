@@ -57,6 +57,9 @@ cntools_proposal_details() {
   if [[ "${metadata}" != '{}' ]]; then
     cntools_ui_render_status info 'Proposal metadata is indexed by Koios. It is untrusted descriptive content, not independently hash-verified by CNTools.'
     cntools_proposal_tree "${metadata}" 'Metadata · Koios API' || return 1
+    # Already shown: a download then only verifies the published hash.
+    cntools_public_metadata_offer "${url}" "${hash}" 262144 shown
+    return 0
   fi
   cntools_public_metadata_offer "${url}" "${hash}"
 }

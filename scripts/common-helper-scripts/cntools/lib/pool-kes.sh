@@ -406,6 +406,18 @@ cntools_kes_publish() {
   cntools_kes_phase_set complete && cntools_kes_lock_release
 }
 
+# Abandon a request before any certificate was issued for it. The counter never
+# advanced in these phases; the recovery folder is kept for inspection.
+cntools_kes_discard() {
+  local phase=''
+  cntools_kes_stage_safe || return 1
+  phase="$(< "${CNTOOLS_KES_STAGE}/phase")"
+  [[ "${phase}" == prepared || "${phase}" == awaiting ]] || {
+    cntools_kes_error 'Only a request that was prepared but not yet issued can be discarded.'; return 1;
+  }
+  cntools_kes_phase_set discarded && cntools_kes_lock_release
+}
+
 cntools_kes_lock_release() {
   local lock=''
   cntools_pool_opcert_lock_into lock "${CNTOOLS_KES_DIRECTORY}" &&

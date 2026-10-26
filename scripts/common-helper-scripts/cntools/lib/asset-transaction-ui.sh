@@ -1,19 +1,37 @@
 #!/usr/bin/env bash
 # Guided mint/burn with the shared transaction review/sign/export/submit UX.
 # shellcheck disable=SC2034,SC2015
-CNTOOLS_ASSET_TX_RESULT_SHOWN=N CNTOOLS_ASSET_TX_SAVED=''
+CNTOOLS_ASSET_TX_RESULT_SHOWN=N CNTOOLS_ASSET_TX_SAVED='' CNTOOLS_ASSET_TX_SIGN_NOTE=''
 cntools_asset_tx_begin() { cntools_policy_manage_begin "${CNTOOLS_ASSET_TX_OPERATION^} Asset"; }
 
+# Smallest units, plus the decimal amount when Koios metadata gives decimals.
+cntools_asset_tx_amount_into() {
+  local _amount_output="$1" _amount_units="$2" _amount_decimals="${CNTOOLS_WALLET_ASSET_METADATA_DECIMALS[${CNTOOLS_ASSET_TX_ID}]:-0}" _amount_scaled=''
+  printf -v "${_amount_output}" '%s units' "$(cntools_number_format "${_amount_units}")"
+  [[ "${_amount_decimals}" =~ ^[1-9][0-9]?$ ]] && cntools_wallet_format_token_amount_into _amount_scaled "${_amount_units}" "${_amount_decimals}" || return 0
+  printf -v "${_amount_output}" '%s (%s units)' "${_amount_scaled}" "$(cntools_number_format "${_amount_units}")"
+}
+
 cntools_asset_tx_render() {
-  local label='' expiry=''
+  local label='' expiry='' fingerprint='' date='' amount='' held="${CNTOOLS_FUNDING_ASSETS[${CNTOOLS_ASSET_TX_ID}]:-0}" after=''
   cntools_asset_label_into label "${CNTOOLS_ASSET_TX_ID}" 1 || return 1
   cntools_transaction_ui_expiry_label_into expiry "${CNTOOLS_SEND_EXPIRY}" || return 1
+  cntools_wallet_asset_fingerprint_into fingerprint "${CNTOOLS_ASSET_TX_ID%%.*}" "${CNTOOLS_ASSET_TX_ID#*.}" || fingerprint=Unavailable
+  cntools_asset_tx_amount_into amount "${CNTOOLS_ASSET_TX_QUANTITY}"
   {
     cntools_table_pair Wallet "${CNTOOLS_SEND_WALLET}" identifier
     cntools_table_pair Policy "${CNTOOLS_ASSET_TX_DIRECTORY##*/}" identifier
     cntools_table_pair Asset "${label}" accent
     cntools_table_pair 'Policy.name (hex)' "${CNTOOLS_ASSET_TX_ID}" identifier
-    cntools_table_pair "${CNTOOLS_ASSET_TX_OPERATION^} quantity (smallest units)" "$(cntools_number_format "${CNTOOLS_ASSET_TX_QUANTITY}")" number
+    cntools_table_pair Fingerprint "${fingerprint}" identifier
+    cntools_table_pair "${CNTOOLS_ASSET_TX_OPERATION^} quantity" "${amount}" number
+    if [[ "${CNTOOLS_ASSET_TX_OPERATION}" == burn ]] && cntools_uint_subtract_into after "${held}" "${CNTOOLS_ASSET_TX_QUANTITY}"; then
+      cntools_table_pair 'Held → after burn' "$(cntools_number_format "${held}") → $(cntools_number_format "${after}")" number
+    fi
+    if [[ -n "${CNTOOLS_POLICY_SELECTED_BEFORE}" ]]; then
+      cntools_slot_datetime_into date "${CNTOOLS_POLICY_SELECTED_BEFORE}" || date="Slot ${CNTOOLS_POLICY_SELECTED_BEFORE}"
+      cntools_table_pair 'Policy expires' "${date} · also caps the expiry" warning
+    fi
     cntools_table_pair 'Return address' "${CNTOOLS_SEND_ADDRESS}" identifier
     cntools_table_pair Fee "$(cntools_number_format_lovelace "${CNTOOLS_ASSET_TX_FEE}")" number
     cntools_table_pair Expires "${expiry}" value
@@ -24,19 +42,24 @@ cntools_asset_tx_render() {
     [[ "${CNTOOLS_ASSET_TX_SKIPPED}" == 0 ]] || cntools_table_pair 'App UTxOs left untouched' "${CNTOOLS_ASSET_TX_SKIPPED}" number
   } | cntools_table_render 'Transaction information' || return 1
   cntools_send_metadata_render || return 1
-  [[ -z "${CNTOOLS_POLICY_SELECTED_BEFORE}" ]] || cntools_ui_render_status info 'The policy deadline also limits transaction expiry; No expiry cannot override it.'
+  [[ -z "${CNTOOLS_ASSET_TX_SIGN_NOTE}" ]] || cntools_ui_render_status info "${CNTOOLS_ASSET_TX_SIGN_NOTE}"
   if [[ "${CNTOOLS_ASSET_TX_OPERATION}" == burn ]]; then
     cntools_ui_render_status warn 'Burning permanently destroys the selected quantity. Other tokens, rewards and deposits are not burned.'
   else cntools_ui_render_status info 'New tokens and all selected change return to this wallet. No stake registration, delegation or rewards are changed.'; fi
 }
 
 cntools_asset_tx_quantity_prompt() {
-  local entered='' available="${CNTOOLS_FUNDING_ASSETS[${CNTOOLS_ASSET_TX_ID}]:-0}" quantity=''
+  local entered='' available="${CNTOOLS_FUNDING_ASSETS[${CNTOOLS_ASSET_TX_ID}]:-0}" quantity='' label=''
+  if [[ "${CNTOOLS_ASSET_TX_OPERATION}" == burn ]]; then
+    # Drawn once: a rejected entry adds only its warning below.
+    cntools_asset_label_into label "${CNTOOLS_ASSET_TX_ID}" 1 || return 2
+    {
+      cntools_table_pair Asset "${label}" accent
+      cntools_table_pair 'Available (smallest units)' "$(cntools_number_format "${available}")" number
+    } | cntools_table_render 'Burn amount'
+  fi
   while true; do
     if [[ "${CNTOOLS_ASSET_TX_OPERATION}" == burn ]]; then
-      {
-        cntools_table_pair 'Available (smallest units)' "$(cntools_number_format "${available}")" number
-      } | cntools_table_render 'Burn amount'
       cntools_ui_input entered 'Quantity to burn (Enter = all)' all || return $?
       [[ -n "${entered}" && "${entered,,}" != all ]] || entered="${available}"
     else cntools_ui_input entered 'Quantity to mint (smallest units)' 'Whole number; commas are allowed' || return $?; fi
@@ -59,9 +82,16 @@ cntools_asset_tx_burn_choose() {
   done
   (( ${#identities[@]} > 0 )) || { cntools_asset_tx_fail 'This wallet has no eligible assets for the selected policy.'; return 2; }
   cntools_policy_asset_enrich "${identities[@]}"
+  # A lone asset needs no picker; the Burn amount table names it.
+  if (( ${#identities[@]} == 1 )); then
+    CNTOOLS_ASSET_TX_ID="${identities[0]}"
+    cntools_transaction_log CHOICE "Asset to burn auto-selected=${CNTOOLS_ASSET_TX_ID}"
+    return 0
+  fi
+  # The policy is fixed, so rows show the asset name only.
   for index in "${!identities[@]}"; do
     cntools_asset_label_into label "${identities[index]}" "$((index+1))" || return 2
-    choices+=("${label} · ${identities[index]} · $(cntools_number_format "${CNTOOLS_FUNDING_ASSETS[${identities[index]}]}") units")
+    choices+=("$((index+1)) · ${label} · ${identities[index]#*.} · $(cntools_number_format "${CNTOOLS_FUNDING_ASSETS[${identities[index]}]}") units")
   done
   cntools_ui_choose chosen 'Asset to burn' "${choices[@]}" Cancel || return $?
   [[ "${chosen}" != Cancel ]] || return 1
@@ -81,15 +111,48 @@ cntools_asset_tx_remember() {
     }
 }
 
+# Rejects a policy outside its time window before any wallet or asset prompt.
+cntools_asset_tx_policy_window() {
+  local window='' date=''
+  cntools_policy_window_state_into window "${CNTOOLS_POLICY_SELECTED_BEFORE}" "${CNTOOLS_POLICY_SELECTED_AFTER}"
+  case "${window}" in
+    expired)
+      cntools_slot_datetime_into date "${CNTOOLS_POLICY_SELECTED_BEFORE}" || date="slot ${CNTOOLS_POLICY_SELECTED_BEFORE}"
+      cntools_asset_tx_fail "This policy expired on ${date}; neither minting nor burning is possible." ;;
+    pending)
+      cntools_slot_datetime_into date "${CNTOOLS_POLICY_SELECTED_AFTER}" || date="slot ${CNTOOLS_POLICY_SELECTED_AFTER}"
+      cntools_asset_tx_fail "This policy is not valid until ${date}." ;;
+    *) return 0 ;;
+  esac
+}
+
+# Why this action can only save an unsigned package; empty when it can sign.
+cntools_asset_tx_sign_note_into() {
+  local _note_output="$1" _note_reason=''
+  if [[ -z "${CNTOOLS_POLICY_SELECTED_SOURCE}" ]]; then
+    if [[ -e "${CNTOOLS_ASSET_TX_DIRECTORY}/${CNTOOLS_POLICY_SKEY_FILENAME:-policy.skey}.gpg" ]]; then
+      _note_reason='the policy key is encrypted (Decrypt / Unlock Policy to sign here)'
+    else _note_reason='the policy signing key is not on this system'; fi
+  fi
+  if [[ -z "${CNTOOLS_SEND_SOURCE}" ]]; then
+    if [[ -e "${CNTOOLS_SEND_DIRECTORY}/${CNTOOLS_WALLET_PAY_SKEY_FILENAME}.gpg" ]]; then
+      _note_reason+="${_note_reason:+; }the wallet key is encrypted (Wallet → Decrypt to sign here)"
+    else _note_reason+="${_note_reason:+; }the wallet signing key is not on this system"; fi
+  fi
+  [[ -z "${_note_reason}" ]] || _note_reason="Unsigned package only: ${_note_reason}. Sign it with Transaction → Sign where the keys are."
+  printf -v "${_note_output}" '%s' "${_note_reason}"
+}
+
 cntools_asset_tx_workflow() {
   local CNTOOLS_METADATA_BEGIN_CALLBACK=cntools_asset_tx_begin CNTOOLS_METADATA_OVERVIEW_CALLBACK=cntools_asset_tx_metadata_overview
-  local selected='' workflow='' staged='' signed='' saved='' proceed='' can_sign=N lifetime=1800 backend='' signed_body='' txid='' status=0
+  local selected='' workflow='' staged='' signed='' saved='' proceed='' can_sign=N lifetime=1800 backend='' signed_body='' txid='' status=0 confirm='' draft=''
+  local -a changes=('Change quantity' 'Change metadata' 'Change expiry')
   cntools_asset_tx_begin
-  cntools_policy_selection_into selected || status=$?
-  ((status != 3)) || return 0 # No policies; the reason is already shown.
-  ((status == 0)) || return "${status}"
+  # 3 = no usable policy (reason shown and acknowledged); 1 stays a plain Cancel.
+  cntools_policy_selection_into selected transact || return $?
   CNTOOLS_ASSET_TX_DIRECTORY="${CNTOOLS_POLICY_PATHS[selected]}"
   cntools_policy_prepare "${CNTOOLS_ASSET_TX_DIRECTORY}" || { cntools_asset_tx_fail "${CNTOOLS_POLICY_ERROR:-Policy authority could not be verified.}"; return 2; }
+  cntools_asset_tx_policy_window || return 2
   cntools_wallet_catalog_build || return 2
   cntools_wallet_choose selected Cancel funding || return $?
   cntools_send_prepare_wallet "${CNTOOLS_WALLET_PATHS[selected]}" || return 2
@@ -110,23 +173,40 @@ cntools_asset_tx_workflow() {
   # Quick leaves metadata to the review's 'Change metadata'.
   if cntools_flow_quick; then status=1
   else cntools_ui_confirm 'Attach optional transaction metadata?' false || status=$?; fi
-  if ((status == 0)); then cntools_send_metadata_edit || return $?; elif ((status != 1)); then return "${status}"; fi
+  if ((status == 0)); then
+    # Esc leaves the metadata menu with what it holds; the review shows it.
+    status=0; cntools_send_metadata_edit || status=$?
+    ((status == 0 || status == 1)) || return "${status}"
+  elif ((status != 1)); then return "${status}"; fi
   [[ -z "${CNTOOLS_SEND_SOURCE}" || -z "${CNTOOLS_POLICY_SELECTED_SOURCE}" ]] || can_sign=Y
+  # Without both keys the unsigned package is the only workflow: say why on
+  # the review and offer no 'Change workflow'.
+  cntools_asset_tx_sign_note_into CNTOOLS_ASSET_TX_SIGN_NOTE
+  [[ "${can_sign}" != Y ]] || changes+=('Change workflow')
   cntools_transaction_ui_initial_workflow_into workflow "${can_sign}" || return $?
   cntools_transaction_ui_initial_expiry_into lifetime || return $?
   cntools_ui_spin_function 'Checking policy, funds and building the asset transaction…' cntools_asset_tx_refresh_build_into staged "${lifetime}" || return 2
   while true; do
     cntools_transaction_ui_proceed_into proceed "${workflow}" || return 2
     cntools_transaction_ui_review_into selected "${staged}" "${proceed}" cntools_asset_tx_begin cntools_asset_tx_render \
-      'Change quantity' 'Change metadata' 'Change expiry' 'Change workflow' || return $?
+      "${changes[@]}" || return $?
+    status=0
     case "${selected}" in
       "${proceed}") break ;;
-      'Change workflow') cntools_transaction_ui_workflow_into workflow "${can_sign}" || return $?; continue ;;
-      'Change quantity') cntools_asset_tx_quantity_prompt || return $? ;;
-      'Change metadata') cntools_send_metadata_edit || return $? ;;
-      'Change expiry') cntools_transaction_ui_expiry_into lifetime || return $? ;;
+      'Change workflow') cntools_transaction_ui_workflow_into workflow "${can_sign}" || status=$? ;;
+      'Change quantity') cntools_asset_tx_quantity_prompt || status=$? ;;
+      'Change metadata')
+        draft="${CNTOOLS_METADATA_MODE}|${CNTOOLS_METADATA_SCHEMA}|${CNTOOLS_METADATA_MESSAGE}|${CNTOOLS_METADATA_CUSTOM}"
+        cntools_send_metadata_edit || status=$?
+        # Edits made before Esc still apply, so they are rebuilt and reviewed.
+        [[ "${status}" != 1 || "${draft}" == "${CNTOOLS_METADATA_MODE}|${CNTOOLS_METADATA_SCHEMA}|${CNTOOLS_METADATA_MESSAGE}|${CNTOOLS_METADATA_CUSTOM}" ]] || status=0 ;;
+      'Change expiry') cntools_transaction_ui_expiry_into lifetime || status=$? ;;
       *) return 2 ;;
     esac
+    # Esc keeps the current value and returns to the review; Ctrl+C cancels.
+    ((status != 1)) || continue
+    ((status == 0)) || return "${status}"
+    [[ "${selected}" != 'Change workflow' ]] || continue
     cntools_ui_spin_function 'Rebuilding the asset transaction…' cntools_asset_tx_refresh_build_into staged "${lifetime}" || return 2
   done
   if [[ "${workflow}" == 'Create unsigned package' ]]; then
@@ -149,7 +229,9 @@ cntools_asset_tx_workflow() {
   cntools_transaction_submit_input_prepare "${saved}" || return 2
   signed_body="${CNTOOLS_TRANSACTION_SIGNED_FILE}"; txid="${CNTOOLS_TRANSACTION_SUBMIT_ID}"
   cntools_transaction_ui_submission_backend_into backend || return 2
-  status=0; cntools_transaction_ui_confirm_submit "${backend}" || status=$?
+  # A burn cannot be undone, so it is confirmed in both flow styles.
+  [[ "${CNTOOLS_ASSET_TX_OPERATION}" != burn ]] || confirm=always
+  status=0; cntools_transaction_ui_confirm_submit "${backend}" "${confirm}" || status=$?
   if ((status != 0)); then
     cntools_asset_tx_begin; cntools_asset_tx_result warning 'Not submitted · signed package retained' "${txid}" "${saved}"
     cntools_asset_tx_remember "${txid}" Signed; return 0
@@ -176,16 +258,22 @@ cntools_asset_tx_metadata_overview() {
 
 cntools_asset_tx_action() {
   local status=0
-  CNTOOLS_ASSET_TX_OPERATION="$1"; CNTOOLS_ASSET_TX_RESULT_SHOWN=N; CNTOOLS_ASSET_TX_SAVED=''
+  CNTOOLS_ASSET_TX_OPERATION="$1"; CNTOOLS_ASSET_TX_RESULT_SHOWN=N; CNTOOLS_ASSET_TX_SAVED=''; CNTOOLS_ASSET_TX_SIGN_NOTE=''
   cntools_transaction_clear_error
   cntools_asset_tx_workflow || status=$?
-  if ((status == 1 || status == 130)); then
-    cntools_transaction_log CHOICE 'Asset transaction cancelled; saved packages were retained'
-    cntools_ui_render_status info 'Cancelled. Any packages already saved remain available.'
-  elif ((status != 0)); then
-    cntools_asset_tx_fail "${CNTOOLS_TRANSACTION_ERROR:-${CNTOOLS_POLICY_ERROR:-Asset transaction failed. See ${CNTOOLS_LOG} for details.}}" || true
-    [[ "${CNTOOLS_ASSET_TX_RESULT_SHOWN}" == Y ]] || cntools_asset_tx_result danger "${CNTOOLS_TRANSACTION_ERROR}" '' "${CNTOOLS_ASSET_TX_SAVED}"
-  fi
+  case "${status}" in
+    0) cntools_ui_wait; return 0 ;;
+    3) return 0 ;; # Nothing to choose; the reason was shown and acknowledged.
+    1|130)
+      cntools_transaction_log CHOICE "Asset transaction cancelled saved=${CNTOOLS_ASSET_TX_SAVED:-none}"
+      # Straight back to the menu unless a package was already saved.
+      [[ -n "${CNTOOLS_ASSET_TX_SAVED}" ]] || return "${status}"
+      cntools_ui_render_status info "Cancelled. The saved package remains available: ${CNTOOLS_ASSET_TX_SAVED}"
+      cntools_ui_wait
+      return "${status}" ;;
+  esac
+  cntools_asset_tx_fail "${CNTOOLS_TRANSACTION_ERROR:-${CNTOOLS_POLICY_ERROR:-Asset transaction failed. See ${CNTOOLS_LOG} for details.}}" || true
+  [[ "${CNTOOLS_ASSET_TX_RESULT_SHOWN}" == Y ]] || cntools_asset_tx_result danger "${CNTOOLS_TRANSACTION_ERROR}" '' "${CNTOOLS_ASSET_TX_SAVED}"
   cntools_ui_wait
-  ((status == 0 || status == 1 || status == 130))
+  return 1 # Shown and acknowledged above; no second failure banner.
 }

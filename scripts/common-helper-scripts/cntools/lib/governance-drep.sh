@@ -147,8 +147,9 @@ cntools_drep_lifecycle_anchor_valid() {
 
 cntools_drep_lifecycle_hash_file_into() {
   local target="$1" file="$2" output="" errors="" status=0 computed=""
-  cntools_transaction_file_safe "${file}" 4194304 && jq -se 'length == 1 and (.[0] | type == "object")' "${file}" >/dev/null || {
-    cntools_wallet_register_set_error 'Choose a readable JSON metadata object (at most 4 MiB), not a symlink.'; return 1;
+  # Errors go to CNTOOLS_TRANSACTION_ERROR, which the anchor prompt shows and clears.
+  cntools_transaction_file_safe "${file}" 4194304 && jq -se 'length == 1 and (.[0] | type == "object")' "${file}" >/dev/null 2>&1 || {
+    cntools_transaction_set_error 'Choose a readable JSON metadata object (at most 4 MiB), not a symlink.'; return 1;
   }
   cntools_transaction_temp_file output drep-anchor-hash || return 1
   cntools_transaction_temp_file errors drep-anchor-errors || return 1
@@ -158,7 +159,7 @@ cntools_drep_lifecycle_hash_file_into() {
     cntools_transaction_log_cli_failure 'DRep metadata hashing failed' "${status}" "${errors}" "${output}"; return 1
   fi
   computed="$(< "${output}")"
-  [[ "${computed}" =~ ^[0-9a-f]{64}$ ]] || return 1
+  [[ "${computed}" =~ ^[0-9a-f]{64}$ ]] || { cntools_transaction_set_error 'Cardano CLI returned an invalid DRep metadata hash.'; return 1; }
   printf -v "${target}" '%s' "${computed}"
 }
 

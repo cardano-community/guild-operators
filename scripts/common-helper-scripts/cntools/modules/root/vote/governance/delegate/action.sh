@@ -2,7 +2,11 @@
 # Governance voting delegation. Functions only.
 
 cntools_action_main() {
-  cntools_governance_action_delegate
+  local status=0
+  cntools_governance_action_delegate || status=$?
+  # 3: no suitable wallet; the picker already showed why.
+  ((status != 3)) || status=0
+  return "${status}"
 }
 
 cntools_action_cleanup() {

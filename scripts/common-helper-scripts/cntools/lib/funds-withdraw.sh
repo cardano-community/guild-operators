@@ -13,6 +13,7 @@ cntools_withdraw_fail() {
   return 1
 }
 
+# 4 = nothing to withdraw (not registered or no rewards): an outcome, not a failure.
 cntools_withdraw_query_stake() {
   # Reset first: an empty response must not retain an earlier wallet's delegation.
   cntools_wallet_query_reset
@@ -29,13 +30,13 @@ cntools_withdraw_query_stake() {
     *) return 2 ;;
   esac
   [[ "${CNTOOLS_WALLET_REGISTERED}" == yes ]] || {
-    cntools_withdraw_fail 'The stake address is not registered; there are no registered rewards to withdraw.'; return 1;
+    cntools_withdraw_fail 'The stake address is not registered; there are no registered rewards to withdraw.'; return 4;
   }
   cntools_uint_normalize_into CNTOOLS_WALLET_REWARD_LOVELACE "${CNTOOLS_WALLET_REWARD_LOVELACE}" || {
     cntools_withdraw_fail 'The reward balance could not be determined exactly.'; return 1;
   }
   [[ "${CNTOOLS_WALLET_REWARD_LOVELACE}" != 0 ]] || {
-    cntools_withdraw_fail 'There are no claimable rewards to withdraw.'; return 1;
+    cntools_withdraw_fail 'There are no claimable rewards to withdraw.'; return 4;
   }
   # Conway protocol 10/11 requires voting delegation after bootstrap. Do not
   # silently add delegation, require an active DRep, or extrapolate to future eras.
@@ -52,7 +53,7 @@ cntools_withdraw_query_stake() {
 cntools_withdraw_collect() {
   cntools_funding_collect "${CNTOOLS_STAKE_BASE_ADDRESS}" "${CNTOOLS_STAKE_PAYMENT_ADDRESS}" || return 1
   CNTOOLS_WITHDRAW_BACKEND="${CNTOOLS_FUNDING_BACKEND}"
-  cntools_withdraw_query_stake || return 1
+  cntools_withdraw_query_stake || return $?
   CNTOOLS_WITHDRAW_REWARDS="${CNTOOLS_WALLET_REWARD_LOVELACE}"
   cntools_transaction_log TRANSACTION "Withdrawal rewards=${CNTOOLS_WITHDRAW_REWARDS} backend=${CNTOOLS_WITHDRAW_BACKEND} account=${CNTOOLS_STAKE_REWARD_ADDRESS}"
 }
@@ -182,9 +183,15 @@ cntools_withdraw_validate_output() {
 }
 
 cntools_withdraw_refresh_build_into() {
+  [[ "$2" =~ ^(0|[1-9][0-9]{0,7})$ ]] && (( $2 <= 31536000 )) || return 2
+  cntools_withdraw_collect || return 1
+  cntools_withdraw_current_build_into "$@"
+}
+
+# Build from the rewards and funds already checked.
+cntools_withdraw_current_build_into() {
   local result_name="$1" lifetime="$2"
   [[ "${lifetime}" =~ ^(0|[1-9][0-9]{0,7})$ ]] && (( lifetime <= 31536000 )) || return 2
-  cntools_withdraw_collect || return 1
   # All supported deployment networks use one-second Shelley slots.
   cntools_transaction_expiry_into CNTOOLS_WITHDRAW_EXPIRY "${CNTOOLS_FUNDING_SLOT}" "${lifetime}" || return 1
   cntools_withdraw_build_into "${result_name}"

@@ -2,12 +2,19 @@
 # DRep choices; technical transaction details stay in the log/shared signer view.
 # shellcheck disable=SC2034,SC2015
 cntools_gov_vote_render_rows() {
+  local title='' previous=''
+  title="$(jq -r '.title | if type == "string" and length > 0 then . else "" end' <<< "${CNTOOLS_GOV_VOTE_PROPOSAL}")"
+  cntools_text_sanitize_into title "${title}" || title=''
   cntools_transaction_ui_styled_row 'DRep ID' "${CNTOOLS_DREP_LIFECYCLE_ID}" identifier
+  [[ -z "${CNTOOLS_GOV_VOTE_POWER}" ]] ||
+    cntools_transaction_ui_styled_row 'Voting power' "$(cntools_number_format_lovelace "${CNTOOLS_GOV_VOTE_POWER}")" number
+  [[ -z "${title}" ]] || cntools_transaction_ui_styled_row Proposal "${title:0:90}" value
   cntools_transaction_ui_styled_row 'Proposal ID' "$(jq -r .id <<< "${CNTOOLS_GOV_VOTE_PROPOSAL}")" identifier
   cntools_transaction_ui_styled_row 'Action type' "$(jq -r .type <<< "${CNTOOLS_GOV_VOTE_PROPOSAL}")" value
   cntools_transaction_ui_styled_row Vote "${CNTOOLS_GOV_VOTE_DECISION}" accent
   if [[ "${CNTOOLS_GOV_VOTE_PREVIOUS}" != null ]]; then
-    cntools_transaction_ui_styled_row 'Replaces vote' "$(jq -r . <<< "${CNTOOLS_GOV_VOTE_PREVIOUS}")" warning
+    cntools_gov_vote_label_into previous "${CNTOOLS_GOV_VOTE_PREVIOUS}"
+    cntools_transaction_ui_styled_row 'Replaces vote' "${previous}" warning
   fi
   if [[ -n "${CNTOOLS_DREP_LIFECYCLE_ANCHOR_URL}" ]]; then
     cntools_transaction_ui_styled_row 'Rationale URL' "${CNTOOLS_DREP_LIFECYCLE_ANCHOR_URL}" address
@@ -17,14 +24,16 @@ cntools_gov_vote_render_rows() {
 
 cntools_gov_vote_hash_into() {
   local target="$1" file="$2" output='' errors='' value='' status=0
-  cntools_transaction_file_safe "${file}" 4194304 && jq -se 'length == 1 and (.[0]|type == "object")' "${file}" >/dev/null || {
-    cntools_wallet_register_set_error 'Select a readable CIP-100 rationale JSON object, at most 4 MiB, not a symlink.'; return 1;
+  # Errors go to CNTOOLS_TRANSACTION_ERROR, which the anchor prompt shows and clears.
+  cntools_transaction_file_safe "${file}" 4194304 && jq -se 'length == 1 and (.[0]|type == "object")' "${file}" >/dev/null 2>&1 || {
+    cntools_transaction_set_error 'Select a readable CIP-100 rationale JSON object, at most 4 MiB, not a symlink.'; return 1;
   }
   cntools_transaction_temp_file output vote-anchor-hash || return 1
   cntools_transaction_temp_file errors vote-anchor-errors || return 1
   cntools_transaction_run_cli "${output}" "${errors}" -- "${CNTOOLS_CLI}" hash anchor-data --file-binary "${file}" || status=$?
   if ((status != 0)); then cntools_transaction_log_cli_failure 'Vote rationale hashing failed' "${status}" "${errors}" "${output}"; return 1; fi
-  value="$(< "${output}")"; [[ "${value}" =~ ^[0-9a-f]{64}$ ]] || return 1
+  value="$(< "${output}")"
+  [[ "${value}" =~ ^[0-9a-f]{64}$ ]] || { cntools_transaction_set_error 'Cardano CLI returned an invalid rationale hash.'; return 1; }
   printf -v "${target}" '%s' "${value}"
 }
 
@@ -56,8 +65,10 @@ cntools_gov_vote_choose_rationale() {
   done
 }
 
+# Declining a replacement, or Esc/Cancel at the decision or rationale, returns
+# to the proposal list; only Cancel there (or Ctrl+C) ends the action.
 cntools_gov_vote_choose() {
-  local record='' title='' selection='' ordinal=0 previous='' vote='' id=''
+  local record='' title='' selection='' ordinal=0 previous='' label='' vote='' id='' status=0
   local -a choices=()
   while IFS= read -r record; do
     [[ -n "${record}" ]] || continue
@@ -69,7 +80,8 @@ cntools_gov_vote_choose() {
     choices+=("${ordinal} · $(jq -r .type <<< "${record}") · ${title:0:70} · ${id}")
   done <<< "$(jq -c '.[]' <<< "${CNTOOLS_PROPOSALS}")"
   CNTOOLS_WALLET_REGISTER_ERROR=''
-  if ((${#choices[@]} == 0)); then cntools_wallet_register_set_error 'No active proposals are currently eligible for a DRep vote.'; return 2; fi
+  # Collect already returned 7 for this; kept for a proposal set that changed.
+  if ((${#choices[@]} == 0)); then cntools_gov_vote_any_eligible; return 2; fi
   choices+=(Cancel)
   while true; do
     cntools_wallet_register_begin
@@ -78,22 +90,33 @@ cntools_gov_vote_choose() {
     cntools_proposal_select "${selection%% *}" || return 2
     CNTOOLS_GOV_VOTE_PROPOSAL="${CNTOOLS_PROPOSAL_SELECTED}"
     cntools_proposal_details "${CNTOOLS_GOV_VOTE_PROPOSAL}" || return 2
-    if ! cntools_ui_flow_confirm 'Use this proposal?' false; then continue; fi
+    status=0
+    cntools_ui_flow_confirm 'Use this proposal?' false || status=$?
+    ((status != 130)) || return 130
+    ((status == 0)) || continue
     cntools_gov_vote_previous_into previous "${CNTOOLS_GOV_VOTE_PROPOSAL}" || {
       cntools_wallet_register_set_error 'Your previous vote could not be verified. Nothing was built.'; return 2;
     }
     CNTOOLS_GOV_VOTE_PREVIOUS="${previous}"
     if [[ "${previous}" != null ]]; then
-      cntools_ui_render_status warn "This replaces your previous vote: $(jq -r . <<< "${previous}")."
-      cntools_ui_confirm 'Prepare a replacement vote?' false || return $?
+      cntools_gov_vote_label_into label "${previous}"
+      cntools_ui_render_status warn "This replaces your previous vote: ${label}."
+      status=0
+      cntools_ui_confirm 'Prepare a replacement vote?' false || status=$?
+      ((status != 130)) || return 130
+      ((status == 0)) || continue
     fi
-    cntools_ui_choose vote 'Vote decision' Yes No Abstain Cancel || return $?
-    [[ "${vote}" != Cancel ]] || return 1
+    status=0
+    cntools_ui_choose vote 'Vote decision' Yes No Abstain Cancel || status=$?
+    ((status != 130)) || return 130
+    [[ "${status}" == 0 && "${vote}" != Cancel ]] || continue
     CNTOOLS_GOV_VOTE_DECISION="${vote}"
-    cntools_gov_vote_choose_rationale || return $?
+    status=0
+    cntools_gov_vote_choose_rationale || status=$?
+    ((status != 1)) || continue
+    ((status == 0)) || return "${status}"
     id="$(jq -r .id <<< "${CNTOOLS_GOV_VOTE_PROPOSAL}")"
     cntools_transaction_log CHOICE "Governance vote proposal=${id} drep=${CNTOOLS_DREP_LIFECYCLE_ID} decision=${vote} previous=${previous}"
-    cntools_ui_render_status info 'Casting costs only the transaction fee. Voting does not renew DRep activity; use DRep Registration / Update if needed.'
     return 0
   done
 }

@@ -370,7 +370,11 @@ cntools_flow_style_choose_into() {
 
   [[ "${_cntools_output_name}" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || return 2
   local -n _cntools_output_ref="${_cntools_output_name}"
-  cntools_ui_render_status info $'Quick asks fewer questions and uses sensible defaults. Transactions\nstart as create, sign and submit with your default expiry (change either\nin the review), submit once you approve the review and then monitor\ninclusion. Summary confirmations such as "Create this wallet now?" are\nskipped.\nDetailed asks every question, as before.\nWarnings and key-safety confirmations appear in both styles.' || return 1
+  case "${CNTOOLS_FLOW_STYLE:-}" in
+    quick) quick_label+=" · current" ;;
+    detailed) detailed_label+=" · current" ;;
+  esac
+  cntools_ui_render_status info $'Quick uses defaults you can still change in each review (workflow,\nexpiry, scope …) and skips "do it now?" confirmations. Detailed asks\nevery question. Warnings and safety checks appear in both.' || return 1
   cntools_ui_choose selected 'Flow style' "${quick_label}" "${detailed_label}" Cancel || return $?
   case "${selected}" in
     "${quick_label}") _cntools_output_ref=quick ;;
@@ -400,17 +404,18 @@ cntools_flow_style_first_run() {
   cntools_ui_action_begin "Flow Style" "/ Settings / Flow Style" || return 0
   cntools_flow_style_choose_into style || status=$?
   if (( status != 0 )); then
-    # Cancelling keeps today's behaviour and asks again next start.
-    CNTOOLS_FLOW_STYLE=detailed
-    cntools_settings_log CHOICE "flow style question skipped; detailed for this session"
+    # Unset behaves as Detailed and is never saved, so the next start asks again.
+    cntools_settings_log CHOICE "flow style question skipped; detailed until chosen"
     return 0
   fi
+  # Shown on the main menu's status line instead of an extra Enter here.
   if cntools_flow_style_save "${style}"; then
-    cntools_ui_render_status success "Saved: $(cntools_flow_style_name "${style}"). Change it any time in Settings → Flow Style."
+    CNTOOLS_GUM_STARTUP_STATUS_LEVEL=success
+    CNTOOLS_GUM_STARTUP_STATUS_MESSAGE="Flow style saved: $(cntools_flow_style_name "${style}"). Change it in Settings → Flow Style."
   else
-    cntools_ui_render_status warn "Using $(cntools_flow_style_name "${style}") for this session; it could not be saved. See ${CNTOOLS_LOG}."
+    CNTOOLS_GUM_STARTUP_STATUS_LEVEL=warn
+    CNTOOLS_GUM_STARTUP_STATUS_MESSAGE="Using $(cntools_flow_style_name "${style}") for this session; it could not be saved. See ${CNTOOLS_LOG}."
   fi
-  cntools_ui_wait
 }
 
 cntools_settings_strategy_name() {

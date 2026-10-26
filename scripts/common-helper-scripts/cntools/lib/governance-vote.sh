@@ -4,6 +4,7 @@
 CNTOOLS_GOV_VOTE_PROPOSAL='{}'
 CNTOOLS_GOV_VOTE_PREVIOUS='null'
 CNTOOLS_GOV_VOTE_DECISION=''
+CNTOOLS_GOV_VOTE_POWER=''
 
 cntools_gov_vote_operation_set() {
   CNTOOLS_WALLET_REGISTER_OPERATION=gov-vote
@@ -16,7 +17,7 @@ cntools_gov_vote_operation_set() {
   CNTOOLS_WALLET_REGISTER_DEPOSIT_EFFECT=charged
   CNTOOLS_WALLET_REGISTER_DEPOSIT_LABEL='Deposit'
   CNTOOLS_WALLET_REGISTER_FILE_SUFFIX=governance-vote
-  CNTOOLS_GOV_VOTE_PROPOSAL='{}' CNTOOLS_GOV_VOTE_PREVIOUS='null' CNTOOLS_GOV_VOTE_DECISION=''
+  CNTOOLS_GOV_VOTE_PROPOSAL='{}' CNTOOLS_GOV_VOTE_PREVIOUS='null' CNTOOLS_GOV_VOTE_DECISION='' CNTOOLS_GOV_VOTE_POWER=''
   CNTOOLS_DREP_LIFECYCLE_ANCHOR_URL='' CNTOOLS_DREP_LIFECYCLE_ANCHOR_HASH=''
 }
 
@@ -29,7 +30,11 @@ cntools_gov_vote_collect() {
   jq -e '.registered == true' <<< "${CNTOOLS_DREP_LIFECYCLE_STATE}" >/dev/null || {
     cntools_wallet_register_set_error 'Register this DRep before casting a governance vote.'; return 7;
   }
+  # Koios reports the DRep's voting power; the local ledger state does not.
+  CNTOOLS_GOV_VOTE_POWER="$(jq -r '.amount // "" | tostring | select(test("^[0-9]+$"))' <<< "${CNTOOLS_DREP_DETAILS}" 2>/dev/null)" || CNTOOLS_GOV_VOTE_POWER=''
   cntools_proposals_query_backend "${CNTOOLS_WALLET_REGISTER_BACKEND}" || return 1
+  # Nothing to vote on is an outcome (7, shown as info), not a failure.
+  cntools_gov_vote_any_eligible || return 7
   CNTOOLS_WALLET_REGISTER_DEPOSIT=0
   cntools_wallet_register_inventory_use_all || return 1
   cntools_wallet_register_select_inputs
@@ -46,6 +51,35 @@ cntools_gov_vote_eligible() {
   if ((major == 9)) && [[ "$(jq -r .type <<< "${proposal}")" != InfoAction ]]; then
     cntools_wallet_register_set_error 'During the Conway bootstrap phase DReps may vote only on informational actions.'; return 1
   fi
+}
+
+# When no proposal is eligible, sets the reason all of them share, or a
+# general one.
+cntools_gov_vote_any_eligible() {
+  local record='' common=''
+  while IFS= read -r record; do
+    [[ -n "${record}" ]] || continue
+    if cntools_gov_vote_eligible "${record}"; then CNTOOLS_WALLET_REGISTER_ERROR=''; return 0; fi
+    if [[ -z "${common}" || "${common}" == "${CNTOOLS_WALLET_REGISTER_ERROR}" ]]; then common="${CNTOOLS_WALLET_REGISTER_ERROR}"; else common=mixed; fi
+  done <<< "$(jq -c '.[]' <<< "${CNTOOLS_PROPOSALS}")"
+  case "${common}" in
+    '') common='There are no active governance proposals.' ;;
+    mixed|'This proposal is no longer open for voting.') common='No active proposal is currently open for a DRep vote.' ;;
+  esac
+  cntools_wallet_register_set_error "${common}"
+  return 1
+}
+
+# Ledger and Koios vote tokens in plain words.
+cntools_gov_vote_label_into() {
+  local gl_value="${2//\"/}" gl_label=''
+  case "${gl_value}" in
+    VoteYes|Yes) gl_label=Yes ;;
+    VoteNo|No) gl_label=No ;;
+    VoteAbstain|Abstain) gl_label=Abstain ;;
+    *) gl_label="${gl_value}" ;;
+  esac
+  printf -v "$1" '%s' "${gl_label}"
 }
 
 cntools_gov_vote_previous_into() {

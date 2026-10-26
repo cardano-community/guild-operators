@@ -8,6 +8,10 @@ cntools_policy_cancelled() {
 cntools_policy_action_create() {
   local name='' target='' duration='' expiry='' date='' status=0
   cntools_ui_action_begin 'Create Policy' '/ Advanced / Asset / Create Policy'
+  # Tool and folder problems stop the action before any question.
+  cntools_policy_preflight_environment || {
+    cntools_ui_render_status error "${CNTOOLS_POLICY_ERROR}"; cntools_ui_wait; return 1;
+  }
   while true; do
     status=0
     cntools_ui_input name 'Policy name' 'Letters, numbers, dots, underscores and hyphens (1–64)' || status=$?
@@ -69,5 +73,6 @@ cntools_policy_action_create() {
     cntools_ui_render_status error "${CNTOOLS_POLICY_ERROR} See ${CNTOOLS_LOG} for details."
   fi
   cntools_ui_wait
-  return "${status}"
+  # A failure is shown and acknowledged above: no second menu banner.
+  ((status == 0)) || return 1
 }

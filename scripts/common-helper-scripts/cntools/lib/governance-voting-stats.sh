@@ -94,7 +94,7 @@ cntools_voting_thresholds() {
           govActionLifetime:"ppGovGroup",govActionDeposit:"ppGovGroup",dRepDeposit:"ppGovGroup",dRepActivity:"ppGovGroup",minFeeRefScriptCostPerByte:"ppEconomicGroup"} as $groups |
          if ($keys|length) > 0 and all($keys[]; $groups[.] != null) then row("DRep threshold"; ([$keys[] | $d[$groups[.]]] | if all(.[]; type == "number") then max else null end))
          else row("DRep threshold";null) end,
-         if any($keys[]; IN("txFeePerByte","txFeeFixed","maxBlockBodySize","maxTxSize","maxBlockHeaderSize","utxoCostPerByte","maxBlockExecutionUnits","maxValueSize","govActionDeposit"))
+         if any($keys[]; IN("txFeePerByte","txFeeFixed","maxBlockBodySize","maxTxSize","maxBlockHeaderSize","utxoCostPerByte","maxBlockExecutionUnits","maxValueSize","govActionDeposit","minFeeRefScriptCostPerByte"))
          then row("SPO threshold";$s.ppSecurityGroup) else empty end
        else empty end),
       (if ($type|IN("NoConfidence","UpdateCommittee")) then empty else row("Committee quorum";$committee.threshold) end)

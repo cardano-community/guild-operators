@@ -26,10 +26,11 @@ declare -Ag CNTOOLS_GUM_HEADER_RENDERED=()
 declare -Ag CNTOOLS_GUM_HEADER_RENDER_ROWS=()
 declare -Ag CNTOOLS_GUM_MENU_ROW_KEYS=()
 declare -Ag CNTOOLS_GUM_MENU_ROWS=()
-# Warnings on the current screen, and those a Quick auto-confirmation carries
-# to the next screen so a redraw cannot hide them before they are read.
+# Warnings drawn on the current screen, and warnings not yet followed by an
+# interactive prompt. A redraw (spinner, result, Quick auto-confirmation)
+# repeats the unseen ones under the new header, so none is wiped unread.
 declare -ag CNTOOLS_UI_SCREEN_WARNINGS=()
-declare -ag CNTOOLS_UI_CARRIED_WARNINGS=()
+declare -ag CNTOOLS_UI_UNSEEN_WARNINGS=()
 
 # Gum subtracts its help and vertical padding from the explicit filter height
 # to size the choice viewport. The input is already part of the rendered
@@ -595,6 +596,7 @@ cntools_gum_filter_height() {
 }
 
 cntools_gum_clear() {
+  CNTOOLS_UI_SCREEN_WARNINGS=()
   [[ -t 1 ]] || return 0
   tput clear 2>/dev/null || printf '\033[2J\033[H'
 }
@@ -910,17 +912,21 @@ cntools_ui_render_begin() {
   local _label="${1:-CNTools}"
   local breadcrumb="${2:-/}"
 
-  local carried=""
-  local -a carried_warnings=("${CNTOOLS_UI_CARRIED_WARNINGS[@]}")
+  local unseen=""
+  local -a unseen_warnings=("${CNTOOLS_UI_UNSEEN_WARNINGS[@]}")
 
   CNTOOLS_GUM_CONTEXT_LABEL="${_label}"
   CNTOOLS_GUM_CONTEXT_PATH="${breadcrumb}"
   CNTOOLS_UI_SCREEN_WARNINGS=()
-  CNTOOLS_UI_CARRIED_WARNINGS=()
   cntools_gum_header "${breadcrumb}" || return $?
-  for carried in "${carried_warnings[@]}"; do
-    cntools_ui_render_status "${carried%%$'\037'*}" "${carried#*$'\037'}" || return $?
+  for unseen in "${unseen_warnings[@]}"; do
+    cntools_ui_render_status "${unseen%%$'\037'*}" "${unseen#*$'\037'}" || return $?
   done
+}
+
+# Called by every interactive prompt: what is on screen has now been seen.
+cntools_ui_seen() {
+  CNTOOLS_UI_UNSEEN_WARNINGS=()
 }
 
 cntools_ui_action_begin() {
@@ -939,8 +945,18 @@ cntools_ui_render_status() {
     [[ "${width}" =~ ^[1-9][0-9]*$ ]] || return 2
     width_arguments=(--width "${width}")
   fi
-  [[ "${level}" != warn && "${level}" != error ]] ||
-    CNTOOLS_UI_SCREEN_WARNINGS+=("${level}"$'\037'"${message}")
+  if [[ "${level}" == warn || "${level}" == error ]]; then
+    local record="${level}"$'\037'"${message}" existing=""
+    # Already on this screen (e.g. repeated after a redraw): draw it once.
+    for existing in "${CNTOOLS_UI_SCREEN_WARNINGS[@]}"; do
+      [[ "${existing}" != "${record}" ]] || return 0
+    done
+    CNTOOLS_UI_SCREEN_WARNINGS+=("${record}")
+    for existing in "${CNTOOLS_UI_UNSEEN_WARNINGS[@]}"; do
+      [[ "${existing}" != "${record}" ]] || { record=""; break; }
+    done
+    [[ -z "${record}" ]] || CNTOOLS_UI_UNSEEN_WARNINGS+=("${record}")
+  fi
   case "${level}" in
     error) color="${CNTOOLS_GUM_COLOR_DANGER}" ;;
     warn) color="${CNTOOLS_GUM_COLOR_WARNING}" ;;
@@ -973,6 +989,7 @@ cntools_ui_render_empty() {
 }
 
 cntools_ui_confirm() {
+  cntools_ui_seen
   local prompt="${1:-Continue?}"
   local default="${2:-false}"
   [[ "${default}" == true || "${default}" == false ]] || return 2
@@ -987,14 +1004,15 @@ cntools_ui_confirm() {
 # action as the answer; keep cntools_ui_confirm for warnings and safety checks.
 cntools_ui_flow_confirm() {
   if declare -F cntools_flow_quick >/dev/null 2>&1 && cntools_flow_quick; then
+    # Not a prompt: its warnings stay unseen and follow to the next screen.
     cntools_gum_log CHOICE "confirmed by quick flow: ${1:-Continue?}"
-    CNTOOLS_UI_CARRIED_WARNINGS=("${CNTOOLS_UI_SCREEN_WARNINGS[@]}")
     return 0
   fi
   cntools_ui_confirm "$@"
 }
 
 cntools_ui_wait() {
+  cntools_ui_seen
   [[ "${CNTOOLS_UI_INTERACTIVE:-N}" == "Y" ]] || return 0
   printf '\n'
   cntools_gum input --no-show-help \
@@ -1013,6 +1031,7 @@ cntools_ui_read_key() {
 
 # Reusable interaction helpers for actions added later.
 cntools_ui_input() {
+  cntools_ui_seen
   local _cntools_output_name="${1:-}"
   local _cntools_prompt="${2:-Value}"
   local _cntools_placeholder="${3:-}"
@@ -1037,6 +1056,7 @@ cntools_ui_input() {
 # Capture a secret without echoing it. Callers own validation and must unset
 # the returned value as soon as the operation completes.
 cntools_ui_password() {
+  cntools_ui_seen
   local _cntools_output_name="${1:-}"
   local _cntools_prompt="${2:-Passphrase}"
   local _cntools_value=""
@@ -1052,6 +1072,7 @@ cntools_ui_password() {
 }
 
 cntools_ui_choose() {
+  cntools_ui_seen
   local _cntools_output_name="${1:-}"
   local _cntools_placeholder="${2:-Select…}"
   local _cntools_value=""
@@ -1357,6 +1378,8 @@ cntools_ui_pick_path() {
         ;;
       'Enter file path'|'Enter directory path')
         cntools_ui_path_begin || return 2
+        # Keep the hint (e.g. which key is needed) visible while typing.
+        [[ -z "${path_picker_hint}" ]] || cntools_ui_render_status info "${path_picker_hint}" "$((path_picker_width - 4))" || return 2
         path_picker_status=0
         cntools_ui_input path_picker_value "${path_picker_prompt}" "${path_picker_default:-${path_picker_start}/}" || path_picker_status=$?
         ((path_picker_status == 0 || path_picker_status == 1)) || return "${path_picker_status}"
@@ -1531,6 +1554,7 @@ cntools_ui_spin_function() {
 }
 
 cntools_gum_filter() {
+  cntools_ui_seen
   local _cntools_output_name="${1:-}"
   local _cntools_height="${2:-12}"
   local _cntools_result=""
@@ -1603,8 +1627,8 @@ cntools_gum_menu_run() {
   local selected_row=""
   local selected_type=""
   local selected_index=-1
-  local status_level=""
-  local status_message=""
+  local status_level="${CNTOOLS_GUM_STARTUP_STATUS_LEVEL:-}"
+  local status_message="${CNTOOLS_GUM_STARTUP_STATUS_MESSAGE:-}"
   local filter_status=0
   local action_status=0
   local stack_index=0
@@ -1803,7 +1827,7 @@ cntools_gum_menu_run() {
            ! cntools_theme_reload; then
           cntools_gum_log ERROR \
             "Could not activate the saved CNTools theme in the parent session"
-          (( action_status != 0 )) || action_status=1
+          (( action_status != 0 )) || action_status=2
         fi
         ;;
       settings/transaction-defaults|settings/flow-style)
@@ -1811,11 +1835,12 @@ cntools_gum_menu_run() {
            ! cntools_settings_reload; then
           cntools_gum_log ERROR \
             "Could not activate the saved transaction settings in the parent session"
-          (( action_status != 0 )) || action_status=1
+          (( action_status != 0 )) || action_status=2
         fi
         ;;
     esac
-    if (( action_status != 0 )); then
+    # 1 and 130 are cancels (or an outcome the action already showed).
+    if (( action_status != 0 && action_status != 1 && action_status != 130 )); then
       status_level="error"
       status_message="${CNTOOLS_MENU_LABELS[selected_index]} failed (status ${action_status})."
       cntools_gum_log ERROR \

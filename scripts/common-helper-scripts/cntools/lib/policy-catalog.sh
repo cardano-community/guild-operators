@@ -2,6 +2,7 @@
 # Read-only policy/asset inventory, including legacy .asset records.
 # shellcheck disable=SC2034,SC2015
 declare -a CNTOOLS_POLICY_NAMES=() CNTOOLS_POLICY_PATHS=() CNTOOLS_POLICY_IDS=() CNTOOLS_POLICY_STATES=() CNTOOLS_POLICY_WARNINGS=()
+declare -a CNTOOLS_POLICY_WINDOWS=() CNTOOLS_POLICY_BEFORE=() CNTOOLS_POLICY_AFTER=()
 declare -a CNTOOLS_POLICY_ASSET_IDS=() CNTOOLS_POLICY_ASSET_RECORDS=()
 CNTOOLS_POLICY_SELECTED_SCRIPT='' CNTOOLS_POLICY_SELECTED_VKEY='' CNTOOLS_POLICY_SELECTED_SOURCE=''
 CNTOOLS_POLICY_SELECTED_CREDENTIAL='' CNTOOLS_POLICY_SELECTED_BEFORE='' CNTOOLS_POLICY_SELECTED_AFTER=''
@@ -27,9 +28,32 @@ cntools_policy_read_id_into() {
   printf -v "${output}" '%s' "${stored}"
 }
 
+# Linear-policy time bounds: the earliest before-slot and the latest after-slot.
+cntools_policy_script_bounds_into() {
+  local _bounds_before="$1" _bounds_after="$2" _bounds_script="$3"
+  printf -v "${_bounds_before}" ''; printf -v "${_bounds_after}" ''
+  cntools_transaction_native_script_valid "${_bounds_script}" && jq -e '
+    def linear: .type=="sig" or .type=="before" or .type=="after" or (.type=="all" and all(.scripts[];linear)); linear
+    ' "${_bounds_script}" >/dev/null 2>&1 || return 1
+  printf -v "${_bounds_before}" '%s' "$(jq -r '[..|objects|select(.type=="before")|.slot]|min // empty' "${_bounds_script}")"
+  printf -v "${_bounds_after}" '%s' "$(jq -r '[..|objects|select(.type=="after")|.slot]|max // empty' "${_bounds_script}")"
+}
+
+# valid · expired · pending (not valid yet) · unknown (no clock for this network).
+cntools_policy_window_state_into() {
+  local _window_output="$1" _window_before="$2" _window_after="$3" _window_now='' _window_state=valid
+  _window_now="$(cntools_health_reference_slot "${CNTOOLS_NETWORK:-}" 2>/dev/null)" && [[ "${_window_now}" =~ ^[0-9]+$ ]] || _window_state=unknown
+  if [[ "${_window_state}" == valid ]]; then
+    if [[ "${_window_before}" =~ ^[0-9]+$ ]] && (( _window_now >= _window_before )); then _window_state=expired
+    elif [[ "${_window_after}" =~ ^[0-9]+$ ]] && (( _window_now < _window_after )); then _window_state=pending; fi
+  fi
+  printf -v "${_window_output}" '%s' "${_window_state}"
+}
+
 cntools_policy_catalog_build() {
-  local directory='' id='' state='' warning='' skey=''
+  local directory='' id='' state='' warning='' skey='' before='' after='' window=''
   CNTOOLS_POLICY_NAMES=(); CNTOOLS_POLICY_PATHS=(); CNTOOLS_POLICY_IDS=(); CNTOOLS_POLICY_STATES=(); CNTOOLS_POLICY_WARNINGS=()
+  CNTOOLS_POLICY_WINDOWS=(); CNTOOLS_POLICY_BEFORE=(); CNTOOLS_POLICY_AFTER=()
   [[ -n "${CNTOOLS_ASSET_DIR:-}" && "${CNTOOLS_ASSET_DIR}" == /* && "${CNTOOLS_ASSET_DIR}" != / ]] || return 1
   [[ -e "${CNTOOLS_ASSET_DIR}" || -L "${CNTOOLS_ASSET_DIR}" ]] || return 0
   [[ -d "${CNTOOLS_ASSET_DIR}" && -r "${CNTOOLS_ASSET_DIR}" && ! -L "${CNTOOLS_ASSET_DIR}" ]] &&
@@ -47,30 +71,47 @@ cntools_policy_catalog_build() {
     if [[ -e "${skey}.gpg" || -L "${skey}.gpg" ]]; then
       [[ "${state}" != Open ]] && state=Encrypted || state=Mixed
     fi
+    window='' # Empty: not a linear sig/before/after policy, so no window is shown.
+    if cntools_policy_script_bounds_into before after "${directory}/${CNTOOLS_POLICY_SCRIPT_FILENAME:-policy.script}"; then
+      cntools_policy_window_state_into window "${before}" "${after}"
+    fi
     CNTOOLS_POLICY_NAMES+=("${directory##*/}"); CNTOOLS_POLICY_PATHS+=("${directory}"); CNTOOLS_POLICY_IDS+=("${id}")
     CNTOOLS_POLICY_STATES+=("${state}"); CNTOOLS_POLICY_WARNINGS+=("${warning}")
+    CNTOOLS_POLICY_WINDOWS+=("${window}"); CNTOOLS_POLICY_BEFORE+=("${before}"); CNTOOLS_POLICY_AFTER+=("${after}")
     [[ -z "${warning}" ]] || cntools_transaction_log WARN "Policy=${directory##*/} ${warning}"
   done
 }
 
+# Filters: transact (a valid ID inside its time window), sign (also an
+# unencrypted signing key). Empty offers every policy.
+cntools_policy_eligible() {
+  local index="$1" filter="${2:-}"
+  [[ -n "${filter}" ]] || return 0
+  [[ -n "${CNTOOLS_POLICY_IDS[index]}" && "${CNTOOLS_POLICY_WINDOWS[index]}" != expired && "${CNTOOLS_POLICY_WINDOWS[index]}" != pending ]] || return 1
+  [[ "${filter}" != sign || "${CNTOOLS_POLICY_STATES[index]}" == Open ]]
+}
+
 cntools_policy_choose_into() {
-  local output="$1" selected='' index=0
-  local -a choices=()
+  local output="$1" filter="${2:-}" selected='' index=0 row=''
+  local -a choices=() indices=()
   for index in "${!CNTOOLS_POLICY_NAMES[@]}"; do
-    choices+=("$((index+1)) · ${CNTOOLS_POLICY_NAMES[index]} · ${CNTOOLS_POLICY_STATES[index]}")
+    cntools_policy_eligible "${index}" "${filter}" || continue
+    row="$((index+1)) · ${CNTOOLS_POLICY_NAMES[index]} · ${CNTOOLS_POLICY_STATES[index]}"
+    case "${CNTOOLS_POLICY_WINDOWS[index]}" in expired) row+=' · Expired' ;; pending) row+=' · Not valid yet' ;; esac
+    [[ -n "${CNTOOLS_POLICY_IDS[index]}" ]] || row+=' · Invalid'
+    choices+=("${row}"); indices+=("${index}")
   done
-  (( ${#choices[@]} > 0 )) || return 2
-  # A lone policy needs no picker; later steps still confirm the action.
+  (( ${#choices[@]} > 0 )) || return 3
+  # A lone policy needs no picker; the next screen names it.
   if (( ${#choices[@]} == 1 )); then
-    printf -v "${output}" '%s' 0
-    cntools_transaction_log CHOICE "Policy auto-selected=${CNTOOLS_POLICY_NAMES[0]}"
-    cntools_ui_render_status info "Using ${CNTOOLS_POLICY_NAMES[0]}, the only policy."
+    printf -v "${output}" '%s' "${indices[0]}"
+    cntools_transaction_log CHOICE "Policy auto-selected=${CNTOOLS_POLICY_NAMES[indices[0]]}"
     return 0
   fi
   cntools_ui_choose selected Policy "${choices[@]}" Cancel || return $?
   [[ "${selected}" != Cancel ]] || return 1
   for index in "${!choices[@]}"; do
-    [[ "${choices[index]}" != "${selected}" ]] || { printf -v "${output}" '%s' "${index}"; return 0; }
+    [[ "${choices[index]}" != "${selected}" ]] || { printf -v "${output}" '%s' "${indices[index]}"; return 0; }
   done
   return 2
 }

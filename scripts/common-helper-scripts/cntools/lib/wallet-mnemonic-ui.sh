@@ -15,7 +15,6 @@ cntools_wallet_mnemonic_screen_begin() {
 
 cntools_wallet_mnemonic_ui_cancelled() {
   cntools_wallet_mnemonic_log CHOICE "${1:-mnemonic wallet action cancelled}"
-  cntools_gum_clear
   return 0
 }
 
@@ -177,11 +176,13 @@ cntools_wallet_mnemonic_prompt_name_into() {
   done
 }
 
+# Blank keeps the current value (0 on first entry).
 cntools_wallet_mnemonic_prompt_index_into() {
   local _cntools_output_name="${1:-}"
   local _cntools_prompt="${2:-Index}"
   local _cntools_title="${3:-Mnemonic}"
   local _cntools_breadcrumb="${4:-/ Wallet / Mnemonic}"
+  local _cntools_current="${5:-0}"
   local _cntools_input=""
   local _cntools_value=""
   local _cntools_feedback=""
@@ -194,15 +195,16 @@ cntools_wallet_mnemonic_prompt_index_into() {
     cntools_wallet_mnemonic_screen_begin \
       "${_cntools_title}" "${_cntools_breadcrumb}"
     cntools_ui_render_status info \
-      "Leave blank for 0. Supported values are 0 through 2,147,483,647."
+      "Leave blank for ${_cntools_current}. Supported values are 0 through 2,147,483,647."
     [[ -z "${_cntools_feedback}" ]] ||
       cntools_ui_render_status warn "${_cntools_feedback}"
-    if cntools_ui_input _cntools_input "${_cntools_prompt}" "0"; then
+    if cntools_ui_input _cntools_input "${_cntools_prompt}" "${_cntools_current}"; then
       _cntools_status=0
     else
       _cntools_status=$?
     fi
     (( _cntools_status == 0 )) || return "${_cntools_status}"
+    [[ "${_cntools_input//[[:space:]]/}" ]] || _cntools_input="${_cntools_current}"
     if cntools_wallet_mnemonic_index_into \
         _cntools_value "${_cntools_input}"; then
       _cntools_output_ref="${_cntools_value}"
@@ -226,10 +228,12 @@ cntools_wallet_mnemonic_prompt_derivation_into() {
      "${_cntools_derivation_key_output}" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || return 2
   cntools_wallet_mnemonic_prompt_index_into \
     _cntools_derivation_account "Account number" \
-    "${_cntools_derivation_title}" "${_cntools_derivation_breadcrumb}" || return $?
+    "${_cntools_derivation_title}" "${_cntools_derivation_breadcrumb}" \
+    "${!_cntools_derivation_account_output:-0}" || return $?
   cntools_wallet_mnemonic_prompt_index_into \
     _cntools_derivation_key "Address key index" \
-    "${_cntools_derivation_title}" "${_cntools_derivation_breadcrumb}" || return $?
+    "${_cntools_derivation_title}" "${_cntools_derivation_breadcrumb}" \
+    "${!_cntools_derivation_key_output:-0}" || return $?
   printf -v "${_cntools_derivation_account_output}" '%s' "${_cntools_derivation_account}"
   printf -v "${_cntools_derivation_key_output}" '%s' "${_cntools_derivation_key}"
 }
@@ -475,17 +479,19 @@ cntools_wallet_mnemonic_verify_backup() {
     indices "${#words_ref[@]}" 4 || return 1
   cntools_wallet_mnemonic_log CHOICE \
     "mnemonic backup challenge started positions=$((indices[0] + 1)),$((indices[1] + 1)),$((indices[2] + 1)),$((indices[3] + 1))"
+  local challenge_number=0
   for challenge_index in "${indices[@]}"; do
     feedback=""
+    challenge_number=$((challenge_number + 1))
     for ((attempt = 1; attempt <= 3; attempt++)); do
       cntools_wallet_mnemonic_screen_begin \
         "Mnemonic" "/ Wallet / New / Mnemonic"
-      cntools_ui_render_status success \
-        "The recovery phrase has been cleared from the screen."
-      cntools_wallet_mnemonic_render_plan \
-        "${name}" "${account}" "${key_index}" new || return 1
+      # The plan was just reviewed; one line names the wallet and progress.
+      (( challenge_number > 1 || attempt > 1 )) ||
+        cntools_ui_render_status success \
+          "The recovery phrase has been cleared from the screen."
       cntools_ui_render_status info \
-        "Confirm four randomly selected words from your recorded backup."
+        "Check ${challenge_number} of 4 for ${name}: enter the requested word from your recorded backup."
       [[ -z "${feedback}" ]] ||
         cntools_ui_render_status warn "${feedback}"
       if cntools_ui_input answer "Word $((challenge_index + 1))"; then
@@ -655,6 +661,7 @@ cntools_wallet_mnemonic_render_result() {
   local name="${2:-}"
   local account="${3:-0}"
   local key_index="${4:-0}"
+  local origin="${5:-new}"
   local base_address=""
   local payment_address=""
   local reward_address=""
@@ -678,8 +685,11 @@ cntools_wallet_mnemonic_render_result() {
     cntools_wallet_create_styled_row "Name" "${name}" identifier
     cntools_wallet_create_styled_row "Type" "Mnemonic" accent
     cntools_wallet_create_styled_row "Key protection" "Open" warning
-    cntools_wallet_create_styled_row \
-      "Stake registration" "Not registered" warning
+    # Only a fresh phrase is known to be unregistered; an import is not queried.
+    if [[ "${origin}" == new ]]; then
+      cntools_wallet_create_styled_row \
+        "Stake registration" "Not registered" warning
+    fi
     cntools_wallet_create_styled_row \
       "Payment path" "1852H/1815H/${account}H/0/${key_index}" identifier
     cntools_wallet_create_styled_row \
@@ -724,7 +734,7 @@ cntools_wallet_action_new_mnemonic() {
     :
   else
     status=$?
-    (( status != 1 )) || {
+    (( status != 1 && status != 130 )) || {
       cntools_wallet_mnemonic_ui_cancelled \
         "new mnemonic wallet cancelled during settings"
       return 0
@@ -750,14 +760,16 @@ cntools_wallet_action_new_mnemonic() {
     cntools_wallet_derivation_confirm "Generate this wallet's recovery phrase now?" \
       'Generate recovery phrase' || status=$?
     (( status == 4 )) || break
-    # Esc while changing keeps the shown values.
+    # Esc while changing keeps the shown values; Ctrl+C cancels.
+    status=0
     cntools_wallet_mnemonic_prompt_derivation_into account key_index \
-      "Mnemonic" "/ Wallet / New / Mnemonic" || true
+      "Mnemonic" "/ Wallet / New / Mnemonic" || status=$?
+    (( status != 130 )) || return 130
   done
   if (( status == 0 )); then
     :
   else
-    (( status != 1 )) || {
+    (( status != 1 && status != 130 )) || {
       cntools_wallet_mnemonic_ui_cancelled \
         "new mnemonic wallet generation declined wallet=${name}"
       return 0
@@ -812,7 +824,7 @@ cntools_wallet_action_new_mnemonic() {
   # wallet files are derived.
   cntools_wallet_mnemonic_screen_begin \
     "Mnemonic" "/ Wallet / New / Mnemonic"
-  if (( status == 1 )); then
+  if (( status == 1 || status == 130 )); then
     cntools_wallet_mnemonic_ui_cancelled \
       "new mnemonic wallet cancelled during backup verification wallet=${name}"
     unset phrase words
@@ -881,7 +893,7 @@ cntools_wallet_action_import_mnemonic() {
     :
   else
     status=$?
-    (( status != 1 )) || {
+    (( status != 1 && status != 130 )) || {
       cntools_wallet_mnemonic_ui_cancelled \
         "mnemonic import cancelled during settings"
       return 0
@@ -895,7 +907,7 @@ cntools_wallet_action_import_mnemonic() {
     :
   else
     status=$?
-    (( status != 1 )) || {
+    (( status != 1 && status != 130 )) || {
       cntools_wallet_mnemonic_ui_cancelled \
         "mnemonic import cancelled during phrase input wallet=${name}"
       unset phrase
@@ -934,14 +946,16 @@ cntools_wallet_action_import_mnemonic() {
     status=0
     cntools_wallet_derivation_confirm "Import this mnemonic wallet now?" 'Import wallet' || status=$?
     (( status == 4 )) || break
+    status=0
     cntools_wallet_mnemonic_prompt_derivation_into account key_index \
-      "Mnemonic" "/ Wallet / Import / Mnemonic" || true
+      "Mnemonic" "/ Wallet / Import / Mnemonic" || status=$?
+    (( status != 130 )) || { unset phrase; return 130; }
   done
   if (( status == 0 )); then
     :
   else
     unset phrase
-    (( status != 1 )) || {
+    (( status != 1 && status != 130 )) || {
       cntools_wallet_mnemonic_ui_cancelled \
         "mnemonic wallet import declined wallet=${name}"
       return 0
@@ -976,7 +990,7 @@ cntools_wallet_action_import_mnemonic() {
     "${CNTOOLS_WALLET_CREATED_DIRECTORY}" \
     "${CNTOOLS_WALLET_CREATED_NAME}" \
     "${CNTOOLS_WALLET_MNEMONIC_ACCOUNT}" \
-    "${CNTOOLS_WALLET_MNEMONIC_KEY_INDEX}" ||
+    "${CNTOOLS_WALLET_MNEMONIC_KEY_INDEX}" import ||
     cntools_ui_render_status warn \
       "The wallet was imported, but its result details could not be displayed."
   [[ -z "${CNTOOLS_WALLET_CREATE_WARNING}" ]] ||

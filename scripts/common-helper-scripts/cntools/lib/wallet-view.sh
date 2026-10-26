@@ -145,79 +145,75 @@ cntools_wallet_balance_rows() {
   local has_base="${1:-Y}"
   local has_payment="${2:-Y}"
   local has_reward="${3:-Y}"
-  local inclusive_total=""
-  local utxo_count="Unavailable"
-  local formatted_count="Unavailable"
-  local token_count="Unavailable"
-  local formatted_token_count="Unavailable"
+  local base="${CNTOOLS_WALLET_BASE_LOVELACE:-}"
+  local payment="${CNTOOLS_WALLET_PAYMENT_LOVELACE:-}"
+  local rewards="${CNTOOLS_WALLET_REWARD_LOVELACE:-}"
+  local utxo_total="${CNTOOLS_WALLET_TOTAL_LOVELACE:-}"
+  local total=""
+  local show_base=N
+  local show_payment=N
+  local show_rewards=N
+  local utxo_rows=0
+  local formatted=""
 
-  if [[ "${CNTOOLS_WALLET_TOTAL_LOVELACE}" =~ ^[0-9]+$ &&
-        "${CNTOOLS_WALLET_REWARD_LOVELACE}" =~ ^[0-9]+$ ]]; then
-    inclusive_total="$(cntools_uint_add \
-      "${CNTOOLS_WALLET_TOTAL_LOVELACE}" \
-      "${CNTOOLS_WALLET_REWARD_LOVELACE}")" || return 1
+  # Zero components and subtotals of a single component would repeat the
+  # Total; unknown values stay visible as Unavailable.
+  [[ "${has_base}" != Y || "${base}" == 0 ]] || { show_base=Y; utxo_rows=$((utxo_rows + 1)); }
+  [[ "${has_payment}" != Y || "${payment}" == 0 ]] || { show_payment=Y; utxo_rows=$((utxo_rows + 1)); }
+  [[ "${has_reward}" != Y || "${rewards}" == 0 ]] || show_rewards=Y
+  if [[ "${has_base}" == Y || "${has_payment}" == Y ]]; then
+    total="${utxo_total}"
+    if [[ "${has_reward}" == Y ]]; then
+      total=""
+      [[ ! "${utxo_total}" =~ ^[0-9]+$ || ! "${rewards}" =~ ^[0-9]+$ ]] ||
+        cntools_uint_add_into total "${utxo_total}" "${rewards}" || return 1
+    fi
+  elif [[ "${has_reward}" == Y ]]; then
+    # A stake-only wallet: Rewards is the whole balance, no Total needed.
+    show_rewards=Y
   fi
-  [[ ! "${CNTOOLS_WALLET_UTXO_COUNT}" =~ ^[0-9]+$ ]] ||
-    utxo_count="${CNTOOLS_WALLET_UTXO_COUNT}"
-  if [[ "${utxo_count}" =~ ^[0-9]+$ ]] &&
-     declare -F cntools_number_format_into >/dev/null 2>&1; then
-    cntools_number_format_into formatted_count "${utxo_count}" || return 1
-  else
-    formatted_count="${utxo_count}"
-  fi
-  [[ ! "${CNTOOLS_WALLET_ASSET_COUNT:-}" =~ ^[0-9]+$ ]] ||
-    token_count="${CNTOOLS_WALLET_ASSET_COUNT}"
-  if [[ "${token_count}" =~ ^[0-9]+$ ]] &&
-     declare -F cntools_number_format_into >/dev/null 2>&1; then
-    cntools_number_format_into \
-      formatted_token_count "${token_count}" || return 1
-  else
-    formatted_token_count="${token_count}"
+  if (( utxo_rows == 1 )) && [[ "${show_rewards}" == N && "${total}" =~ ^[0-9]+$ ]]; then
+    show_base=N
+    show_payment=N
   fi
   cntools_table_row "Balance" "Value" || return 1
-  if [[ "${has_base}" == "Y" ]]; then
+  if [[ "${show_base}" == Y ]]; then
     cntools_table_wrapped_pair "Base UTxO" \
-      "$(cntools_number_format_lovelace "${CNTOOLS_WALLET_BASE_LOVELACE}")" \
-      22 "$(cntools_text_number_role \
-        "${CNTOOLS_WALLET_BASE_LOVELACE}")" ||
-      return 1
+      "$(cntools_number_format_lovelace "${base}")" \
+      22 "$(cntools_text_number_role "${base}")" || return 1
   fi
-  if [[ "${has_payment}" == "Y" ]]; then
+  if [[ "${show_payment}" == Y ]]; then
     cntools_table_wrapped_pair "Payment UTxO" \
-      "$(cntools_number_format_lovelace "${CNTOOLS_WALLET_PAYMENT_LOVELACE}")" \
-      22 "$(cntools_text_number_role \
-        "${CNTOOLS_WALLET_PAYMENT_LOVELACE}")" ||
-      return 1
+      "$(cntools_number_format_lovelace "${payment}")" \
+      22 "$(cntools_text_number_role "${payment}")" || return 1
   fi
-  if [[ "${has_base}" == "Y" || "${has_payment}" == "Y" ]]; then
+  if (( utxo_rows > 1 )) && [[ "${show_rewards}" == Y ]]; then
     cntools_table_wrapped_pair "Total UTxO" \
-      "$(cntools_number_format_lovelace "${CNTOOLS_WALLET_TOTAL_LOVELACE}")" \
-      22 "$(cntools_text_number_role \
-        "${CNTOOLS_WALLET_TOTAL_LOVELACE}")" ||
-      return 1
+      "$(cntools_number_format_lovelace "${utxo_total}")" \
+      22 "$(cntools_text_number_role "${utxo_total}")" || return 1
   fi
-  if [[ "${has_reward}" == "Y" ]]; then
+  if [[ "${show_rewards}" == Y ]]; then
     cntools_table_wrapped_pair "Rewards" \
-      "$(cntools_number_format_lovelace "${CNTOOLS_WALLET_REWARD_LOVELACE}")" \
-      22 "$(cntools_text_number_role \
-        "${CNTOOLS_WALLET_REWARD_LOVELACE}")" ||
-      return 1
+      "$(cntools_number_format_lovelace "${rewards}")" \
+      22 "$(cntools_text_number_role "${rewards}")" || return 1
   fi
-  if [[ "${has_reward}" == "Y" &&
-        ( "${has_base}" == "Y" || "${has_payment}" == "Y" ) ]]; then
-    cntools_table_wrapped_pair "Total incl. rewards" \
-      "$(cntools_number_format_lovelace "${inclusive_total}")" \
-      22 "$(cntools_text_number_role "${inclusive_total}")" || return 1
+  [[ "${has_base}" == Y || "${has_payment}" == Y ]] || return 0
+  cntools_table_wrapped_pair "Total" \
+    "$(cntools_number_format_lovelace "${total}")" \
+    22 "$(cntools_text_number_role "${total}")" || return 1
+  if [[ "${CNTOOLS_WALLET_UTXO_COUNT:-}" != 0 ]]; then
+    formatted="Unavailable"
+    [[ ! "${CNTOOLS_WALLET_UTXO_COUNT:-}" =~ ^[0-9]+$ ]] ||
+      cntools_number_format_into formatted "${CNTOOLS_WALLET_UTXO_COUNT}" || return 1
+    cntools_table_wrapped_pair "UTxO count" "${formatted}" 22 \
+      "$(cntools_text_number_role "${CNTOOLS_WALLET_UTXO_COUNT:-}")" || return 1
   fi
-  if [[ "${has_base}" == "Y" || "${has_payment}" == "Y" ]]; then
-    cntools_table_wrapped_pair \
-      "UTxO count" "${formatted_count}" 22 \
-      "$(cntools_text_number_role "${utxo_count}")" ||
-      return 1
-    cntools_table_wrapped_pair \
-      "Native assets" "${formatted_token_count}" 22 \
-      "$(cntools_text_number_role "${token_count}")" ||
-      return 1
+  if [[ "${CNTOOLS_WALLET_ASSET_COUNT:-}" != 0 ]]; then
+    formatted="Unavailable"
+    [[ ! "${CNTOOLS_WALLET_ASSET_COUNT:-}" =~ ^[0-9]+$ ]] ||
+      cntools_number_format_into formatted "${CNTOOLS_WALLET_ASSET_COUNT}" || return 1
+    cntools_table_wrapped_pair "Native assets" "${formatted}" 22 \
+      "$(cntools_text_number_role "${CNTOOLS_WALLET_ASSET_COUNT:-}")" || return 1
   fi
 }
 
@@ -308,12 +304,17 @@ cntools_wallet_render_query() {
     offline|unsupported) level="warn" ;;
   esac
   cntools_ui_render_status "${level}" "${CNTOOLS_WALLET_QUERY_MESSAGE}"
+  # Without live data every balance and delegation row would read
+  # Unavailable; the status line above already says why.
+  [[ "${level}" != error && "${CNTOOLS_WALLET_QUERY_STATUS}" != offline &&
+     "${CNTOOLS_WALLET_QUERY_STATUS}" != unsupported ]] || return 0
   if [[ "${has_base}" == "Y" || "${has_payment}" == "Y" ||
         "${has_reward}" == "Y" ]]; then
     cntools_wallet_render_balance_table \
       "${has_base}" "${has_payment}" "${has_reward}" || return 1
   fi
-  if [[ "${has_reward}" == "Y" ]]; then
+  # An unregistered stake address cannot delegate; its identity row says so.
+  if [[ "${has_reward}" == "Y" && "${CNTOOLS_WALLET_REGISTERED:-unknown}" != no ]]; then
     cntools_wallet_render_delegation_table || return 1
   fi
   if [[ "${asset_view}" != "skip" &&
@@ -393,19 +394,14 @@ cntools_wallet_action_show_impl() {
     cntools_ui_wait
     return 1
   fi
-  if (( ${#CNTOOLS_WALLET_NAMES[@]} == 0 )); then
-    cntools_ui_render_status warn "No wallets are available."
-    cntools_ui_wait
-    return 0
-  fi
   if cntools_wallet_choose selected_index; then
     selector_status=0
   else
     selector_status=$?
   fi
-  if (( selector_status == 1 )); then
-    cntools_wallet_log CHOICE "wallet selection cancelled"
-    cntools_gum_clear
+  # 3: nothing to choose, already shown and acknowledged.
+  if (( selector_status == 1 || selector_status == 3 || selector_status == 130 )); then
+    cntools_wallet_log CHOICE "wallet selection ended status=${selector_status}"
     return 0
   elif (( selector_status != 0 )); then
     cntools_wallet_log ERROR \
@@ -424,7 +420,7 @@ cntools_wallet_action_show_impl() {
     return 1
   CNTOOLS_WALLET_TYPES[selected_index]="${wallet_type}"
   CNTOOLS_WALLET_PROTECTIONS[selected_index]="${wallet_protection}"
-  if [[ "${wallet_type}" == "Mnemonic" ]]; then
+  if [[ "${wallet_type}" == "Mnemonic" || "${wallet_type}" == "Hardware" ]]; then
     cntools_wallet_read_derivation_path \
       "${wallet_directory}" derivation_path || derivation_path=""
   fi
@@ -465,15 +461,20 @@ cntools_wallet_action_show_impl() {
       "${query_base}" "${query_payment}" "${query_reward}"
   fi
 
+  # Unknown registration is left out; the query status line explains it.
   if [[ "${has_reward}" == "Y" ]]; then
     case "${CNTOOLS_WALLET_REGISTERED:-unknown}" in
       yes) registration="Registered" ;;
       no) registration="Not registered" ;;
-      *) registration="Unavailable" ;;
     esac
   fi
 
-  cntools_ui_spin_function 'Checking optional delegation information from Koios…' cntools_wallet_delegation_info_collect || true
+  # Only look up pool/DRep details when there is a delegation to describe.
+  CNTOOLS_WALLET_DELEGATED_POOL='{}' CNTOOLS_WALLET_DELEGATED_DREP='{}'
+  if [[ "${CNTOOLS_MODE:-offline}" != offline && "${CNTOOLS_KOIOS_ENABLED:-N}" == Y &&
+        ( -n "${CNTOOLS_WALLET_POOL_DELEGATION:-}" || -n "${CNTOOLS_WALLET_DREP_DELEGATION:-}" ) ]]; then
+    cntools_ui_spin_function 'Checking delegation details from Koios…' cntools_wallet_delegation_info_collect || true
+  fi
   cntools_ui_action_begin "Show" "/ Wallet / Show"
   cntools_wallet_render_identity_table \
     "${CNTOOLS_WALLET_SELECTED_NAME}" \
@@ -491,9 +492,8 @@ cntools_wallet_action_show_impl() {
     else
       asset_selector_status=$?
     fi
-    if (( asset_selector_status == 1 )); then
+    if (( asset_selector_status == 1 || asset_selector_status == 130 )); then
       cntools_wallet_log CHOICE "native-asset view selection cancelled"
-      cntools_gum_clear
       return 0
     elif (( asset_selector_status != 0 )); then
       cntools_wallet_log ERROR \

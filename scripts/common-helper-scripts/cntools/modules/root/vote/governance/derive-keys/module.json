@@ -34,6 +34,7 @@
     "drep-id.sh",
     "drep-query.sh",
     "drep-key.sh",
-    "governance-wallet-ui.sh"
+    "governance-wallet-ui.sh",
+    "wallet-selection.sh"
   ]
 }

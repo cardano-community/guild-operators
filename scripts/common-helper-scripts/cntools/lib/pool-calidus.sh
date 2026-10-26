@@ -134,9 +134,10 @@ cntools_calidus_preflight() {
   local directory="$1" operation="$2" cold='' name=''
   local -a names=()
   CNTOOLS_POOL_WRITE_ERROR=''
+  cntools_pool_folder_name_supported "${directory}" ||
+    { cntools_pool_write_error "$(cntools_pool_folder_unsupported_message "${directory}")"; return 1; }
   cntools_calidus_names_into names && cntools_pool_directory_writable "${CNTOOLS_POOL_DIR:-}" &&
-    [[ "${directory%/*}" == "${CNTOOLS_POOL_DIR%/}" && "${directory##*/}" =~ ^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$ ]] &&
-    cntools_pool_directory_writable "${directory}" ||
+    [[ "${directory%/*}" == "${CNTOOLS_POOL_DIR%/}" ]] && cntools_pool_directory_writable "${directory}" ||
     { cntools_pool_write_error 'The pool must be owned, writable, directly inside the pool root and protected from group/public writes.'; return 1; }
   if [[ "${operation}" != repair ]]; then
     for name in "${names[@]}" "${names[0]}.gpg"; do

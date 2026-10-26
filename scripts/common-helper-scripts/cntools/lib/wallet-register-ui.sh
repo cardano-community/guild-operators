@@ -49,8 +49,12 @@ cntools_wallet_register_render_plan() {
 }
 
 cntools_wallet_register_render_collect_error() {
-  local status="${1:-1}"
-  local message="${CNTOOLS_WALLET_REGISTER_ERROR:-The stake ${CNTOOLS_WALLET_REGISTER_NOUN} data could not be collected. See ${CNTOOLS_LOG}.}"
+  local status="${1:-1}" message="" fallback="The stake ${CNTOOLS_WALLET_REGISTER_NOUN} data could not be collected. See ${CNTOOLS_LOG}."
+  # DRep and vote collection is not stake data and reports through the transaction error.
+  if [[ "${CNTOOLS_WALLET_REGISTER_OPERATION}" == drep-* || "${CNTOOLS_WALLET_REGISTER_OPERATION}" == gov-vote ]]; then
+    fallback="${CNTOOLS_TRANSACTION_ERROR:-The ${CNTOOLS_WALLET_REGISTER_NOUN} data could not be collected. See ${CNTOOLS_LOG}.}"
+  fi
+  message="${CNTOOLS_WALLET_REGISTER_ERROR:-${fallback}}"
 
   case "${status}" in
     4) message="This wallet's stake address is already registered." ;;
@@ -113,10 +117,7 @@ cntools_wallet_register_workflow() {
   cntools_wallet_register_begin
   cntools_transaction_require_cli || return 2
   cntools_wallet_catalog_build || return 2
-  if (( ${#CNTOOLS_WALLET_NAMES[@]} == 0 )); then
-    cntools_wallet_register_set_error "No wallets are available to ${CNTOOLS_WALLET_REGISTER_VERB}."
-    return 2
-  fi
+  # No (suitable) wallet returns 3: the reason was shown and acknowledged.
   cntools_wallet_choose selected_index Cancel "${CNTOOLS_WALLET_REGISTER_OPERATION}" || return $?
   wallet_directory="${CNTOOLS_WALLET_PATHS[selected_index]}"
   wallet_name="${CNTOOLS_WALLET_NAMES[selected_index]}"
@@ -128,8 +129,6 @@ cntools_wallet_register_workflow() {
     cntools_multisig_stake_choose_signers cntools_wallet_register_begin || return $?
     CNTOOLS_WALLET_REGISTER_CAN_SIGN="${CNTOOLS_STAKE_CAN_SIGN}"
   fi
-  cntools_transaction_ui_initial_workflow_into workflow "${CNTOOLS_WALLET_REGISTER_CAN_SIGN}" || return $?
-  cntools_transaction_ui_initial_expiry_into CNTOOLS_WALLET_REGISTER_LIFETIME || return $?
   if [[ "${CNTOOLS_WALLET_REGISTER_OPERATION}" == drep-* ]]; then
     collecting='Checking DRep registration, deposit and spendable funds…'
     prefix=''
@@ -154,28 +153,47 @@ cntools_wallet_register_workflow() {
   elif [[ "${CNTOOLS_WALLET_REGISTER_OPERATION}" == gov-vote ]]; then
     cntools_gov_vote_choose || return $?
   fi
+  # Asked only once the chain state and target are known to allow the action.
+  cntools_transaction_ui_initial_workflow_into workflow "${CNTOOLS_WALLET_REGISTER_CAN_SIGN}" || return $?
+  cntools_transaction_ui_initial_expiry_into CNTOOLS_WALLET_REGISTER_LIFETIME || return $?
   cntools_ui_spin_function "Building ${prefix}${CNTOOLS_WALLET_REGISTER_NOUN}…" \
     cntools_wallet_register_build_package_into staged || return 2
-  local metadata_status=0
   local -a review_options=('Change expiry' 'Change workflow')
   [[ "${CNTOOLS_WALLET_REGISTER_OPERATION}" != drep-register && "${CNTOOLS_WALLET_REGISTER_OPERATION}" != drep-update ]] ||
     review_options=('Change metadata' "${review_options[@]}")
+  [[ "${CNTOOLS_WALLET_REGISTER_OPERATION}" != delegate ]] || review_options=('Change pool' "${review_options[@]}")
   while true; do
     cntools_transaction_ui_proceed_into proceed "${workflow}" || return 2
     cntools_transaction_ui_review_into choice "${staged}" "${proceed}" \
       cntools_wallet_register_begin cntools_wallet_register_render_plan "${review_options[@]}" || return $?
+    # In every 'Change …' step Esc keeps the reviewed value; Ctrl+C cancels.
+    status=0
     case "${choice}" in
       "${proceed}") break ;;
-      'Change workflow') cntools_transaction_ui_workflow_into workflow "${CNTOOLS_WALLET_REGISTER_CAN_SIGN}" || return $? ;;
+      'Change workflow')
+        cntools_transaction_ui_workflow_into workflow "${CNTOOLS_WALLET_REGISTER_CAN_SIGN}" || status=$?
+        (( status <= 1 )) || return "${status}" ;;
+      'Change pool')
+        cntools_delegate_change_target || status=$?
+        (( status != 1 )) || continue
+        if (( status == 2 )); then
+          cntools_ui_render_status warn "${CNTOOLS_WALLET_REGISTER_ERROR:-The new pool could not be checked.} The reviewed pool is kept."
+          CNTOOLS_WALLET_REGISTER_ERROR=""
+          continue
+        fi
+        (( status == 0 )) || return "${status}"
+        cntools_ui_spin_function "Building ${prefix}${CNTOOLS_WALLET_REGISTER_NOUN}…" \
+          cntools_wallet_register_build_package_into staged || return 2 ;;
       'Change metadata')
-        # Cancel keeps the reviewed anchor and package.
-        metadata_status=0
-        cntools_drep_lifecycle_choose_metadata change || metadata_status=$?
-        ((metadata_status == 0)) || { ((metadata_status == 1)) && continue; return "${metadata_status}"; }
+        cntools_drep_lifecycle_choose_metadata change || status=$?
+        (( status != 1 )) || continue
+        (( status == 0 )) || return "${status}"
         cntools_ui_spin_function "Building ${prefix}${CNTOOLS_WALLET_REGISTER_NOUN}…" \
           cntools_wallet_register_build_package_into staged || return 2 ;;
       'Change expiry')
-        cntools_transaction_ui_expiry_into CNTOOLS_WALLET_REGISTER_LIFETIME || return $?
+        cntools_transaction_ui_expiry_into CNTOOLS_WALLET_REGISTER_LIFETIME || status=$?
+        (( status != 1 )) || continue
+        (( status == 0 )) || return "${status}"
         cntools_ui_spin_function "Building ${prefix}${CNTOOLS_WALLET_REGISTER_NOUN}…" \
           cntools_wallet_register_build_package_into staged || return 2 ;;
       *) return 2 ;;
@@ -256,20 +274,31 @@ cntools_wallet_register_submit_checked() {
   cntools_transaction_ui_submit_selected "$@"
 }
 
+# 1/130 cancel straight back to the menu (naming a saved package, if any);
+# 3 means nothing to choose and the reason was already shown and acknowledged.
 cntools_wallet_action_stake_lifecycle() {
   local status=0
   cntools_transaction_clear_error
   cntools_wallet_register_workflow || status=$?
-  if (( status == 1 )); then
-    cntools_transaction_ui_cancel 'Transaction cancelled; saved packages retained'
-  elif (( status != 0 )) && [[ "${CNTOOLS_WALLET_REGISTER_RESULT_SHOWN:-N}" != Y ]]; then
-    cntools_wallet_register_result danger "${CNTOOLS_WALLET_REGISTER_ERROR:-${CNTOOLS_TRANSACTION_ERROR:-Transaction failed. See ${CNTOOLS_LOG}.}}" '' "${CNTOOLS_WALLET_REGISTER_SAVED_PACKAGE:-}"
-  fi
-  if [[ "${CNTOOLS_WALLET_REGISTER_OPERATION}" == delegate && "${CNTOOLS_WALLET_REGISTER_RESULT_SHOWN:-N}" == Y && ${status} == 0 ]]; then
-    cntools_delegate_reminder
-  fi
-  cntools_ui_wait
-  (( status <= 1 ))
+  case "${status}" in
+    0)
+      if [[ "${CNTOOLS_WALLET_REGISTER_OPERATION}" == delegate && -n "${CNTOOLS_WALLET_REGISTER_SAVED_PACKAGE:-}" ]]; then
+        cntools_delegate_reminder
+      fi
+      cntools_ui_wait ;;
+    1|130)
+      cntools_transaction_ui_log CHOICE "${CNTOOLS_WALLET_REGISTER_TITLE} cancelled status=${status} saved=${CNTOOLS_WALLET_REGISTER_SAVED_PACKAGE:-none}"
+      [[ -n "${CNTOOLS_WALLET_REGISTER_SAVED_PACKAGE:-}" ]] || return 0
+      cntools_ui_render_status info "Cancelled. The saved package remains available: ${CNTOOLS_WALLET_REGISTER_SAVED_PACKAGE}"
+      cntools_ui_wait ;;
+    3) ;;
+    *)
+      if [[ "${CNTOOLS_WALLET_REGISTER_RESULT_SHOWN:-N}" != Y ]]; then
+        cntools_wallet_register_result danger "${CNTOOLS_WALLET_REGISTER_ERROR:-${CNTOOLS_TRANSACTION_ERROR:-Transaction failed. See ${CNTOOLS_LOG}.}}" '' "${CNTOOLS_WALLET_REGISTER_SAVED_PACKAGE:-}"
+      fi
+      cntools_ui_wait
+      return 1 ;;
+  esac
 }
 
 cntools_wallet_action_register() {

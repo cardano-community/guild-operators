@@ -56,10 +56,20 @@ cntools_send_render_information() {
   cntools_ui_render_detail 'Transaction information' || return 1
   {
     printf 'Transaction detail\tValue\n'
+    cntools_transaction_ui_styled_row Wallet "${CNTOOLS_SEND_WALLET}" identifier
     cntools_transaction_ui_styled_row Fee "$(cntools_number_format_lovelace "${CNTOOLS_SEND_FEE}")" number
-    cntools_transaction_ui_styled_row 'Change address' "${CNTOOLS_SEND_CHANGE_ADDRESS:-${CNTOOLS_SEND_ADDRESS}}" address
-    cntools_transaction_ui_styled_row 'Returned change' "$(cntools_number_format_lovelace "${change_total}") · $(cntools_number_format "${#CNTOOLS_CHANGE_OUTPUTS[@]}") outputs" number
-    cntools_transaction_ui_render_policy_rows "${selection}" "${#CNTOOLS_COIN_SELECTED_REFS[@]}"
+    # Change normally returns to the source address; name it only when not.
+    if [[ "${CNTOOLS_SEND_CHANGE_ADDRESS:-${CNTOOLS_SEND_ADDRESS}}" != "${CNTOOLS_SEND_ADDRESS}" ]]; then
+      cntools_transaction_ui_styled_row 'Change address' "${CNTOOLS_SEND_CHANGE_ADDRESS}" address
+    fi
+    if (( ${#CNTOOLS_CHANGE_OUTPUTS[@]} > 0 )); then
+      cntools_transaction_ui_styled_row 'Returned change' "$(cntools_number_format_lovelace "${change_total}") · $(cntools_number_format "${#CNTOOLS_CHANGE_OUTPUTS[@]}") outputs" number
+      cntools_transaction_ui_render_policy_rows "${selection}" "${#CNTOOLS_COIN_SELECTED_REFS[@]}"
+    else
+      cntools_transaction_ui_styled_row 'Input selection' "${selection} · $(cntools_number_format "${#CNTOOLS_COIN_SELECTED_REFS[@]}") inputs" value
+    fi
+    (( ${CNTOOLS_FUNDING_REFERENCE_SKIPPED:-0} == 0 )) ||
+      cntools_transaction_ui_styled_row 'Left untouched' "$(cntools_number_format "${CNTOOLS_FUNDING_REFERENCE_SKIPPED}") reference-script UTxOs" value
     cntools_transaction_ui_styled_row 'Expires' "${expiry_label}" number
   } | cntools_ui_table --separator $'\t' --widths "${widths}"
 }

@@ -110,7 +110,7 @@ cntools_private_keys_public_check() {
 }
 
 cntools_private_keys_inventory() {
-  local scope="$1" include_encrypted="$2" object="${3:-}" role='' root='' directory='' name='' file='' stamp='' public_stamp='' form=''
+  local scope="$1" include_encrypted="$2" object="${3:-}" role='' root='' directory='' name='' file='' stamp='' public_stamp='' form='' label=''
   local -a names=() roles=()
   CNTOOLS_PRIVATE_KEY_FILES=(); CNTOOLS_PRIVATE_KEY_STAMPS=(); CNTOOLS_PRIVATE_KEY_LABELS=()
   CNTOOLS_PRIVATE_KEY_PUBLIC_FILES=(); CNTOOLS_PRIVATE_KEY_PUBLIC_STAMPS=()
@@ -126,7 +126,14 @@ cntools_private_keys_inventory() {
     for directory in "${root}"/*; do
       [[ -e "${directory}" || -L "${directory}" ]] || continue
       [[ -z "${object}" || "${directory##*/}" == "${object}" ]] || continue
-      [[ "${directory##*/}" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]] && cntools_transaction_directory_safe "${directory}" || return 1
+      # Stray files and odd names are not objects; skip them as the catalogs do.
+      if [[ ! -d "${directory}" || -L "${directory}" || ! "${directory##*/}" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]]; then
+        cntools_log KEYS "Key deletion inventory skipped non-object entry=${directory}" || true
+        continue
+      fi
+      cntools_transaction_directory_safe "${directory}" || {
+        cntools_private_keys_fail "Unsafe folder: ${directory} (it must be owned by you and not group/world-writable). No keys were deleted."; return 1;
+      }
       local -a candidates=("${names[@]}")
       [[ "${role}" != wallets ]] || candidates+=("${CNTOOLS_WALLET_CATALYST_SKEY_FILENAME:-catalyst.skey}-bech32")
       for name in "${candidates[@]}"; do
@@ -141,11 +148,44 @@ cntools_private_keys_inventory() {
           }
           CNTOOLS_PRIVATE_KEY_FILES+=("${file}"); CNTOOLS_PRIVATE_KEY_STAMPS+=("${stamp}")
           CNTOOLS_PRIVATE_KEY_PUBLIC_FILES+=("${CNTOOLS_PRIVATE_KEY_PUBLIC_FILE}"); CNTOOLS_PRIVATE_KEY_PUBLIC_STAMPS+=("${public_stamp}")
-          CNTOOLS_PRIVATE_KEY_LABELS+=("${role} · ${directory##*/} · ${file##*/}")
+          case "${role}" in wallets) label=Wallet ;; pools) label=Pool ;; *) label=Policy ;; esac
+          CNTOOLS_PRIVATE_KEY_LABELS+=("${label} ${directory##*/}")
         done
       done
     done
   done
+}
+
+# Object folders under a category root, as offered by the scope question.
+cntools_private_keys_objects_into() {
+  local -n po_objects="$1"
+  local po_root="$2" po_directory=''
+  po_objects=()
+  [[ -n "${po_root}" && -d "${po_root}" && ! -L "${po_root}" ]] || return 0
+  for po_directory in "${po_root}"/*; do
+    [[ -d "${po_directory}" && ! -L "${po_directory}" && "${po_directory##*/}" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]] || continue
+    po_objects+=("${po_directory##*/}")
+  done
+}
+
+# True when any encrypted (.gpg) counterpart of a deletable key exists in scope.
+cntools_private_keys_encrypted_present() {
+  local scope="$1" object="${2:-}" role='' root='' directory='' name=''
+  local -a roles=() names=()
+  case "${scope}" in wallets|pools|assets) roles=("${scope}") ;; all) roles=(wallets pools assets) ;; *) return 1 ;; esac
+  for role in "${roles[@]}"; do
+    case "${role}" in wallets) root="${CNTOOLS_WALLET_DIR:-}" ;; pools) root="${CNTOOLS_POOL_DIR:-}" ;; assets) root="${CNTOOLS_ASSET_DIR:-}" ;; esac
+    [[ -n "${root}" && -d "${root}" ]] || continue
+    cntools_private_keys_names_into names "${role}" || return 0 # Unknown: let the user decide.
+    for directory in "${root}"/*; do
+      [[ -d "${directory}" && ! -L "${directory}" ]] || continue
+      [[ -z "${object}" || "${directory##*/}" == "${object}" ]] || continue
+      for name in "${names[@]}"; do
+        [[ ! -e "${directory}/${name}.gpg" && ! -L "${directory}/${name}.gpg" ]] || return 0
+      done
+    done
+  done
+  return 1
 }
 
 cntools_private_keys_restore_locks() {

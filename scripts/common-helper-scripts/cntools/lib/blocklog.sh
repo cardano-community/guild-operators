@@ -5,6 +5,7 @@ CNTOOLS_BLOCKLOG_WORK=''
 CNTOOLS_BLOCKLOG_ERROR=''
 CNTOOLS_BLOCKLOG_DATA='[]'
 CNTOOLS_BLOCKLOG_HAS_EPOCHDATA=N
+CNTOOLS_BLOCKLOG_EPOCH_STATS='{}'
 
 cntools_blocklog_error() {
   CNTOOLS_BLOCKLOG_ERROR="$1"
@@ -131,4 +132,14 @@ cntools_blocklog_epoch() {
   jq -e 'length <= 100000 and all(.[]; (.status|type)=="string" and
     all(.slot,.block,.slot_in_epoch,.size; type=="number" and .>=0 and .<=9007199254740991 and .==floor))' \
     <<< "${CNTOOLS_BLOCKLOG_DATA}" >/dev/null || { cntools_blocklog_error 'This epoch exceeds the safe display limit or contains malformed block records.'; return 1; }
+  # Ideal blocks and luck are optional: without them the epoch view omits the rows.
+  CNTOOLS_BLOCKLOG_EPOCH_STATS='{}'
+  [[ "${CNTOOLS_BLOCKLOG_HAS_EPOCHDATA}" == Y ]] || return 0
+  if ! cntools_blocklog_sql CNTOOLS_BLOCKLOG_EPOCH_STATS "SELECT json_object(
+      'ideal',(SELECT CASE WHEN count(*)=1 THEN max(epoch_slots_ideal) END FROM main.epochdata WHERE epoch=${epoch}),
+      'luck',(SELECT CASE WHEN count(*)=1 THEN max(max_performance) END FROM main.epochdata WHERE epoch=${epoch}));" ||
+     ! jq -e 'type=="object" and all(.ideal,.luck; .==null or (type=="number" and .>=0 and .<=9007199254740991))' \
+       <<< "${CNTOOLS_BLOCKLOG_EPOCH_STATS}" >/dev/null; then
+    CNTOOLS_BLOCKLOG_EPOCH_STATS='{}'; CNTOOLS_BLOCKLOG_ERROR=''
+  fi
 }

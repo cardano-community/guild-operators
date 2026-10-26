@@ -46,25 +46,74 @@ cntools_pool_owner_add() {
     then map(if .hash == $record.hash then $record else . end) else .+[$record] end' <<< "${CNTOOLS_POOL_REG_OWNERS}")"
 }
 
+# Chain settings the next registration replaces, in wizard form. Local pending
+# parameters take precedence, so changing one field never undoes a submitted
+# update that waits for the next epoch.
+cntools_pool_registration_chain_settings() {
+  local settings=''
+  if [[ "$(jq -c '.pending // {}' <<< "${CNTOOLS_POOL_REG_STATE}")" != '{}' ]]; then
+    settings="$(jq -c '.pending | {pledgeLovelace:(.spsPledge|tostring),costLovelace:(.spsCost|tostring),margin:(.spsMargin|tostring),
+      reward:.spsAccountId.keyHash,owners:.spsOwners,relays:.spsRelays,metadata:(.spsMetadata // null)}' <<< "${CNTOOLS_POOL_REG_STATE}")" || return 1
+  else
+    settings="$(jq -c '.current' <<< "${CNTOOLS_POOL_REG_STATE}")" || return 1
+  fi
+  jq -c '.relays |= map(if has("single host name") then .["single host name"] | {type:"dns",dns:.dnsName,port:.port}
+    elif has("multi host name") then .["multi host name"] | {type:"srv",dns:.dnsName}
+    else .["single host address"] | {type:"ip",ipv4:(.IPv4 // ""),ipv6:(.IPv6 // ""),port:.port} end)' <<< "${settings}"
+}
+
+# The wizard's settings in the same form, for old → new review rows.
+cntools_pool_registration_current_settings() {
+  jq -cn --arg pledge "${CNTOOLS_POOL_REG_PLEDGE}" --arg cost "${CNTOOLS_POOL_REG_COST}" --arg margin "${CNTOOLS_POOL_REG_MARGIN}" \
+    --arg reward "${CNTOOLS_POOL_REG_REWARD_HASH}" --argjson owners "$(jq -c 'map(.hash)' <<< "${CNTOOLS_POOL_REG_OWNERS}")" \
+    --argjson relays "${CNTOOLS_POOL_REG_RELAYS}" --argjson metadata "${CNTOOLS_POOL_REG_METADATA}" \
+    '{pledgeLovelace:$pledge,costLovelace:$cost,margin:$margin,reward:$reward,owners:$owners,relays:$relays,metadata:$metadata}'
+}
+
+# Comparable form: exact margin units, sorted owners, canonical relays.
+cntools_pool_registration_settings_canonical() {
+  local settings="$1" canonical_relays=''
+  canonical_relays="$(jq -c '.relays // []' <<< "${settings}")" || return 1
+  cntools_pool_relays_normalize_into canonical_relays "${canonical_relays}" || true
+  jq -cS --argjson relays "${canonical_relays}" '{pledge:(.pledgeLovelace|tostring),cost:(.costLovelace|tostring),
+    margin:(.margin|tostring|if contains("/") then split("/") | (.[0]|tonumber) * (100000000 / (.[1]|tonumber)) else tonumber * 100000000 end | round),
+    reward,owners:((.owners // [])|sort),relays:$relays,metadata}' <<< "${settings}"
+}
+
+# Modify compares the review against what the chain applies next.
+CNTOOLS_POOL_REG_BASELINE=''
+cntools_pool_registration_baseline_set() {
+  local settings=''
+  CNTOOLS_POOL_REG_BASELINE=''
+  [[ "${CNTOOLS_WALLET_REGISTER_OPERATION}" == pool-modify && "$(jq -r .registered <<< "${CNTOOLS_POOL_REG_STATE}")" == true ]] || return 0
+  settings="$(cntools_pool_registration_chain_settings)" &&
+    CNTOOLS_POOL_REG_BASELINE="$(cntools_pool_registration_settings_canonical "${settings}")" || CNTOOLS_POOL_REG_BASELINE=''
+}
+
+# Changed settings as review labels ("Pledge, Margin"); empty for a no-op.
+cntools_pool_registration_changes_into() {
+  # Locals avoid "changes": callers pass that name to be assigned by printf -v.
+  local prc_output="$1" prc_current='' prc_list=''
+  [[ -n "${CNTOOLS_POOL_REG_BASELINE}" ]] || { printf -v "${prc_output}" '%s' ''; return 0; }
+  prc_current="$(cntools_pool_registration_settings_canonical "$(cntools_pool_registration_current_settings)")" || return 1
+  prc_list="$(jq -rn --argjson old "${CNTOOLS_POOL_REG_BASELINE}" --argjson new "${prc_current}" '
+    [["pledge","Pledge"],["cost","Fixed cost"],["margin","Margin"],["reward","Reward account"],["owners","Owners"],
+     ["relays","Relays"],["metadata","Metadata"]] | map(select($old[.[0]] != $new[.[0]]) | .[1]) | join(", ")')" || return 1
+  printf -v "${prc_output}" '%s' "${prc_list}"
+}
+
 cntools_pool_registration_defaults() {
-  local current='{}' margin='' hash='' record='' index=0 owner=''
+  local current='{}' hash='' record='' index=0 owner=''
   CNTOOLS_POOL_REG_PLEDGE=50000000000; CNTOOLS_POOL_REG_COST="${CNTOOLS_POOL_REG_MIN_COST}"; CNTOOLS_POOL_REG_MARGIN=7500000/100000000
   CNTOOLS_POOL_REG_METADATA_URL=''
   CNTOOLS_POOL_REG_METADATA=null; CNTOOLS_POOL_REG_RELAYS='[]'; CNTOOLS_POOL_REG_OWNERS='[]'
   CNTOOLS_POOL_REG_REWARD_VKEY=''; CNTOOLS_POOL_REG_REWARD_HASH=''; CNTOOLS_POOL_REG_REWARD_ADDRESS=''; CNTOOLS_POOL_REG_REWARD_LABEL=''; CNTOOLS_POOL_REG_REWARD_SOURCE=''
+  cntools_pool_registration_baseline_set
   [[ "$(jq -r .registered <<< "${CNTOOLS_POOL_REG_STATE}")" == true ]] || return 0
-  current="$(jq -c '.current' <<< "${CNTOOLS_POOL_REG_STATE}")"
-  # Local pending parameters take precedence; changing only one field must not
-  # accidentally undo a previously submitted update waiting for the next epoch.
-  if [[ "$(jq -c .pending <<< "${CNTOOLS_POOL_REG_STATE}")" != '{}' ]]; then
-    current="$(jq -c '.pending | {pledgeLovelace:(.spsPledge|tostring),costLovelace:(.spsCost|tostring),margin:(.spsMargin|tostring),
-      reward:.spsAccountId.keyHash,owners:.spsOwners,relays:.spsRelays,metadata:(.spsMetadata // null)}' <<< "${CNTOOLS_POOL_REG_STATE}")"
-  fi
+  current="$(cntools_pool_registration_chain_settings)" || return 1
   CNTOOLS_POOL_REG_PLEDGE="$(jq -r .pledgeLovelace <<< "${current}")"; CNTOOLS_POOL_REG_COST="$(jq -r .costLovelace <<< "${current}")"
   CNTOOLS_POOL_REG_MARGIN="$(jq -r .margin <<< "${current}")"; CNTOOLS_POOL_REG_METADATA="$(jq -c .metadata <<< "${current}")"
-  CNTOOLS_POOL_REG_RELAYS="$(jq -c '.relays | map(if has("single host name") then .["single host name"] | {type:"dns",dns:.dnsName,port:.port}
-    elif has("multi host name") then .["multi host name"] | {type:"srv",dns:.dnsName}
-    else .["single host address"] | {type:"ip",ipv4:(.IPv4 // ""),ipv6:(.IPv6 // ""),port:.port} end)' <<< "${current}")"
+  CNTOOLS_POOL_REG_RELAYS="$(jq -c .relays <<< "${current}")"
   CNTOOLS_POOL_REG_REWARD_HASH="$(jq -r .reward <<< "${current}")"
   while IFS= read -r hash; do
     owner="$(jq -cn --arg hash "${hash}" '{label:$hash,hash:$hash,vkey:"",source:"",address:""}')"

@@ -5,9 +5,10 @@
 CNTOOLS_COLLECT_SCOPE=ada
 CNTOOLS_COLLECT_FEE=0
 CNTOOLS_COLLECT_BACKEND=""
-CNTOOLS_COLLECT_SKIPPED=0
+CNTOOLS_COLLECT_SKIPPED=0 CNTOOLS_COLLECT_SKIPPED_TOKENS=0 CNTOOLS_COLLECT_SKIPPED_SCRIPTS=0
 CNTOOLS_COLLECT_OUTPUT_COUNT=0
-declare -ag CNTOOLS_COLLECT_INPUTS=()
+CNTOOLS_COLLECT_NOTHING_REASON=""
+declare -ag CNTOOLS_COLLECT_INPUTS=() CNTOOLS_COLLECT_SCOPES=()
 
 cntools_collect_fail() { cntools_transaction_set_error "${1:-UTxO collection failed.}"; return 1; }
 
@@ -15,11 +16,14 @@ cntools_collect_select() {
   local index=0
   case "${CNTOOLS_COLLECT_SCOPE}" in ada|all) ;; *) return 2 ;; esac
   cntools_coin_reset
-  CNTOOLS_COLLECT_SKIPPED=0
+  CNTOOLS_COLLECT_SKIPPED=0 CNTOOLS_COLLECT_SKIPPED_TOKENS=0 CNTOOLS_COLLECT_SKIPPED_SCRIPTS=0
   for index in "${!CNTOOLS_UTXO_REFS[@]}"; do
     # Do not consume app data, reference scripts, or unverified destinations.
-    if [[ "${CNTOOLS_UTXO_HAS_DATUM[index]}" != N || "${CNTOOLS_UTXO_HAS_REFERENCE_SCRIPT[index]}" != N ]] ||
-        [[ "${CNTOOLS_COLLECT_SCOPE}" == ada && "${CNTOOLS_UTXO_ASSET_COUNTS[index]}" != 0 ]]; then
+    if [[ "${CNTOOLS_UTXO_HAS_DATUM[index]}" != N || "${CNTOOLS_UTXO_HAS_REFERENCE_SCRIPT[index]}" != N ]]; then
+      CNTOOLS_COLLECT_SKIPPED_SCRIPTS=$((CNTOOLS_COLLECT_SKIPPED_SCRIPTS + 1))
+      CNTOOLS_COLLECT_SKIPPED=$((CNTOOLS_COLLECT_SKIPPED + 1)); continue
+    elif [[ "${CNTOOLS_COLLECT_SCOPE}" == ada && "${CNTOOLS_UTXO_ASSET_COUNTS[index]}" != 0 ]]; then
+      CNTOOLS_COLLECT_SKIPPED_TOKENS=$((CNTOOLS_COLLECT_SKIPPED_TOKENS + 1))
       CNTOOLS_COLLECT_SKIPPED=$((CNTOOLS_COLLECT_SKIPPED + 1)); continue
     fi
     [[ "${CNTOOLS_UTXO_ADDRESSES[index]}" == "${CNTOOLS_SEND_ADDRESS}" ||
@@ -41,6 +45,38 @@ cntools_collect_select() {
   fi
   CNTOOLS_COLLECT_INPUTS=("${CNTOOLS_COIN_SELECTED_REFS[@]}")
   CNTOOLS_COIN_SELECTION_REASON='Explicit collection of all eligible inputs'
+}
+
+# Run in a subshell: prints the input count, or the reason and fails.
+cntools_collect_try_scope() {
+  CNTOOLS_COLLECT_SCOPE="$1"
+  cntools_collect_select >/dev/null 2>&1 || { printf '%s' "${CNTOOLS_TRANSACTION_ERROR:-}"; return 1; }
+  printf '%s' "${#CNTOOLS_COIN_SELECTED_INDICES[@]}"
+}
+
+# Scopes that have something to collect, tried in subshells so the current
+# selection is untouched. Equal selections offer only the ADA-only scope.
+cntools_collect_scopes_into() {
+  local -n collect_scopes_ref="$1"
+  local -n collect_reason_ref="$2"
+  local scope='' result='' previous=''
+  collect_scopes_ref=(); collect_reason_ref=''
+  for scope in ada all; do
+    if result="$(cntools_collect_try_scope "${scope}")"; then
+      [[ "${result}" == "${previous}" ]] || collect_scopes_ref+=("${scope}")
+      previous="${result}"
+    else
+      collect_reason_ref="${result}"
+    fi
+  done
+  cntools_transaction_log TRANSACTION "Collection scopes available=${collect_scopes_ref[*]:-none}"
+}
+
+# Funds and scopes are checked before any question is asked.
+cntools_collect_check() {
+  cntools_funding_collect "${CNTOOLS_SEND_ADDRESS}" "${CNTOOLS_SEND_PAYMENT}" || return 1
+  CNTOOLS_COLLECT_BACKEND="${CNTOOLS_FUNDING_BACKEND}"
+  cntools_collect_scopes_into CNTOOLS_COLLECT_SCOPES CNTOOLS_COLLECT_NOTHING_REASON
 }
 
 cntools_collect_plan() {
@@ -114,10 +150,16 @@ cntools_collect_build_into() {
     cntools_collect_prepare_balanced_body "cntools_collect_validate_body" || return 1
 }
 cntools_collect_refresh_build_into() {
-  local result_name="$1" lifetime="$2"
-  [[ "${lifetime}" =~ ^(0|[1-9][0-9]{0,7})$ ]] && (( lifetime <= 31536000 )) || return 2
+  [[ "$2" =~ ^(0|[1-9][0-9]{0,7})$ ]] && (( $2 <= 31536000 )) || return 2
   cntools_funding_collect "${CNTOOLS_SEND_ADDRESS}" "${CNTOOLS_SEND_PAYMENT}" || return 1
   CNTOOLS_COLLECT_BACKEND="${CNTOOLS_FUNDING_BACKEND}"
+  cntools_collect_current_build_into "$@"
+}
+
+# Build from the funds already checked (nothing was asked in between).
+cntools_collect_current_build_into() {
+  local result_name="$1" lifetime="$2"
+  [[ "${lifetime}" =~ ^(0|[1-9][0-9]{0,7})$ ]] && (( lifetime <= 31536000 )) || return 2
   cntools_transaction_expiry_into CNTOOLS_SEND_EXPIRY "${CNTOOLS_FUNDING_SLOT}" "${lifetime}" || return 1
   cntools_collect_build_into "${result_name}"
 }

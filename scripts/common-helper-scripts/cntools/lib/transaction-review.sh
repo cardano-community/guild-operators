@@ -15,7 +15,7 @@ cntools_transaction_review_normalize() {
       elif type == "object" then map_values(metadata_content) else . end;
     def input_record:
       if type == "string" and test("^[0-9a-fA-F]{64}#[0-9]+$") then
-        . as $ref | {address:("UTxO · " + $ref),tx_hash:($ref|split("#")[0]),tx_index:($ref|split("#")[1])}
+        {address:("UTxO · " + .)}
       elif type == "object" then . else {reference:.} end;
     def output_record:
       if type != "object" then {record:.} else
@@ -57,9 +57,11 @@ cntools_transaction_ui_detail_view() {
   cntools_transaction_temp_file detail_file review-detail || return 2
   cntools_transaction_temp_file display_file review-display || return 2
   cntools_transaction_review_normalize <<< "${CNTOOLS_TRANSACTION_UI_VIEW}" > "${detail_file}" || return 2
-  "${begin}" || return 2
-  cntools_ui_render_status info 'Decoded transaction body · cardano-cli. Inputs show only UTxO references: their original addresses and balances are not contained in the body. Review outputs, fees, certificates, withdrawals, votes and metadata before signing or submitting.' || return 2
-  cntools_detail_transaction_render "${detail_file}" 'Overview · decoded transaction body' > "${display_file}" || return 2
+  # The pager takes the whole screen, so the explanation goes inside it.
+  {
+    printf '%s\n\n' 'Decoded transaction body (cardano-cli). Inputs are UTxO references only: their addresses and balances are not in the body.'
+    cntools_detail_transaction_render "${detail_file}" 'Overview · decoded transaction body'
+  } > "${display_file}" || return 2
   cntools_ui_page_file "${display_file}" || status=$?
   # Closing the viewer returns to the review menu, not out of the action.
   ((status == 0 || status == 1)) || return "${status}"

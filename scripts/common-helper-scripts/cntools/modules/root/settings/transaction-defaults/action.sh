@@ -5,21 +5,42 @@ cntools_settings_action_on_off() {
   [[ "${1:-N}" == "Y" ]] && printf 'Enabled' || printf 'Disabled'
 }
 
+# Whole minutes, hours or days when exact; otherwise grouped seconds.
+cntools_settings_action_duration() {
+  local seconds="${1:-0}" unit='' count=0
+  [[ "${seconds}" =~ ^[0-9]+$ ]] || { printf '%s' "${seconds}"; return 0; }
+  if (( seconds == 0 )); then printf 'No expiry'; return 0; fi
+  if (( seconds % 86400 == 0 )); then count=$((seconds / 86400)); unit=day
+  elif (( seconds % 3600 == 0 )); then count=$((seconds / 3600)); unit=hour
+  elif (( seconds % 60 == 0 )); then count=$((seconds / 60)); unit=minute
+  else printf '%s seconds' "$(cntools_number_format "${seconds}")"; return 0; fi
+  (( count == 1 )) || unit+=s
+  printf '%s %s' "$(cntools_number_format "${count}")" "${unit}"
+}
+
+cntools_settings_action_collateral_amount() {
+  local lovelace="${CNTOOLS_TX_COLLATERAL_LOVELACE:-5000000}"
+  if [[ "${lovelace}" =~ ^[0-9]+$ ]] && (( lovelace % 1000000 == 0 )); then
+    printf '%s ADA' "$(cntools_number_format "$((lovelace / 1000000))")"
+  else cntools_number_format_lovelace "${lovelace}" | tr -d '\n'; fi
+}
+
+# Table labels are the menu rows, so each value is found under its own name.
 cntools_settings_action_render() {
   local table_width=""
   local widths=""
 
   table_width="$(cntools_ui_content_width 160 64)" || return 1
-  widths="27,$((table_width - 34))"
+  widths="33,$((table_width - 40))"
   cntools_ui_render_detail "Transaction defaults" || return 1
   {
     printf 'Setting\tValue\n'
     printf 'Coin selection\t%s\n' "$(cntools_settings_strategy_name)"
     printf 'Send change-address choice\t%s\n' "$(cntools_settings_action_on_off "${CNTOOLS_SEND_CHOOSE_CHANGE:-N}")"
-    printf 'Default expiry (seconds)\t%s\n' "${CNTOOLS_TX_DEFAULT_TTL:-1800}"
+    printf 'Default transaction expiry\t%s\n' "$(cntools_settings_action_duration "${CNTOOLS_TX_DEFAULT_TTL:-1800}")"
     printf 'Token fragmentation\t%s\n' \
       "$(cntools_settings_action_on_off "${CNTOOLS_TX_TOKEN_FRAGMENTATION}")"
-    printf 'Assets per token output\t%s\n' \
+    printf 'Maximum assets per token output\t%s\n' \
       "${CNTOOLS_TX_TOKEN_MAX_ASSETS}"
     printf 'ADA-only UTxO management\t%s\n' \
       "$(cntools_settings_action_on_off "${CNTOOLS_TX_UTXO_MANAGEMENT}")"
@@ -27,8 +48,8 @@ cntools_settings_action_render() {
       "${CNTOOLS_TX_UTXO_TARGET_COUNT}"
     printf 'Change percentages\t%s%%\n' \
       "${CNTOOLS_TX_UTXO_PERCENTAGES//,/% · }"
-    printf 'Collateral candidate\t%s · 5 ADA\n' \
-      "$(cntools_settings_action_on_off "${CNTOOLS_TX_COLLATERAL_MANAGEMENT}")"
+    printf 'Collateral candidate\t%s · %s\n' \
+      "$(cntools_settings_action_on_off "${CNTOOLS_TX_COLLATERAL_MANAGEMENT}")" "$(cntools_settings_action_collateral_amount)"
   } | cntools_ui_table --separator $'\t' --widths "${widths}"
 }
 
@@ -60,11 +81,11 @@ cntools_settings_action_explain() {
     'Change percentages')
       message=$'Each percentage uses the same remaining ADA change after token\noutputs and any new collateral candidate have been funded.\nFor example, 10,20,30 creates differently sized outputs where\nneeded; the remainder stays in residual change.\nRequires ADA-only management. Enter one to six increasing values\nfrom 1 through 75, with a combined total no greater than 75.\nOnly missing outputs that can be funded are created.\nEnter keeps the current values.'
       ;;
-    'Maintain 5 ADA collateral candidate')
-      message=$'Enabled: try to retain a suitable ADA-only output, or create\na 5 ADA collateral candidate from change when one is missing.\nDisabled: do not specially retain or create a candidate.\nRequires ADA-only UTxO management and sufficient change.\nThis does not lock funds or use collateral in this transaction.'
+    'Collateral candidate')
+      message="Enabled: try to retain a suitable ADA-only output, or create"$'\n'"a $(cntools_settings_action_collateral_amount) collateral candidate from change when one is missing."$'\nDisabled: do not specially retain or create a candidate.\nRequires ADA-only UTxO management and sufficient change.\nThis does not lock funds or use collateral in this transaction.'
       ;;
     'Restore safe defaults')
-      message=$'Restore safe defaults: replace all transaction preferences with\nthe built-in defaults. Cancel keeps your current preferences.\nDefaults use Balanced inputs and primary-address change, with\na 1,800-second expiry. Token fragmentation and ADA-only UTxO\nmanagement are disabled. Wallet files, funds, theme and flow style are unchanged.'
+      message=$'Restore safe defaults: replace all transaction preferences with\nthe built-in defaults. Cancel keeps your current preferences.\nDefaults use Balanced inputs and primary-address change, with\na 30-minute expiry. Token fragmentation and ADA-only UTxO\nmanagement are disabled. Wallet files, funds, theme and flow style are unchanged.'
       ;;
     'Done') return 0 ;;
     *) return 2 ;;
@@ -74,16 +95,20 @@ cntools_settings_action_explain() {
   cntools_ui_render_status info "${message}" "$((width - 4))"
 }
 
+# The current value is marked and listed first, so Enter keeps it.
 cntools_settings_action_choose_toggle() {
   local _cntools_output_name="${1:-}"
   local label="${2:-Setting}"
   local current="${3:-N}"
   local selected=""
+  local -a options=('Enabled' 'Disabled')
 
   [[ "${_cntools_output_name}" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || return 2
   local -n _cntools_output_ref="${_cntools_output_name}"
-  if cntools_ui_choose selected "${label}…" "Enabled" "Disabled" "Cancel"; then
-    case "${selected}" in
+  if [[ "${current}" == Y ]]; then options=('Enabled · current' 'Disabled')
+  else options=('Disabled · current' 'Enabled'); fi
+  if cntools_ui_choose selected "${label}…" "${options[@]}" "Cancel"; then
+    case "${selected%% · current}" in
       Enabled) _cntools_output_ref=Y; return 0 ;;
       Disabled) _cntools_output_ref=N; return 0 ;;
       Cancel) return 1 ;;
@@ -177,6 +202,7 @@ cntools_action_main() {
   local status=0
   local strategy=""
   local restore_choice=""
+  local -a strategies=()
   local -a rows=(
     "Coin selection"
     "Send change-address choice"
@@ -186,7 +212,7 @@ cntools_action_main() {
     "ADA-only UTxO management"
     "Desired ADA-only UTxOs"
     "Change percentages"
-    "Maintain 5 ADA collateral candidate"
+    "Collateral candidate"
     "Restore safe defaults"
     "Done"
   )
@@ -214,9 +240,11 @@ cntools_action_main() {
       'Default transaction expiry')
         cntools_settings_action_input_integer CNTOOLS_TX_DEFAULT_TTL 'Seconds (0 for no expiry)' "${CNTOOLS_TX_DEFAULT_TTL:-1800}" 0 31536000 || continue ;;
       "Coin selection")
+        if [[ "${CNTOOLS_TX_SELECTION_STRATEGY:-balanced}" == fewest-inputs ]]; then strategies=('Fewest inputs · current' 'Balanced')
+        else strategies=('Balanced · current' 'Fewest inputs'); fi
         if cntools_ui_choose strategy "Coin selection…" \
-            "Balanced" "Fewest inputs" "Cancel"; then
-          case "${strategy}" in
+            "${strategies[@]}" "Cancel"; then
+          case "${strategy%% · current}" in
             Balanced) CNTOOLS_TX_SELECTION_STRATEGY=balanced ;;
             'Fewest inputs') CNTOOLS_TX_SELECTION_STRATEGY=fewest-inputs ;;
             Cancel) continue ;;
@@ -247,7 +275,7 @@ cntools_action_main() {
       "Change percentages")
         cntools_settings_action_edit_percentages || continue
         ;;
-      "Maintain 5 ADA collateral candidate")
+      "Collateral candidate")
         cntools_settings_action_choose_toggle \
           CNTOOLS_TX_COLLATERAL_MANAGEMENT "Collateral candidate" \
           "${CNTOOLS_TX_COLLATERAL_MANAGEMENT}" || continue

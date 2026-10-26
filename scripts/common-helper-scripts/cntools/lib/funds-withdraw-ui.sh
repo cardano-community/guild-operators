@@ -26,7 +26,7 @@ cntools_withdraw_render() {
     cntools_transaction_ui_render_policy_rows "${CNTOOLS_TX_SELECTION_STRATEGY}" "${#CNTOOLS_WITHDRAW_INPUTS[@]}"
     cntools_transaction_ui_styled_row Expires "${expiry_label}" number
   } | cntools_ui_table --separator $'\t' --widths "${widths}" || return 1
-  cntools_ui_render_status info 'Registration and delegation stay unchanged. Rewards and selected funds return to this wallet, less the fee.'
+  cntools_ui_render_status info 'Registration and delegation stay unchanged.'
   if [[ "${effect}" == 'Fee paid from wallet' ]]; then
     cntools_ui_render_status warn 'The fee exceeds the rewards. Continuing reduces the wallet balance.'
   fi
@@ -44,23 +44,41 @@ cntools_withdraw_workflow() {
   cntools_withdraw_begin
   cntools_transaction_require_cli || return 2
   cntools_wallet_catalog_build || return 2
-  (( ${#CNTOOLS_WALLET_NAMES[@]} > 0 )) || { cntools_withdraw_fail 'No wallets are available.'; return 2; }
   cntools_wallet_choose selected Cancel withdraw || return $?
   cntools_stake_prepare_wallet "${CNTOOLS_WALLET_PATHS[selected]}" "${CNTOOLS_WALLET_NAMES[selected]}" || return 2
   [[ "${CNTOOLS_STAKE_WALLET_TYPE:-}" != MultiSig ]] || cntools_multisig_stake_choose_signers cntools_withdraw_begin || return $?
+  # Check rewards first: a wallet with nothing to withdraw asks nothing more.
+  cntools_ui_spin_function 'Checking rewards and spendable funds…' cntools_withdraw_collect || status=$?
+  if (( status == 4 )); then
+    cntools_withdraw_begin
+    cntools_ui_render_status info "${CNTOOLS_TRANSACTION_ERROR}"
+    CNTOOLS_WITHDRAW_RESULT_SHOWN=Y
+    return 0
+  fi
+  (( status == 0 )) || return 2
   cntools_transaction_ui_initial_workflow_into workflow "${CNTOOLS_STAKE_CAN_SIGN}" || return $?
   cntools_transaction_ui_initial_expiry_into lifetime || return $?
-  cntools_ui_spin_function 'Checking rewards and building the withdrawal…' \
-    cntools_withdraw_refresh_build_into staged "${lifetime}" || return 2
+  if cntools_flow_quick; then
+    cntools_ui_spin_function 'Building the withdrawal…' cntools_withdraw_current_build_into staged "${lifetime}" || return 2
+  else
+    cntools_ui_spin_function 'Checking rewards and building the withdrawal…' \
+      cntools_withdraw_refresh_build_into staged "${lifetime}" || return 2
+  fi
   while true; do
     cntools_transaction_ui_proceed_into proceed "${workflow}" || return 2
     cntools_transaction_ui_review_into selected "${staged}" "${proceed}" \
       cntools_withdraw_begin cntools_withdraw_render 'Change expiry' 'Change workflow' || return $?
+    status=0
     case "${selected}" in
       "${proceed}") break ;;
-      'Change workflow') cntools_transaction_ui_workflow_into workflow "${CNTOOLS_STAKE_CAN_SIGN}" || return $? ;;
+      'Change workflow')
+        # Esc keeps the current value and returns to the review.
+        cntools_transaction_ui_workflow_into workflow "${CNTOOLS_STAKE_CAN_SIGN}" || status=$?
+        (( status <= 1 )) || return "${status}" ;;
       'Change expiry')
-        cntools_transaction_ui_expiry_into lifetime || return $?
+        cntools_transaction_ui_expiry_into lifetime || status=$?
+        (( status != 1 )) || continue
+        (( status == 0 )) || return "${status}"
         cntools_ui_spin_function 'Checking rewards and rebuilding the withdrawal…' \
           cntools_withdraw_refresh_build_into staged "${lifetime}" || return 2 ;;
       *) return 2 ;;
@@ -107,19 +125,26 @@ cntools_withdraw_workflow() {
   cntools_transaction_ui_offer_monitor "${txid}"
 }
 
+# 1/130 cancel straight back to the menu (naming a saved package, if any);
+# 3 means the reason was already shown and acknowledged.
 cntools_funds_action_withdraw() {
   local status=0
   cntools_transaction_clear_error
   cntools_withdraw_workflow || status=$?
-  if (( status == 1 )); then
-    cntools_transaction_log CHOICE 'Withdrawal cancelled; any saved package was retained'
-    cntools_ui_render_status info 'Cancelled. Any packages already saved remain available.'
-  elif (( status != 0 )); then
-    cntools_withdraw_fail "${CNTOOLS_TRANSACTION_ERROR:-Reward withdrawal failed. See ${CNTOOLS_LOG} for details.}" || true
-    if [[ "${CNTOOLS_WITHDRAW_RESULT_SHOWN:-N}" != Y ]]; then
-      cntools_withdraw_result danger "${CNTOOLS_TRANSACTION_ERROR}" '' "${CNTOOLS_WITHDRAW_SAVED_PACKAGE:-}"
-    fi
-  fi
-  cntools_ui_wait
-  (( status <= 1 ))
+  case "${status}" in
+    0) cntools_ui_wait ;;
+    1|130)
+      cntools_transaction_log CHOICE "Withdrawal cancelled status=${status} saved=${CNTOOLS_WITHDRAW_SAVED_PACKAGE:-none}"
+      [[ -n "${CNTOOLS_WITHDRAW_SAVED_PACKAGE:-}" ]] || return 0
+      cntools_ui_render_status info "Cancelled. The saved package remains available: ${CNTOOLS_WITHDRAW_SAVED_PACKAGE}"
+      cntools_ui_wait ;;
+    3) ;;
+    *)
+      cntools_withdraw_fail "${CNTOOLS_TRANSACTION_ERROR:-Reward withdrawal failed. See ${CNTOOLS_LOG} for details.}" || true
+      if [[ "${CNTOOLS_WITHDRAW_RESULT_SHOWN:-N}" != Y ]]; then
+        cntools_withdraw_result danger "${CNTOOLS_TRANSACTION_ERROR}" '' "${CNTOOLS_WITHDRAW_SAVED_PACKAGE:-}"
+      fi
+      cntools_ui_wait
+      return 1 ;;
+  esac
 }

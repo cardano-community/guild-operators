@@ -2,6 +2,7 @@
 # GPG-compatible, verified counterpart publication before retiring an old key.
 # shellcheck disable=SC2034,SC2015
 CNTOOLS_POLICY_PROTECTION_SOURCE='' CNTOOLS_POLICY_PROTECTION_TARGET='' CNTOOLS_POLICY_PROTECTION_STAGED=''
+CNTOOLS_POLICY_PASSWORD_REJECTED=N
 
 cntools_policy_protection_preflight() {
   local directory="$1" operation="$2" file='' skey="${CNTOOLS_POLICY_SKEY_FILENAME:-policy.skey}"
@@ -58,7 +59,7 @@ cntools_policy_protection_cleanup() {
 
 cntools_policy_protect() {
   local directory="$1" operation="$2" password="${3:-}" source='' target='' snapshot='' staged='' errors='' roundtrip='' binary='' status=0
-  CNTOOLS_POLICY_ERROR=''; CNTOOLS_POLICY_WARNING=''; CNTOOLS_POLICY_UNLOCKED=()
+  CNTOOLS_POLICY_ERROR=''; CNTOOLS_POLICY_WARNING=''; CNTOOLS_POLICY_UNLOCKED=(); CNTOOLS_POLICY_PASSWORD_REJECTED=N
   cntools_policy_protection_preflight "${directory}" "${operation}" || {
     [[ -n "${CNTOOLS_POLICY_ERROR}" ]] || cntools_policy_error 'The policy directory must be owned, writable and protected from group/public writes.'; return 1;
   }
@@ -75,6 +76,8 @@ cntools_policy_protect() {
     cntools_key_crypto_run "${binary}" "${operation}" "${snapshot}" "${staged}" "${password}" "${errors}" 60 65536 || status=$?
     if ((status != 0)); then
       cntools_transaction_log_cli_failure 'Policy GPG operation failed; original key retained' "${status}" "${errors}" ''
+      # Decrypt fails here before any file changes; the UI may ask again.
+      [[ "${operation}" != decrypt ]] || CNTOOLS_POLICY_PASSWORD_REJECTED=Y
       cntools_policy_error 'The policy key could not be opened/protected. Check the password and GPG installation.'; return 1
     fi
     if [[ "${operation}" == encrypt ]]; then

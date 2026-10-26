@@ -85,36 +85,25 @@ cntools_update_action_check() {
   trap 'exit 131' QUIT
   trap 'exit 143' TERM
   cntools_ui_action_begin "Check Again" "/ Update / Check Again"
-  printf 'Checking %s/guild-operators @ %s...\n\n' \
-    "${CNTOOLS_ACCOUNT}" "${CNTOOLS_BRANCH}"
-  if cntools_update_check manual; then
+  # The summary names the source and status; only add what it cannot say.
+  if cntools_ui_spin_function "Checking ${CNTOOLS_ACCOUNT}/guild-operators @ ${CNTOOLS_BRANCH}…" \
+      cntools_update_check manual; then
     status=0
   else
     status=$?
   fi
   cntools_update_render_summary
   case "${CNTOOLS_UPDATE_STATUS:-error}" in
-    available)
-      printf '%sA newer CNTools version is available.%s\n' \
-        "${CNTOOLS_UI_GREEN:-}" "${CNTOOLS_UI_RESET:-}"
-      ;;
-    current)
-      printf 'This installation is up to date.\n'
-      ;;
-    ahead)
-      printf 'This installation is newer than the selected branch.\n'
-      ;;
-    offline)
-      printf 'Update checks are unavailable in offline mode.\n'
-      ;;
+    available|current|ahead|offline) ;;
     *)
-      printf '%sThe update check could not be completed. See %s for details.%s\n' \
+      printf '%sSee %s for details.%s\n' \
         "${CNTOOLS_UI_YELLOW:-}" "${CNTOOLS_LOG}" "${CNTOOLS_UI_RESET:-}"
       ;;
   esac
   cntools_log UPDATE "manual check action completed status=${status}" || true
   cntools_ui_wait
-  return "${status}"
+  # A failed check is shown and acknowledged above: no second menu banner.
+  (( status == 0 )) || return 1
 }
 
 cntools_update_action_view_changes() {
@@ -252,9 +241,16 @@ cntools_update_action_install() {
       force_deploy="Y"
       confirmation_prompt="Force deploy this version anyway?"
       ;;
+    ahead)
+      printf 'The installed v%s is newer than v%s on %s. There is nothing to install.\n' \
+        "${CNTOOLS_VERSION}" "${CNTOOLS_UPDATE_REMOTE_VERSION}" "${CNTOOLS_BRANCH}"
+      cntools_log UPDATE "installation skipped: installed version is ahead of the branch" || true
+      cntools_ui_wait
+      return 0
+      ;;
     *)
-      printf 'No deployable version is currently known. Run Check Again first.\n'
-      cntools_log UPDATE "installation skipped: no deployable version" || true
+      printf 'No update has been found yet. Run Check Again first.\n'
+      cntools_log UPDATE "installation skipped: no deployable version status=${CNTOOLS_UPDATE_STATUS:-unchecked}" || true
       cntools_ui_wait
       return 0
       ;;
@@ -273,17 +269,15 @@ cntools_update_action_install() {
   printf '%sGuild Deploy refreshes the complete managed script and configuration snapshot,%s\n' \
     "${CNTOOLS_UI_YELLOW:-}" "${CNTOOLS_UI_RESET:-}"
   printf 'not only CNTools. No node binaries or OS packages will be installed.\n\n'
+  # No (or Esc) returns straight to the Update menu: nothing was changed.
   if ! cntools_ui_confirm "${confirmation_prompt}"; then
     if [[ "${force_deploy}" == "Y" ]]; then
-      printf '\nForce deployment cancelled.\n'
       cntools_log UPDATE \
         "force deployment cancelled version=${CNTOOLS_UPDATE_REMOTE_VERSION}" || true
     else
-      printf '\nUpdate cancelled.\n'
       cntools_log UPDATE \
         "installation cancelled remote=${CNTOOLS_UPDATE_REMOTE_VERSION}" || true
     fi
-    cntools_ui_wait
     return 0
   fi
   if [[ "${force_deploy}" == "Y" ]]; then

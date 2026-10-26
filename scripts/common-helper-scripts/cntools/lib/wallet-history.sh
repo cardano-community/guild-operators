@@ -35,6 +35,10 @@ cntools_history_page_size() {
   value="${value%"${value##*[![:space:]]}"}"
   [[ -n "${value}" ]] || value=5
   [[ "${value}" =~ ^([1-9]|10)$ ]] || return 2
+  # Cached pages are slices of the old size; reusing them misnumbers items.
+  if [[ "${value}" != "${CNTOOLS_HISTORY_SIZE}" ]]; then
+    CNTOOLS_HISTORY_PAGES=() CNTOOLS_HISTORY_PAGE=0 CNTOOLS_HISTORY_PAGE_FILE=""
+  fi
   CNTOOLS_HISTORY_SIZE="${value}"
 }
 
@@ -254,4 +258,34 @@ cntools_history_transaction_tags() {
     if ($tags|length) > 0 then $tags | join(" · ")
     elif internal then "Internal transfer" else "Transfer" end
   ' <<< "$1"
+}
+
+# The wallet's net ADA change in a transaction: its outputs minus its inputs
+# (change and fee included), as "+N"/"-N" lovelace. Same ownership test as tags.
+cntools_history_net_change_into() {
+  local _cntools_net_record="$2" _cntools_net_side='' _cntools_net_amount=''
+  local _cntools_net_in=0 _cntools_net_out=0 _cntools_net_value=''
+  printf -v "$1" '%s' ''
+  while IFS=$'\t' read -r _cntools_net_side _cntools_net_amount; do
+    [[ -n "${_cntools_net_side}" ]] || continue
+    [[ "${_cntools_net_amount}" =~ ^[0-9]+$ ]] || return 1
+    if [[ "${_cntools_net_side}" == in ]]; then
+      cntools_uint_add_into _cntools_net_in "${_cntools_net_in}" "${_cntools_net_amount}" || return 1
+    else
+      cntools_uint_add_into _cntools_net_out "${_cntools_net_out}" "${_cntools_net_amount}" || return 1
+    fi
+  done < <(jq -r --arg payment "${CNTOOLS_HISTORY_PAYMENT}" --arg stake "${CNTOOLS_HISTORY_STAKE}" '
+    def owner: ((try .payment_addr.cred catch null) // .payment_cred // "") | if type == "string" then . else "" end;
+    def ours: (($payment != "") and owner == $payment) or
+      (($stake != "") and (.stake_addr // .stake_address // "") == $stake);
+    (.inputs[]? | select(ours) | ["in", (.value | tostring)]),
+    (.outputs[]? | select(ours) | ["out", (.value | tostring)]) | @tsv
+  ' <<< "${_cntools_net_record}")
+  if cntools_uint_greater_equal "${_cntools_net_out}" "${_cntools_net_in}"; then
+    cntools_uint_subtract_into _cntools_net_value "${_cntools_net_out}" "${_cntools_net_in}" || return 1
+    printf -v "$1" '+%s' "${_cntools_net_value}"
+  else
+    cntools_uint_subtract_into _cntools_net_value "${_cntools_net_in}" "${_cntools_net_out}" || return 1
+    printf -v "$1" -- '-%s' "${_cntools_net_value}"
+  fi
 }

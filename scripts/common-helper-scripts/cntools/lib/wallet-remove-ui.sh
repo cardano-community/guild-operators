@@ -199,20 +199,15 @@ cntools_wallet_action_remove() {
     cntools_ui_wait
     return 1
   fi
-  if (( ${#CNTOOLS_WALLET_NAMES[@]} == 0 )); then
-    cntools_ui_render_status warn "No wallets are available to remove."
-    cntools_ui_wait
-    return 0
-  fi
   # Removal always asks for an explicit pick, even with one wallet.
   if cntools_wallet_choose selected_index "" "" N; then
     status=0
   else
     status=$?
   fi
-  if (( status == 1 )); then
-    cntools_wallet_remove_log CHOICE "wallet removal selection cancelled"
-    cntools_gum_clear
+  # 3: no wallets, already shown and acknowledged.
+  if (( status == 1 || status == 3 || status == 130 )); then
+    cntools_wallet_remove_log CHOICE "wallet removal selection ended status=${status}"
     return 0
   elif (( status != 0 )); then
     cntools_ui_render_status error \
@@ -252,10 +247,9 @@ cntools_wallet_action_remove() {
     status=0
   else
     status=$?
-    if (( status == 1 )); then
+    if (( status == 1 || status == 130 )); then
       cntools_wallet_remove_log CHOICE \
         "wallet removal declined wallet=${wallet_name} warnings=${CNTOOLS_WALLET_REMOVE_WARNING_COUNT}"
-      cntools_gum_clear
       return 0
     fi
     return "${status}"

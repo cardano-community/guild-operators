@@ -50,6 +50,7 @@
     "pool.sh",
     "pool-files.sh",
     "pool-key.sh",
+    "pool-lock.sh",
     "pool-inspect.sh",
     "pool-ui.sh",
     "pool-parameters.sh",

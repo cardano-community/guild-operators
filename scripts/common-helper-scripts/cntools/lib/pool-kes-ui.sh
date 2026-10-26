@@ -7,9 +7,10 @@ cntools_kes_choose() {
   cntools_transaction_log CHOICE "KES ${2}: ${kes_selected_ref}"
 }
 
-# Every unconfirmed step reports what state it left, so an exit to the menu
-# never hides whether anything changed. Pass "flow" as $4 for a step that
-# changes nothing active, which Quick then treats as confirmed.
+# A declined step that leaves saved state (keys, a lock or recovery files)
+# reports it; one that changed nothing passes no message and returns straight
+# to the menu. Pass "flow" as $4 for a step that changes nothing active, which
+# Quick then treats as confirmed.
 cntools_kes_confirm() {
   local prompt="$1" default="$2" stopped="${3:-}" kes_confirmation_status=0
   if [[ "${4:-}" == flow ]]; then cntools_ui_flow_confirm "${prompt}" "${default}" || kes_confirmation_status=$?
@@ -113,8 +114,7 @@ cntools_kes_choose_period() {
     cntools_kes_input entered 'Verified current KES period' 'Unsigned integer; cancel to return' || return $?
     if cntools_number_normalize_into normalized "${entered}" && [[ "${normalized}" =~ ^(0|[1-9][0-9]{0,9})$ ]] &&
         ((normalized < 2147483647)); then
-      cntools_kes_confirm "Use independently verified KES period ${normalized}?" false \
-        'Rotation stopped before preparing keys. Nothing was changed.' || return 1
+      cntools_kes_confirm "Use independently verified KES period ${normalized}?" false || return 1
       CNTOOLS_KES_START="${normalized}" CNTOOLS_KES_PERIOD_SOURCE='Operator verified · offline/unavailable tip'
       cntools_transaction_log CHOICE "KES start independently verified period=${normalized}"
       return 0
@@ -175,12 +175,13 @@ cntools_kes_reload_confirmed() {
 
 # What an installed rotation changed, and whether the node runs it yet.
 cntools_kes_installed_summary() {
-  local node_state="$1" role="$2"
+  local node_state="$1" role="$2" counter=''
+  cntools_pool_file_name_into counter counter
   {
     cntools_table_pair Pool "${CNTOOLS_POOL_NAMES[CNTOOLS_KES_INDEX]}" identifier
     cntools_table_pair 'KES key' 'Replaced (hot.skey, hot.vkey)' success
     cntools_table_pair 'Operational certificate' "Replaced · counter ${CNTOOLS_KES_NEXT}, start period $(cntools_number_format "${CNTOOLS_KES_START}")" success
-    cntools_table_pair 'Issue counter · disk' "cold.counter next is $((CNTOOLS_KES_NEXT+1))" value
+    cntools_table_pair "Next issue counter · ${counter}" "$((CNTOOLS_KES_NEXT+1))" number
     cntools_table_pair 'Running node' "${node_state}" "${role}"
     cntools_table_pair Unchanged 'Cold and VRF keys' muted
     [[ -z "${CNTOOLS_KES_STAGE}" ]] || cntools_table_pair 'Recovery copy' "${CNTOOLS_KES_STAGE}" identifier
@@ -215,6 +216,18 @@ cntools_kes_reload_offer() {
   cntools_kes_installed_summary 'Still using the previous key · reload or restart it' warning
 }
 
+# Nothing was issued for a prepared or awaiting request, so it can be
+# abandoned: the lock is released and its recovery folder kept.
+cntools_kes_discard_offer() {
+  cntools_ui_render_status warn 'Discarding releases the rotation lock so a new rotation can start. Active node files and the issue counter stay unchanged, and the prepared KES keys stay in the recovery folder. Never install a certificate signed for this request.'
+  cntools_kes_confirm 'Discard this KES request?' false || return 0
+  cntools_transaction_log CHOICE "KES request discard approved recovery=${CNTOOLS_KES_STAGE}"
+  if ! cntools_ui_spin_function 'Releasing the rotation lock…' cntools_kes_discard; then
+    cntools_kes_result "${CNTOOLS_POOL_WRITE_ERROR:-The request could not be discarded. Inspect the lock and recovery folder.}" error; return 0
+  fi
+  cntools_kes_result 'Request discarded · active keys and counter unchanged; recovery folder kept' success
+}
+
 cntools_kes_continue() {
   local phase='' choice='' directory='' status=0
   while true; do
@@ -224,8 +237,9 @@ cntools_kes_continue() {
       prepared)
         local -a choices=()
         [[ -z "${CNTOOLS_KES_SOURCE}" ]] || choices+=('Issue certificate now')
-        choices+=('Prepare offline hand-off' 'Import signed response' 'Return without changing active keys')
-        cntools_kes_choose choice 'Continue rotation' "${choices[@]}" || return $?
+        choices+=('Prepare offline hand-off' 'Import signed response' 'Discard this request' 'Return without changing active keys')
+        # Esc leaves the pending rotation as the review shows it.
+        cntools_kes_choose choice 'Continue rotation' "${choices[@]}" || return 0
         case "${choice}" in
           'Issue certificate now')
             cntools_ui_render_status warn 'Issuing a certificate advances the real counter, even if you postpone installation. Keep its recovery copy; never restore an older counter.'
@@ -235,17 +249,21 @@ cntools_kes_continue() {
             cntools_ui_spin_function 'Issuing and validating the KES certificate…' cntools_kes_issue || return 1 ;;
           'Prepare offline hand-off') cntools_kes_offline_instructions; return $? ;;
           'Import signed response')
-            cntools_ui_pick_path directory 'Signed response directory' 'Choose the folder containing op.cert and cold.counter.' "${CNTOOLS_KES_DIRECTORY}" directory || return $?
+            cntools_ui_pick_path directory 'Signed response directory' 'Choose the folder containing op.cert and cold.counter.' "${CNTOOLS_KES_DIRECTORY}" directory || {
+              status=$?; ((status != 1)) || { status=0; continue; }; return 0; }
             cntools_ui_spin_function 'Validating the returned certificate and counter…' cntools_kes_import_response "${directory}" || return 1 ;;
+          'Discard this request') cntools_kes_discard_offer; return $? ;;
           *) return 0 ;;
         esac ;;
       awaiting)
-        cntools_kes_choose choice 'Offline rotation' 'Import signed response' 'Show hand-off instructions' 'Return without changing active keys' || return $?
+        cntools_kes_choose choice 'Offline rotation' 'Import signed response' 'Show hand-off instructions' 'Discard this request' 'Return without changing active keys' || return 0
         case "${choice}" in
           'Import signed response')
-            cntools_ui_pick_path directory 'Signed response directory' 'Choose the folder containing op.cert and cold.counter.' "${CNTOOLS_KES_DIRECTORY}" directory || return $?
+            cntools_ui_pick_path directory 'Signed response directory' 'Choose the folder containing op.cert and cold.counter.' "${CNTOOLS_KES_DIRECTORY}" directory || {
+              status=$?; ((status != 1)) || { status=0; continue; }; return 0; }
             cntools_ui_spin_function 'Validating the returned certificate and counter…' cntools_kes_import_response "${directory}" || return 1 ;;
           'Show hand-off instructions') cntools_kes_offline_instructions; return $? ;;
+          'Discard this request') cntools_kes_discard_offer; return $? ;;
           *) return 0 ;;
         esac ;;
       issuing)
@@ -283,6 +301,9 @@ cntools_pool_action_rotate() {
     return 0
   fi
   local lock=''
+  cntools_pool_folder_name_supported "${CNTOOLS_KES_DIRECTORY}" || {
+    cntools_kes_result "$(cntools_pool_folder_unsupported_message "${CNTOOLS_KES_DIRECTORY}")" error; return 0;
+  }
   cntools_pool_opcert_lock_into lock "${CNTOOLS_KES_DIRECTORY}" || {
     cntools_kes_result 'The owner-only CNTools state folder (.cntools in the node home) is unavailable.' error; return 0;
   }
@@ -291,8 +312,10 @@ cntools_pool_action_rotate() {
       case "$(< "${CNTOOLS_KES_STAGE}/phase")" in
         prepared|awaiting)
           if ! cntools_kes_counter_verify; then
-            [[ -z "${CNTOOLS_POOL_WRITE_ERROR}" ]] || cntools_kes_result "${CNTOOLS_POOL_WRITE_ERROR}" error
-            return 0
+            [[ -n "${CNTOOLS_POOL_WRITE_ERROR}" ]] || return 0
+            # Issuing rechecks the counter; a stale request can still be discarded.
+            cntools_ui_render_status warn "${CNTOOLS_POOL_WRITE_ERROR} Discard this request to start a new rotation."
+            CNTOOLS_POOL_WRITE_ERROR=''
           fi ;;
       esac
       cntools_kes_continue || status=$?
@@ -322,8 +345,7 @@ cntools_pool_action_rotate() {
         cntools_kes_choose_period || return 0
         cntools_kes_review || return 1
         cntools_ui_render_status warn "Rotation generates new KES keys and issues certificate ${CNTOOLS_KES_NEXT}, which permanently advances the cold counter. Active node files change only when you install the new set."
-        cntools_kes_confirm "Rotate KES now, starting at period ${CNTOOLS_KES_START}?" false \
-          'No KES keys were generated and the issue counter is unchanged.' || return 0
+        cntools_kes_confirm "Rotate KES now, starting at period ${CNTOOLS_KES_START}?" false || return 0
         cntools_ui_spin_function 'Preparing and validating replacement KES keys…' cntools_kes_prepare "${CNTOOLS_KES_START}" || status=$?
         if ((status == 0)); then
           [[ "${CNTOOLS_KES_KIND}" != hardware ]] || cntools_ui_render_status info 'Connect and unlock the hardware device, open Cardano and approve certificate issuance.'
@@ -335,8 +357,10 @@ cntools_pool_action_rotate() {
         cntools_kes_review || return 1
         [[ "${only_workflow}" != Y ]] ||
           cntools_ui_render_status info 'No cold signing key or hardware wallet file for this pool is on this system, so this prepares an offline request for the signing system.'
+        # This generates keys and takes the certificate lock. Quick skips the
+        # question only when the operator picked this workflow from the menu.
         cntools_kes_confirm "Prepare an offline request starting at KES period ${CNTOOLS_KES_START}? The counter advances only when the cold key signs it." false \
-          'No offline request was prepared. Nothing was changed.' flow || return 0
+          '' "$([[ "${only_workflow}" == Y ]] || printf flow)" || return 0
         cntools_ui_spin_function 'Preparing and validating replacement KES keys…' cntools_kes_prepare "${CNTOOLS_KES_START}" || status=$?
         ((status != 0)) || cntools_kes_offline_instructions || status=$? ;;
       'Sign an offline request')
@@ -346,8 +370,7 @@ cntools_pool_action_rotate() {
         CNTOOLS_KES_NEXT="$(jq -r '.issueCounter' "${request}/request.json")" CNTOOLS_KES_COUNTER_SOURCE='Offline request'
         cntools_kes_review || return 1
         cntools_ui_render_status warn "Check the requested KES period against the node. The node chose issue counter ${CNTOOLS_KES_NEXT}; signing sets this system's cold.counter (now ${CNTOOLS_KES_DISK_NEXT}) to $((CNTOOLS_KES_NEXT+1)). Only return the public certificate and advanced counter, never cold or KES private keys."
-        cntools_kes_confirm 'Sign this offline certificate request and advance the real counter?' false \
-          'Request not signed. The issue counter was not advanced.' || return 0
+        cntools_kes_confirm 'Sign this offline certificate request and advance the real counter?' false || return 0
         CNTOOLS_KES_COUNTER_APPROVED=Y
         [[ "${CNTOOLS_KES_KIND}" != hardware ]] || cntools_ui_render_status info 'Connect and unlock the hardware device, open Cardano and approve certificate issuance.'
         cntools_ui_spin_function 'Issuing the offline operational certificate…' cntools_kes_sign_request "${request}" || status=$?
@@ -357,6 +380,7 @@ cntools_pool_action_rotate() {
         fi ;;
     esac
   fi
+  ((status != 130)) || return 130
   if ((status != 0)); then cntools_kes_result "${CNTOOLS_POOL_WRITE_ERROR:-KES operation failed; retain recovery files and inspect the log before retrying.}" error; fi
   return 0
 }

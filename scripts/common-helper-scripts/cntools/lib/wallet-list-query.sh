@@ -35,6 +35,8 @@ cntools_wallet_list_query_reset() {
   CNTOOLS_WALLET_LIST_STAKE_REWARDS=()
   CNTOOLS_WALLET_LIST_QUERY_LEVEL=""
   CNTOOLS_WALLET_LIST_QUERY_SUMMARY=""
+  # Y once live balances were requested: List then shows a Total (or —).
+  CNTOOLS_WALLET_LIST_QUERY_LIVE=N
   for (( index = 0; index < ${#CNTOOLS_WALLET_NAMES[@]}; index++ )); do
     CNTOOLS_WALLET_LIST_BASE_ADDRESSES[index]=""
     CNTOOLS_WALLET_LIST_PAYMENT_ADDRESSES[index]=""
@@ -538,11 +540,13 @@ cntools_wallet_list_query_catalog() {
     offline) ;;
     local)
       if [[ "${CNTOOLS_LOCAL_CLI_CAPABLE:-false}" == "true" ]]; then
+        CNTOOLS_WALLET_LIST_QUERY_LIVE=Y
         cntools_wallet_list_local_preflight &&
           cntools_wallet_list_query_local
       fi
       ;;
     light)
+      CNTOOLS_WALLET_LIST_QUERY_LIVE=Y
       cntools_wallet_list_query_koios_funding || true
       cntools_wallet_list_query_koios_stakes || true
       cntools_wallet_list_project_koios_results

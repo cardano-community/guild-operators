@@ -4,7 +4,7 @@
 # shellcheck disable=SC2034
 CNTOOLS_MULTISIG_SPEND_SCRIPT='' CNTOOLS_MULTISIG_SPEND_AFTER='' CNTOOLS_MULTISIG_SPEND_BEFORE=''
 CNTOOLS_MULTISIG_SPEND_THRESHOLD=0 CNTOOLS_MULTISIG_CAN_SIGN=N
-CNTOOLS_MULTISIG_SELECTION_ROLE=payment
+CNTOOLS_MULTISIG_SELECTION_ROLE=payment CNTOOLS_MULTISIG_CANDIDATE_LAST=''
 declare -ag CNTOOLS_MULTISIG_CANDIDATE_IDS=() CNTOOLS_MULTISIG_CANDIDATE_HASHES=() CNTOOLS_MULTISIG_CANDIDATE_SOURCES=() CNTOOLS_MULTISIG_CANDIDATE_LABELS=()
 declare -ag CNTOOLS_MULTISIG_SIGNER_IDS=() CNTOOLS_MULTISIG_SIGNER_HASHES=() CNTOOLS_MULTISIG_SIGNER_SOURCES=() CNTOOLS_MULTISIG_SIGNER_LABELS=()
 
@@ -73,7 +73,11 @@ cntools_multisig_candidate_add() {
   cntools_transaction_key_id_from_verification_file_into id "${verification}" &&
     cntools_transaction_credential_from_key_id_into hash "${id}" || return 1
   jq -e --arg h "${hash}" 'any(..|objects; .type=="sig" and (.keyHash|ascii_downcase)==$h)' "${CNTOOLS_MULTISIG_SPEND_SCRIPT}" >/dev/null || return 1
-  for known in "${CNTOOLS_MULTISIG_CANDIDATE_IDS[@]}"; do [[ "${known}" != "${id}" ]] || return 0; done
+  # CANDIDATE_LAST is the index of this key, whether new or already listed.
+  for CNTOOLS_MULTISIG_CANDIDATE_LAST in "${!CNTOOLS_MULTISIG_CANDIDATE_IDS[@]}"; do
+    [[ "${CNTOOLS_MULTISIG_CANDIDATE_IDS[CNTOOLS_MULTISIG_CANDIDATE_LAST]}" != "${id}" ]] || return 0
+  done
+  CNTOOLS_MULTISIG_CANDIDATE_LAST="${#CNTOOLS_MULTISIG_CANDIDATE_IDS[@]}"
   if [[ -n "${source}" ]]; then
     cntools_transaction_source_kind_into kind "${source}" || source=''
     if [[ -n "${source}" ]]; then
@@ -120,7 +124,7 @@ cntools_multisig_signer_select() {
 
 cntools_multisig_spend_choose_signers() {
   local choice='' index=0 id='' selected=N path='' source='' begin="${1:-cntools_send_begin}" role_title=''
-  local script_keys=0 feedback=''
+  local script_keys=0 feedback='' status=0 before=0
   local -a options=()
   CNTOOLS_MULTISIG_SELECTION_ROLE="${2:-payment}"
   [[ "${CNTOOLS_MULTISIG_SELECTION_ROLE}" =~ ^(payment|stake|drep)$ ]] || return 2
@@ -165,9 +169,18 @@ cntools_multisig_spend_choose_signers() {
           feedback="Select at least ${CNTOOLS_MULTISIG_SPEND_THRESHOLD} signing participants first; ${#CNTOOLS_MULTISIG_SIGNER_IDS[@]} selected." ;;
         'Clear selected signers') CNTOOLS_MULTISIG_SIGNER_IDS=(); CNTOOLS_MULTISIG_SIGNER_HASHES=(); CNTOOLS_MULTISIG_SIGNER_SOURCES=(); CNTOOLS_MULTISIG_SIGNER_LABELS=() ;;
         'Add external verification key')
-          cntools_ui_pick_path path "Participant ${CNTOOLS_MULTISIG_SELECTION_ROLE} verification-key file" 'Choose a public verification key belonging to this script. Private keys are not requested here.' || continue
+          status=0
+          cntools_ui_pick_path path "Participant ${CNTOOLS_MULTISIG_SELECTION_ROLE} verification-key file" 'Choose a public verification key belonging to this script. Private keys are not requested here.' || status=$?
+          (( status != 1 )) || continue
+          (( status == 0 )) || return "${status}"
+          # Feedback is drawn after the redraw; an accepted key is selected at once.
+          before="${#CNTOOLS_MULTISIG_SIGNER_IDS[@]}"
           if ! cntools_multisig_candidate_add "${path}" '' "External participant $((${#CNTOOLS_MULTISIG_CANDIDATE_IDS[@]}+1))"; then
-            cntools_ui_render_status warn "Use a safe ${CNTOOLS_MULTISIG_SELECTION_ROLE} verification key belonging to this script. Private keys are not requested here."
+            feedback="Use a safe ${CNTOOLS_MULTISIG_SELECTION_ROLE} verification key belonging to this script. Private keys are not requested here."
+          else
+            cntools_multisig_signer_select "${CNTOOLS_MULTISIG_CANDIDATE_LAST}" || return 2
+            (( ${#CNTOOLS_MULTISIG_SIGNER_IDS[@]} > before )) ||
+              feedback="That ${CNTOOLS_MULTISIG_SELECTION_ROLE} key is already selected."
           fi ;;
         Cancel) return 1 ;;
         *) index="${choice%% ·*}"; [[ "${index}" =~ ^[1-9][0-9]*$ ]] || return 2

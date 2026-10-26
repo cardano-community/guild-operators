@@ -156,8 +156,13 @@ Exact mode supports multiple recipients. ADA amounts allow six decimal places;
 entering zero requests the required minimum ADA for the output. Native-asset
 quantities use the smallest units specified by the prompt.
 
-Add, edit or remove recipients before continuing. Cancel an edit or addition
-to return to the recipient list without losing the existing draft. The source
+Add, edit or remove recipients before continuing; an edit starts with
+**Keep current recipient**, and Enter keeps the current amount. Cancel an edit
+or addition to return to the recipient list without losing the existing draft.
+From the review, **Back to review** returns without changes. Send never spends
+UTxOs that carry reference scripts; the review notes any that were left
+untouched. If a build fails, the error is shown and the recipients stay open
+for editing. The source
 uses eligible funds across its base and payment addresses; rewards and deposits
 are not included. Change goes to its primary address unless the optional
 change-address choice is enabled in Settings.
@@ -205,9 +210,10 @@ is being signed elsewhere, rebuild rather than reuse stale withdrawal data.
 ### Collect UTxOs
 
 **Funds → Collect UTxOs** returns eligible funds to the same wallet, less the
-fee. Choose **ADA-only UTxOs** or **ADA and native assets** (Quick starts
-with ADA-only; use **Change scope** in the review). Outputs carrying
-datums or reference scripts are left untouched.
+fee. Choose **ADA-only UTxOs** or **ADA and native assets**; only scopes with
+something to collect are offered. Quick starts with ADA-only when that collects
+anything, otherwise with all assets; use **Change scope** in the review.
+Outputs carrying datums or reference scripts are left untouched.
 
 Your change settings still apply. Fragmentation or ADA-only management may
 create several outputs, so collection can reshape funds rather than reduce the
@@ -224,9 +230,10 @@ and delegation are unchanged.
 3. Start `./cntools.sh -o`, open **Transaction → Sign**, and choose a saved
    package, browse for the imported file, or enter its path.
 4. Use **Review transaction** to inspect its decoded details, and review the
-   required signers. CNTools searches local wallets for matching signing keys
-   and hardware references. Choose a verified match, select a file manually,
-   or skip a signer and save a partial package for them to sign elsewhere.
+   required signers. CNTools searches local wallets and pool folders for
+   matching signing keys and hardware references (Quick uses a single verified
+   key file directly). Choose a verified match, select a file manually, or skip
+   a signer and save a partial package for them to sign elsewhere.
 5. Return the completed package to an online system and use
    **Transaction → Submit**.
 
@@ -244,14 +251,16 @@ Changing a transaction requires rebuilding and collecting new signatures.
 
 Sign and Submit both offer **Saved CNTools packages**, **Browse files** and
 **Enter file path**. Saved packages are listed newest first with action, network
-and signing progress. Sign lists unsigned/partial packages; Submit lists signed
-packages. Imported files can be browsed without knowing their full path, including
+and signing progress, and when they were saved. Sign lists unsigned/partial
+packages; Submit lists signed packages. Quick opens the saved list directly and
+uses a lone package without a list. Imported files can be browsed without knowing their full path, including
 hidden folders. Back or Escape returns to file selection; Cancel leaves the action.
 Listing a package is not proof that it is valid: CNTools validates the selected
 file before the existing review, signing or submission flow.
 
-Sign and Submit show a compact transaction information table. **Review
-transaction** opens the same detail layout as wallet transaction history:
+Sign and Submit show a compact transaction information table: the declared
+purpose, outputs, certificates, withdrawals, fee and expiry. Submitting a pool
+retirement always asks first. **Review transaction** opens the same detail layout as wallet transaction history:
 separate inputs/outputs, nested asset tables, and relevant metadata, certificate,
 withdrawal and governance sections. This view is decoded locally from the selected
 transaction and works offline. It cannot resolve input addresses or their original
@@ -346,7 +355,10 @@ substitute for cold-key recovery backups.
 ### Register or modify a pool
 
 **Pool → Register / Modify** guides pool and funding-wallet selection, pledge,
-cost, margin, reward account, owners, relays and optional metadata.
+cost, margin, reward account, owners, relays and optional metadata. Modify's
+review shows each changed setting as old → new and refuses a transaction that
+changes nothing (unless it cancels a pending retirement). The review also shows
+each owner's and the reward account's registration and delegation state.
 
 Metadata can be created/edited locally, selected from a file, downloaded for
 review, or supplied as a published URL and hash. Publish it yourself and ensure
@@ -406,7 +418,9 @@ or restart it, and verify its health.
 
 For offline cold-key signing:
 
-1. Choose **Prepare offline request** on the node.
+1. Choose **Prepare offline request** on the node. A prepared request holds
+   the pool's KES lock until its response is imported; **Discard this request**
+   releases it without changing active keys or the counter.
 2. Copy only the reported public request directory to the signing system.
    Never transfer the new KES private key or the parent recovery directory.
 3. Use **Pool → Rotate → Sign an offline request** there with the independently
@@ -420,8 +434,9 @@ never restore an older counter to make an old certificate usable.
 ### Retire a pool
 
 **Pool → Retire** selects a registered pool, funding wallet and permitted future
-epoch. Enter defaults to the next epoch. The review identifies any existing
-scheduled retirement that will be replaced.
+epoch. Enter defaults to the next epoch (Quick uses it without asking; use
+**Change retirement epoch** in the review). The review identifies any existing
+scheduled retirement that will be replaced, and submitting always asks first.
 
 Only the fee is spent by this transaction. The pool deposit is returned to its
 registered reward account when retirement takes effect, not when the retirement
@@ -509,7 +524,8 @@ Custom derivation paths are available. Existing wallet keys are not replaced.
 optional payment time bounds to create a script wallet. Back up the scripts
 and participant recovery information. Participants, threshold and time bounds
 determine the address and cannot be changed for that address.
-An expiry can permanently lock remaining funds.
+An expiry can permanently lock remaining funds, so a "Spendable before" bound
+must lie in the future; a create with time bounds always asks for confirmation.
 
 Use **Vote → Governance → MultiSig DRep** for a separate threshold DRep
 identity. Transaction actions choose payment, stake and DRep signing subsets
@@ -551,10 +567,12 @@ secure erasure from SSDs, snapshots or other backups.
 ## Backups and restoration
 
 **Backup & Restore → Backup** offers full or public-only archives, with GPG
-encryption recommended; without GnuPG only an unencrypted archive is offered.
-Quick uses GPG encryption, when GnuPG is installed, and the default backup
-folder; choose Detailed for an unencrypted archive or another folder. Full backups include present wallet, pool and policy
-files; public-only archives are not signing-key recovery backups.
+encryption recommended; without GnuPG only an unencrypted archive is possible.
+Quick starts with GPG encryption and the default backup folder; the review
+offers **Change protection** and **Change folder** in both styles. Full backups
+include present wallet, pool and policy files; public-only archives are not
+signing-key recovery backups. The review summarises key coverage and lists only
+keys the archive cannot recover.
 
 New encrypted archives require a confirmed passphrase of at least 12 characters.
 Restoring an encrypted archive accepts its existing passphrase, including

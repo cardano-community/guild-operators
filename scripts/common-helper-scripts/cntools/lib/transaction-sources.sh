@@ -25,7 +25,7 @@ cntools_transaction_source_type_into() {
 }
 
 cntools_transaction_sources_collect() {
-  local root="${CNTOOLS_WALLET_DIR:-}" directory='' file='' kind='' identity='' key_type='' wallet_name=''
+  local root='' directory='' file='' kind='' identity='' key_type='' wallet_name=''
   local previous_error="${CNTOOLS_TRANSACTION_ERROR:-}"
   local -A seen=()
   local -a configured_names=(
@@ -40,34 +40,37 @@ cntools_transaction_sources_collect() {
   CNTOOLS_TRANSACTION_LOCAL_KINDS=(); CNTOOLS_TRANSACTION_LOCAL_TYPES=()
   CNTOOLS_TRANSACTION_LOCAL_KEY_TYPES=()
   CNTOOLS_TRANSACTION_LOCAL_KEY_NAMES=()
-  [[ -n "${root}" && "${root}" == /* && "${root}" != / && -d "${root}" &&
-     -r "${root}" && -x "${root}" ]] || return 0
-  cntools_filesystem_path_components_safe "${root}" || return 0
-  for directory in "${root}/"*; do
-    cntools_transaction_directory_safe "${directory}" || continue
-    wallet_name="${directory##*/}"
-    # Top-level sources only. Do not traverse hidden staging/recovery folders,
-    # import archives, or follow wallet/file symlinks.
-    for file in "${directory}/"*.skey "${directory}/"*.hwsfile "${configured_names[@]/#/${directory}/}"; do
-      [[ -z "${seen[${file}]:-}" ]] || continue
-      seen["${file}"]=Y
-      cntools_transaction_source_kind_into kind "${file}" || continue
-      cntools_transaction_source_key_id_into identity "${file}" || continue
-      cntools_transaction_source_type_into key_type "${file}" || continue
-      CNTOOLS_TRANSACTION_LOCAL_FILES+=("${file}"); CNTOOLS_TRANSACTION_LOCAL_IDS+=("${identity}")
-      CNTOOLS_TRANSACTION_LOCAL_KINDS+=("${kind}"); CNTOOLS_TRANSACTION_LOCAL_TYPES+=("${key_type}")
-      CNTOOLS_TRANSACTION_LOCAL_KEY_TYPES["${identity}"]="${key_type}"
-      [[ -n "${CNTOOLS_TRANSACTION_LOCAL_KEY_NAMES[${identity}]:-}" ]] || CNTOOLS_TRANSACTION_LOCAL_KEY_NAMES["${identity}"]="${wallet_name}"
-    done
-    for file in "${directory}/"*.vkey "${public_names[@]/#/${directory}/}"; do
-      [[ -z "${seen[${file}]:-}" ]] || continue
-      seen["${file}"]=Y
-      cntools_transaction_key_id_from_verification_file_into identity "${file}" || continue
-      cntools_transaction_source_type_into key_type "${file}" || continue
-      # Public-only/encrypted wallets can identify the requested type, but
-      # their public files never count as an available signing source.
-      [[ -n "${CNTOOLS_TRANSACTION_LOCAL_KEY_TYPES[${identity}]:-}" ]] || CNTOOLS_TRANSACTION_LOCAL_KEY_TYPES["${identity}"]="${key_type}"
-      [[ -n "${CNTOOLS_TRANSACTION_LOCAL_KEY_NAMES[${identity}]:-}" ]] || CNTOOLS_TRANSACTION_LOCAL_KEY_NAMES["${identity}"]="${wallet_name}"
+  # Pool folders hold the cold keys that pool certificates need.
+  for root in "${CNTOOLS_WALLET_DIR:-}" "${CNTOOLS_POOL_DIR:-}"; do
+    [[ -n "${root}" && "${root}" == /* && "${root}" != / && -d "${root}" &&
+       -r "${root}" && -x "${root}" ]] || continue
+    cntools_filesystem_path_components_safe "${root}" || continue
+    for directory in "${root}/"*; do
+      cntools_transaction_directory_safe "${directory}" || continue
+      wallet_name="${directory##*/}"
+      # Top-level sources only. Do not traverse hidden staging/recovery folders,
+      # import archives, or follow wallet/file symlinks.
+      for file in "${directory}/"*.skey "${directory}/"*.hwsfile "${configured_names[@]/#/${directory}/}"; do
+        [[ -z "${seen[${file}]:-}" ]] || continue
+        seen["${file}"]=Y
+        cntools_transaction_source_kind_into kind "${file}" || continue
+        cntools_transaction_source_key_id_into identity "${file}" || continue
+        cntools_transaction_source_type_into key_type "${file}" || continue
+        CNTOOLS_TRANSACTION_LOCAL_FILES+=("${file}"); CNTOOLS_TRANSACTION_LOCAL_IDS+=("${identity}")
+        CNTOOLS_TRANSACTION_LOCAL_KINDS+=("${kind}"); CNTOOLS_TRANSACTION_LOCAL_TYPES+=("${key_type}")
+        CNTOOLS_TRANSACTION_LOCAL_KEY_TYPES["${identity}"]="${key_type}"
+        [[ -n "${CNTOOLS_TRANSACTION_LOCAL_KEY_NAMES[${identity}]:-}" ]] || CNTOOLS_TRANSACTION_LOCAL_KEY_NAMES["${identity}"]="${wallet_name}"
+      done
+      for file in "${directory}/"*.vkey "${public_names[@]/#/${directory}/}"; do
+        [[ -z "${seen[${file}]:-}" ]] || continue
+        seen["${file}"]=Y
+        cntools_transaction_key_id_from_verification_file_into identity "${file}" || continue
+        cntools_transaction_source_type_into key_type "${file}" || continue
+        # Public-only/encrypted wallets can identify the requested type, but
+        # their public files never count as an available signing source.
+        [[ -n "${CNTOOLS_TRANSACTION_LOCAL_KEY_TYPES[${identity}]:-}" ]] || CNTOOLS_TRANSACTION_LOCAL_KEY_TYPES["${identity}"]="${key_type}"
+        [[ -n "${CNTOOLS_TRANSACTION_LOCAL_KEY_NAMES[${identity}]:-}" ]] || CNTOOLS_TRANSACTION_LOCAL_KEY_NAMES["${identity}"]="${wallet_name}"
+      done
     done
   done
   CNTOOLS_TRANSACTION_ERROR="${previous_error}"
@@ -111,13 +114,23 @@ cntools_transaction_ui_local_source_into() {
   choices+=(Cancel)
   local -n local_source_result="${output}"
   local_source_result=''
+  # Quick signs with a lone verified key file directly; a hardware match
+  # still asks, because it starts a device session.
+  if (( ${#matched_files[@]} == 1 )) && [[ -z "${hardware_group}" ]] && cntools_flow_quick &&
+     cntools_transaction_source_kind_into candidate_kind "${matched_files[0]}" && [[ "${candidate_kind}" == cli ]] &&
+     cntools_transaction_source_key_id_into candidate_id "${matched_files[0]}" && [[ "${candidate_id}" == "${expected}" ]]; then
+    cntools_transaction_log CHOICE "Signer source default id=${expected} selection=${choices[0]} flow=quick"
+    local_source_result="${matched_files[0]}"; return 0
+  fi
+  local method_label='Signing key or hardware wallet'
+  case "${preferred}" in cli) method_label='Signing key file' ;; hardware) method_label='Hardware wallet' ;; esac
   while true; do
     cntools_gum_clear
     cntools_transaction_ui_sign_begin || return 2
     {
       cntools_table_pair Signer "${signer_name}" identifier
       cntools_table_pair 'Key type' "${key_type}" value
-      cntools_table_pair 'Signing method' "${preferred}" accent
+      cntools_table_pair 'Signing method' "${method_label}" accent
     } | cntools_table_render 'Required signer' || return 2
     if (( ${#matched_files[@]} == 0 )); then
       cntools_ui_render_status info 'No usable matching key was found in local wallets. Choose a file manually; encrypted keys must be decrypted through Wallet → Decrypt first.' || return 2

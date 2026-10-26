@@ -150,11 +150,11 @@ cntools_pool_choose_into() {
     printf -v _pool_row '%02d  %s · %s' "$((_pool_index + 1))" "${CNTOOLS_POOL_NAMES[_pool_index]}" "${CNTOOLS_POOL_PROTECTIONS[_pool_index]}"
     _pool_rows+=("${_pool_row}")
   done
-  # A lone pool needs no picker; later steps still confirm the action.
+  # A lone pool needs no picker; the next screen names it and later steps
+  # still confirm the action.
   if (( ${#_pool_rows[@]} == 1 )); then
     printf -v "${_pool_output}" '%s' 0
     cntools_transaction_log CHOICE "Pool auto-selected=${CNTOOLS_POOL_NAMES[0]}"
-    cntools_ui_render_status info "Using ${CNTOOLS_POOL_NAMES[0]}, the only pool."
     return 0
   fi
   cntools_ui_choose _pool_choice 'Filter pools…' "${_pool_rows[@]}" Cancel || return $?
@@ -167,4 +167,26 @@ cntools_pool_choose_into() {
     fi
   done
   return 2
+}
+
+# Run a review's "Change …" step. Esc (1) keeps the current value and returns
+# to the review; Ctrl+C (130) and errors still end the action.
+cntools_pool_review_change() {
+  local change_status=0
+  "$@" || change_status=$?
+  if ((change_status == 1)); then
+    cntools_transaction_log CHOICE "Review change cancelled; current value kept step=$1"
+    return 0
+  fi
+  return "${change_status}"
+}
+
+# Pool folder names CNTools can lock, rotate and publish under (no spaces).
+cntools_pool_folder_name_supported() {
+  local LC_ALL=C
+  [[ "${1##*/}" =~ ^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$ ]]
+}
+
+cntools_pool_folder_unsupported_message() {
+  printf 'The pool folder name "%s" has spaces or other unsupported characters. Rename it using only letters, numbers, dots, underscores and hyphens (up to 64), then retry.' "${1##*/}"
 }

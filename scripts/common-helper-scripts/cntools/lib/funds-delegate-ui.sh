@@ -3,6 +3,7 @@
 # shellcheck disable=SC2034
 
 declare -ag CNTOOLS_DELEGATE_LOCAL_LABELS=() CNTOOLS_DELEGATE_LOCAL_DIRECTORIES=()
+CNTOOLS_DELEGATE_LOCAL_NAME=""
 
 cntools_delegate_local_pools_collect() {
   local directory="" name=""
@@ -32,8 +33,8 @@ cntools_delegate_pool_local_into() {
     return 3
   fi
   if (( ${#labels[@]} == 1 )); then
+    # The review names it in its 'Local pool' row.
     selected="${labels[0]}"
-    cntools_ui_render_status info "Using ${selected}, the only local pool."
   else
     cntools_ui_choose selected 'Local stake pool' "${labels[@]}" Cancel || return $?
     [[ "${selected}" != Cancel ]] || return 1
@@ -55,12 +56,14 @@ cntools_delegate_pool_local_into() {
     cntools_transaction_file_safe "${file}" 1024 || return 2
     printf -v "${result_name}" '%s' "$(< "${file}")"
   fi
+  CNTOOLS_DELEGATE_LOCAL_NAME="${selected}"
   cntools_transaction_log CHOICE "Delegate local pool selected=${selected} directory=${directory}"
 }
 
 cntools_delegate_render_pool_rows() {
   cntools_transaction_ui_styled_row 'Current stake pool' "${CNTOOLS_DELEGATE_CURRENT_POOL:-Not delegated}" identifier
   cntools_transaction_ui_styled_row 'Target stake pool' "${CNTOOLS_DELEGATE_POOL_ID}" identifier
+  [[ -z "${CNTOOLS_DELEGATE_LOCAL_NAME}" ]] || cntools_transaction_ui_styled_row 'Local pool' "${CNTOOLS_DELEGATE_LOCAL_NAME}" value
   [[ -z "${CNTOOLS_POOL_NAME}" ]] || cntools_transaction_ui_styled_row 'Pool name (metadata)' "${CNTOOLS_POOL_NAME}" value
   [[ -z "${CNTOOLS_POOL_TICKER}" ]] || cntools_transaction_ui_styled_row 'Ticker (metadata)' "${CNTOOLS_POOL_TICKER}" value
   cntools_transaction_ui_styled_row 'Pool status' "${CNTOOLS_POOL_STATUS}" "$([[ "${CNTOOLS_POOL_STATUS}" == retiring ]] && printf warning || printf success)"
@@ -74,6 +77,7 @@ cntools_delegate_choose_target() {
   CNTOOLS_DELEGATE_POOL_ID=""; CNTOOLS_DELEGATE_POOL_HEX=""; CNTOOLS_DELEGATE_RETIRING=""
   CNTOOLS_DELEGATE_REGISTRATION_CONFIRMED=N
   while true; do
+    CNTOOLS_DELEGATE_LOCAL_NAME=""
     cntools_wallet_register_begin
     cntools_transaction_ui_table_widths_into widths 22 || return 2
     {
@@ -105,47 +109,63 @@ cntools_delegate_choose_target() {
       Cancel) return 1 ;;
       *) return 2 ;;
     esac
+    # Warnings carry to the redrawn pool field until it is answered.
     if ! cntools_pool_id_into CNTOOLS_DELEGATE_POOL_ID CNTOOLS_DELEGATE_POOL_HEX "${entered}"; then
-      cntools_ui_render_status warn 'Invalid stake pool ID. Check the full ID and checksum.'; cntools_ui_wait; continue
+      cntools_ui_render_status warn 'Invalid stake pool ID. Check the full ID and checksum.'; continue
     fi
     if [[ "${CNTOOLS_DELEGATE_CURRENT_POOL}" == "${CNTOOLS_DELEGATE_POOL_ID}" ]]; then
-      cntools_ui_render_status info 'This wallet already delegates to that pool. No transaction is needed.'; cntools_ui_wait; continue
+      cntools_ui_render_status warn 'This wallet already delegates to that pool. No transaction is needed; choose another pool or cancel.'; continue
     fi
     status=0
     cntools_ui_spin_function 'Checking the target stake pool…' cntools_pool_query \
       "${CNTOOLS_DELEGATE_POOL_ID}" "${CNTOOLS_DELEGATE_POOL_HEX}" "${CNTOOLS_WALLET_REGISTER_BACKEND}" || status=$?
     if (( status == 4 )); then
-      cntools_ui_render_status warn 'The pool is not registered on this network, or has retired.'; cntools_ui_wait; continue
+      cntools_ui_render_status warn 'The pool is not registered on this network, or has retired.'; continue
     elif (( status != 0 )); then
       cntools_wallet_register_set_error 'The target pool could not be verified. Check the node/API and try again.'; return 2
     fi
     CNTOOLS_DELEGATE_RETIRING="${CNTOOLS_POOL_RETIRING}"
-    cntools_wallet_register_begin
-    { printf 'Pool detail\tValue\n'; cntools_delegate_render_pool_rows; } |
-      cntools_ui_table --separator $'\t' --widths "${widths}" || return 2
     if [[ "${CNTOOLS_POOL_STATUS}" == retiring ]]; then
+      cntools_wallet_register_begin
+      { printf 'Pool detail\tValue\n'; cntools_delegate_render_pool_rows; } |
+        cntools_ui_table --separator $'\t' --widths "${widths}" || return 2
       status=0
       cntools_ui_confirm "This pool retires in epoch $(cntools_number_format "${CNTOOLS_POOL_RETIRING}"). Delegate to it anyway?" false || status=$?
       cntools_transaction_log CHOICE "Delegate retiring pool confirmation status=${status}"
-      (( status == 0 )) || return "${status}"
+      # No (or Esc) returns to the pool field; Ctrl+C cancels.
+      (( status != 130 )) || return 130
+      (( status == 0 )) || continue
     fi
-    if [[ "${CNTOOLS_DELEGATE_REGISTER}" == Y ]]; then
-      # Registering is required to delegate; the review shows the deposit and offers Cancel.
-      cntools_ui_render_status info "This stake address is not registered yet, so the transaction also registers it. Refundable deposit: $(cntools_number_format_lovelace "${CNTOOLS_WALLET_REGISTER_DEPOSIT}")."
-      cntools_transaction_log CHOICE "Delegate includes stake registration deposit=${CNTOOLS_WALLET_REGISTER_DEPOSIT}"
-      CNTOOLS_DELEGATE_REGISTRATION_CONFIRMED=Y
-    fi
-    cntools_transaction_log CHOICE "Delegate target=${CNTOOLS_DELEGATE_POOL_ID} registration=${CNTOOLS_DELEGATE_REGISTER}"
+    # Registering is required to delegate; the review shows it and the deposit.
+    [[ "${CNTOOLS_DELEGATE_REGISTER}" != Y ]] || CNTOOLS_DELEGATE_REGISTRATION_CONFIRMED=Y
+    cntools_transaction_log CHOICE "Delegate target=${CNTOOLS_DELEGATE_POOL_ID} registration=${CNTOOLS_DELEGATE_REGISTER} deposit=${CNTOOLS_WALLET_REGISTER_DEPOSIT}"
     return 0
   done
 }
 
+# Review 'Change pool': any non-zero status keeps the reviewed pool.
+cntools_delegate_change_target() {
+  local status=0
+  local -a saved=("${CNTOOLS_DELEGATE_POOL_ID}" "${CNTOOLS_DELEGATE_POOL_HEX}" "${CNTOOLS_DELEGATE_RETIRING}"
+    "${CNTOOLS_DELEGATE_REGISTRATION_CONFIRMED}" "${CNTOOLS_DELEGATE_LOCAL_NAME}" "${CNTOOLS_POOL_STATUS}"
+    "${CNTOOLS_POOL_RETIRING}" "${CNTOOLS_POOL_NAME}" "${CNTOOLS_POOL_TICKER}" "${CNTOOLS_POOL_SOURCE}")
+  cntools_delegate_choose_target || status=$?
+  (( status != 0 )) || return 0
+  CNTOOLS_DELEGATE_POOL_ID="${saved[0]}" CNTOOLS_DELEGATE_POOL_HEX="${saved[1]}" CNTOOLS_DELEGATE_RETIRING="${saved[2]}"
+  CNTOOLS_DELEGATE_REGISTRATION_CONFIRMED="${saved[3]}" CNTOOLS_DELEGATE_LOCAL_NAME="${saved[4]}" CNTOOLS_POOL_STATUS="${saved[5]}"
+  CNTOOLS_POOL_RETIRING="${saved[6]}" CNTOOLS_POOL_NAME="${saved[7]}" CNTOOLS_POOL_TICKER="${saved[8]}" CNTOOLS_POOL_SOURCE="${saved[9]}"
+  cntools_transaction_log CHOICE "Delegate pool unchanged status=${status} pool=${CNTOOLS_DELEGATE_POOL_ID}"
+  return "${status}"
+}
+
+# Only when the stake query showed no voting delegation; unknown stays quiet.
 cntools_delegate_reminder() {
-  cntools_ui_render_status info 'Existing DRep delegation is unchanged. Under current Conway rules, reward withdrawals require voting delegation to a DRep or a predefined option (Abstain / No Confidence). If not already set, do this separately before withdrawing rewards; ordinary fund transfers are unaffected.'
+  [[ -z "${CNTOOLS_WALLET_DREP_DELEGATION:-}" && "${CNTOOLS_WALLET_DREP_DELEGATION_VALID:-Y}" == Y ]] || return 0
+  cntools_ui_render_status info 'This wallet has no voting (DRep) delegation. Reward withdrawals need one: Vote → Governance → Delegate.'
 }
 
 cntools_funds_action_delegate() {
-  CNTOOLS_DELEGATE_REGISTRATION_CONFIRMED=N
+  CNTOOLS_DELEGATE_REGISTRATION_CONFIRMED=N CNTOOLS_DELEGATE_LOCAL_NAME=""
   cntools_wallet_register_operation_set delegate || return 1
   cntools_wallet_action_stake_lifecycle
 }

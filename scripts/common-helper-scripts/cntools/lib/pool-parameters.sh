@@ -27,6 +27,15 @@ cntools_pool_margin_number() {
   jq -ner --arg margin "$1" '$margin | if contains("/") then split("/") | (.[0]|tonumber)/(.[1]|tonumber) else tonumber end | select(. >= 0 and . <= 1)'
 }
 
+# Margin as a percent with at most six decimals, never a float artefact such
+# as 3.5000000000000004. Accepts a fraction ("0.035") or a ratio ("units/1e8").
+cntools_pool_margin_percent() {
+  jq -ner --arg margin "$1" '$margin |
+    (if contains("/") then split("/") | (.[0]|tonumber) * (100000000 / (.[1]|tonumber)) else tonumber * 100000000 end | round) as $u |
+    select($u >= 0 and $u <= 100000000) |
+    ($u / 1000000 | floor | tostring) + (($u % 1000000) as $f | if $f == 0 then "" else "." + ((1000000 + $f) | tostring | .[1:] | sub("0+$"; "")) end)'
+}
+
 # Match the CLI's canonical IPv6 spelling before comparing decoded certificates.
 cntools_pool_ipv6_into() {
   local -n pi6_result="$1"

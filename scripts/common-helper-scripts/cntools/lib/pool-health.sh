@@ -112,7 +112,7 @@ cntools_pool_health_collect() {
 }
 
 cntools_pool_health_rows() {
-  local index="$1" detailed="${2:-N}" role=warning
+  local index="$1" detailed="${2:-N}" role=warning opcert='' counter=''
   [[ "${CNTOOLS_POOL_KES_STATUS[index]:-}" != Healthy ]] || role=success
   cntools_table_pair 'KES health' "${CNTOOLS_POOL_KES_STATUS[index]:-Not checked}" "${role}"
   [[ -z "${CNTOOLS_POOL_KES_REMAINING[index]:-}" ]] || cntools_table_pair 'KES periods remaining' "$(cntools_number_format "${CNTOOLS_POOL_KES_REMAINING[index]}")" "${role}"
@@ -120,7 +120,10 @@ cntools_pool_health_rows() {
   [[ -z "${CNTOOLS_POOL_KES_EXPIRY[index]:-}" ]] || cntools_table_pair 'KES expires' "${CNTOOLS_POOL_KES_EXPIRY[index]}" "${role}"
   [[ -z "${CNTOOLS_POOL_KES_TIME[index]:-}" ]] || cntools_table_pair 'Time until expiry · clock' "${CNTOOLS_POOL_KES_TIME[index]}" "${role}"
   [[ -z "${CNTOOLS_POOL_KES_SOURCE[index]:-}" ]] || cntools_table_pair 'KES source' "${CNTOOLS_POOL_KES_SOURCE[index]}" muted
-  [[ -z "${CNTOOLS_POOL_CERT_DISK[index]:-}" ]] || cntools_table_pair 'Certificate counter · disk' "${CNTOOLS_POOL_CERT_DISK[index]}" number
+  # Name the file each counter comes from: op.cert carries the certificate's
+  # counter, cold.counter the next one to issue.
+  cntools_pool_file_name_into opcert opcert; cntools_pool_file_name_into counter counter
+  [[ -z "${CNTOOLS_POOL_CERT_DISK[index]:-}" ]] || cntools_table_pair "Certificate counter · ${opcert}" "${CNTOOLS_POOL_CERT_DISK[index]}" number
   cntools_table_pair 'Certificate counter · ledger' "${CNTOOLS_POOL_CERT_CHAIN[index]:-Unavailable}" muted
-  [[ -z "${CNTOOLS_POOL_CERT_NEXT[index]:-}" ]] || cntools_table_pair 'Next issue counter · disk' "${CNTOOLS_POOL_CERT_NEXT[index]}" number
+  [[ -z "${CNTOOLS_POOL_CERT_NEXT[index]:-}" ]] || cntools_table_pair "Next issue counter · ${counter}" "${CNTOOLS_POOL_CERT_NEXT[index]}" number
 }

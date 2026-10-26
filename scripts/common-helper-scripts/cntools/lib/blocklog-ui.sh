@@ -36,10 +36,30 @@ cntools_blocks_summary_rows() {
     else
       cntools_blocks_number_pair "${key}" "${value}"
     fi
+  # Failure and unknown counts appear only when they occurred.
   done < <(jq -r '[["Scheduled slots",.scheduled],["Ideal blocks",.ideal],["Luck",.luck],
     ["Adopted (incl. confirmed)",.adopted],["Confirmed",.confirmed],["Pending validation",.pending],
     ["Missed",.missed],["Ghosted",.ghosted],["Stolen",.stolen],["Invalid",.invalid],["Unknown status",.unknown]][]
-    | select(.[1]!=null) | select(.[0]!="Unknown status" or .[1]!=0) | map(tostring) | join("\u001f")' <<< "${record}")
+    | select(.[1]!=null)
+    | select((.[0]|IN("Missed","Ghosted","Stolen","Invalid","Unknown status")|not) or .[1]!=0)
+    | map(tostring) | join("\u001f")' <<< "${record}")
+}
+
+# Per-status counts of one epoch, then its ideal blocks and luck when recorded.
+cntools_blocks_epoch_rows() {
+  local snapshot="$1" stats="$2" key='' value=''
+  while IFS=$'\037' read -r key value; do
+    [[ -n "${key}" ]] || continue
+    if [[ "${key}" == Luck ]]; then cntools_table_pair Luck "$(cntools_number_format "${value}")%" number
+    else cntools_blocks_number_pair "${key}" "${value}"; fi
+  done < <(jq -r --argjson stats "${stats}" '
+    def count(s): map(select(.status==s))|length;
+    [["Confirmed",count("confirmed")],["Adopted · awaiting confirmation",count("adopted")],
+     ["Pending validation",count("leader")],["Missed",count("missed")],["Ghosted",count("ghosted")],
+     ["Stolen",count("stolen")],["Invalid",count("invalid")],
+     ["Unknown status",(map(select(.status|IN("confirmed","adopted","leader","missed","ghosted","stolen","invalid")|not))|length)],
+     ["Ideal blocks",$stats.ideal],["Luck",$stats.luck]][]
+    | select(.[1]!=null and .[1]!=0) | map(tostring) | join("\u001f")' <<< "${snapshot}")
 }
 
 cntools_blocks_record_rows() {
@@ -94,28 +114,30 @@ cntools_blocks_prompt_integer() {
   done
 }
 
+# 3 = the error is shown and acknowledged; callers keep their current view.
 cntools_blocks_load() {
   local kind="$1" value="$2"
   if ! cntools_ui_spin_function 'Reading CNCLI block history…' "cntools_blocklog_${kind,,}" "${value}"; then
     cntools_ui_render_status error "${CNTOOLS_BLOCKLOG_ERROR:-Could not read block history.}"
     cntools_ui_wait
-    return 1
+    return 3
   fi
 }
 
 # choose=Y (the Epoch action) also offers another epoch from the menu.
 cntools_blocks_epoch_view() {
   local epoch="$1" choose="${2:-N}" page=0 total=0 index=0 last=0 choice='' record='' number='' requested=''
-  local snapshot=''
+  local snapshot='' stats=''
   local -a options=()
-  cntools_blocks_load Epoch "${epoch}" || return 1
-  snapshot="${CNTOOLS_BLOCKLOG_DATA}"
+  cntools_blocks_load Epoch "${epoch}" || return $?
+  snapshot="${CNTOOLS_BLOCKLOG_DATA}"; stats="${CNTOOLS_BLOCKLOG_EPOCH_STATS}"
   while true; do
     total="$(jq 'length' <<< "${snapshot}")" || return 1
     cntools_ui_action_begin Epoch '/ Blocks / Epoch'
     {
       cntools_blocks_number_pair Epoch "${epoch}"
       cntools_blocks_number_pair 'Scheduled slots' "${total}"
+      cntools_blocks_epoch_rows "${snapshot}" "${stats}"
       if (( total > 0 )); then
         cntools_table_pair Showing "$(cntools_number_format "$((page*5+1))")–$(cntools_number_format "$((page*5+5 <= total ? page*5+5 : total))") of $(cntools_number_format "${total}")"
       fi
@@ -138,12 +160,12 @@ cntools_blocks_epoch_view() {
     case "${choice}" in
       'Next page') page=$((page+1)) ;;
       'Previous page') page=$((page-1)) ;;
-      Refresh) cntools_blocks_load Epoch "${epoch}" || return 1; snapshot="${CNTOOLS_BLOCKLOG_DATA}"; page=0 ;;
+      Refresh) cntools_blocks_load Epoch "${epoch}" || continue; snapshot="${CNTOOLS_BLOCKLOG_DATA}"; stats="${CNTOOLS_BLOCKLOG_EPOCH_STATS}"; page=0 ;;
       'Choose epoch')
         requested="${epoch}"
         if ! cntools_blocks_prompt_integer requested 'Epoch' "${epoch}" 0 999999999; then CNTOOLS_BLOCKS_CANCELLED=N; continue; fi
         cntools_blocks_load Epoch "${requested}" || continue # Keeps the current epoch.
-        epoch="${requested}"; snapshot="${CNTOOLS_BLOCKLOG_DATA}"; page=0 ;;
+        epoch="${requested}"; snapshot="${CNTOOLS_BLOCKLOG_DATA}"; stats="${CNTOOLS_BLOCKLOG_EPOCH_STATS}"; page=0 ;;
       'Status guide') cntools_blocks_help || return 1 ;;
       'Show block details')
         if ! cntools_blocks_prompt_integer number 'Block number in this list' "$((page*5+1))" 1 "${total}"; then CNTOOLS_BLOCKS_CANCELLED=N; continue; fi
@@ -162,8 +184,14 @@ cntools_blocks_wizard() {
   cntools_ui_action_begin "${kind}" "/ Blocks / ${kind}"
   cntools_ui_render_status info 'Read-only local CNCLI history, not a live chain query. CNCLI / logMonitor must maintain the journal for production statuses to stay current.'
   if [[ "${kind}" == Epoch ]]; then
-    cntools_blocks_load Summary 1 || return 1
-    epoch="$(jq -r '.[0].epoch // 0' <<< "${CNTOOLS_BLOCKLOG_DATA}")" || return 1
+    cntools_blocks_load Summary 1 || return $?
+    # An empty journal has no latest epoch to open.
+    if [[ "$(jq 'length' <<< "${CNTOOLS_BLOCKLOG_DATA}")" == 0 ]]; then
+      cntools_ui_render_status info 'No block history recorded yet.'
+      cntools_ui_wait
+      return 0
+    fi
+    epoch="$(jq -r '.[0].epoch' <<< "${CNTOOLS_BLOCKLOG_DATA}")" || return 1
     # Quick opens the latest recorded epoch; 'Choose epoch' picks another.
     if cntools_flow_quick; then cntools_log CHOICE "Blocks epoch default=${epoch} flow=quick" || true
     else cntools_blocks_prompt_integer epoch 'Epoch (latest recorded)' "${epoch}" 0 999999999 || return $?; fi
@@ -173,7 +201,7 @@ cntools_blocks_wizard() {
   # Quick shows the last 10 epochs; 'Change epoch count' asks for another.
   if cntools_flow_quick; then cntools_log CHOICE "Blocks summary epochs default=${count} flow=quick" || true
   else cntools_blocks_prompt_integer count 'Recent recorded epochs' 10 1 100 || return $?; fi
-  cntools_blocks_load Summary "${count}" || return 1
+  cntools_blocks_load Summary "${count}" || return $?
   snapshot="${CNTOOLS_BLOCKLOG_DATA}"
   while true; do
     cntools_ui_action_begin Summary '/ Blocks / Summary'
@@ -203,14 +231,15 @@ cntools_blocks_wizard() {
         epoch="$(jq -r '.[0].epoch // 0' <<< "${snapshot}")" || return 1
         if ! cntools_blocks_prompt_integer epoch 'Epoch' "${epoch}" 0 999999999; then CNTOOLS_BLOCKS_CANCELLED=N; continue; fi
         status=0; cntools_blocks_epoch_view "${epoch}" || status=$?
+        # A cancel or an acknowledged load error returns to this summary.
         if [[ "${CNTOOLS_BLOCKS_CANCELLED}" == Y ]]; then CNTOOLS_BLOCKS_CANCELLED=N;
-        elif (( status != 0 )); then return "${status}"; fi ;;
+        elif (( status != 0 && status != 3 )); then return "${status}"; fi ;;
       'Change epoch count')
         requested="${count}"
         if ! cntools_blocks_prompt_integer requested 'Recent recorded epochs' "${count}" 1 100; then CNTOOLS_BLOCKS_CANCELLED=N; continue; fi
         cntools_blocks_load Summary "${requested}" || continue # Keeps the current list.
         count="${requested}"; snapshot="${CNTOOLS_BLOCKLOG_DATA}"; page=0 ;;
-      Refresh) cntools_blocks_load Summary "${count}" || return 1; snapshot="${CNTOOLS_BLOCKLOG_DATA}"; page=0 ;;
+      Refresh) cntools_blocks_load Summary "${count}" || continue; snapshot="${CNTOOLS_BLOCKLOG_DATA}"; page=0 ;;
       'Status guide') cntools_blocks_help || return 1 ;;
       *) return 0 ;;
     esac
@@ -225,5 +254,6 @@ cntools_blocks_action() {
     cntools_log CHOICE 'Blocks cancelled' || true
     return 0
   fi
+  ((status != 3)) || return 0 # The load error was shown and acknowledged.
   return "${status}"
 }

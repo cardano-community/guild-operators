@@ -17,6 +17,7 @@
     "table.sh",
     "wallet-material.sh",
     "wallet-key.sh",
+    "wallet-mnemonic.sh",
     "wallet-address.sh",
     "wallet-id.sh",
     "asset.sh",

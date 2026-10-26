@@ -26,10 +26,14 @@ cntools_pool_identity_rows() {
       cntools_table_pair "${title}" "${state}" "$([[ "${state}" == Missing ]] && printf warning || printf value)"
     done
     for kind in kes-vkey vrf-vkey counter opcert; do
+      # The health rows below show the counter and certificate values; a
+      # presence row would repeat them.
+      [[ "${kind}" != counter || -z "${CNTOOLS_POOL_CERT_NEXT[index]:-}" ]] || continue
+      [[ "${kind}" != opcert || -z "${CNTOOLS_POOL_CERT_DISK[index]:-}" ]] || continue
       cntools_pool_file_name_into filename "${kind}" || return 1
       state=Missing; role=warning
       if cntools_pool_public_file_safe "${CNTOOLS_POOL_DIRECTORIES[index]}/${filename}"; then state=Present; role=value; fi
-      case "${kind}" in kes-vkey) title='KES public key' ;; vrf-vkey) title='VRF public key' ;; counter) title='Certificate counter' ;; opcert) title='Operational certificate' ;; esac
+      case "${kind}" in kes-vkey) title='KES public key' ;; vrf-vkey) title='VRF public key' ;; counter) title="Issue counter · ${filename}" ;; opcert) title="Operational certificate · ${filename}" ;; esac
       cntools_table_pair "${title}" "${state}" "${role}"
     done
   fi
@@ -53,13 +57,16 @@ cntools_pool_settings_rows() {
   records="$(jq -r --arg format "${format}" '
     def row($caption; $value; $kind):
       if ($value | type == "string" or type == "number") then [$caption, ($value|tostring), $kind] | join("\u001f") else empty end;
+    # A fraction as a percent with at most six decimals (no float artefacts).
+    def pct: (. * 100000000 | round) as $u |
+      ($u / 1000000 | floor | tostring) + (($u % 1000000) as $f | if $f == 0 then "" else "." + ((1000000 + $f) | tostring | .[1:] | sub("0+$"; "")) end);
     if $format == "local" then
       row("Pledge"; .spsPledge; "lovelace"), row("Fixed cost"; .spsCost; "lovelace"),
-      row("Margin"; (.spsMargin * 100); "percent"), row("Reward credential"; (.spsAccountId.keyHash // .spsAccountId.scriptHash); "identifier"),
+      row("Margin"; (.spsMargin | pct); "percent"), row("Reward credential"; (.spsAccountId.keyHash // .spsAccountId.scriptHash); "identifier"),
       row("VRF hash"; .spsVrf; "identifier"), row("Pool deposit"; .spsDeposit; "lovelace"),
       row("Metadata URL"; .spsMetadata.url; "identifier"), row("Metadata hash"; .spsMetadata.hash; "identifier")
     elif $format == "koios" then
-      row("Pledge"; .pledge; "lovelace"), row("Fixed cost"; .fixed_cost; "lovelace"), row("Margin"; (.margin * 100); "percent"),
+      row("Pledge"; .pledge; "lovelace"), row("Fixed cost"; .fixed_cost; "lovelace"), row("Margin"; (.margin | pct); "percent"),
       row("Effective epoch"; .active_epoch_no; "number"), row("Reward address"; .reward_addr; "address"),
       row("Reward DRep delegation"; .reward_addr_delegated_drep; "identifier"), row("VRF hash"; .vrf_key_hash; "identifier"),
       row("Pool deposit"; .deposit; "lovelace"), row("Metadata URL"; .meta_url; "identifier"), row("Metadata hash"; .meta_hash; "identifier"),
@@ -67,7 +74,7 @@ cntools_pool_settings_rows() {
       row("Delegators"; .live_delegators; "number"), row("Saturation"; .live_saturation; "percent"), row("Blocks produced"; .block_count; "number")
     elif .schema == 1 then
       row("Pledge"; .pledgeLovelace; "lovelace"), row("Fixed cost"; .costLovelace; "lovelace"),
-      row("Margin"; (try (.margin | if test("^[0-9]+/[1-9][0-9]*$") then split("/") | (.[0]|tonumber)/(.[1]|tonumber)*100 else tonumber*100 end) catch empty); "percent"),
+      row("Margin"; (try (.margin | if test("^[0-9]+/[1-9][0-9]*$") then split("/") | (.[0]|tonumber)/(.[1]|tonumber) else tonumber end | pct) catch empty); "percent"),
       row("Reward wallet"; .reward.label; "identifier"), row("Main owner"; .owners[0].label; "identifier"),
       row("Metadata URL"; .metadata.url; "identifier")
     else
@@ -130,6 +137,11 @@ cntools_pool_render_settings() {
   }
 }
 
+# The descriptive fields Show compares and renders.
+cntools_pool_metadata_fields() {
+  jq -cS '{name, ticker, homepage, description} | with_entries(select(.value | type == "string" and length > 0))' <<< "$1" 2>/dev/null
+}
+
 cntools_pool_render_metadata() {
   local title="$1" json="$2" records="" key="" value=""
   records="$(jq -r '
@@ -143,6 +155,24 @@ cntools_pool_render_metadata() {
       cntools_table_pair "${key^}" "${value}" "$([[ "${key}" == homepage ]] && printf identifier || printf value)"
     done <<< "${records}"
   } | cntools_table_render "${title}"
+}
+
+# Local draft rows that differ from both the current and pending chain
+# settings; owners and relays are compared on chain, not against the draft.
+cntools_pool_render_config_changes() {
+  local config="$1" format="$2" index="$3" chain='' record='' rows=''
+  local -A on_chain=()
+  [[ "${config}" != '{}' ]] || return 0
+  chain="$(cntools_pool_settings_rows "${CNTOOLS_POOL_CURRENT[index]}" "${format}")" || return 1
+  if [[ "${CNTOOLS_POOL_FUTURE[index]}" != '{}' ]]; then
+    chain+=$'\n'"$(cntools_pool_settings_rows "${CNTOOLS_POOL_FUTURE[index]}" "${format}")" || return 1
+  fi
+  while IFS= read -r record; do [[ -z "${record}" ]] || on_chain["${record%$'\037'*}"]=Y; done <<< "${chain}"
+  while IFS= read -r record; do
+    [[ -n "${record}" && -z "${on_chain[${record%$'\037'*}]:-}" ]] || continue
+    rows+="${record}"$'\n'
+  done < <(cntools_pool_settings_rows "${config}" config)
+  [[ -z "${rows}" ]] || { printf '\n'; printf '%s' "${rows}" | cntools_table_render 'Local draft · differs from chain'; }
 }
 
 cntools_pool_render_catalog() {
@@ -202,11 +232,7 @@ cntools_pool_action_show() {
   cntools_ui_action_begin Show '/ Pool / Show'
   cntools_ui_spin_function 'Checking pool KES health…' cntools_pool_health_collect "${selected}" || return 1
   cntools_pool_identity_rows "${selected}" Y | cntools_table_render Pool || return 1
-  local anchor_url='' anchor_hash=''
-  anchor_url="$(jq -r '.spsMetadata.url // .meta_url // ""' <<< "${CNTOOLS_POOL_CURRENT[selected]}")"
-  anchor_hash="$(jq -r '.spsMetadata.hash // .meta_hash // ""' <<< "${CNTOOLS_POOL_CURRENT[selected]}")"
-  cntools_public_metadata_offer "${anchor_url}" "${anchor_hash}" 1024 || return 1
-  cntools_pool_render_settings 'Local configuration · not proof of registration' "${config}" config || return 1
+  local anchor_url='' anchor_hash='' local_fields='' shown_fields=''
   if [[ "${CNTOOLS_POOL_CHAIN_SOURCE[selected]}" == 'Local node' ]]; then
     format=local
     cntools_pool_render_settings 'Current on-chain settings · local node' "${CNTOOLS_POOL_CURRENT[selected]}" "${format}" || return 1
@@ -215,7 +241,29 @@ cntools_pool_action_show() {
     format=koios
     cntools_pool_render_settings 'Latest indexed registration · Koios API' "${CNTOOLS_POOL_CURRENT[selected]}" "${format}" || return 1
   fi
-  cntools_pool_render_metadata 'Local metadata · descriptive only' "${metadata}" || return 1
-  cntools_pool_render_metadata 'Indexed metadata · Koios API · descriptive only' "${CNTOOLS_POOL_CHAIN_METADATA[selected]}" || return 1
+  # A registered pool's draft only matters where it differs from the chain.
+  if [[ "${CNTOOLS_POOL_CURRENT[selected]}" != '{}' ]]; then
+    cntools_pool_render_config_changes "${config}" "${format}" "${selected}" || return 1
+  else
+    cntools_pool_render_settings 'Local configuration · not proof of registration' "${config}" config || return 1
+  fi
+  # One metadata table: indexed content when Koios has it, otherwise the
+  # verified published bytes on request; a local copy only when it differs.
+  local_fields="$(cntools_pool_metadata_fields "${metadata}")" || local_fields='{}'
+  if [[ "${CNTOOLS_POOL_CHAIN_METADATA[selected]}" != '{}' ]]; then
+    cntools_pool_render_metadata 'Indexed metadata · Koios API · descriptive only' "${CNTOOLS_POOL_CHAIN_METADATA[selected]}" || return 1
+    shown_fields="$(cntools_pool_metadata_fields "${CNTOOLS_POOL_CHAIN_METADATA[selected]}")" || shown_fields=''
+  else
+    anchor_url="$(jq -r '.spsMetadata.url // .meta_url // ""' <<< "${CNTOOLS_POOL_CURRENT[selected]}")"
+    anchor_hash="$(jq -r '.spsMetadata.hash // .meta_hash // ""' <<< "${CNTOOLS_POOL_CURRENT[selected]}")"
+    CNTOOLS_PUBLIC_METADATA_FILE=''
+    cntools_public_metadata_offer "${anchor_url}" "${anchor_hash}" 1024 || return 1
+    if [[ -n "${CNTOOLS_PUBLIC_METADATA_FILE}" && -z "${CNTOOLS_PUBLIC_METADATA_ERROR}" ]]; then
+      shown_fields="$(cntools_pool_metadata_fields "$(< "${CNTOOLS_PUBLIC_METADATA_FILE}")")" || shown_fields=''
+    fi
+  fi
+  if [[ "${local_fields}" != '{}' && "${local_fields}" != "${shown_fields}" ]]; then
+    cntools_pool_render_metadata "$([[ -n "${shown_fields}" ]] && printf 'Local metadata · differs from published' || printf 'Local metadata · descriptive only')" "${metadata}" || return 1
+  fi
   cntools_ui_wait
 }

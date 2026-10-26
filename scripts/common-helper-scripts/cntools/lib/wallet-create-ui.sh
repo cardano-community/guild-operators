@@ -40,15 +40,8 @@ cntools_wallet_create_render_plan() {
     printf 'Setting\tValue\n'
     cntools_wallet_create_styled_row "Name" "${name}" identifier
     cntools_wallet_create_styled_row "Type" "CLI" accent
+    # The standard key, address and credential file names add nothing here.
     cntools_wallet_create_styled_row "Wallet directory" "${target}" identifier
-    cntools_wallet_create_styled_row "Signing keys" \
-      "${CNTOOLS_WALLET_PAY_SKEY_FILENAME}, ${CNTOOLS_WALLET_STAKE_SKEY_FILENAME}" value
-    cntools_wallet_create_styled_row "Verification keys" \
-      "${CNTOOLS_WALLET_PAY_VKEY_FILENAME}, ${CNTOOLS_WALLET_STAKE_VKEY_FILENAME}" value
-    cntools_wallet_create_styled_row "Addresses" \
-      "${CNTOOLS_WALLET_PAY_ADDR_FILENAME}, ${CNTOOLS_WALLET_STAKE_ADDR_FILENAME}, ${CNTOOLS_WALLET_BASE_ADDR_FILENAME}" value
-    cntools_wallet_create_styled_row "Credentials" \
-      "${CNTOOLS_WALLET_PAY_CRED_FILENAME}, ${CNTOOLS_WALLET_STAKE_CRED_FILENAME}" value
   } | cntools_ui_table --separator $'\t' --widths "${widths}" || return 1
 }
 

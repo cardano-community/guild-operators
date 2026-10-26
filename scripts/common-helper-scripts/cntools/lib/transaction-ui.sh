@@ -14,8 +14,16 @@ cntools_transaction_ui_log() {
 # these workflow, review and result components (see README's transaction contract).
 cntools_transaction_ui_workflow_into() {
   local output_name="$1" can_sign="$2" workflow_selection="" status=0
-  local -a options=('Create unsigned package')
-  [[ "${can_sign}" != Y ]] || options=('Create, sign and submit' 'Create and sign' 'Create unsigned package')
+  local -a options=('Create, sign and submit' 'Create and sign' 'Create unsigned package')
+  # Without usable signing keys the unsigned package is the only workflow, so
+  # neither style asks and reviews hide 'Change workflow'.
+  if [[ "${can_sign}" != Y ]]; then
+    CNTOOLS_TRANSACTION_UI_WORKFLOW_FIXED=Y
+    printf -v "${output_name}" '%s' 'Create unsigned package'
+    cntools_transaction_log CHOICE "Transaction workflow=Create unsigned package (only option: signing keys unavailable)"
+    return 0
+  fi
+  CNTOOLS_TRANSACTION_UI_WORKFLOW_FIXED=N
   cntools_ui_choose workflow_selection Workflow "${options[@]}" Cancel || status=$?
   (( status == 0 )) || return "${status}"
   [[ "${workflow_selection}" != Cancel ]] || return 1
@@ -35,53 +43,79 @@ cntools_transaction_ui_proceed_into() {
 # First workflow choice of an action. Quick picks the most direct workflow the
 # keys allow; the review's 'Change workflow' still asks in both styles.
 cntools_transaction_ui_initial_workflow_into() {
-  local output_name="$1" can_sign="$2" workflow_selection='Create unsigned package'
-  if ! cntools_flow_quick; then
-    cntools_transaction_ui_workflow_into "$@"
-    return $?
+  local output_name="$1" can_sign="$2" workflow_selection='Create unsigned package' status=0
+  if [[ "${can_sign}" != Y ]] || ! cntools_flow_quick; then
+    cntools_transaction_ui_workflow_into "$@" || status=$?
+    (( status == 0 )) || return "${status}"
+    CNTOOLS_TRANSACTION_UI_INITIAL_WORKFLOW="${!output_name}"
+    return 0
   fi
-  if [[ "${can_sign}" == Y ]]; then
-    workflow_selection='Create, sign and submit'
-    [[ "${CNTOOLS_MODE:-}" != offline ]] || workflow_selection='Create and sign'
-  fi
+  CNTOOLS_TRANSACTION_UI_WORKFLOW_FIXED=N
+  workflow_selection='Create, sign and submit'
+  [[ "${CNTOOLS_MODE:-}" != offline ]] || workflow_selection='Create and sign'
   printf -v "${output_name}" '%s' "${workflow_selection}"
+  CNTOOLS_TRANSACTION_UI_INITIAL_WORKFLOW="${workflow_selection}"
   cntools_transaction_log CHOICE "Transaction workflow default=${workflow_selection} flow=quick"
 }
 
 # First expiry choice of an action. Quick uses the Settings default; the
 # review's 'Change expiry' still offers every duration.
 cntools_transaction_ui_initial_expiry_into() {
+  local lifetime="${CNTOOLS_TX_DEFAULT_TTL:-1800}"
   if ! cntools_flow_quick; then
     cntools_transaction_ui_expiry_into "$@"
     return $?
   fi
-  printf -v "$1" '%s' "${CNTOOLS_TX_DEFAULT_TTL:-1800}"
-  cntools_transaction_log CHOICE "Transaction expiry default seconds=${CNTOOLS_TX_DEFAULT_TTL:-1800} flow=quick"
+  # An unsigned package is signed elsewhere, so allow at least a day.
+  if [[ "${CNTOOLS_TRANSACTION_UI_INITIAL_WORKFLOW:-}" == 'Create unsigned package' ]] &&
+     (( lifetime != 0 && lifetime < 86400 )); then
+    lifetime=86400
+  fi
+  printf -v "$1" '%s' "${lifetime}"
+  cntools_transaction_log CHOICE "Transaction expiry default seconds=${lifetime} flow=quick"
+}
+
+cntools_transaction_ui_duration_label_into() {
+  local _dl_duration="${2:-0}" _dl_label=""
+  if (( _dl_duration == 0 )); then _dl_label='No expiry'
+  elif (( _dl_duration % 86400 == 0 )); then _dl_label="$((_dl_duration / 86400)) day"; (( _dl_duration == 86400 )) || _dl_label+=s
+  elif (( _dl_duration % 3600 == 0 )); then _dl_label="$((_dl_duration / 3600)) hour"; (( _dl_duration == 3600 )) || _dl_label+=s
+  elif (( _dl_duration % 60 == 0 )); then _dl_label="$((_dl_duration / 60)) minutes"
+  else _dl_label="$(cntools_number_format "${_dl_duration}") seconds"; fi
+  printf -v "$1" '%s' "${_dl_label}"
 }
 
 cntools_transaction_ui_expiry_into() {
-  local expiry_choice="" expiry_seconds="" status=0
-  local default_label="Default · ${CNTOOLS_TX_DEFAULT_TTL:-1800} seconds"
-  [[ "${CNTOOLS_TX_DEFAULT_TTL:-1800}" != 0 ]] || default_label='Default · No expiry'
-  cntools_ui_choose expiry_choice 'Transaction expiry' "${default_label}" '30 minutes' '2 hours' \
-    '24 hours (offline signing)' 'Custom duration' 'No expiry' Cancel || status=$?
+  local expiry_choice="" expiry_seconds="" status=0 duration="" label="" index=0
+  local current="${!1:-}" default="${CNTOOLS_TX_DEFAULT_TTL:-1800}"
+  local -a expiry_durations=() expiry_labels=()
+  # One entry per distinct duration: the default first, then common choices,
+  # with the current and default values marked.
+  for duration in "${default}" 1800 7200 86400 0; do
+    [[ " ${expiry_durations[*]} " != *" ${duration} "* ]] || continue
+    cntools_transaction_ui_duration_label_into label "${duration}"
+    (( duration != 86400 )) || label+=' · offline signing'
+    [[ "${duration}" != "${default}" ]] || label+=' · default'
+    [[ "${duration}" != "${current}" ]] || label+=' · current'
+    expiry_durations+=("${duration}"); expiry_labels+=("${label}")
+  done
+  cntools_ui_choose expiry_choice 'Transaction expiry' "${expiry_labels[@]}" 'Custom duration' Cancel || status=$?
   (( status == 0 )) || return "${status}"
   case "${expiry_choice}" in
-    "${default_label}") expiry_seconds="${CNTOOLS_TX_DEFAULT_TTL:-1800}" ;;
     'Custom duration')
       while true; do
-        cntools_ui_input expiry_seconds 'Expiry in seconds (0 for no expiry)' "${CNTOOLS_TX_DEFAULT_TTL:-1800}" || return $?
-        expiry_seconds="${expiry_seconds:-${CNTOOLS_TX_DEFAULT_TTL:-1800}}"
+        cntools_ui_input expiry_seconds 'Expiry in seconds (0 for no expiry)' "${default}" || return $?
+        expiry_seconds="${expiry_seconds:-${default}}"
         cntools_number_normalize_into expiry_seconds "${expiry_seconds}" || expiry_seconds=invalid
         [[ "${expiry_seconds}" =~ ^(0|[1-9][0-9]{0,7})$ ]] && (( expiry_seconds <= 31536000 )) && break
         cntools_ui_render_status warn 'Enter a whole duration from 0 to 31,536,000 seconds.'
       done ;;
-    '30 minutes') expiry_seconds=1800 ;;
-    '2 hours') expiry_seconds=7200 ;;
-    '24 hours (offline signing)') expiry_seconds=86400 ;;
-    'No expiry') expiry_seconds=0 ;;
     Cancel) return 1 ;;
-    *) return 2 ;;
+    *)
+      for index in "${!expiry_labels[@]}"; do
+        [[ "${expiry_labels[index]}" != "${expiry_choice}" ]] || expiry_seconds="${expiry_durations[index]}"
+      done
+      [[ -n "${expiry_seconds}" ]] || return 2 ;;
   esac
   printf -v "$1" '%s' "${expiry_seconds}"
   cntools_transaction_log CHOICE "Transaction expiry selected=${expiry_choice} seconds=${expiry_seconds}"
@@ -177,7 +211,12 @@ cntools_transaction_ui_review_into() {
         ;;
     esac
     [[ -z "${package}" ]] || options+=('Show required signers')
-    cntools_ui_choose review_selection 'Review transaction' "${options[@]}" "$@" Cancel || { status=$?; return "${status}"; }
+    # 'Change workflow' has nothing to offer when only an unsigned package is possible.
+    local -a extra_options=()
+    for allowed in "$@"; do
+      [[ "${allowed}" == 'Change workflow' && "${CNTOOLS_TRANSACTION_UI_WORKFLOW_FIXED:-N}" == Y ]] || extra_options+=("${allowed}")
+    done
+    cntools_ui_choose review_selection 'Review transaction' "${options[@]}" "${extra_options[@]}" Cancel || { status=$?; return "${status}"; }
     cntools_transaction_log CHOICE "Transaction review selected=${review_selection}"
     case "${review_selection}" in
       Delete)
@@ -241,7 +280,10 @@ cntools_transaction_ui_confirm_submit() {
     cntools_transaction_log CHOICE "Transaction submission confirmed by review backend=$1 flow=quick"
     return 0
   fi
-  cntools_ui_confirm "Submit this signed transaction using ${label}?" true || status=$?
+  # An irreversible effect defaults to No; a routine submission to Yes.
+  local default=true
+  [[ "${2:-}" != always ]] || default=false
+  cntools_ui_confirm "Submit this signed transaction using ${label}?" "${default}" || status=$?
   cntools_transaction_log CHOICE "Transaction submission confirmation backend=$1 status=${status}"
   return "${status}"
 }
@@ -340,6 +382,9 @@ cntools_transaction_ui_render_package_overview() {
   {
     printf 'Property\tValue\n'
     cntools_transaction_ui_styled_row 'Transaction ID' "${CNTOOLS_TRANSACTION_ID}" identifier
+    [[ -z "${CNTOOLS_TRANSACTION_PACKAGE_DESCRIPTION:-}" ]] ||
+      cntools_transaction_ui_styled_row 'Declared purpose' "${CNTOOLS_TRANSACTION_PACKAGE_DESCRIPTION}" value
+    cntools_transaction_ui_effect_rows || return 1
     if cntools_transaction_ui_fee_into fee; then
       cntools_transaction_ui_styled_row Fee "$(cntools_number_format_units "${fee}" 6) ADA" number
     fi
@@ -349,6 +394,42 @@ cntools_transaction_ui_render_package_overview() {
   if [[ "${CNTOOLS_TRANSACTION_PACKAGE_ASSURANCE}" == manual ]]; then
     cntools_ui_render_status warn 'Reference script contents need independent verification against the original script and reference input before signing.'
   fi
+}
+
+# What the decoded body does, in a few rows: outputs, certificates and
+# withdrawals. "Review transaction" opens every field.
+cntools_transaction_ui_effect_rows() {
+  local record="" kind="" label="" value=""
+  [[ -n "${CNTOOLS_TRANSACTION_UI_VIEW:-}" ]] || return 0
+  while IFS=$'\037' read -r kind label value; do
+    case "${kind}" in
+      output) cntools_transaction_ui_styled_row "${label}" "$(cntools_number_format_lovelace "${value}")" number ;;
+      more) cntools_transaction_ui_styled_row Outputs "${value} more · see Review transaction" muted ;;
+      certificate) cntools_transaction_ui_styled_row Certificate "${value}" accent ;;
+      withdrawal) cntools_transaction_ui_styled_row Withdrawal "$(cntools_number_format_lovelace "${value}")" number ;;
+    esac
+  done < <(jq -r '
+    def lovelace: if type == "object" then (.lovelace // 0) elif type == "string" then (split(" ")[0] | tonumber? // 0) else (. // 0) end;
+    (.outputs // []) as $outs |
+    ($outs[:4][] | ["output", ("To " + ((.address // "?") | tostring | if length > 24 then .[0:14] + "…" + .[-8:] else . end)), (.amount | lovelace | tostring)] | join("\u001f")),
+    (if ($outs | length) > 4 then ["more", "", (($outs | length) - 4 | tostring)] | join("\u001f") else empty end),
+    ((.certificates // [])[] | ["certificate", "", (if type == "object" then (keys[0] // "certificate") else tostring end | gsub("_"; " "))] | join("\u001f")),
+    ((.withdrawals // [])[]? | ["withdrawal", "", ((.amount // .value // 0) | lovelace | tostring)] | join("\u001f"))
+  ' <<< "${CNTOOLS_TRANSACTION_UI_VIEW}" 2>/dev/null)
+}
+
+# True when the decoded body retires a stake pool: Submit then always asks.
+cntools_transaction_ui_has_retirement() {
+  jq -e '[(.certificates // [])[] | if type == "object" then keys[] else tostring end | ascii_downcase | select(test("retire"))] | length > 0' \
+    <<< "${CNTOOLS_TRANSACTION_UI_VIEW:-{\}}" >/dev/null 2>&1
+}
+
+cntools_transaction_ui_method_label() {
+  case "${1:-}" in
+    cli) printf 'Signing key file' ;;
+    hardware) printf 'Hardware wallet' ;;
+    *) printf 'Signing key or hardware wallet' ;;
+  esac
 }
 
 # A verified local identity supplies its wallet name. Imported labels are only
@@ -395,7 +476,7 @@ cntools_transaction_ui_render_signer_progress() {
       fi
       [[ -z "${key_type}" ]] || cntools_transaction_ui_styled_signer_row "" 'Key type' "${key_type}" value
       cntools_transaction_ui_styled_signer_row \
-        "" "Signing method" "${preferred}" accent
+        "" "Signing method" "$(cntools_transaction_ui_method_label "${preferred}")" accent
       if [[ -n "${hardware_group}" ]]; then
         cntools_transaction_ui_styled_signer_row \
           "" "Hardware session" "${hardware_group}" identifier
@@ -595,6 +676,10 @@ cntools_transaction_ui_prompt_signer_into() {
   local actual_key_id=""
   local kind=""
   local status=0
+  # Pool cold keys live in the pool folder, everything else under wallets.
+  local start="${WALLET_FOLDER:-${CNTOOLS_NODE_HOME:-${CNTOOLS_ROOT}}}"
+  [[ "${CNTOOLS_TRANSACTION_LOCAL_KEY_TYPES[${expected_key_id}]:-}" != 'Pool cold' || ! -d "${CNTOOLS_POOL_DIR:-}" ]] ||
+    start="${CNTOOLS_POOL_DIR}"
   local defer_choice='' signer_hint=''
 
   [[ "${_cntools_output_name}" =~ ^[A-Za-z_][A-Za-z0-9_]*$ &&
@@ -611,13 +696,13 @@ cntools_transaction_ui_prompt_signer_into() {
     elif [[ -n "${hardware_group}" ]]; then
       signer_hint="Hardware session ${hardware_group} is selected and must be completed now. Choose the HWS file for ${labels}; every missing group witness is collected in the same device session."
     else
-      signer_hint="Choose the private signing key or hardware signing file for ${labels}. Signing method: ${preferred}."
+      signer_hint="Choose the private signing key or hardware signing file for ${labels}. Signing method: $(cntools_transaction_ui_method_label "${preferred}")."
       [[ "${allow_defer}" != Y ]] || signer_hint+=' Defer to collect this signature on another CNTools system.'
     fi
     signer_hint+=' Its identity and permissions are verified before signing.'
     if cntools_ui_pick_path entered 'Signing key / HWS file' \
       "${signer_hint}" \
-      "${WALLET_FOLDER:-${CNTOOLS_NODE_HOME:-${CNTOOLS_ROOT}}}" file "${defer_choice}" '' "${feedback}"; then
+      "${start}" file "${defer_choice}" '' "${feedback}"; then
       status=0
     else
       status=$?
@@ -1168,6 +1253,8 @@ cntools_transaction_ui_prompt_submit_input_into() {
 cntools_transaction_ui_render_submit_review() {
   local widths="" fee="" expiry_label="" expiry_slot="" validity_state=''
   local submit_label='Signed · ready to submit' submit_role=success expiry_role=number
+  [[ "${CNTOOLS_TRANSACTION_SUBMIT_INPUT_KIND}" == package ]] ||
+    submit_label='Signed envelope · the ledger validates it on submit'
   cntools_transaction_ui_validity_state_into validity_state
   case "${validity_state}" in
     expired) submit_label='Expired · cannot submit'; submit_role=danger; expiry_role=danger ;;
@@ -1185,14 +1272,14 @@ cntools_transaction_ui_render_submit_review() {
     printf 'Property\tValue\n'
     cntools_transaction_ui_styled_row 'Transaction ID' "${CNTOOLS_TRANSACTION_SUBMIT_ID}" identifier
     cntools_transaction_ui_styled_row Status "${submit_label}" "${submit_role}"
+    [[ "${CNTOOLS_TRANSACTION_SUBMIT_INPUT_KIND}" != package || -z "${CNTOOLS_TRANSACTION_PACKAGE_DESCRIPTION:-}" ]] ||
+      cntools_transaction_ui_styled_row 'Declared purpose' "${CNTOOLS_TRANSACTION_PACKAGE_DESCRIPTION}" value
+    cntools_transaction_ui_effect_rows || return 1
     if cntools_transaction_ui_fee_into fee; then
       cntools_transaction_ui_styled_row Fee "$(cntools_number_format_units "${fee}" 6) ADA" number
     fi
     cntools_transaction_ui_styled_row Expires "${expiry_label}" "${expiry_role}"
   } | cntools_ui_table --separator $'\t' --widths "${widths}" || return 1
-  if [[ "${CNTOOLS_TRANSACTION_SUBMIT_INPUT_KIND}" != package ]]; then
-    cntools_ui_render_status warn 'External-envelope completeness cannot be inferred. The submission backend must perform final ledger validation.'
-  fi
   return 0
 }
 
@@ -1293,7 +1380,9 @@ cntools_transaction_action_submit() {
       cntools_ui_wait
       return 1
     fi
-    cntools_transaction_ui_confirm_submit "${backend}" || status=$?
+    local confirm_mode=''
+    ! cntools_transaction_ui_has_retirement || confirm_mode=always
+    cntools_transaction_ui_confirm_submit "${backend}" "${confirm_mode}" || status=$?
     (( status == 0 )) || break
     cntools_transaction_ui_validity_state_into validity_state
     [[ "${validity_state}" == expired || "${validity_state}" == unknown ]] || break

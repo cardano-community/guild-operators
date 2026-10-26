@@ -74,10 +74,12 @@ Check the network before performing any transaction.
 Type to filter menu choices, use the arrow keys to move, and press Enter to
 select. Filtering keeps the rows that contain the typed text, in menu order.
 Use the displayed Back, Home and Quit choices to navigate. When only one wallet
-or pool suits an action, CNTools selects it and names it instead of asking;
-Wallet → Remove always asks. Escape first
-leaves the filter input; cancelling a submenu selection returns without running
-an action. Prompts provide cancellation where applicable.
+or pool suits an action, CNTools selects it instead of asking; Wallet → Remove
+always asks. When no wallet suits an action, CNTools says why and returns to the
+menu. Escape first leaves the filter input. Cancelling returns straight to the
+menu without a further prompt; inside a review's **Change …** step, Escape keeps
+the current value and returns to the review. Warnings stay on screen until you
+reach the next prompt, even when the screen is redrawn in between.
 
 Tables expand to the available terminal width and wrap long addresses only
 when needed. Numbers use US formatting: commas for thousands and a period for
@@ -121,9 +123,12 @@ ask which participants will sign; the selected witnesses must all be collected.
 
 In the Quick flow style, transactions start as **Create, sign and submit**
 (or **Create unsigned package** when the signing keys are unavailable) with
-the default expiry from Settings; change either with **Change workflow** or
+the default expiry from Settings (at least 24 hours for an unsigned package,
+which is signed elsewhere); change either with **Change workflow** or
 **Change expiry** in the review. Approving the review submits without a second
-question. Detailed asks for the workflow and expiry first.
+question, except a pool retirement, which always asks (default No). Detailed
+asks for the workflow and expiry first. Without usable signing keys the
+unsigned package is the only workflow, so neither style asks.
 
 Every creating action offers an expiry, including **No expiry**. The standard
 choices include 30 minutes, 2 hours and 24 hours for offline signing.

@@ -111,7 +111,8 @@ cntools_send_metadata_edit_inner() {
     CNTOOLS_METADATA_ERROR=""
     cntools_send_metadata_context || return 2
     cntools_send_metadata_render || return 2
-    options=('Done' 'Add / replace message' 'Remove message')
+    options=('Done' 'Add / replace message')
+    [[ -z "${CNTOOLS_METADATA_MESSAGE}" ]] || options+=('Remove message')
     [[ "${CNTOOLS_ADVANCED:-N}" != Y ]] || options+=('Import custom metadata')
     [[ -z "${CNTOOLS_METADATA_CUSTOM}" ]] || options+=('Remove custom metadata')
     cntools_send_choose choice 'Message / metadata' "${options[@]}" || return $?
@@ -133,10 +134,12 @@ cntools_send_metadata_edit_inner() {
         cntools_metadata_import "${path}" "${format,,}" || status=2
         ;;
     esac
-    # Failed edits leave the previous frozen draft in place.
+    # Esc returns here quietly; 130 cancels the action. Failed edits keep the
+    # previous frozen draft, and their warning carries to the redrawn menu.
+    (( status != 1 )) || continue
+    (( status != 130 )) || return 130
     if (( status != 0 )); then
-      cntools_ui_render_status warn "${CNTOOLS_METADATA_ERROR:-Metadata edit cancelled; previous draft retained.}"
-      cntools_ui_wait
+      cntools_ui_render_status warn "${CNTOOLS_METADATA_ERROR:-The metadata edit failed; the previous draft is kept.}"
     fi
   done
 }

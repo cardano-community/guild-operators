@@ -21,7 +21,7 @@ cntools_wallet_selection_collect() {
   local context="$1" directory='' address='' payload='' response='' now=0 registered='' rewards='' status='' offset=0 snapshot=''
   local -a addresses=() batch=()
   # "funding" is "send" for actions that cannot spend from a native script.
-  if [[ "${context}" == send || "${context}" == funding ]]; then
+  if [[ "${context}" =~ ^(send|funding|funding-software)$ ]]; then
     # Koios answers every wallet in one batch, so light mode shows balances.
     declare -F cntools_wallet_list_query_koios_funding >/dev/null 2>&1 || return 0
     cntools_wallet_list_query_reset
@@ -85,13 +85,58 @@ cntools_wallet_selection_collect() {
   fi
 }
 
+cntools_wallet_selection_present() {
+  local directory="$1" name=''
+  shift
+  for name in "$@"; do
+    [[ ! -e "${directory}/${name}" && ! -L "${directory}/${name}" &&
+       ! -e "${directory}/${name}.gpg" ]] || return 0
+  done
+  return 1
+}
+
+# Any DRep material, identity record or certificate already in the wallet.
+cntools_wallet_selection_drep_present() {
+  local directory="$1"
+  cntools_wallet_selection_material "${directory}" drep && return 0
+  cntools_wallet_selection_present "${directory}" "${CNTOOLS_WALLET_DREP_ID_FILENAME:-drep.id}" drep.derivation.path \
+    "${CNTOOLS_WALLET_DREP_REGISTER_CERT_FILENAME:-drep-reg.cert}" "${CNTOOLS_WALLET_DREP_RETIRE_CERT_FILENAME:-drep-ret.cert}"
+}
+
+# Why a context left no wallets, shown once by cntools_wallet_choose.
+cntools_wallet_selection_empty_reason_into() {
+  local destination="$1" context="$2" reason=''
+  case "${context}" in
+    send|collect|funding|funding-software) reason='No wallet can fund this action. It needs a wallet with a payment key or payment script.' ;;
+    register) reason='No wallet needs stake registration: every wallet with stake keys is already registered.' ;;
+    deregister) reason='No wallet has a registered stake address to de-register.' ;;
+    delegate|vote-delegate) reason='No wallet has the stake key or stake script needed to delegate.' ;;
+    withdraw) reason='No wallet has rewards to withdraw.' ;;
+    catalyst) reason='No wallet has the payment and stake keys needed for Catalyst registration.' ;;
+    catalyst-key) reason='No wallet has a Catalyst voting public key. Register for Catalyst first.' ;;
+    catalyst-qr) reason='No wallet has a Catalyst voting signing key. Register for Catalyst first.' ;;
+    drep-info|drep-register|drep-update|drep-retire|gov-vote) reason='No wallet has a DRep key or DRep script. Use Vote → Governance → Derive Keys or MultiSig DRep first.' ;;
+    drep-key) reason='No wallet has a DRep verification key.' ;;
+    drep-create) reason='No wallet can take new DRep keys: it must be an open CLI or mnemonic wallet without existing DRep files.' ;;
+    drep-script-create) reason='No wallet can take a DRep script: every wallet already has DRep files.' ;;
+    multisig-derive) reason='No wallet can take participant keys: it must be unencrypted and must not already hold participant keys.' ;;
+    multisig-participant) reason='No wallet has a payment verification key to add as a participant.' ;;
+    pool-owner) reason='No wallet has a stake verification key for a pool owner or reward account.' ;;
+    *) reason='No suitable wallets for this action.' ;;
+  esac
+  printf -v "${destination}" '%s' "${reason}"
+}
+
 cntools_wallet_selection_candidate_into() {
   local destination="$1" index="$2" context="$3" directory="${CNTOOLS_WALLET_PATHS[$2]}" address='' candidate_annotation='' registration=''
   [[ -n "${context}" ]] || { printf -v "${destination}" ''; return 0; }
   if [[ "${CNTOOLS_WALLET_TYPES[index]}" == MultiSig ]]; then
     case "${context}" in
       send|collect) ;;
-      funding) return 1 ;; # These actions cannot spend from a native script.
+      funding|funding-software) return 1 ;; # These actions cannot spend from a native script.
+      drep-script-create)
+        ! cntools_wallet_selection_drep_present "${directory}" || return 1
+        printf -v "${destination}" '%s' ''; return 0 ;;
       drep-register|drep-update|drep-retire|gov-vote|drep-info) cntools_wallet_selection_material "${directory}" drep || return 1 ;;
       register|deregister|delegate|vote-delegate|withdraw)
         cntools_wallet_file_present "${directory}" "${CNTOOLS_WALLET_STAKE_SCRIPT_FILENAME}" || return 1 ;;
@@ -101,8 +146,29 @@ cntools_wallet_selection_candidate_into() {
     candidate_annotation='Native script · participants selected after wallet'
   else
     [[ "${CNTOOLS_WALLET_TYPES[index]}" != Unknown ]] || return 1
-    # Read-only contexts need only the identity they inspect, not payment keys.
+    # Read-only and key-creation contexts check only what their action needs.
     case "${context}" in
+      drep-create)
+        [[ "${CNTOOLS_WALLET_TYPES[index]}" == CLI || "${CNTOOLS_WALLET_TYPES[index]}" == Mnemonic ]] || return 1
+        [[ "${CNTOOLS_WALLET_PROTECTIONS[index]}" == Open ]] || return 1
+        ! cntools_wallet_selection_drep_present "${directory}" || return 1
+        printf -v "${destination}" '%s' ''; return 0 ;;
+      drep-script-create)
+        # Only public script files are added, so type and protection don't matter.
+        ! cntools_wallet_selection_drep_present "${directory}" || return 1
+        printf -v "${destination}" '%s' ''; return 0 ;;
+      multisig-derive)
+        [[ "${CNTOOLS_WALLET_PROTECTIONS[index]}" == Open ]] || return 1
+        cntools_wallet_selection_present "${directory}" "${CNTOOLS_WALLET_MULTISIG_PREFIX:-ms_}${CNTOOLS_WALLET_PAY_VKEY_FILENAME}" \
+          "${CNTOOLS_WALLET_MULTISIG_PREFIX:-ms_}${CNTOOLS_WALLET_PAY_SKEY_FILENAME}" && return 1
+        printf -v "${destination}" '%s' ''; return 0 ;;
+      multisig-participant)
+        cntools_wallet_selection_present "${directory}" "${CNTOOLS_WALLET_MULTISIG_PREFIX:-ms_}${CNTOOLS_WALLET_PAY_VKEY_FILENAME}" \
+          "${CNTOOLS_WALLET_PAY_VKEY_FILENAME}" || return 1
+        printf -v "${destination}" '%s' ''; return 0 ;;
+      pool-owner)
+        cntools_wallet_file_present "${directory}" "${CNTOOLS_WALLET_STAKE_VKEY_FILENAME}" || return 1
+        printf -v "${destination}" '%s' ''; return 0 ;;
       catalyst-key)
         cntools_wallet_file_present "${directory}" "${CNTOOLS_WALLET_CATALYST_VKEY_FILENAME:-catalyst.vkey}" || return 1
         printf -v "${destination}" '%s' ''; return 0 ;;
@@ -130,13 +196,18 @@ cntools_wallet_selection_candidate_into() {
       [[ "${context}" != withdraw || "${CNTOOLS_SELECTION_REWARDS[${address}]:-unknown}" != 0 ]] || return 1
       if [[ "${context}" == withdraw && -n "${CNTOOLS_SELECTION_REWARDS[${address}]:-}" ]]; then
         candidate_annotation="Rewards $(cntools_number_format_lovelace "${CNTOOLS_SELECTION_REWARDS[${address}]}")"
+      elif [[ "${context}" == deregister && "${CNTOOLS_SELECTION_REWARDS[${address}]:-0}" =~ ^[1-9][0-9]*$ ]]; then
+        candidate_annotation="Rewards $(cntools_number_format_lovelace "${CNTOOLS_SELECTION_REWARDS[${address}]}") · withdraw first"
       elif [[ -n "${registration}" ]]; then
         [[ "${registration}" == yes ]] && candidate_annotation=Registered || candidate_annotation='Not registered · registration needed'
       fi
     fi
     [[ "${CNTOOLS_WALLET_TYPES[index]}" != MultiSig ]] || candidate_annotation="Native script · ${candidate_annotation}"
   fi
-  if [[ "${context}" =~ ^(send|funding)$ && "${CNTOOLS_WALLET_LIST_UTXO_LOVELACE[index]:-}" =~ ^[0-9]+$ ]]; then
+  if [[ "${context}" == funding-software && "${CNTOOLS_WALLET_TYPES[index]}" == Hardware ]]; then
+    return 1 # A CLI or public-only pool cold key cannot share a Ledger session.
+  fi
+  if [[ "${context}" =~ ^(send|funding|funding-software)$ && "${CNTOOLS_WALLET_LIST_UTXO_LOVELACE[index]:-}" =~ ^[0-9]+$ ]]; then
     candidate_annotation="$(cntools_number_format_lovelace "${CNTOOLS_WALLET_LIST_UTXO_LOVELACE[index]}")${candidate_annotation:+ · ${candidate_annotation}}"
   fi
   printf -v "${destination}" '%s' "${candidate_annotation}"

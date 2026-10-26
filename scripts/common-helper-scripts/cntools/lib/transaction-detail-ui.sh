@@ -95,6 +95,8 @@ cntools_detail_tree_rows() {
     fi
     if [[ "${section}" == Overview ]]; then
       case "${path}" in
+        invalid_before) path='Valid from' ;;
+        invalid_after) path='Expires' ;;
         treasuryDonation|treasury_donation|'treasury donation') path='Treasury donation' ;;
         currentTreasuryValue|current_treasury_value) path='Current treasury value' ;;
         totalCollateral|total_collateral|'total collateral') path='Total collateral' ;;

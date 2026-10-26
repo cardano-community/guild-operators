@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Governance delegation reuses the shared stake transaction UX and signers.
 # shellcheck disable=SC2034
+declare -ag CNTOOLS_VOTE_LOCAL_LABELS=() CNTOOLS_VOTE_LOCAL_IDS=()
 
 cntools_vote_label() {
   case "$1" in
@@ -11,21 +12,46 @@ cntools_vote_label() {
   esac
 }
 
+cntools_vote_target_status_into() {
+  local ts_label='' ts_role=success
+  case "${CNTOOLS_DREP_STATUS}:${CNTOOLS_DREP_ACTIVE}" in
+    predefined:*) ts_label=Predefined ;;
+    registered:true) ts_label='Registered · active' ;;
+    registered:false) ts_label='Registered · inactive'; ts_role=warning ;;
+    registered:*) ts_label='Registered · activity unknown'; ts_role=value ;;
+    *) ts_label="${CNTOOLS_DREP_STATUS:-Unknown}"; ts_role=value ;;
+  esac
+  printf -v "$1" '%s' "${ts_label}"
+  printf -v "$2" '%s' "${ts_role}"
+}
+
 cntools_vote_render_rows() {
+  local label='' role=''
+  cntools_vote_target_status_into label role
   cntools_transaction_ui_styled_row 'Current voting delegation' "$(cntools_vote_label "${CNTOOLS_VOTE_CURRENT}")" identifier
   cntools_transaction_ui_styled_row 'Target voting delegation' "$(cntools_vote_label "${CNTOOLS_VOTE_TARGET}")" identifier
-  cntools_transaction_ui_styled_row 'Target status' "$([[ "${CNTOOLS_DREP_ACTIVE}" == false ]] && printf 'Registered · inactive' || printf '%s' "${CNTOOLS_DREP_STATUS}")" \
-    "$([[ "${CNTOOLS_DREP_ACTIVE}" == false ]] && printf warning || printf success)"
-  cntools_transaction_ui_styled_row 'Target checked through' "${CNTOOLS_DREP_SOURCE}" value
+  cntools_transaction_ui_styled_row 'Target status' "${label}" "${role}"
+  # Abstain and No Confidence are ledger options; nothing was queried.
+  [[ "${CNTOOLS_DREP_STATUS}" == predefined ]] ||
+    cntools_transaction_ui_styled_row 'Target checked through' "${CNTOOLS_DREP_SOURCE}" value
 }
 
 cntools_vote_choose_target() {
-  local choice="" entered="" status=0 widths=""
+  local choice="" entered="" status=0 widths="" notice=""
+  local -a options=('Specific DRep')
   CNTOOLS_VOTE_TARGET="" CNTOOLS_VOTE_KIND="" CNTOOLS_VOTE_HASH="" CNTOOLS_VOTE_INACTIVE_CONFIRMED=N
   # The review shows the deposit row and offers Cancel; no separate approval.
   if [[ "${CNTOOLS_VOTE_REGISTER}" == Y ]]; then
     CNTOOLS_VOTE_REGISTRATION_CONFIRMED=Y
     cntools_transaction_log CHOICE "Combined stake registration approved deposit=${CNTOOLS_WALLET_REGISTER_DEPOSIT}"
+  fi
+  # Offer local DReps only when one exists.
+  cntools_ui_spin_function 'Checking local DRep wallets…' cntools_vote_local_collect || return 2
+  ((${#CNTOOLS_VOTE_LOCAL_IDS[@]} == 0)) || options+=('Local DRep wallet')
+  options+=('Always Abstain' 'Always No Confidence' Cancel)
+  notice='Voting delegation does not change your stake pool or withdraw rewards.'
+  if [[ "${CNTOOLS_VOTE_REGISTER}" == Y ]]; then
+    notice+=" This stake address is not registered yet, so the transaction also registers it (refundable deposit $(cntools_number_format_lovelace "${CNTOOLS_WALLET_REGISTER_DEPOSIT}"))."
   fi
   while true; do
     cntools_wallet_register_begin
@@ -35,29 +61,32 @@ cntools_vote_choose_target() {
       cntools_transaction_ui_styled_row Wallet "${CNTOOLS_WALLET_REGISTER_WALLET}" identifier
       cntools_transaction_ui_styled_row 'Current voting delegation' "$(cntools_vote_label "${CNTOOLS_VOTE_CURRENT}")" identifier
     } | cntools_ui_table --separator $'\t' --widths "${widths}" || return 2
-    [[ "${CNTOOLS_VOTE_REGISTER}" != Y ]] || cntools_ui_render_status info "This stake address is not registered yet, so the transaction also registers it. Refundable deposit: $(cntools_number_format_lovelace "${CNTOOLS_WALLET_REGISTER_DEPOSIT}")."
-    cntools_ui_render_status info 'Voting delegation does not change your stake pool or withdraw rewards. Any first stake registration and deposit are shown in the transaction review.'
-    cntools_ui_choose choice 'Voting delegation' 'Specific DRep' 'Local DRep wallet' 'Always Abstain' 'Always No Confidence' Cancel || return $?
+    cntools_ui_render_status info "${notice}"
+    cntools_ui_choose choice 'Voting delegation' "${options[@]}" || return $?
     cntools_transaction_log CHOICE "Voting delegation target choice=${choice}"
+    status=0
     case "${choice}" in
-      'Specific DRep') cntools_ui_input entered 'DRep ID' 'drep1… (CIP-129 or legacy); legacy drep_script1… also supported' || return $? ;;
-      'Local DRep wallet') cntools_vote_choose_local_into entered || { status=$?; ((status == 1)) && continue; return "${status}"; } ;;
+      'Specific DRep') cntools_ui_input entered 'DRep ID' 'drep1… (CIP-129 or legacy); legacy drep_script1… also supported' || status=$? ;;
+      'Local DRep wallet') cntools_vote_choose_local_into entered || status=$? ;;
       'Always Abstain') entered=drep_always_abstain ;;
       'Always No Confidence') entered=drep_always_no_confidence ;;
       Cancel) return 1 ;;
       *) return 2 ;;
     esac
+    # Esc in the ID field or the local list returns to the target choice.
+    ((status == 0)) || { ((status == 1)) && continue; return "${status}"; }
+    # Warnings repeat under the next header, so no extra Press Enter.
     if ! cntools_drep_id_into CNTOOLS_VOTE_TARGET CNTOOLS_VOTE_KIND CNTOOLS_VOTE_HASH "${entered}"; then
-      cntools_ui_render_status warn 'Invalid DRep ID. Enter the complete Bech32 ID with its checksum, not a bare hash.'; cntools_ui_wait; continue
+      cntools_ui_render_status warn 'Invalid DRep ID. Enter the complete Bech32 ID with its checksum, not a bare hash.'; continue
     fi
     if [[ "${CNTOOLS_VOTE_TARGET}" == "${CNTOOLS_VOTE_CURRENT}" ]]; then
-      cntools_ui_render_status info 'This wallet already uses that voting delegation. No transaction is needed.'; cntools_ui_wait; continue
+      cntools_ui_render_status warn 'This wallet already uses that voting delegation. No transaction is needed.'; continue
     fi
     status=0
     cntools_ui_spin_function 'Checking the voting delegation target…' cntools_drep_query \
       "${CNTOOLS_VOTE_TARGET}" "${CNTOOLS_VOTE_KIND}" "${CNTOOLS_VOTE_HASH}" "${CNTOOLS_WALLET_REGISTER_BACKEND}" || status=$?
     if ((status == 4)); then
-      cntools_ui_render_status warn 'The DRep is not registered on this network or has retired.'; cntools_ui_wait; continue
+      cntools_ui_render_status warn 'The DRep is not registered on this network or has retired.'; continue
     elif ((status != 0)); then
       cntools_wallet_register_set_error 'The target DRep could not be verified. Check the node/API and try again.'; return 2
     fi
@@ -74,29 +103,35 @@ cntools_vote_choose_target() {
   done
 }
 
-cntools_vote_choose_local_into() {
-  local destination="$1" directory="" entry="" selection="" index=0
-  local -a labels=() ids=()
+# Verified key and script DReps held by CNTools wallets (public files only).
+cntools_vote_local_collect() {
+  local directory="" index=0
+  CNTOOLS_VOTE_LOCAL_LABELS=() CNTOOLS_VOTE_LOCAL_IDS=()
   for directory in "${CNTOOLS_WALLET_PATHS[@]}"; do
-    [[ -f "${directory}/${CNTOOLS_WALLET_DREP_VKEY_FILENAME:-drep.vkey}" || -f "${directory}/${CNTOOLS_WALLET_DREP_SKEY_FILENAME:-drep.skey}" ]] || continue
+    [[ -f "${directory}/${CNTOOLS_WALLET_DREP_VKEY_FILENAME:-drep.vkey}" || -f "${directory}/${CNTOOLS_WALLET_DREP_SKEY_FILENAME:-drep.skey}" ||
+       -f "${directory}/${CNTOOLS_WALLET_DREP_SCRIPT_FILENAME:-drep.script}" ]] || continue
     if cntools_drep_key_inspect "${directory}" && [[ "${CNTOOLS_DREP_KEY_VERIFIED}" == Y ]]; then
-      index=$((index+1)); entry="${index} · ${directory##*/} · ${CNTOOLS_DREP_KEY_ID}"
-      labels+=("${entry}"); ids+=("${CNTOOLS_DREP_KEY_ID}")
+      index=$((index+1))
+      CNTOOLS_VOTE_LOCAL_LABELS+=("${index} · ${directory##*/} · ${CNTOOLS_DREP_KEY_ID}$([[ "${CNTOOLS_DREP_KEY_KIND}" != script ]] || printf ' · script')")
+      CNTOOLS_VOTE_LOCAL_IDS+=("${CNTOOLS_DREP_KEY_ID}")
     fi
   done
-  if (( ${#labels[@]} == 0 )); then
-    cntools_ui_render_status info 'No verified local DRep public keys are available.'; cntools_ui_wait; return 1
-  fi
-  if (( ${#labels[@]} == 1 )); then
-    printf -v "${destination}" '%s' "${ids[0]}"
-    cntools_transaction_log CHOICE "Local DRep wallet auto-selected only=${labels[0]}"
-    cntools_ui_render_status info "Using ${labels[0]#* · }, the only local DRep wallet."
+  CNTOOLS_DREP_KEY_ERROR=''
+}
+
+cntools_vote_choose_local_into() {
+  local destination="$1" selection="" index=0
+  ((${#CNTOOLS_VOTE_LOCAL_IDS[@]} > 0)) || return 1
+  if (( ${#CNTOOLS_VOTE_LOCAL_IDS[@]} == 1 )); then
+    # The target check and review follow at once and show the DRep ID.
+    printf -v "${destination}" '%s' "${CNTOOLS_VOTE_LOCAL_IDS[0]}"
+    cntools_transaction_log CHOICE "Local DRep wallet auto-selected only=${CNTOOLS_VOTE_LOCAL_LABELS[0]}"
     return 0
   fi
-  cntools_ui_choose selection 'Local DRep wallet · registration checked next' "${labels[@]}" Cancel || return $?
+  cntools_ui_choose selection 'Local DRep wallet · registration checked next' "${CNTOOLS_VOTE_LOCAL_LABELS[@]}" Cancel || return $?
   [[ "${selection}" != Cancel ]] || return 1
-  for index in "${!labels[@]}"; do
-    [[ "${selection}" != "${labels[index]}" ]] || { printf -v "${destination}" '%s' "${ids[index]}"; return 0; }
+  for index in "${!CNTOOLS_VOTE_LOCAL_LABELS[@]}"; do
+    [[ "${selection}" != "${CNTOOLS_VOTE_LOCAL_LABELS[index]}" ]] || { printf -v "${destination}" '%s' "${CNTOOLS_VOTE_LOCAL_IDS[index]}"; return 0; }
   done
   return 2
 }

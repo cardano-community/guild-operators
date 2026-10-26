@@ -12,7 +12,9 @@ cntools_calidus_registration_render_identity() {
     [[ "${CNTOOLS_CALIDUS_OPERATION}" != revoke ]] || cntools_table_pair Operation 'Revoke Calidus authorization' warning
     [[ -z "${CNTOOLS_CALIDUS_REG_ID}" ]] || cntools_table_pair 'Calidus ID' "${CNTOOLS_CALIDUS_REG_ID}" identifier
     cntools_table_pair 'On-chain registration' "${CNTOOLS_CALIDUS_CHAIN_STATUS}" value
-    [[ -z "${CNTOOLS_CALIDUS_CHAIN_ID}" ]] || cntools_table_pair 'Indexed Calidus ID' "${CNTOOLS_CALIDUS_CHAIN_ID}" identifier
+    [[ -z "${CNTOOLS_CALIDUS_CHAIN_ID}" || "${CNTOOLS_CALIDUS_CHAIN_ID}" == "${CNTOOLS_CALIDUS_REG_ID}" ]] ||
+      cntools_table_pair 'Indexed Calidus ID' "${CNTOOLS_CALIDUS_CHAIN_ID}" identifier
+    [[ -z "${CNTOOLS_CALIDUS_CHAIN_NONCE}" ]] || cntools_table_pair 'Last indexed nonce' "$(cntools_number_format "${CNTOOLS_CALIDUS_CHAIN_NONCE}")" number
     [[ -z "${CNTOOLS_CALIDUS_REG_NONCE}" ]] || cntools_table_pair 'Authorization nonce' "$(cntools_number_format "${CNTOOLS_CALIDUS_REG_NONCE}")" number
     [[ "${CNTOOLS_CALIDUS_CHAIN_STATUS}" == 'Not checked' ]] || cntools_table_pair 'Registration source' 'Koios API · latest indexed authorization' muted
   } | cntools_table_render Calidus
@@ -35,8 +37,10 @@ cntools_calidus_revocation_confirm() {
   cntools_transaction_log CHOICE "Calidus revocation confirmed pool=${CNTOOLS_CALIDUS_REG_POOL} indexed=${CNTOOLS_CALIDUS_CHAIN_ID:-unchecked} nonce=${CNTOOLS_CALIDUS_CHAIN_NONCE:-unchecked}"
 }
 
+# "onchain": a transaction review follows, so signing the metadata needs no
+# separate confirmation. A revocation was already confirmed by its caller.
 cntools_calidus_registration_prompt_authorization() {
-  local choice='' nonce='' default_nonce='' source='' status=0 local_cold=''
+  local onchain="${1:-}" choice='' nonce='' default_nonce='' source='' status=0 local_cold=''
   [[ "${CNTOOLS_CALIDUS_CHAIN_NONCE}" != 9007199254740991 ]] || {
     cntools_calidus_registration_fail 'The indexed nonce is already at the supported Cardano Signer maximum; a newer authorization cannot be prepared with this tool.'; return 2;
   }
@@ -78,11 +82,8 @@ cntools_calidus_registration_prompt_authorization() {
   if [[ "${CNTOOLS_MODE:-}" == offline || "${CNTOOLS_KOIOS_ENABLED:-N}" != Y ]]; then
     cntools_ui_render_status warn 'On-chain nonce has not been checked. Check it online before signing; stale metadata cannot replace a newer authorization.'
   fi
-  if [[ "${CNTOOLS_CALIDUS_OPERATION}" == revoke ]]; then
-    cntools_ui_render_status warn 'The pool cold key will sign revocation metadata. No Calidus signing key is needed and no transaction is submitted at this step.'
-    cntools_ui_confirm 'Sign this Calidus revocation with the pool cold key?' false || return $?
-  else
-    cntools_ui_render_status warn 'This authorizes the displayed Calidus public key using the pool cold key. It does not need the Calidus signing key and does not submit a transaction.'
+  if [[ "${CNTOOLS_CALIDUS_OPERATION}" != revoke && "${onchain}" != onchain ]] && ! cntools_flow_quick; then
+    cntools_ui_render_status info 'The pool cold key signs an authorization for the Calidus public key shown above. No Calidus signing key is needed and no transaction is submitted.'
     cntools_ui_confirm 'Authorize this Calidus key for this pool?' false || return $?
   fi
   cntools_transaction_log CHOICE "Calidus authorization confirmed operation=${CNTOOLS_CALIDUS_OPERATION} pool=${CNTOOLS_CALIDUS_REG_POOL} nonce=${nonce}"
@@ -216,7 +217,7 @@ cntools_calidus_registration_workflow() {
   elif [[ "${CNTOOLS_CALIDUS_CHAIN_STATUS}" == 'Different key registered' ]]; then
     cntools_ui_render_status warn 'This transaction replaces the indexed Calidus key. Review the local Calidus ID before proceeding.'
   fi
-  cntools_calidus_registration_prompt_authorization || return $?
+  cntools_calidus_registration_prompt_authorization onchain || return $?
   cntools_wallet_catalog_build || return 2
   cntools_ui_render_detail 'Funding wallet'
   cntools_wallet_choose selected Cancel send || return $?
@@ -234,12 +235,12 @@ cntools_calidus_registration_workflow() {
         cntools_calidus_registration_render_review 'Change expiry' 'Change workflow' || return $?
       case "${selected}" in
         "${proceed}"|'Change expiry') break ;;
-        'Change workflow') cntools_transaction_ui_workflow_into workflow "${can_sign}" || return $? ;;
+        'Change workflow') cntools_pool_review_change cntools_transaction_ui_workflow_into workflow "${can_sign}" || return $? ;;
         *) return 2 ;;
       esac
     done
     [[ "${selected}" != "${proceed}" ]] || break
-    cntools_transaction_ui_expiry_into lifetime || return $?
+    cntools_pool_review_change cntools_transaction_ui_expiry_into lifetime || return $?
   done
   if [[ "${workflow}" == 'Create unsigned package' ]]; then
     cntools_transaction_save_into saved "${staged}" unsigned "calidus-${CNTOOLS_CALIDUS_OPERATION}" || return 2
@@ -292,11 +293,13 @@ cntools_calidus_registration_action() {
     register|revoke) cntools_calidus_registration_workflow "${index}" || status=$? ;;
     *) return 2 ;;
   esac
-  if ((status == 1)); then
-    cntools_ui_render_status info 'Cancelled. Any already saved metadata or transaction packages were retained.'
-  elif ((status != 0)); then
-    cntools_ui_render_status error "${CNTOOLS_TRANSACTION_ERROR:-Calidus authorization failed.} See ${CNTOOLS_LOG} for details."
-  fi
+  # Nothing is saved before a cancel can happen; 3 means the reason was shown.
+  case "${status}" in
+    1|3) return 0 ;;
+    130) return 130 ;;
+    0) ;;
+    *) cntools_ui_render_status error "${CNTOOLS_TRANSACTION_ERROR:-Calidus authorization failed.} See ${CNTOOLS_LOG} for details." ;;
+  esac
   cntools_ui_wait
-  ((status <= 1))
+  ((status == 0))
 }

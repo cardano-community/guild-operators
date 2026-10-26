@@ -7,7 +7,7 @@ declare -ag CNTOOLS_TRANSACTION_PICKER_FILES=() CNTOOLS_TRANSACTION_PICKER_ROWS=
 cntools_transaction_picker_catalog() {
   local mode="${1:-}" directory="${CNTOOLS_ROOT:-}/.transactions"
   local file="" metadata="" mtime="" sorted="" intent="" network="" progress="" id="" path="" ordinal=0
-  local witnesses='' eligible='' transaction_key=''
+  local witnesses='' eligible='' transaction_key='' saved=''
   local -A seen_transactions=()
   local -a records=()
   CNTOOLS_TRANSACTION_PICKER_FILES=(); CNTOOLS_TRANSACTION_PICKER_ROWS=()
@@ -49,7 +49,11 @@ cntools_transaction_picker_catalog() {
     [[ "${eligible}" == Y ]] || continue
     ordinal=$((ordinal+1))
     CNTOOLS_TRANSACTION_PICKER_FILES+=("${path}")
-    CNTOOLS_TRANSACTION_PICKER_ROWS+=("${ordinal} · ${intent} · ${progress} · ${id:0:12} · ${path#"${directory}/"}")
+    # The path repeats the action name; when it was saved says more.
+    saved="${mtime}"
+    ! declare -F cntools_timestamp_datetime_into >/dev/null 2>&1 ||
+      cntools_timestamp_datetime_into saved "${mtime}" || saved="${mtime}"
+    CNTOOLS_TRANSACTION_PICKER_ROWS+=("${ordinal} · ${intent} · ${progress} · ${id:0:12} · saved ${saved}")
   done <<< "${sorted}"
   cntools_transaction_log CHOICE "Saved transaction discovery mode=${mode} count=${#CNTOOLS_TRANSACTION_PICKER_FILES[@]}"
 }

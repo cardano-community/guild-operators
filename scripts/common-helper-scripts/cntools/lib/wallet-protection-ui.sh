@@ -72,9 +72,9 @@ cntools_wallet_protection_choose() {
   (( ${#_cntools_rows[@]} > 0 )) || return 4
   if (( ${#_cntools_rows[@]} == 1 )); then
     _cntools_output_ref="${CNTOOLS_WALLET_PATHS[${_cntools_indexes[0]}]}"
+    # No info line: the plan on the next screen names the wallet.
     cntools_wallet_protection_log CHOICE \
       "auto-selected only wallet=${_cntools_output_ref##*/} operation=${_cntools_operation}"
-    cntools_ui_render_status info "Using ${_cntools_output_ref##*/}, the only suitable wallet."
     return 0
   fi
   if cntools_ui_choose _cntools_selected \
@@ -256,9 +256,8 @@ cntools_wallet_action_encrypt() {
   fi
   case "${status}" in
     0) ;;
-    1)
+    1|130)
       cntools_wallet_protection_log CHOICE "wallet encryption selection cancelled"
-      cntools_gum_clear
       return 0
       ;;
     4)
@@ -286,10 +285,9 @@ cntools_wallet_action_encrypt() {
     status=0
   else
     status=$?
-    if (( status == 1 )); then
+    if (( status == 1 || status == 130 )); then
       cntools_wallet_protection_log CHOICE \
         "wallet encryption declined wallet=${wallet_directory##*/}"
-      cntools_gum_clear
       return 0
     fi
     return "${status}"
@@ -297,18 +295,18 @@ cntools_wallet_action_encrypt() {
 
   while true; do
     cntools_ui_action_begin "Encrypt" "/ Wallet / Encrypt"
+    # Quick skips the plan prompt, so this screen names what is encrypted.
     cntools_ui_render_status info \
-      "Use at least 12 characters. The passphrase is never written to the CNTools log."
+      "Encrypting ${wallet_directory##*/}: $(cntools_wallet_protection_key_names encrypt "${wallet_directory}"). Use at least 12 characters; the passphrase is never written to the CNTools log."
     [[ -z "${feedback}" ]] || cntools_ui_render_status warn "${feedback}"
     if cntools_ui_password passphrase "New wallet passphrase"; then
       status=0
     else
       status=$?
       unset passphrase confirmation
-      if (( status == 1 )); then
+      if (( status == 1 || status == 130 )); then
         cntools_wallet_protection_log CHOICE \
           "wallet encryption cancelled at passphrase"
-        cntools_gum_clear
         return 0
       fi
       return "${status}"
@@ -325,10 +323,9 @@ cntools_wallet_action_encrypt() {
     else
       status=$?
       unset passphrase confirmation
-      if (( status == 1 )); then
+      if (( status == 1 || status == 130 )); then
         cntools_wallet_protection_log CHOICE \
           "wallet encryption cancelled at passphrase confirmation"
-        cntools_gum_clear
         return 0
       fi
       return "${status}"
@@ -392,9 +389,8 @@ cntools_wallet_action_decrypt() {
   fi
   case "${status}" in
     0) ;;
-    1)
+    1|130)
       cntools_wallet_protection_log CHOICE "wallet decryption selection cancelled"
-      cntools_gum_clear
       return 0
       ;;
     4)
@@ -422,10 +418,9 @@ cntools_wallet_action_decrypt() {
     status=0
   else
     status=$?
-    if (( status == 1 )); then
+    if (( status == 1 || status == 130 )); then
       cntools_wallet_protection_log CHOICE \
         "wallet decryption declined wallet=${wallet_directory##*/}"
-      cntools_gum_clear
       return 0
     fi
     return "${status}"
@@ -433,16 +428,16 @@ cntools_wallet_action_decrypt() {
 
   while true; do
     cntools_ui_action_begin "Decrypt" "/ Wallet / Decrypt"
+    cntools_ui_render_status info "Decrypting ${wallet_directory##*/}: $(cntools_wallet_protection_key_names decrypt "${wallet_directory}")."
     [[ -z "${feedback}" ]] || cntools_ui_render_status warn "${feedback}"
     if cntools_ui_password passphrase "Wallet passphrase"; then
       status=0
     else
       status=$?
       unset passphrase
-      if (( status == 1 )); then
+      if (( status == 1 || status == 130 )); then
         cntools_wallet_protection_log CHOICE \
           "wallet decryption cancelled at passphrase"
-        cntools_gum_clear
         return 0
       fi
       return "${status}"

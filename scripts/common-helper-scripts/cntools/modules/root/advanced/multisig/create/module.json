@@ -15,6 +15,7 @@
     "bech32.sh",
     "presentation.sh",
     "wallet.sh",
+    "wallet-selection.sh",
     "table.sh",
     "wallet-material.sh",
     "wallet-key.sh",

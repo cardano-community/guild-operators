@@ -17,10 +17,10 @@ cntools_pool_registration_choose_eligible_into() {
   if (( ${#rows[@]} == 0 )); then
     cntools_wallet_register_set_error 'No eligible pools with verified public keys and reachable registration state. Register needs an unregistered pool; Modify and Retire need a registered pool.'; return 2
   fi
+  # A lone eligible pool needs no picker; the settings and review name it.
   if (( ${#rows[@]} == 1 )); then
     printf -v "${output}" '%s' "${indices[0]}"
     cntools_transaction_log CHOICE "Pool auto-selected=${CNTOOLS_POOL_NAMES[indices[0]]}"
-    cntools_ui_render_status info "Using ${CNTOOLS_POOL_NAMES[indices[0]]}, the only eligible pool."
     return 0
   fi
   cntools_pool_registration_choose selected_choice 'Select pool' "${rows[@]}" Cancel || return $?
@@ -37,16 +37,20 @@ cntools_pool_wizard_saved_present() {
   [[ -e "${CNTOOLS_POOL_DIRECTORIES[CNTOOLS_POOL_REG_INDEX]}/${filename}" ]]
 }
 
-# Start-of-action offer. Quick Modify keeps the chain settings; the Pool
-# settings menu still offers the draft.
+# Start-of-action offer. Quick keeps the defaults (chain settings for Modify);
+# the Pool settings menu still offers 'Reuse saved settings'.
 cntools_pool_wizard_saved_offer() {
   local choice=''
   cntools_pool_wizard_saved_present || return 0
-  if [[ "${CNTOOLS_WALLET_REGISTER_OPERATION}" == pool-modify ]] && cntools_flow_quick; then
+  if cntools_flow_quick; then
     cntools_transaction_log CHOICE 'Pool menu=Starting settings default=Keep current defaults flow=quick'
     return 0
   fi
-  cntools_ui_render_status info 'Saved settings are local drafts, not proof of on-chain state. Modify starts with current/pending chain settings unless you explicitly reuse the draft.'
+  if [[ "${CNTOOLS_WALLET_REGISTER_OPERATION}" == pool-modify ]]; then
+    cntools_ui_render_status info 'Saved settings are a local draft, not proof of on-chain state. Modify starts with the current or pending chain settings unless you reuse the draft.'
+  else
+    cntools_ui_render_status info 'Saved settings are a local draft from an earlier Register or Modify, not proof of on-chain state.'
+  fi
   cntools_pool_registration_choose choice 'Starting settings' 'Keep current defaults' 'Reuse saved pool settings' || return $?
   [[ "${choice}" == 'Reuse saved pool settings' ]] || return 0
   cntools_pool_wizard_saved_apply
@@ -55,8 +59,9 @@ cntools_pool_wizard_saved_offer() {
 cntools_pool_wizard_saved_apply() {
   if ! cntools_pool_config_load; then
     cntools_transaction_log WARN "Saved pool draft rejected pool=${CNTOOLS_POOL_REG_NAME}; current defaults retained"
+    # The settings screen follows and repeats this warning.
     cntools_ui_render_status warn 'Saved settings could not be fully validated or resolved. Current defaults were retained; edit the settings manually.'
-    cntools_ui_wait; return 0
+    return 0
   fi
   cntools_transaction_log CHOICE "Pool saved settings applied pool=${CNTOOLS_POOL_REG_NAME}"
 }
@@ -82,14 +87,14 @@ cntools_pool_wizard_prepare_stake() {
   if cntools_pool_config_save; then CNTOOLS_POOL_CONFIG_SAVED=Y
   else
     cntools_transaction_log WARN "Pool draft save failed pool=${CNTOOLS_POOL_REG_NAME}; transaction retained"
+    # The review follows and repeats this warning.
     cntools_ui_render_status warn 'The local draft could not be saved. The transaction can continue; check pool directory/configuration permissions.'
-    cntools_ui_wait
   fi
 }
 
 cntools_pool_wizard_followups() {
   local record='' label='' setup='' filename=''
-  { if [[ "${CNTOOLS_CONFIGURED_POOL_NAME:-}" != "${CNTOOLS_POOL_REG_NAME}" ]]; then
+  { if [[ "${CNTOOLS_WALLET_REGISTER_OPERATION}" == pool-register && "${CNTOOLS_CONFIGURED_POOL_NAME:-}" != "${CNTOOLS_POOL_REG_NAME}" ]]; then
       cntools_table_pair 'Node configuration' "After successful pool registration, set POOL_NAME=\"${CNTOOLS_POOL_REG_NAME}\" in the common env and configure the node with the pool operational certificate/KES/VRF files. CNTools does not edit env." muted
     fi
     cntools_pool_file_name_into filename config
@@ -100,7 +105,6 @@ cntools_pool_wizard_followups() {
       label="$(jq -r .label <<< "${record}")"; setup="$(jq -r .setup <<< "${record}")"
       cntools_table_pair "${label} stake setup" "$([[ "${setup}" == delegate ]] && printf 'Registration if needed + pool delegation' || printf 'Reward registration') included in this transaction; effective only after inclusion" success
     done < <(jq -c '.[]' <<< "${CNTOOLS_POOL_STAKE_PLAN}")
-    cntools_table_pair 'Pledge maintenance' 'All owner accounts must be registered, delegated to this pool and funded to fulfill the declared pledge. Recheck after deposits/fees and at rewards snapshots.' warning
     cntools_table_pair 'Reward withdrawals' 'DRep delegation is required before withdrawing rewards.' muted
   } | cntools_table_render 'Next steps'
 }

@@ -37,14 +37,21 @@ cntools_wallet_delegation_info_render() {
     {
       value="$(jq -r '[.meta_json.ticker,.meta_json.name] | map(select(type == "string" and length > 0)) | join(" · ")' <<< "${record}")"
       [[ -z "${value}" ]] || cntools_table_pair Name "${value}" accent
-      cntools_table_pair Status "$(jq -r '.pool_status // "Unavailable"' <<< "${record}")" value
-      cntools_table_pair Source 'Koios API' muted
-    } | cntools_table_render 'Delegated stake pool'
+      # Retiring/retired pools stop earning rewards: name the epoch and flag it.
+      value="$(jq -r '(.retiring_epoch | if type == "number" then " · epoch \(.)" else "" end) as $epoch |
+        {registered:"Registered", retiring:("Retiring" + $epoch), retired:("Retired" + $epoch)}[.pool_status // ""] // "Unavailable"' <<< "${record}")" || return 1
+      case "${value}" in
+        Registered) role=success ;; Retiring*) role=warning ;; Retired*) role=danger ;; *) role=muted ;;
+      esac
+      cntools_table_pair Status "${value}" "${role}"
+    } | cntools_table_render 'Delegated stake pool · Koios'
   fi
   record="${CNTOOLS_WALLET_DELEGATED_DREP}"
   if [[ "${record}" != '{}' ]]; then
     {
-      cntools_table_pair Registration "$(jq -r '.drep_status // "Unavailable"' <<< "${record}")" value
+      value="$(jq -r '{registered:"Registered", deregistered:"Retired", not_registered:"Not registered"}[.drep_status // ""] // "Unavailable"' <<< "${record}")" || return 1
+      role=warning; [[ "${value}" != Registered ]] || role=success
+      cntools_table_pair Registration "${value}" "${role}"
       cntools_table_pair Activity "$(jq -r 'if .active then "Active" else "Inactive" end' <<< "${record}")" "$([[ "$(jq -r .active <<< "${record}")" == true ]] && printf success || printf warning)"
       for key in expires_epoch_no amount live_delegator_count meta_url meta_hash; do
         value="$(jq -r --arg key "${key}" '.[$key] | select(type == "number" or type == "string")' <<< "${record}")" || return 1
@@ -59,8 +66,7 @@ cntools_wallet_delegation_info_render() {
         esac
         cntools_table_pair "${key}" "${value}" "${role}"
       done
-      cntools_table_pair Source 'Koios API' muted
-    } | cntools_table_render 'Delegated DRep'
+    } | cntools_table_render 'Delegated DRep · Koios'
     # Quick skips the third-party download; Governance → Info still offers it.
     cntools_flow_quick ||
       cntools_public_metadata_offer "$(jq -r '.meta_url // ""' <<< "${record}")" "$(jq -r '.meta_hash // ""' <<< "${record}")"

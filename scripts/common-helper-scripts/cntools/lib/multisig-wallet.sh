@@ -80,7 +80,7 @@ cntools_wallet_multisig_required_entries_valid() {
 }
 
 cntools_multisig_wallet_create() {
-  local name="$1" threshold="$2" staking="$3" after="${4:-}" before="${5:-}" target='' stage='' bound=''
+  local name="$1" threshold="$2" staking="$3" after="${4:-}" before="${5:-}" target='' stage='' bound='' now=''
   CNTOOLS_MULTISIG_ERROR=''; CNTOOLS_WALLET_CREATED_DIRECTORY=''
   cntools_wallet_create_environment_ready && cntools_wallet_create_root_prepare &&
     cntools_wallet_create_target_into target "${name}" || return 1
@@ -91,6 +91,11 @@ cntools_multisig_wallet_create() {
     [[ -z "${bound}" ]] || { cntools_transaction_slot_value_valid "${bound}" && ((bound<=9007199254740991)); } || return 2
   done
   [[ -z "${after}" || -z "${before}" ]] || ((after<before)) || return 2
+  # Never publish an address whose spending window has already closed.
+  if [[ -n "${before}" ]] && now="$(cntools_health_reference_slot "${CNTOOLS_NETWORK:-}" 2>/dev/null)" &&
+     [[ "${now}" =~ ^[0-9]+$ ]] && ((before <= now)); then
+    cntools_multisig_fail 'The spending expiry has already passed; funds at this address could never be spent. Nothing was created.'; return 1
+  fi
   if [[ "${staking}" == Y ]]; then
     for bound in "${CNTOOLS_MULTISIG_STAKE_HASHES[@]}"; do [[ "${bound}" =~ ^[0-9a-f]{56}$ ]] || return 2; done
     (( ${#CNTOOLS_MULTISIG_STAKE_HASHES[@]} == ${#CNTOOLS_MULTISIG_PAYMENT_HASHES[@]} )) || return 2

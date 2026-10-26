@@ -557,6 +557,9 @@ cntools_wallet_catalog_rows() {
   local display_tokens=""
   local rewards=""
   local total=""
+  local lone_utxo=N
+  local nonzero_count=0
+  local component=""
   local protection_role=""
 
   cntools_table_row "Wallet" "Property" "Value" || return 1
@@ -590,14 +593,24 @@ cntools_wallet_catalog_rows() {
     rewards="${CNTOOLS_WALLET_LIST_REWARD_LOVELACE[index]:-}"
     tokens="${CNTOOLS_WALLET_LIST_TOKEN_COUNTS[index]:-}"
     total="${CNTOOLS_WALLET_LIST_TOTAL_LOVELACE[index]:-}"
-    if [[ "${base_balance}" =~ ^[1-9][0-9]*$ ]]; then
+    [[ "${CNTOOLS_WALLET_LIST_QUERY_STATUSES[index]:-}" == available ]] || total=""
+    # Zero components are hidden; a lone UTxO component would only repeat
+    # the Total below it.
+    nonzero_count=0
+    for component in "${base_balance}" "${payment_balance}" "${rewards}"; do
+      [[ ! "${component}" =~ ^[1-9][0-9]*$ ]] || nonzero_count=$((nonzero_count + 1))
+    done
+    lone_utxo=N
+    [[ "${total}" =~ ^[0-9]+$ && "${nonzero_count}" == 1 &&
+       ! "${rewards}" =~ ^[1-9][0-9]*$ ]] && lone_utxo=Y
+    if [[ "${lone_utxo}" == N && "${base_balance}" =~ ^[1-9][0-9]*$ ]]; then
       cntools_table_wrapped_triple \
         "" "Base UTxO" \
         "$(cntools_number_format_lovelace "${base_balance}")" \
         20 22 "" value number ||
         return 1
     fi
-    if [[ "${payment_balance}" =~ ^[1-9][0-9]*$ ]]; then
+    if [[ "${lone_utxo}" == N && "${payment_balance}" =~ ^[1-9][0-9]*$ ]]; then
       cntools_table_wrapped_triple \
         "" "Payment UTxO" \
         "$(cntools_number_format_lovelace "${payment_balance}")" \
@@ -616,11 +629,17 @@ cntools_wallet_catalog_rows() {
         "" "Native assets" "${display_tokens}" \
         20 22 "" value number || return 1
     fi
-    if [[ "${total}" =~ ^[1-9][0-9]*$ ]]; then
+    # Always a Total once balances were queried: 0 is an empty wallet, — a
+    # failed or incomplete query.
+    if [[ "${total}" =~ ^[0-9]+$ ]]; then
       cntools_table_wrapped_triple \
         "" "Total" "$(cntools_number_format_lovelace "${total}")" \
         20 22 "" value number ||
         return 1
+    elif [[ "${CNTOOLS_WALLET_LIST_QUERY_LIVE:-N}" == Y &&
+            -n "${CNTOOLS_WALLET_LIST_BASE_ADDRESSES[index]:-}${CNTOOLS_WALLET_LIST_PAYMENT_ADDRESSES[index]:-}${CNTOOLS_WALLET_LIST_REWARD_ADDRESSES[index]:-}" ]]; then
+      cntools_table_wrapped_triple \
+        "" "Total" "—" 20 22 "" value muted || return 1
     fi
   done
 }
@@ -664,7 +683,11 @@ cntools_wallet_choose() {
   [[ "${_cntools_output_name}" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || return 2
   local -n _cntools_output_ref="${_cntools_output_name}"
   _cntools_output_ref=""
-  (( ${#CNTOOLS_WALLET_NAMES[@]} > 0 )) || return 1
+  # 3 = nothing to choose: the reason is shown here, once.
+  if (( ${#CNTOOLS_WALLET_NAMES[@]} == 0 )); then
+    cntools_ui_render_status info 'No wallets are available. Create or import a wallet first.'
+    cntools_ui_wait; return 3
+  fi
   if [[ -n "${_cntools_context}" ]]; then
     cntools_ui_spin_function 'Checking suitable wallets…' cntools_wallet_selection_collect "${_cntools_context}" || return 2
   fi
@@ -685,16 +708,20 @@ cntools_wallet_choose() {
     _cntools_indices+=("${_cntools_index}")
   done
   if (( ${#_cntools_rows[@]} == 0 )); then
-    cntools_ui_render_status info 'No suitable wallets for this action. Protected/watch-only keys can still be used for offline signing when their public material is available.'
-    cntools_ui_wait; return 1
+    if declare -F cntools_wallet_selection_empty_reason_into >/dev/null 2>&1; then
+      cntools_wallet_selection_empty_reason_into _cntools_annotation "${_cntools_context}"
+    else
+      _cntools_annotation='No suitable wallets for this action.'
+    fi
+    cntools_ui_render_status info "${_cntools_annotation}"
+    cntools_ui_wait; return 3
   fi
   # A lone candidate needs no picker; later steps still confirm the action.
   if (( ${#_cntools_rows[@]} == 1 )) && [[ "${_cntools_auto_single}" == "Y" ]]; then
     _cntools_output_ref="${_cntools_indices[0]}"
+    # No info line: the next screen redraws at once and names the wallet.
     cntools_wallet_log CHOICE \
       "auto-selected only wallet=${CNTOOLS_WALLET_NAMES[_cntools_output_ref]} action=${_cntools_context:-inspect}"
-    cntools_ui_render_status info \
-      "Using ${CNTOOLS_WALLET_NAMES[_cntools_output_ref]}, the only suitable wallet."
     return 0
   fi
   [[ -z "${_cntools_cancel}" ]] || _cntools_rows+=("${_cntools_cancel}")
@@ -805,6 +832,7 @@ cntools_wallet_action_list_impl() {
       fi
     else
       confirmation_status=$?
+      (( confirmation_status != 130 )) || return 130
       if (( confirmation_status == 1 )); then
         cntools_wallet_log CHOICE "wallet catalog live balances skipped"
         cntools_wallet_list_query_reset

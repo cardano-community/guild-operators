@@ -53,8 +53,10 @@ cntools_public_metadata_render() {
   } | cntools_table_render "${title}"
 }
 
+# Optional 4th argument "shown": the content is already on screen (e.g. from
+# an indexer), so a successful download only reports the verified hash.
 cntools_public_metadata_offer() {
-  local url="$1" expected="$2" limit="${3:-262144}" status=0
+  local url="$1" expected="$2" limit="${3:-262144}" shown="${4:-}" status=0
   [[ "${CNTOOLS_MODE:-offline}" != offline && -n "${url}" && "${expected}" =~ ^[0-9a-fA-F]{64}$ ]] || return 0
   if [[ ! "${url}" =~ ^https?://[^[:space:]]+$ && "${url}" != ipfs://* ]]; then
     cntools_ui_render_status info 'This anchor is not a public HTTP(S) URL. Download it independently and compare its exact byte hash.'; return 0
@@ -65,6 +67,9 @@ cntools_public_metadata_offer() {
   cntools_ui_spin_function 'Downloading and verifying published metadata…' cntools_public_metadata_fetch "${url}" "${expected}" "${limit}" || status=$?
   if ((status != 0)); then
     cntools_ui_render_status warn "${CNTOOLS_PUBLIC_METADATA_ERROR}"; return 0
+  fi
+  if [[ "${shown}" == shown ]]; then
+    cntools_ui_render_status success 'Published bytes match the on-chain hash. The content above is the indexed copy.'; return 0
   fi
   cntools_public_metadata_render "${CNTOOLS_PUBLIC_METADATA_FILE}"
 }
@@ -105,10 +110,14 @@ cntools_public_metadata_anchor_hash_into() {
       'Hash local JSON file')
         cntools_ui_pick_path pm_file "${pm_label} JSON file" 'Choose the exact published JSON bytes; the file is not uploaded.' || pm_status=$?
         ((pm_status == 0)) || { ((pm_status == 1)) && continue; return "${pm_status}"; }
+        # The hasher's own reason only: never a stale error, and none left behind.
+        CNTOOLS_TRANSACTION_ERROR=''
         if ! cntools_ui_spin_function "Hashing ${pm_noun}…" "${pm_hasher}" pm_hash "${pm_file}"; then
-          cntools_ui_render_status warn "${CNTOOLS_TRANSACTION_ERROR:-Could not hash that ${pm_noun} file.}"; continue
+          cntools_ui_render_status warn "${CNTOOLS_TRANSACTION_ERROR:-Could not hash that ${pm_noun} file.}"
+          CNTOOLS_TRANSACTION_ERROR=''; continue
         fi
-        [[ -z "${pm_note}" ]] || cntools_ui_render_status info "${pm_note}"
+        # A warning, so the build and review redraws repeat it until answered.
+        [[ -z "${pm_note}" ]] || cntools_ui_render_status warn "${pm_note}"
         ;;
       'Enter known hash')
         cntools_ui_input pm_hash "${pm_label} hash" '64 hexadecimal characters (Blake2b-256)' || pm_status=$?

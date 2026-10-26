@@ -46,7 +46,8 @@ cntools_history_metadata_offer() {
 }
 
 cntools_history_overview_rows() {
-  local address="" count="" first=0 last=0
+  local address="" count="" first=0 last=0 addresses=0 kind_label="transactions"
+  [[ "${CNTOOLS_HISTORY_KIND}" != utxos ]] || kind_label="UTxOs"
   cntools_table_row Property Value
   cntools_detail_pair Wallet "${CNTOOLS_HISTORY_WALLET}" identifier
   if [[ "${CNTOOLS_HISTORY_BACKEND}" == local ]]; then
@@ -59,7 +60,7 @@ cntools_history_overview_rows() {
     cntools_detail_pair Source 'Koios API'
     cntools_detail_pair Lookup "Payment credential"
   fi
-  cntools_history_number_pair "Matching ${CNTOOLS_HISTORY_KIND}" "${CNTOOLS_HISTORY_TOTAL}"
+  cntools_history_number_pair "Matching ${kind_label}" "${CNTOOLS_HISTORY_TOTAL}"
   if (( CNTOOLS_HISTORY_TOTAL > 0 )); then
     first=$((CNTOOLS_HISTORY_PAGE * CNTOOLS_HISTORY_SIZE + 1))
     last=$((first + CNTOOLS_HISTORY_SIZE - 1))
@@ -67,29 +68,41 @@ cntools_history_overview_rows() {
     cntools_detail_pair Showing "${first}–${last}"
   fi
   if [[ "${CNTOOLS_HISTORY_KIND}" == utxos ]]; then
+    cntools_history_utxo_address_count_into addresses
     while IFS=$'\037' read -r address count; do
       [[ -n "${address}" ]] || continue
       cntools_detail_pair Address "${address}" identifier
-      cntools_history_number_pair "Unspent outputs" "${count}"
+      # One address holds them all: its count is the total above.
+      (( addresses < 2 )) || cntools_history_number_pair "Unspent outputs" "${count}"
     done < <(jq -r 'group_by(.address)[] | [.[0].address,(length|tostring)] | join("\u001f")' "${CNTOOLS_HISTORY_LIST}")
   fi
 }
 
+cntools_history_utxo_address_count_into() {
+  local _cntools_address_count=0
+  _cntools_address_count="$(jq '[.[].address] | unique | length' "${CNTOOLS_HISTORY_LIST}" 2>/dev/null)" ||
+    _cntools_address_count=0
+  printf -v "$1" '%s' "${_cntools_address_count:-0}"
+}
+
 cntools_history_summary_rows() {
-  local record="$1" key="" value="" identity="" name="" names="" ordinal=0
+  local record="$1" key="" value="" identity="" name="" names="" ordinal=0 net=""
   cntools_table_row Property Value
   while IFS=$'\037' read -r key value; do
     case "${key}" in
       Date) cntools_history_date_pair "${key}" "${value}" ;;
-      Fee|"Total outputs"|ADA)
+      Fee|ADA)
         cntools_detail_pair "${key}" "$(cntools_number_format_lovelace "${value}")" number ;;
+      "Wallet net change")
+        cntools_history_net_change_into net "${record}" || return 1
+        cntools_detail_pair "${key}" "${net:0:1}$(cntools_number_format_lovelace "${net:1}")" number ;;
       Block|Inputs|Outputs|"Native assets"|"Output assets") cntools_history_number_pair "${key}" "${value}" ;;
       *) cntools_detail_pair "${key}" "${value}" identifier ;;
     esac || return 1
   done < <(jq -r --arg kind "${CNTOOLS_HISTORY_KIND}" '
     (if $kind == "transactions" then
       [["Transaction ID",.tx_hash],["Date",.tx_timestamp],["Block",.block_height],
-       ["Fee",.fee],["Total outputs",.total_output],["Inputs",(.inputs|length)],
+       ["Fee",.fee],["Wallet net change",""],["Inputs",(.inputs|length)],
        ["Outputs",(.outputs|length)],
        ["Output assets",([.outputs[]?.asset_list[]? | [.policy_id,.asset_name]]|unique|length)]]
      else
@@ -135,7 +148,8 @@ cntools_history_detail_view() {
 cntools_history_prompt_page_size() {
   local size=""
   while :; do
-    cntools_ui_input size "Items per page (1–10; Enter uses 5)" "5 (default)" || return 1
+    cntools_ui_input size "Items per page (1–10; Enter keeps ${CNTOOLS_HISTORY_SIZE})" "${CNTOOLS_HISTORY_SIZE}" || return 1
+    [[ -n "${size//[[:space:]]/}" ]] || size="${CNTOOLS_HISTORY_SIZE}"
     cntools_history_page_size "${size}" && return 0
     cntools_ui_render_status warn "Choose a whole number from 1 to 10."
   done
@@ -144,7 +158,7 @@ cntools_history_prompt_page_size() {
 cntools_history_action() {
   local kind="$1" title="Transaction List" selected="" directory="" type="" credential=""
   local choice="" record="" number=0 target=0 stake="" lookup=payment summary_title=""
-  local payment_credential="" status=0
+  local payment_credential="" status=0 shown="" addresses=0
   local -a choices=()
   [[ "${kind}" != utxos ]] || title="UTxO List"
   cntools_ui_action_begin "${title}" "/ Wallet / ${title}"
@@ -153,20 +167,13 @@ cntools_history_action() {
     cntools_ui_wait
     return 0
   fi
-  if [[ "${kind}" == utxos ]]; then
-    cntools_ui_render_status info "Only unspent outputs are shown in the UTxO list."
-  fi
   cntools_wallet_query_reset
   CNTOOLS_HISTORY_METADATA=ask
   cntools_wallet_catalog_build || return 1
-  if (( ${#CNTOOLS_WALLET_NAMES[@]} == 0 )); then
-    cntools_ui_render_status warn "No wallets are available."
-    cntools_ui_wait
-    return 0
-  fi
   status=0
   cntools_wallet_choose selected || status=$?
-  (( status != 1 )) || return 0
+  # 3: no wallets, already shown and acknowledged.
+  (( status != 1 && status != 3 && status != 130 )) || return 0
   (( status == 0 )) || return "${status}"
   directory="${CNTOOLS_WALLET_PATHS[selected]}"
   CNTOOLS_HISTORY_WALLET="${CNTOOLS_WALLET_NAMES[selected]}"
@@ -218,10 +225,14 @@ cntools_history_action() {
   while :; do
     if ! cntools_ui_spin_function "Loading wallet inventory page…" cntools_history_page_load "${target}"; then
       cntools_ui_render_status error "${CNTOOLS_HISTORY_ERROR}"
-      cntools_ui_choose choice "Page unavailable" Retry Back || return 0
+      # Back returns to the last page shown, if any, rather than ending.
+      cntools_ui_choose choice "Page unavailable" Retry Back || choice=Back
       [[ "${choice}" == Retry ]] && continue
-      return 0
+      [[ "${shown}" =~ ^[0-9]+$ && "${shown}" != "${target}" ]] || return 0
+      target="${shown}"
+      continue
     fi
+    shown="${target}"
     if [[ "${kind}" == utxos ]]; then
       cntools_history_metadata_offer "${CNTOOLS_HISTORY_PAGE_FILE}" || return 1
     fi
@@ -231,12 +242,16 @@ cntools_history_action() {
       cntools_ui_render_status warn "Koios returns at most 1,000 matches; only the last 1,000 matching ${kind} can be displayed."
     fi
     number=$((CNTOOLS_HISTORY_PAGE * CNTOOLS_HISTORY_SIZE))
+    [[ "${kind}" != utxos ]] || cntools_history_utxo_address_count_into addresses
     while IFS= read -r record; do
       number=$((number + 1))
       if [[ "${kind}" == transactions ]]; then
         summary_title="${number} · $(cntools_history_transaction_tags "${record}")" || return 1
-      else
+      elif (( addresses > 1 )); then
         summary_title="$(cntools_detail_utxo_title "${record}" "${number}")" || return 1
+      else
+        # The overview names the only address; the UTxO row identifies it.
+        cntools_number_format_into summary_title "${number}" || return 1
       fi
       cntools_history_summary_rows "${record}" | cntools_table_render "${summary_title}" || return 1
     done < <(jq -c '.[]' "${CNTOOLS_HISTORY_PAGE_FILE}")
@@ -256,8 +271,9 @@ cntools_history_action() {
       "Previous page") target=$((CNTOOLS_HISTORY_PAGE - 1)) ;;
       "Show details") cntools_history_detail_view || return 1 ;;
       "Page size")
-        cntools_history_prompt_page_size || continue
-        target=0 ;;
+        # Esc keeps the current size and page; a new size starts at page 1.
+        cntools_history_prompt_page_size || { target="${CNTOOLS_HISTORY_PAGE}"; continue; }
+        shown="" target="${CNTOOLS_HISTORY_PAGE}" ;;
       "Change lookup")
         if [[ "${lookup}" == stake ]]; then lookup=payment; credential="${payment_credential}"
         else lookup=stake; credential="${stake}"; fi
@@ -265,7 +281,7 @@ cntools_history_action() {
         cntools_ui_spin_function "Fetching wallet inventory from Koios…" cntools_history_load "${kind}" "${credential}" "${lookup}" || {
           cntools_ui_render_status error "${CNTOOLS_HISTORY_ERROR:-Koios is unavailable.}"; cntools_ui_wait; return 1;
         }
-        target=0 ;;
+        shown="" target=0 ;;
       *) return 0 ;;
     esac
   done

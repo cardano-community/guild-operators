@@ -7,6 +7,7 @@ CNTOOLS_FUNDING_BACKEND=""
 CNTOOLS_FUNDING_SLOT=""
 CNTOOLS_FUNDING_EPOCH=""
 CNTOOLS_FUNDING_TOTAL="0"
+CNTOOLS_FUNDING_REFERENCE_SKIPPED=0
 declare -ag CNTOOLS_FUNDING_ASSET_IDS=()
 declare -Ag CNTOOLS_FUNDING_ASSETS=()
 
@@ -55,7 +56,7 @@ cntools_funding_collect() {
   local primary="${1:-}" payment="${2:-${1:-}}" response="" errors=""
   local payload="" status=0 index=0 reserve=""
   local -a network=() address_arguments=(--address "${primary}")
-  CNTOOLS_FUNDING_TOTAL=0
+  CNTOOLS_FUNDING_TOTAL=0 CNTOOLS_FUNDING_REFERENCE_SKIPPED=0
   CNTOOLS_FUNDING_ASSET_IDS=(); CNTOOLS_FUNDING_ASSETS=()
   CNTOOLS_FUNDING_SLOT=""; CNTOOLS_FUNDING_BACKEND=""
   [[ "${CNTOOLS_MODE:-}" != offline ]] || {
@@ -114,4 +115,36 @@ cntools_funding_collect() {
     cntools_transaction_set_error "This wallet has no spendable UTxOs."; return 1;
   }
   cntools_transaction_log TRANSACTION "Transaction funding inventory backend=${CNTOOLS_FUNDING_BACKEND} inputs=${#CNTOOLS_UTXO_REFS[@]} lovelace=${CNTOOLS_FUNDING_TOTAL} slot=${CNTOOLS_FUNDING_SLOT}"
+}
+
+# Spending a reference-script UTxO needs the script size in the fee and would
+# destroy the script. Actions that do not price it leave such inputs untouched.
+cntools_funding_exclude_reference_scripts() {
+  local index=0 added=0 asset=''
+  local -a refs=("${CNTOOLS_UTXO_REFS[@]}") addresses=("${CNTOOLS_UTXO_ADDRESSES[@]}") coins=("${CNTOOLS_UTXO_LOVELACE[@]}")
+  local -a lists=("${CNTOOLS_UTXO_ASSET_LISTS[@]}") datums=("${CNTOOLS_UTXO_HAS_DATUM[@]}") scripts=("${CNTOOLS_UTXO_HAS_REFERENCE_SCRIPT[@]}") names=()
+  local -A quantities=()
+  CNTOOLS_FUNDING_REFERENCE_SKIPPED=0
+  for index in "${!refs[@]}"; do
+    [[ "${scripts[index]}" == N ]] || CNTOOLS_FUNDING_REFERENCE_SKIPPED=$((CNTOOLS_FUNDING_REFERENCE_SKIPPED + 1))
+  done
+  (( CNTOOLS_FUNDING_REFERENCE_SKIPPED > 0 )) || return 0
+  for asset in "${!CNTOOLS_UTXO_ASSET_QUANTITIES[@]}"; do quantities["${asset}"]="${CNTOOLS_UTXO_ASSET_QUANTITIES[${asset}]}"; done
+  cntools_utxo_reset
+  CNTOOLS_FUNDING_TOTAL=0; CNTOOLS_FUNDING_ASSET_IDS=(); CNTOOLS_FUNDING_ASSETS=()
+  for index in "${!refs[@]}"; do
+    [[ "${scripts[index]}" == N ]] || continue
+    added="${#CNTOOLS_UTXO_REFS[@]}"
+    cntools_utxo_add "${refs[index]}" "${addresses[index]}" "${coins[index]}" "${datums[index]}" N || return 1
+    names=()
+    [[ -z "${lists[index]}" ]] || read -r -a names <<< "${lists[index]}"
+    for asset in "${names[@]}"; do
+      cntools_utxo_add_asset "${added}" "${asset}" "${quantities[${index}|${asset}]}" || return 1
+    done
+    cntools_utxo_value_add_index "${added}" CNTOOLS_FUNDING_TOTAL CNTOOLS_FUNDING_ASSET_IDS CNTOOLS_FUNDING_ASSETS || return 1
+  done
+  cntools_transaction_log TRANSACTION "Reference-script UTxOs left untouched count=${CNTOOLS_FUNDING_REFERENCE_SKIPPED} remaining inputs=${#CNTOOLS_UTXO_REFS[@]} lovelace=${CNTOOLS_FUNDING_TOTAL}"
+  (( ${#CNTOOLS_UTXO_REFS[@]} > 0 )) || {
+    cntools_transaction_set_error "This wallet's only UTxOs hold reference scripts, which this action leaves untouched."; return 1;
+  }
 }

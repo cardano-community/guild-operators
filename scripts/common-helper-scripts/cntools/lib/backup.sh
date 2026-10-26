@@ -5,11 +5,14 @@
 # Coverage is filename-based advice, not proof that a key is valid or belongs
 # to its public artifact. Never read a signing key, password or mnemonic here.
 declare -ag CNTOOLS_BACKUP_COVERAGE_LABELS=() CNTOOLS_BACKUP_COVERAGE_VALUES=()
-CNTOOLS_BACKUP_MISSING_KEYS=0
+CNTOOLS_BACKUP_MISSING_KEYS=0 CNTOOLS_BACKUP_PRESENT_KEYS=0 CNTOOLS_BACKUP_HARDWARE_KEYS=0
+# Set when the last restore preparation failed at GPG decryption (retryable).
+CNTOOLS_BACKUP_DECRYPT_FAILED=N
 
 cntools_backup_recovery_coverage() {
   local role='' root='' directory='' public='' secret='' hardware='' prefix='' label='' value=''
   CNTOOLS_BACKUP_COVERAGE_LABELS=(); CNTOOLS_BACKUP_COVERAGE_VALUES=(); CNTOOLS_BACKUP_MISSING_KEYS=0
+  CNTOOLS_BACKUP_PRESENT_KEYS=0; CNTOOLS_BACKUP_HARDWARE_KEYS=0
   for role in wallets pools assets; do
     cntools_backup_role_root_into root "${role}" || return 1
     [[ -e "${root}" || -L "${root}" ]] || continue
@@ -44,8 +47,10 @@ cntools_backup_recovery_coverage() {
           if [[ -f "${directory}/${secret}" && ! -L "${directory}/${secret}" ]] ||
              [[ -f "${directory}/${secret}.gpg" && ! -L "${directory}/${secret}.gpg" ]]; then
             value='Signing key present (plain or encrypted)'
+            CNTOOLS_BACKUP_PRESENT_KEYS=$((CNTOOLS_BACKUP_PRESENT_KEYS+1))
           elif [[ -n "${hardware}" && -f "${directory}/${hardware}" && ! -L "${directory}/${hardware}" ]]; then
             value='Hardware reference only · original device/recovery seed required'
+            CNTOOLS_BACKUP_HARDWARE_KEYS=$((CNTOOLS_BACKUP_HARDWARE_KEYS+1))
           else
             value="Missing ${secret} · watch-only/external signer; cannot recover this key from the backup"
             CNTOOLS_BACKUP_MISSING_KEYS=$((CNTOOLS_BACKUP_MISSING_KEYS+1))
@@ -276,6 +281,7 @@ cntools_backup_restore_prepare() {
   local source="$1" password="${2:-}" archive='' binary='' legacy=Y member='' mapped='' role='' relative='' object='' target='' hash='' expected='' manifest=''
   local -A paths=() objects=() expected_hashes=()
   CNTOOLS_BACKUP_OBJECTS=(); CNTOOLS_BACKUP_KIND=legacy; CNTOOLS_BACKUP_NETWORK=unknown
+  CNTOOLS_BACKUP_DECRYPT_FAILED=N
   cntools_backup_environment || return 1
   cntools_transaction_file_safe "${source}" "${CNTOOLS_BACKUP_MAX_BYTES}" || {
     cntools_backup_error 'Select a regular, readable backup file with no linked path components.'; return 1;
@@ -289,7 +295,8 @@ cntools_backup_restore_prepare() {
     binary="$(type -P gpg || type -P gpg2)" || { cntools_backup_error 'Install GnuPG to open this backup.'; return 1; }
     : > "${archive}"
     cntools_backup_crypto "${binary}" decrypt "${CNTOOLS_BACKUP_WORK}/input" "${archive}" "${password}" || {
-      cntools_backup_error 'The backup could not be decrypted. Check the password and GPG installation.'; return 1;
+      CNTOOLS_BACKUP_DECRYPT_FAILED=Y
+      cntools_backup_error 'The backup could not be decrypted. Check the passphrase.'; return 1;
     }
   else
     cntools_backup_command mv -- "${CNTOOLS_BACKUP_WORK}/input" "${archive}" || return 1

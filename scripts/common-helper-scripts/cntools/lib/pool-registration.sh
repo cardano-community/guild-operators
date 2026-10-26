@@ -320,22 +320,32 @@ cntools_pool_registration_build_into() {
   cntools_wallet_register_build_balanced_into "${output}"
 }
 
+# Sets CNTOOLS_POOL_REG_RECHECK_CHANGED=Y when the chain moved on (a rebuild
+# helps), not when a query could not complete.
+CNTOOLS_POOL_REG_RECHECK_CHANGED=N
 cntools_pool_registration_recheck() {
   local state='' ref='' backend="${CNTOOLS_WALLET_REGISTER_BACKEND}"
+  CNTOOLS_POOL_REG_RECHECK_CHANGED=N
   cntools_funding_collect "${CNTOOLS_WALLET_REGISTER_BASE_ADDRESS}" "${CNTOOLS_WALLET_REGISTER_PAYMENT_ADDRESS}" || return 1
   [[ "${CNTOOLS_FUNDING_BACKEND}" == "${backend}" && "$(jq -cS . "${CNTOOLS_FUNDING_PROTOCOL}")" == "${CNTOOLS_POOL_REG_PROTOCOL_STATE}" ]] || {
+    CNTOOLS_POOL_REG_RECHECK_CHANGED=Y
     cntools_wallet_register_set_error 'The chain source or protocol parameters changed. Rebuild and review the pool transaction.'; return 1;
   }
   [[ -z "${CNTOOLS_WALLET_REGISTER_EXPIRY}" ]] || ((CNTOOLS_FUNDING_SLOT < CNTOOLS_WALLET_REGISTER_EXPIRY)) || {
+    CNTOOLS_POOL_REG_RECHECK_CHANGED=Y
     cntools_wallet_register_set_error 'The pool transaction expired. Rebuild and review it.'; return 1;
   }
   for ref in "${CNTOOLS_WALLET_REGISTER_INPUTS[@]}"; do
-    [[ -n "${CNTOOLS_UTXO_INDEX_BY_REF[${ref}]+x}" ]] || { cntools_wallet_register_set_error 'A selected input was spent. Rebuild and review.'; return 1; }
+    [[ -n "${CNTOOLS_UTXO_INDEX_BY_REF[${ref}]+x}" ]] || {
+      CNTOOLS_POOL_REG_RECHECK_CHANGED=Y; cntools_wallet_register_set_error 'A selected input was spent. Rebuild and review.'; return 1;
+    }
   done
   cntools_pool_registration_query_state_into state || return 1
   [[ "${state}" == "${CNTOOLS_POOL_REG_STATE}" ]] || {
+    CNTOOLS_POOL_REG_RECHECK_CHANGED=Y
     cntools_wallet_register_set_error 'Pool registration, parameters or retirement changed. Rebuild and review the transaction.'; return 1;
   }
-  if [[ "${CNTOOLS_WALLET_REGISTER_OPERATION}" == pool-retire ]]; then cntools_pool_retirement_window_check
+  if [[ "${CNTOOLS_WALLET_REGISTER_OPERATION}" == pool-retire ]]; then
+    cntools_pool_retirement_window_check
   else cntools_pool_stake_recheck; fi
 }

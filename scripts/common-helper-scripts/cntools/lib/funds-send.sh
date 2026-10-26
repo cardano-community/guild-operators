@@ -15,7 +15,9 @@ CNTOOLS_SEND_MODE=exact
 CNTOOLS_SEND_FEE=0
 CNTOOLS_SEND_EXPIRY=""
 CNTOOLS_SEND_POLICY='{}'
-declare -ag CNTOOLS_SEND_ADDRESSES=() CNTOOLS_SEND_LABELS=() CNTOOLS_SEND_AMOUNTS=()
+# AMOUNTS are what the user entered; PAID are the built outputs (minimum ADA
+# raised, Max / Send everything resolved) and are empty until a build.
+declare -ag CNTOOLS_SEND_ADDRESSES=() CNTOOLS_SEND_LABELS=() CNTOOLS_SEND_AMOUNTS=() CNTOOLS_SEND_PAID=()
 declare -ag CNTOOLS_SEND_HANDLES=() CNTOOLS_SEND_RESOLUTIONS=()
 declare -ag CNTOOLS_SEND_OUTPUTS=() CNTOOLS_SEND_CHANGE_IDS=()
 declare -Ag CNTOOLS_SEND_ASSETS=() CNTOOLS_SEND_DEMAND=() CNTOOLS_SEND_CHANGE_ASSETS=()
@@ -33,19 +35,36 @@ cntools_send_prepare_wallet() {
     printf -v "CNTOOLS_SEND_${field}" '%s' "${!source}"
   done
   CNTOOLS_SEND_ADDRESSES=(); CNTOOLS_SEND_LABELS=(); CNTOOLS_SEND_AMOUNTS=(); CNTOOLS_SEND_ASSETS=()
-  CNTOOLS_SEND_HANDLES=(); CNTOOLS_SEND_RESOLUTIONS=()
+  CNTOOLS_SEND_HANDLES=(); CNTOOLS_SEND_RESOLUTIONS=(); CNTOOLS_SEND_PAID=()
   CNTOOLS_SEND_MODE=exact
   CNTOOLS_SEND_CHANGE_ADDRESS="${CNTOOLS_SEND_ADDRESS}"
 }
 
+# Send prices no reference scripts, so it never spends their UTxOs.
+cntools_send_funding_collect() {
+  cntools_funding_collect "${CNTOOLS_SEND_ADDRESS}" "${CNTOOLS_SEND_PAYMENT}" &&
+    cntools_funding_exclude_reference_scripts
+}
+
+# Quantity of an asset in a recipient's output; Send everything carries all.
+cntools_send_asset_quantity_into() {
+  local -n send_quantity_ref="$1"
+  if [[ "${CNTOOLS_SEND_MODE}" == sweep ]]; then
+    send_quantity_ref="${CNTOOLS_FUNDING_ASSETS[$3]:-0}"
+  else
+    send_quantity_ref="${CNTOOLS_SEND_ASSETS[$2|$3]:-0}"
+  fi
+}
+
 cntools_send_output_into() {
-  local output_name="${1:-}" index="${2:-}" amount="${3:-}" asset="" value=""
+  local output_name="${1:-}" index="${2:-}" amount="${3:-}" asset="" value="" quantity=""
   [[ "${output_name}" =~ ^[A-Za-z_][A-Za-z0-9_]*$ && "${index}" =~ ^[0-9]+$ ]] || return 2
   local -n send_output_ref="${output_name}"
   value="${CNTOOLS_SEND_ADDRESSES[index]}+${amount}"
   for asset in "${CNTOOLS_FUNDING_ASSET_IDS[@]}"; do
-    [[ "${CNTOOLS_SEND_ASSETS[${index}|${asset}]:-0}" != 0 ]] || continue
-    value+=" + ${CNTOOLS_SEND_ASSETS[${index}|${asset}]} ${asset%.}"
+    cntools_send_asset_quantity_into quantity "${index}" "${asset}"
+    [[ "${quantity}" != 0 ]] || continue
+    value+=" + ${quantity} ${asset%.}"
   done
   send_output_ref="${value}"
 }
@@ -68,7 +87,7 @@ cntools_send_minimum_into() {
 
 cntools_send_demands() {
   local index=0 asset="" quantity="" sum="" minimum="" output="" key=""
-  CNTOOLS_SEND_DEMAND=()
+  CNTOOLS_SEND_DEMAND=(); CNTOOLS_SEND_PAID=("${CNTOOLS_SEND_AMOUNTS[@]}")
   # Metadata-only actions return every selected asset/coin as normal wallet
   # change. They use exactly the same selection, minimum-ADA and fee engine.
   if [[ "${CNTOOLS_SEND_MODE}" == metadata ]]; then
@@ -79,12 +98,9 @@ cntools_send_demands() {
   case "${CNTOOLS_SEND_MODE}" in exact|max|sweep) ;; *) return 2 ;; esac
   (( ${#CNTOOLS_SEND_ADDRESSES[@]} >= 1 && ${#CNTOOLS_SEND_ADDRESSES[@]} <= 20 )) || return 2
   [[ "${CNTOOLS_SEND_MODE}" == exact || ${#CNTOOLS_SEND_ADDRESSES[@]} == 1 ]] || return 1
-  if [[ "${CNTOOLS_SEND_MODE}" == sweep ]]; then
-    CNTOOLS_SEND_ASSETS=()
-    for asset in "${CNTOOLS_FUNDING_ASSET_IDS[@]}"; do
-      CNTOOLS_SEND_ASSETS["0|${asset}"]="${CNTOOLS_FUNDING_ASSETS[${asset}]}"
-    done
-  fi
+  # Send everything takes the whole current inventory without storing it as
+  # the recipient's asset choice, so a later edit starts from no assets.
+  [[ "${CNTOOLS_SEND_MODE}" != sweep ]] || CNTOOLS_SEND_ASSETS=()
   # A refresh can remove an asset from the available inventory. Never silently
   # drop a previously requested asset merely because it is no longer present.
   for key in "${!CNTOOLS_SEND_ASSETS[@]}"; do
@@ -97,7 +113,7 @@ cntools_send_demands() {
   done
   for index in "${!CNTOOLS_SEND_ADDRESSES[@]}"; do
     for asset in "${CNTOOLS_FUNDING_ASSET_IDS[@]}"; do
-      quantity="${CNTOOLS_SEND_ASSETS[${index}|${asset}]:-0}"
+      cntools_send_asset_quantity_into quantity "${index}" "${asset}"
       [[ "${quantity}" != 0 ]] || continue
       cntools_uint_add_into sum "${CNTOOLS_SEND_DEMAND[${asset}]:-0}" "${quantity}" || return 1
       cntools_uint_greater_equal "${CNTOOLS_FUNDING_ASSETS[${asset}]}" "${sum}" || {
@@ -109,9 +125,9 @@ cntools_send_demands() {
     cntools_send_minimum_into minimum "${output}" || return 1
     if [[ "${CNTOOLS_SEND_MODE}" == exact ]] &&
        ! cntools_uint_greater_equal "${CNTOOLS_SEND_AMOUNTS[index]}" "${minimum}"; then
-      # UI reviews this explicit adjustment before any signing or publication.
+      # The review shows this raise next to the entered amount before signing.
       cntools_transaction_log TRANSACTION "recipient=$((index+1)) minimum ADA adjustment old=${CNTOOLS_SEND_AMOUNTS[index]} new=${minimum}"
-      CNTOOLS_SEND_AMOUNTS[index]="${minimum}"
+      CNTOOLS_SEND_PAID[index]="${minimum}"
     fi
   done
 }
@@ -183,7 +199,7 @@ cntools_send_change() {
   fi
   if [[ "${CNTOOLS_SEND_MODE}" != exact && "${CNTOOLS_SEND_MODE}" != metadata ]]; then
     cntools_uint_subtract_into remaining "${CNTOOLS_COIN_SELECTED_LOVELACE}" "${cost}" || return 1
-    CNTOOLS_SEND_AMOUNTS[0]="${remaining}"
+    CNTOOLS_SEND_PAID[0]="${remaining}"
     CNTOOLS_CHANGE_UTXO_STATUS="Skipped for Max ADA / Send everything"
     CNTOOLS_CHANGE_COLLATERAL_STATUS="Skipped for Max ADA / Send everything"
     return 0
@@ -203,8 +219,8 @@ cntools_send_prepare_balanced_body() {
   local -a arguments=()
   total=0
   if [[ "${CNTOOLS_SEND_MODE}" == exact || "${CNTOOLS_SEND_MODE}" == metadata ]]; then
-    for index in "${!CNTOOLS_SEND_AMOUNTS[@]}"; do
-      cntools_uint_add_into total "${total}" "${CNTOOLS_SEND_AMOUNTS[index]}" || return 1
+    for index in "${!CNTOOLS_SEND_PAID[@]}"; do
+      cntools_uint_add_into total "${total}" "${CNTOOLS_SEND_PAID[index]}" || return 1
     done
     cntools_uint_add_into required "${total}" "${CNTOOLS_SEND_FEE}" || return 1
     cntools_uint_add_into required "${required}" "${extra}" || return 1
@@ -225,9 +241,9 @@ cntools_send_prepare_balanced_body() {
   (( status == 0 )) || { cntools_send_fail "Insufficient ADA for recipient outputs, fees and token change."; return 1; }
   CNTOOLS_SEND_OUTPUTS=(); arguments=()
   for index in "${!CNTOOLS_SEND_ADDRESSES[@]}"; do
-    cntools_send_output_into output "${index}" "${CNTOOLS_SEND_AMOUNTS[index]}" || return 1
+    cntools_send_output_into output "${index}" "${CNTOOLS_SEND_PAID[index]}" || return 1
     cntools_send_minimum_into minimum "${output}" || return 1
-    cntools_uint_greater_equal "${CNTOOLS_SEND_AMOUNTS[index]}" "${minimum}" || {
+    cntools_uint_greater_equal "${CNTOOLS_SEND_PAID[index]}" "${minimum}" || {
       cntools_send_fail "The amount left to send is below the destination's minimum ADA."; return 1;
     }
     CNTOOLS_SEND_OUTPUTS+=("${output}")

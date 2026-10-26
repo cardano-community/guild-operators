@@ -32,6 +32,9 @@ cntools_pool_opcert_issue() {
   # Keep a durable recovery directory in the CNTools state folder, outside
   # ordinary transaction cleanup. The shared per-pool certificate lock
   # prevents a second issuance if publication is interrupted.
+  cntools_pool_folder_name_supported "${directory}" || {
+    cntools_wallet_register_set_error "$(cntools_pool_folder_unsupported_message "${directory}")"; return 1;
+  }
   ! cntools_pool_legacy_opcert_lock "${directory}" || {
     cntools_wallet_register_set_error "An earlier CNTools build left an operational-certificate lock in ${directory}/.cntools-opcert-lock. Finish or inspect that operation manually before retrying."; return 1;
   }
@@ -56,6 +59,7 @@ cntools_pool_opcert_issue() {
   else
     cntools_transaction_hardware_device_check || return 1
     cntools_transaction_temp_file response pool-opcert-hardware; cntools_transaction_temp_file errors pool-opcert-hardware-errors
+    local CNTOOLS_TRANSACTION_TIMEOUT="${CNTOOLS_TRANSACTION_HARDWARE_TIMEOUT:-${CNTOOLS_TRANSACTION_TIMEOUT:-60}}"
     cntools_transaction_run_cli "${response}" "${errors}" -- "${CNTOOLS_TRANSACTION_HWCLI}" node issue-op-cert \
       --kes-verification-key-file "${stage}/${kes}" --hw-signing-file "${CNTOOLS_POOL_REG_COLD_SOURCE}" \
       --operational-certificate-issue-counter-file "${stage}/${counter}" --kes-period "${period}" --out-file "${stage}/${cert}" || status=$?
@@ -73,8 +77,10 @@ cntools_pool_opcert_issue() {
   cntools_transaction_log POOL "Operational certificate published; recovery copy retained=${stage}"
 }
 
+# Optional first certificate after the review. A failure here is reported and
+# the pool transaction continues; Rotate can issue the certificate later.
 cntools_pool_opcert_offer() {
-  local workflow="$1" directory="${CNTOOLS_POOL_DIRECTORIES[CNTOOLS_POOL_REG_INDEX]}" cert='' start='' choice='' period='' input=''
+  local workflow="$1" directory="${CNTOOLS_POOL_DIRECTORIES[CNTOOLS_POOL_REG_INDEX]}" cert='' start='' choice='' period='' input='' normalized='' kind=''
   CNTOOLS_POOL_OPCERT_RECOVERY=''
   [[ "${CNTOOLS_WALLET_REGISTER_OPERATION}" == pool-register ]] || return 0
   cntools_pool_file_name_into cert opcert; cntools_pool_file_name_into start kes-start
@@ -95,11 +101,22 @@ cntools_pool_opcert_offer() {
     input="${period}"
     cntools_transaction_log CHOICE "Pool input=KES start period default=${period} flow=quick"
   else
-    cntools_pool_registration_input input "KES start period (Enter keeps ${period:-no default})" "${period}" || return $?
-    [[ -n "${input}" ]] || input="${period}"
+    while true; do
+      cntools_pool_registration_input input "KES start period (Enter keeps ${period:-no default})" "${period}" || return $?
+      [[ -n "${input}" ]] || input="${period}"
+      cntools_number_normalize_into normalized "${input}" 2>/dev/null || normalized=''
+      if [[ "${normalized}" =~ ^(0|[1-9][0-9]{0,9})$ ]] && ((normalized < 2147483647)); then input="${normalized}"; break; fi
+      cntools_ui_render_status warn 'Enter the current KES period as a whole number, for example the period shown by gLiveView.'
+    done
   fi
+  cntools_transaction_source_kind_into kind "${CNTOOLS_POOL_REG_COLD_SOURCE}" || kind=''
+  [[ "${kind}" != hardware ]] || cntools_ui_render_status info 'Connect and unlock the hardware device, open Cardano and approve certificate issuance.'
   if ! cntools_ui_spin_function 'Issuing the first operational certificate…' cntools_pool_opcert_issue "${input}"; then
-    cntools_wallet_register_set_error "Operational certificate preparation failed. Do not reset the counter. Inspect recovery files at ${CNTOOLS_POOL_OPCERT_RECOVERY:-${directory}} before retrying."; return 2
+    # Never reported again as the transaction's own failure.
+    cntools_ui_render_status warn "${CNTOOLS_WALLET_REGISTER_ERROR:-The operational certificate was not prepared.} The pool transaction continues without it.$([[ -z "${CNTOOLS_POOL_OPCERT_RECOVERY}" ]] || printf ' Do not reset the counter; inspect the recovery files at %s before issuing a certificate with Pool → Rotate.' "${CNTOOLS_POOL_OPCERT_RECOVERY}")"
+    cntools_transaction_log WARN "First operational certificate not prepared; registration continues recovery=${CNTOOLS_POOL_OPCERT_RECOVERY:-none}"
+    CNTOOLS_WALLET_REGISTER_ERROR=''; cntools_transaction_clear_error
+    cntools_ui_wait; return 0
   fi
   cntools_ui_render_status success "Operational certificate ready; KES start period ${input} recorded in ${directory}/${start}. Existing KES/VRF keys were not replaced."
   cntools_ui_wait

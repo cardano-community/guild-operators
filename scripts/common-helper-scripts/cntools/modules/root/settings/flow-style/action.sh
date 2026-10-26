@@ -9,7 +9,6 @@ cntools_action_main() {
   local style="" status=0
 
   cntools_ui_action_begin "Flow Style" "/ Settings / Flow Style"
-  cntools_ui_render_status info "Current flow style: $(cntools_flow_style_name)." || return 1
   cntools_flow_style_choose_into style || status=$?
   if (( status == 1 )); then
     cntools_log CHOICE "flow style selection cancelled" || true

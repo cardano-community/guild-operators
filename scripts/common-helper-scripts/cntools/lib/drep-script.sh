@@ -12,9 +12,9 @@ cntools_drep_script_participant_add() {
   local hash="${1,,}" label="$2" existing=''
   [[ "${hash}" =~ ^[0-9a-f]{56}$ && -n "${label}" && ${#label} -le 64 && ! "${label}" =~ [[:cntrl:]] ]] ||
     { cntools_drep_script_fail 'Use a DRep verification key or a 56-character signing-key credential hash.'; return 2; }
-  (( ${#CNTOOLS_DREP_SCRIPT_HASHES[@]} < 20 )) || { cntools_drep_script_fail 'At most 20 participants are supported.'; return 1; }
+  (( ${#CNTOOLS_DREP_SCRIPT_HASHES[@]} < 20 )) || { cntools_drep_script_fail 'At most 20 participants are supported.'; return 2; }
   for existing in "${CNTOOLS_DREP_SCRIPT_HASHES[@]}"; do
-    [[ "${existing}" != "${hash}" ]] || { cntools_drep_script_fail 'That participant is already included.'; return 1; }
+    [[ "${existing}" != "${hash}" ]] || { cntools_drep_script_fail 'That participant is already included.'; return 2; }
   done
   CNTOOLS_DREP_SCRIPT_HASHES+=("${hash}"); CNTOOLS_DREP_SCRIPT_LABELS+=("${label}")
 }

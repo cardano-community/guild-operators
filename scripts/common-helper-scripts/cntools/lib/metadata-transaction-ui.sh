@@ -8,7 +8,9 @@ cntools_metadata_transaction_render_review() {
   for coin in "${CNTOOLS_CHANGE_OUTPUT_LOVELACE[@]}"; do cntools_uint_add_into total "${total}" "${coin}" || return 1; done
   cntools_transaction_ui_expiry_label_into expiry "${CNTOOLS_SEND_EXPIRY}" || return 1
   {
-    cntools_table_pair 'Funding wallet' "${CNTOOLS_SEND_WALLET}" identifier
+    # The identity table already names the wallet when it also funds.
+    [[ -n "${mt_identity_directory}" && "${mt_identity_directory}" == "${CNTOOLS_SEND_DIRECTORY}" ]] ||
+      cntools_table_pair 'Funding wallet' "${CNTOOLS_SEND_WALLET}" identifier
     cntools_table_pair Fee "$(cntools_number_format_lovelace "${CNTOOLS_SEND_FEE}")" number
     cntools_table_pair 'Returned change' "$(cntools_number_format_lovelace "${total}")" number
     cntools_table_pair 'Input selection' "${CNTOOLS_TX_SELECTION_STRATEGY} · $(cntools_number_format "${#CNTOOLS_COIN_SELECTED_REFS[@]}") inputs" value
@@ -38,8 +40,8 @@ cntools_metadata_transaction_inputs_recheck() {
 
 cntools_metadata_transaction_workflow() {
   local mt_action="$1" mt_intent="$2" mt_description="$3" mt_context="$4" mt_metadata="$5"
-  local mt_begin="$6" mt_identity_render="$7" mt_recheck="$8"
-  local choice='' workflow='' proceed='' lifetime=1800 staged='' signed='' saved='' backend='' txid='' body='' status=0 can_sign=N
+  local mt_begin="$6" mt_identity_render="$7" mt_recheck="$8" mt_identity_directory="${9:-}"
+  local choice='' workflow='' proceed='' lifetime=1800 staged='' signed='' saved='' backend='' txid='' body='' status=0 can_sign=N change_status=0
   # All authorization checks and builds consume the same private snapshot,
   # never an exported public file that could be edited during the wizard.
   cntools_transaction_snapshot_into mt_metadata "${mt_metadata}" 65536 metadata-workflow || return 2
@@ -55,14 +57,19 @@ cntools_metadata_transaction_workflow() {
       cntools_transaction_ui_proceed_into proceed "${workflow}" || return 2
       cntools_transaction_ui_review_into choice "${staged}" "${proceed}" "${mt_begin}" cntools_metadata_transaction_render_review \
         'Change expiry' 'Change workflow' || return $?
+      # Esc in a Change step keeps the current value and returns to the review.
+      change_status=0
       case "${choice}" in
-        "${proceed}"|'Change expiry') break ;;
-        'Change workflow') cntools_transaction_ui_workflow_into workflow "${can_sign}" || return $? ;;
+        "${proceed}") break ;;
+        'Change expiry')
+          cntools_transaction_ui_expiry_into lifetime || change_status=$?
+          ((change_status == 0)) && break ;;
+        'Change workflow') cntools_transaction_ui_workflow_into workflow "${can_sign}" || change_status=$? ;;
         *) return 2 ;;
       esac
+      ((change_status <= 1)) || return "${change_status}"
     done
     [[ "${choice}" != "${proceed}" ]] || break
-    cntools_transaction_ui_expiry_into lifetime || return $?
   done
   if [[ "${workflow}" == 'Create unsigned package' ]]; then
     cntools_transaction_save_into saved "${staged}" unsigned "${mt_action}" || return 2

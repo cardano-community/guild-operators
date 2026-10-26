@@ -84,7 +84,7 @@ cntools_pool_import_hardware() {
       ! cntools_pool_public_records_prepare "${stage}"; then
     cntools_pool_write_error 'Hardware pool artifacts failed complete validation.'; return 1
   fi
-  CNTOOLS_POOL_WRITE_WARNING='New KES/VRF keys and a zero counter were prepared. For an existing on-chain pool, recover its real counter/VRF before registration or certificate issuance. No operational certificate was issued.'
+  # The import plan already warned about the new KES/VRF keys and zero counter.
   cntools_pool_files_cleanup_temps
   cntools_pool_stage_publish "${stage}" "${name}"
 }

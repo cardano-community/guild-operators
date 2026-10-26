@@ -42,8 +42,9 @@ cntools_drep_script_external_participant() {
 
 cntools_drep_script_workflow() {
   local directory='' choice='' threshold='' normalized='' note='' status=0
+  local -a choices=()
   CNTOOLS_DREP_SCRIPT_HASHES=(); CNTOOLS_DREP_SCRIPT_LABELS=()
-  cntools_governance_wallet_select_into directory 'MultiSig DRep' || return $?
+  cntools_governance_wallet_select_into directory 'MultiSig DRep' drep-script-create || return $?
   cntools_drep_script_preflight "${directory}" && cntools_transaction_require_cli || return 2
   while true; do
     cntools_drep_script_begin
@@ -51,22 +52,25 @@ cntools_drep_script_workflow() {
     ((${#CNTOOLS_DREP_SCRIPT_HASHES[@]} > 0)) ||
       cntools_ui_render_status info 'Add a separate public DRep script to this wallet. Payment/stake keys stay unchanged; participant private keys are never copied.'
     cntools_drep_script_render_participants || return 2
-    cntools_ui_choose choice Participants 'Add CNTools DRep keys' 'Add external participant' 'Remove last participant' Done Cancel || return $?
+    choices=('Add CNTools DRep keys' 'Add external participant')
+    ((${#CNTOOLS_DREP_SCRIPT_HASHES[@]} == 0)) || choices+=('Remove last participant' Done)
+    cntools_ui_choose choice Participants "${choices[@]}" Cancel || return $?
     cntools_log CHOICE "Script DRep participant menu selected=${choice}" || true
     status=0
     case "${choice}" in
       'Add CNTools DRep keys') cntools_drep_script_local_participant || status=$? ;;
       'Add external participant') cntools_drep_script_external_participant || status=$? ;;
-      'Remove last participant')
-        if ((${#CNTOOLS_DREP_SCRIPT_HASHES[@]} > 0)); then unset 'CNTOOLS_DREP_SCRIPT_HASHES[-1]' 'CNTOOLS_DREP_SCRIPT_LABELS[-1]'; fi ;;
-      Done)
-        ((${#CNTOOLS_DREP_SCRIPT_HASHES[@]} > 0)) && break
-        cntools_ui_render_status warn 'Add at least one participant first.'; cntools_ui_wait ;;
+      'Remove last participant') unset 'CNTOOLS_DREP_SCRIPT_HASHES[-1]' 'CNTOOLS_DREP_SCRIPT_LABELS[-1]' ;;
+      Done) break ;;
       *) return 1 ;;
     esac
-    if ((status != 0 && status != 1 && status != 130)); then
-      cntools_ui_render_status warn "${CNTOOLS_DREP_KEY_ERROR:-That DRep participant could not be validated.}"; cntools_ui_wait
+    # Esc and "no suitable wallet" (3, already explained) return to this menu.
+    ((status != 130)) || return 130
+    if ((status != 0 && status != 1 && status != 3)); then
+      # Repeated under the next header until the menu is answered.
+      cntools_ui_render_status warn "${CNTOOLS_DREP_KEY_ERROR:-That DRep participant could not be validated.}"
     fi
+    CNTOOLS_DREP_KEY_ERROR=''
   done
   # One participant can only require one signature.
   if ((${#CNTOOLS_DREP_SCRIPT_HASHES[@]} == 1)); then
@@ -84,8 +88,8 @@ cntools_drep_script_workflow() {
   cntools_drep_script_render_participants || return 2
   { cntools_table_pair Wallet "${directory##*/}" identifier; cntools_table_pair Threshold "${threshold} of ${#CNTOOLS_DREP_SCRIPT_HASHES[@]}" number; } |
     cntools_table_render 'DRep identity' || return 2
-  cntools_ui_render_status info "${note}"
-  cntools_ui_render_status warn 'The participants and threshold permanently define this DRep ID. Keep their signing keys backed up. This creates an identity only; registration and voting with a script DRep are not enabled yet.'
+  [[ -z "${note}" ]] || cntools_ui_render_status info "${note}"
+  cntools_ui_render_status warn 'The participants and threshold permanently define this DRep ID. Keep their signing keys backed up. This creates the identity only; register it through DRep Registration / Update.'
   cntools_ui_flow_confirm 'Create this public DRep identity without replacing existing files?' false || return $?
   cntools_log CHOICE "Script DRep creation confirmed wallet=${directory##*/} threshold=${threshold} participants=${#CNTOOLS_DREP_SCRIPT_HASHES[@]}" || true
   cntools_drep_script_create "${directory}" "${threshold}" && cntools_drep_key_inspect "${directory}" || return 2
@@ -103,8 +107,10 @@ cntools_drep_script_action_create() {
   local status=0
   CNTOOLS_DREP_KEY_ERROR=''
   cntools_drep_script_workflow || status=$?
-  if ((status == 1 || status == 130)); then cntools_log CHOICE 'Script DRep creation cancelled' || true
-  elif ((status != 0)); then cntools_ui_render_status error "${CNTOOLS_DREP_KEY_ERROR:-DRep script creation failed.} See ${CNTOOLS_LOG} for details."; fi
+  # Cancel returns straight to the menu: nothing is saved before the confirm.
+  if ((status == 1 || status == 130)); then cntools_log CHOICE 'Script DRep creation cancelled' || true; return "${status}"; fi
+  ((status != 3)) || return 0
+  ((status == 0)) || cntools_ui_render_status error "${CNTOOLS_DREP_KEY_ERROR:-DRep script creation failed.} See ${CNTOOLS_LOG} for details."
   cntools_ui_wait
-  ((status == 0 || status == 1 || status == 130))
+  ((status == 0)) || return "${status}"
 }

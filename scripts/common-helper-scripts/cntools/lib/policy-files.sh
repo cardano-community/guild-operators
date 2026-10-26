@@ -38,9 +38,10 @@ cntools_policy_filenames_validate() {
   }
 }
 
-# Read-only preflight: declining the review does not create even the asset root.
-cntools_policy_preflight() {
-  local target='' root="${CNTOOLS_ASSET_DIR:-}" help=''
+# Read-only checks that do not depend on the policy name, so Create Policy
+# can stop before asking for one.
+cntools_policy_preflight_environment() {
+  local root="${CNTOOLS_ASSET_DIR:-}" help=''
   CNTOOLS_POLICY_ERROR=''
   [[ -n "${CNTOOLS_CLI:-}" && "${CNTOOLS_CLI}" == /* && -x "${CNTOOLS_CLI}" && ! -d "${CNTOOLS_CLI}" ]] &&
     cntools_transaction_text_control_free "${CNTOOLS_CLI}" || {
@@ -51,8 +52,6 @@ cntools_policy_preflight() {
     cntools_policy_error 'Policy creation requires GNU mv for safe no-overwrite publication.'; return 1;
   }
   cntools_policy_filenames_validate || return 1
-  cntools_policy_target_into target "$1" || { cntools_policy_error 'Use a valid policy name (1–64 letters, numbers, dots, underscores or hyphens, starting with a letter or number).'; return 1; }
-  [[ ! -e "${target}" && ! -L "${target}" ]] || { cntools_policy_error 'A policy folder with this name already exists. Nothing was changed.'; return 1; }
   [[ "${root}" != */ && "${root##*/}" =~ ^[A-Za-z0-9][A-Za-z0-9_.-]*$ ]] &&
     cntools_filesystem_path_components_safe "${root}" || { cntools_policy_error 'The asset root is unset or unsafe.'; return 1; }
   if [[ -e "${root}" ]]; then
@@ -60,6 +59,14 @@ cntools_policy_preflight() {
   else
     cntools_transaction_directory_safe "${root%/*}" || { cntools_policy_error 'The asset parent must be owned, writable and protected from group/public writes.'; return 1; }
   fi
+}
+
+# Read-only preflight: declining the review does not create even the asset root.
+cntools_policy_preflight() {
+  local target=''
+  cntools_policy_preflight_environment || return 1
+  cntools_policy_target_into target "$1" || { cntools_policy_error 'Use a valid policy name (1–64 letters, numbers, dots, underscores or hyphens, starting with a letter or number).'; return 1; }
+  [[ ! -e "${target}" && ! -L "${target}" ]] || { cntools_policy_error 'A policy folder with this name already exists. Nothing was changed.'; return 1; }
 }
 
 cntools_policy_stage_into() {

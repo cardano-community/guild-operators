@@ -5,6 +5,7 @@ CNTOOLS_POOL_RETIRE_EPOCH=''
 CNTOOLS_POOL_RETIRE_CURRENT=0
 CNTOOLS_POOL_RETIRE_MIN=0
 CNTOOLS_POOL_RETIRE_MAX=0
+CNTOOLS_POOL_RETIRE_DEPOSIT=''
 
 cntools_pool_retirement_uint_valid() {
   [[ "$1" =~ ^(0|[1-9][0-9]{0,9})$ ]] && (( $1 <= 2147483647 ))
@@ -23,7 +24,7 @@ cntools_pool_retirement_state_into() {
         '{registered:true,retirement:$retirement,current:.,pending:$pending}' <<< "${CNTOOLS_POOL_CURRENT[index]}")" || return 1 ;;
     'Koios API')
       retirement_state="$(jq -cS '{registered:true,retirement:(.retiring_epoch // "" | tostring),
-        current:{reward_addr,pledge,fixed_cost,margin,vrf_key_hash,owners,relays,meta_url,meta_hash},pending:{}}' \
+        current:{reward_addr,pledge,fixed_cost,margin,vrf_key_hash,owners,relays,meta_url,meta_hash,deposit},pending:{}}' \
         <<< "${CNTOOLS_POOL_CURRENT[index]}")" || return 1 ;;
     *) return 1 ;;
   esac
@@ -52,6 +53,7 @@ cntools_pool_retirement_window_check() {
   cntools_pool_retirement_window_collect || return 1
   cntools_pool_retirement_uint_valid "${CNTOOLS_POOL_RETIRE_EPOCH}" &&
     (( CNTOOLS_POOL_RETIRE_EPOCH >= CNTOOLS_POOL_RETIRE_MIN && CNTOOLS_POOL_RETIRE_EPOCH <= CNTOOLS_POOL_RETIRE_MAX )) || {
+    CNTOOLS_POOL_REG_RECHECK_CHANGED=Y
     cntools_wallet_register_set_error "Retirement epoch must be between ${CNTOOLS_POOL_RETIRE_MIN} and ${CNTOOLS_POOL_RETIRE_MAX}. The epoch may have advanced; rebuild and review."; return 1;
   }
 }
@@ -61,6 +63,11 @@ cntools_pool_retirement_collect() {
     cntools_wallet_register_set_error 'This pool is not currently registered. An unindexed or retired pool cannot be retired.'; return 1;
   }
   CNTOOLS_WALLET_REGISTER_DEPOSIT=0
+  # The refund is the deposit paid at registration; chain data has it, the
+  # protocol parameter is the fallback.
+  CNTOOLS_POOL_RETIRE_DEPOSIT="$(jq -r '.current.spsDeposit // .current.deposit // empty | tostring' <<< "${CNTOOLS_POOL_REG_STATE}")"
+  [[ "${CNTOOLS_POOL_RETIRE_DEPOSIT}" =~ ^[0-9]+$ ]] ||
+    cntools_wallet_query_json_uint_field CNTOOLS_POOL_RETIRE_DEPOSIT "${CNTOOLS_FUNDING_PROTOCOL}" stakePoolDeposit || CNTOOLS_POOL_RETIRE_DEPOSIT=''
   CNTOOLS_POOL_REG_PROTOCOL_STATE="$(jq -cS . "${CNTOOLS_FUNDING_PROTOCOL}")" || return 1
   cntools_pool_retirement_window_collect && cntools_wallet_register_inventory_use_all
 }

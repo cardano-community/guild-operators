@@ -86,58 +86,103 @@ cntools_pool_stake_collect() {
   done
 }
 
+# Owner balances for the review's pledge row; asks only when they do not
+# cover the declared pledge. Registration and delegation show per owner in the review.
+CNTOOLS_POOL_PLEDGE_TOTAL='' CNTOOLS_POOL_PLEDGE_UNKNOWN=N
 cntools_pool_stake_guidance() {
-  local record='' hash='' total=0 unknown=N state='' choice=''
-  { while IFS= read -r record; do
-      hash="$(jq -r .hash <<< "${record}")"; state="${CNTOOLS_POOL_STAKE_STATUS[${hash}]:-unknown}"
-      case "${state}" in yes) state=Registered ;; no) state='Not registered · Wallet → Register' ;; *) state='Unavailable · verify registration separately' ;; esac
-      cntools_table_pair "$(jq -r .label <<< "${record}")" "${state}" "$([[ "${state}" == Registered ]] && printf success || printf warning)"
-    done < <(cntools_pool_stake_records | jq -c '.[]')
-  } | cntools_table_render 'Owner and reward stake accounts' || return 2
+  local record='' hash='' total=0 unknown=N choice=''
   while IFS= read -r record; do
     hash="$(jq -r .hash <<< "${record}")"
-    cntools_pool_stake_delegated_here "${hash}" ||
-      cntools_ui_render_status warn "$(jq -r .label <<< "${record}"): delegate to this pool using Funds → Delegate; otherwise its balance does not fulfill pledge."
     if [[ -n "${CNTOOLS_POOL_STAKE_BALANCE[${hash}]:-}" ]]; then
       cntools_uint_add_into total "${total}" "${CNTOOLS_POOL_STAKE_BALANCE[${hash}]}" || return 2
     else unknown=Y; fi
   done < <(jq -c '.[]' <<< "${CNTOOLS_POOL_REG_OWNERS}")
+  CNTOOLS_POOL_PLEDGE_TOTAL="${total}" CNTOOLS_POOL_PLEDGE_UNKNOWN="${unknown}"
+  cntools_transaction_log POOL "Pledge check knownOwnerBalance=${total} declared=${CNTOOLS_POOL_REG_PLEDGE} missingBalances=${unknown} backend=${CNTOOLS_WALLET_REGISTER_BACKEND}"
+  [[ "${unknown}" == Y ]] || ! cntools_uint_greater_equal "${total}" "${CNTOOLS_POOL_REG_PLEDGE}" || return 0
   { cntools_table_pair 'Owner balances + rewards' "$(cntools_number_format_lovelace "${total}")" number
     cntools_table_pair 'Declared pledge' "$(cntools_number_format_lovelace "${CNTOOLS_POOL_REG_PLEDGE}")" number
     [[ "${CNTOOLS_WALLET_REGISTER_BACKEND}" != local ]] || cntools_table_pair Coverage 'Known base addresses + rewards only; other stake-linked addresses are not counted' muted
     [[ "${unknown}" != Y ]] || cntools_table_pair Coverage 'Partial · some owner balances unavailable' warning
   } | cntools_table_render 'Pledge check' || return 2
-  cntools_transaction_log POOL "Pledge check knownOwnerBalance=${total} declared=${CNTOOLS_POOL_REG_PLEDGE} missingBalances=${unknown} backend=${CNTOOLS_WALLET_REGISTER_BACKEND}"
-  cntools_ui_render_status info 'Pledge is checked for rewards snapshots, not transferred here. Maintain it after deposits and fees; all owners must delegate to this pool. DRep delegation is needed before withdrawing rewards.'
-  if [[ "${unknown}" == Y ]] || ! cntools_uint_greater_equal "${total}" "${CNTOOLS_POOL_REG_PLEDGE}"; then
-    cntools_ui_render_status warn 'Pledge is below the declared amount or could not be fully verified. This may prevent pool rewards.'
-    cntools_pool_registration_choose choice 'Continue with this pledge commitment?' 'Yes, continue' 'Cancel transaction' || return $?
-    [[ "${choice}" == 'Yes, continue' ]] || return 1
-  fi
+  cntools_ui_render_status warn 'Pledge is below the declared amount or could not be fully verified. This may prevent pool rewards.'
+  cntools_pool_registration_choose choice 'Continue with this pledge commitment?' 'Yes, continue' 'Cancel transaction' || return $?
+  [[ "${choice}" == 'Yes, continue' ]] || return 1
 }
+
+# The review's pledge row: owner balances against the declared pledge.
+cntools_pool_stake_pledge_row() {
+  local value='' role=success
+  [[ -n "${CNTOOLS_POOL_PLEDGE_TOTAL}" ]] || return 0
+  value="$(cntools_number_format_lovelace "${CNTOOLS_POOL_PLEDGE_TOTAL}")"
+  if [[ "${CNTOOLS_POOL_PLEDGE_UNKNOWN}" == Y ]]; then value+=' known · some balances unavailable'; role=warning
+  elif cntools_uint_greater_equal "${CNTOOLS_POOL_PLEDGE_TOTAL}" "${CNTOOLS_POOL_REG_PLEDGE}"; then value+=' · covers the pledge'
+  else value+=' · below the pledge'; role=warning; fi
+  [[ "${CNTOOLS_WALLET_REGISTER_BACKEND}" != local ]] || value+=' · base addresses + rewards'
+  cntools_table_pair 'Owner balances' "${value}" "${role}"
+}
+
+# Registration and delegation of one owner or reward account, after this
+# transaction's stake setup. Sets the row's text and role.
+cntools_pool_stake_state_into() {
+  local text_output="$1" role_output="$2" hash="$3" kind="$4" stake_label='' setup='' registered='' state_text='' state_role=warning
+  registered="${CNTOOLS_POOL_STAKE_STATUS[${hash}]:-unknown}"
+  setup="$(jq -r --arg hash "${hash}" 'map(select(.hash == $hash)) | .[0].setup // empty' <<< "${CNTOOLS_POOL_STAKE_PLAN:-[]}")" || return 1
+  # Not checked yet (settings before the first check): no state to show.
+  if [[ -z "${CNTOOLS_POOL_STAKE_STATUS[${hash}]+x}" && -z "${setup}" ]]; then
+    printf -v "${text_output}" '%s' ''; printf -v "${role_output}" '%s' identifier; return 0
+  fi
+  case "${registered}" in yes) stake_label=Registered ;; no) stake_label='Not registered' ;; *) stake_label='Registration unknown' ;; esac
+  if [[ "${setup}" == delegate ]]; then
+    state_role=success
+    if [[ "${registered}" == no ]]; then state_text='Not registered · registered and delegated here by this transaction'
+    else state_text="${stake_label} · delegated here by this transaction"; fi
+  elif [[ "${setup}" == register ]]; then
+    state_text='Not registered · registered by this transaction'; state_role=success
+  elif [[ "${registered}" != yes ]]; then
+    state_text="${stake_label}"; [[ "${registered}" == no ]] || state_role=muted
+  elif [[ "${kind}" == reward ]]; then
+    state_text=Registered; state_role=success
+  elif cntools_pool_stake_delegated_here "${hash}"; then
+    state_text='Registered · delegated here'; state_role=success
+  elif [[ -n "${CNTOOLS_POOL_STAKE_DELEGATION[${hash}]:-}" ]]; then
+    state_text='Registered · delegated to another pool'
+  else
+    state_text='Registered · not delegated'
+  fi
+  printf -v "${text_output}" '%s' "${state_text}"
+  printf -v "${role_output}" '%s' "${state_role}"
+}
+
+# Explicit answers to the stake setup questions, by question and stake
+# credential. Quick reuses them after owner/reward edits instead of
+# re-applying its default; "ask" (review → Change stake setup) asks again.
+declare -Ag CNTOOLS_POOL_STAKE_SETUP_CHOSEN=()
+CNTOOLS_POOL_STAKE_SETUP_NOTE=''
 
 # Quick includes the main-owner delegation and reward registration; "ask"
 # (review → Change stake setup) asks in both styles.
 cntools_pool_stake_setup_choose() {
-  local mode="${1:-}" record='' source='' kind='' hash='' status='' choice='' deposit='' plan='[]' primary='' title=''
+  local mode="${1:-}" record='' source='' kind='' hash='' status='' choice='' deposit='' plan='[]' primary='' title='' remembered=''
   CNTOOLS_POOL_STAKE_PLAN='[]'; CNTOOLS_POOL_EXTRA_RECORDS='[]'; CNTOOLS_POOL_EXTRA_EXPECTED='[]'; CNTOOLS_POOL_EXTRA_CERTIFICATES=()
-  CNTOOLS_POOL_STAKE_SETUP_ASKABLE=N
+  CNTOOLS_POOL_STAKE_SETUP_ASKABLE=N; CNTOOLS_POOL_STAKE_SETUP_NOTE=''
   CNTOOLS_WALLET_REGISTER_DEPOSIT="${CNTOOLS_POOL_REG_POOL_DEPOSIT}"
   [[ "${CNTOOLS_WALLET_REGISTER_OPERATION}" == pool-register ]] || return 0
   # Hardware pool modes do not support mixed registration/delegation certificates.
   # Public-only packages cannot predict which hardware signer will be chosen later.
+  # The review shows why stake setup stays separate.
   for source in "${CNTOOLS_POOL_REG_COLD_SOURCE}" "${CNTOOLS_WALLET_REGISTER_PAYMENT_SOURCE}"; do
-    [[ -n "${source}" ]] || { cntools_ui_render_status info 'Offline/public-only pool: register owner/reward accounts and delegate pledge separately. Their public keys remain usable for pool signing.'; return 0; }
+    [[ -n "${source}" ]] || { CNTOOLS_POOL_STAKE_SETUP_NOTE='Separate · offline/public-only pool: use Wallet → Register and Funds → Delegate'; return 0; }
   done
   while IFS= read -r record; do
     source="$(jq -r .source <<< "${record}")"
     if ! cntools_transaction_source_kind_into kind "${source}" || [[ "${kind}" == hardware ]]; then
-      cntools_ui_render_status info 'Hardware/public-only pool: use Wallet → Register and Funds → Delegate separately; pool hardware sessions cannot mix stake setup certificates.'; return 0
+      CNTOOLS_POOL_STAKE_SETUP_NOTE='Separate · hardware/public-only stake keys: use Wallet → Register and Funds → Delegate'; return 0
     fi
   done < <(cntools_pool_stake_records | jq -c '.[]')
   for source in "${CNTOOLS_POOL_REG_COLD_SOURCE}" "${CNTOOLS_WALLET_REGISTER_PAYMENT_SOURCE}"; do
     cntools_transaction_source_kind_into kind "${source}" && [[ "${kind}" == cli ]] || {
-      cntools_ui_render_status info 'Hardware pool: complete stake registration/delegation separately before operating the pool.'; return 0;
+      CNTOOLS_POOL_STAKE_SETUP_NOTE='Separate · hardware pool: use Wallet → Register and Funds → Delegate'; return 0;
     }
   done
   cntools_wallet_query_json_uint_field deposit "${CNTOOLS_WALLET_REGISTER_PROTOCOL_FILE}" stakeAddressDeposit || return 2
@@ -153,22 +198,26 @@ cntools_pool_stake_setup_choose() {
         continue
       fi
       CNTOOLS_POOL_STAKE_SETUP_ASKABLE=Y; title='Include main-owner stake setup?'
+      remembered="${CNTOOLS_POOL_STAKE_SETUP_CHOSEN[delegate:${hash}]:-}"
       if [[ "${mode}" != ask ]] && cntools_flow_quick; then
-        choice='Register if needed and delegate to this pool'
-        cntools_transaction_log CHOICE "Pool menu=${title} default=${choice} flow=quick"
+        choice="${remembered:-Register if needed and delegate to this pool}"
+        cntools_transaction_log CHOICE "Pool menu=${title} default=${choice} flow=quick$([[ -z "${remembered}" ]] || printf ' remembered')"
       else
         cntools_ui_render_status info "Main owner: $(jq -r .label <<< "${record}"). Stake registration (if needed) and delegation can be included atomically with pool registration."
         cntools_pool_registration_choose choice "${title}" 'Register if needed and delegate to this pool' 'Keep stake setup separate' || return $?
+        CNTOOLS_POOL_STAKE_SETUP_CHOSEN["delegate:${hash}"]="${choice}"
       fi
       [[ "${choice}" == 'Register if needed and delegate to this pool' ]] || continue
       kind=delegate
     elif [[ "${status}" == no ]]; then
       CNTOOLS_POOL_STAKE_SETUP_ASKABLE=Y; title="Register reward account? Deposit $(cntools_number_format_lovelace "${deposit}")"
+      remembered="${CNTOOLS_POOL_STAKE_SETUP_CHOSEN[register:${hash}]:-}"
       if [[ "${mode}" != ask ]] && cntools_flow_quick; then
-        choice='Include reward registration'
-        cntools_transaction_log CHOICE "Pool menu=${title} default=${choice} flow=quick"
+        choice="${remembered:-Include reward registration}"
+        cntools_transaction_log CHOICE "Pool menu=${title} default=${choice} flow=quick$([[ -z "${remembered}" ]] || printf ' remembered')"
       else
         cntools_pool_registration_choose choice "${title}" 'Include reward registration' 'Keep reward registration separate' || return $?
+        CNTOOLS_POOL_STAKE_SETUP_CHOSEN["register:${hash}"]="${choice}"
       fi
       [[ "${choice}" == 'Include reward registration' ]] || continue
       kind=register
@@ -180,6 +229,24 @@ cntools_pool_stake_setup_choose() {
     [[ "${status}" != no ]] || cntools_uint_add_into CNTOOLS_WALLET_REGISTER_DEPOSIT "${CNTOOLS_WALLET_REGISTER_DEPOSIT}" "${deposit}" || return 2
   done < <(cntools_pool_stake_records | jq -c --arg primary "${primary}" 'sort_by(if .hash == $primary then 0 else 1 end) | .[]')
   CNTOOLS_POOL_STAKE_PLAN="${plan}"
+}
+
+# Review → Change stake setup: Esc keeps the plan the review showed.
+cntools_pool_stake_setup_change() {
+  local status=0 plan="${CNTOOLS_POOL_STAKE_PLAN}" saved_records="${CNTOOLS_POOL_EXTRA_RECORDS}" expected="${CNTOOLS_POOL_EXTRA_EXPECTED}"
+  local askable="${CNTOOLS_POOL_STAKE_SETUP_ASKABLE}" note="${CNTOOLS_POOL_STAKE_SETUP_NOTE}" deposit="${CNTOOLS_WALLET_REGISTER_DEPOSIT}"
+  local -a certificates=("${CNTOOLS_POOL_EXTRA_CERTIFICATES[@]}")
+  local -A chosen=()
+  local key=''
+  for key in "${!CNTOOLS_POOL_STAKE_SETUP_CHOSEN[@]}"; do chosen["${key}"]="${CNTOOLS_POOL_STAKE_SETUP_CHOSEN[${key}]}"; done
+  cntools_pool_stake_setup_choose ask || status=$?
+  ((status == 1)) || return "${status}"
+  CNTOOLS_POOL_STAKE_SETUP_CHOSEN=()
+  for key in "${!chosen[@]}"; do CNTOOLS_POOL_STAKE_SETUP_CHOSEN["${key}"]="${chosen[${key}]}"; done
+  CNTOOLS_POOL_STAKE_PLAN="${plan}" CNTOOLS_POOL_EXTRA_RECORDS="${saved_records}" CNTOOLS_POOL_EXTRA_EXPECTED="${expected}"
+  CNTOOLS_POOL_STAKE_SETUP_ASKABLE="${askable}" CNTOOLS_POOL_STAKE_SETUP_NOTE="${note}" CNTOOLS_WALLET_REGISTER_DEPOSIT="${deposit}"
+  CNTOOLS_POOL_EXTRA_CERTIFICATES=("${certificates[@]}")
+  cntools_transaction_log CHOICE 'Pool stake setup change cancelled; previous plan kept'
 }
 
 cntools_pool_stake_certificates_create() {
@@ -217,6 +284,7 @@ cntools_pool_stake_recheck() {
     hash="$(jq -r .hash <<< "${record}")"
     [[ "${CNTOOLS_POOL_STAKE_STATUS[${hash}]:-unknown}" == "$(jq -r .previousRegistered <<< "${record}")" &&
       "${CNTOOLS_POOL_STAKE_DELEGATION[${hash}]:-}" == "$(jq -r .previousDelegation <<< "${record}")" ]] || {
+      CNTOOLS_POOL_REG_RECHECK_CHANGED=Y
       cntools_wallet_register_set_error 'Owner/reward registration or delegation changed. Rebuild and review the pool transaction.'; return 1;
     }
   done < <(jq -c '.[]' <<< "${CNTOOLS_POOL_STAKE_PLAN}")

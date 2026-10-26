@@ -47,9 +47,11 @@ cntools_wallet_hardware_prompt_name_into() {
   done
 }
 
+# Blank keeps the current value (0 on first entry).
 cntools_wallet_hardware_prompt_index_into() {
   local _cntools_output_name="${1:-}"
   local _cntools_prompt="${2:-Index}"
+  local _cntools_current="${3:-0}"
   local _cntools_input=""
   local _cntools_value=""
   local _cntools_feedback=""
@@ -61,15 +63,16 @@ cntools_wallet_hardware_prompt_index_into() {
   while true; do
     cntools_wallet_hardware_screen_begin
     cntools_ui_render_status info \
-      "Leave blank for 0. Supported values are 0 through 2,147,483,647."
+      "Leave blank for ${_cntools_current}. Supported values are 0 through 2,147,483,647."
     [[ -z "${_cntools_feedback}" ]] ||
       cntools_ui_render_status warn "${_cntools_feedback}"
-    if cntools_ui_input _cntools_input "${_cntools_prompt}" "0"; then
+    if cntools_ui_input _cntools_input "${_cntools_prompt}" "${_cntools_current}"; then
       _cntools_status=0
     else
       _cntools_status=$?
     fi
     (( _cntools_status == 0 )) || return "${_cntools_status}"
+    [[ "${_cntools_input//[[:space:]]/}" ]] || _cntools_input="${_cntools_current}"
     if cntools_wallet_hardware_index_into \
         _cntools_value "${_cntools_input}"; then
       _cntools_output_ref="${_cntools_value}"
@@ -90,9 +93,9 @@ cntools_wallet_hardware_prompt_derivation_into() {
   [[ "${_cntools_derivation_account_output}" =~ ^[A-Za-z_][A-Za-z0-9_]*$ &&
      "${_cntools_derivation_key_output}" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || return 2
   cntools_wallet_hardware_prompt_index_into \
-    _cntools_derivation_account "Account number" || return $?
+    _cntools_derivation_account "Account number" "${!_cntools_derivation_account_output:-0}" || return $?
   cntools_wallet_hardware_prompt_index_into \
-    _cntools_derivation_key "Address key index" || return $?
+    _cntools_derivation_key "Address key index" "${!_cntools_derivation_key_output:-0}" || return $?
   printf -v "${_cntools_derivation_account_output}" '%s' "${_cntools_derivation_account}"
   printf -v "${_cntools_derivation_key_output}" '%s' "${_cntools_derivation_key}"
 }
@@ -196,8 +199,6 @@ cntools_wallet_hardware_render_result() {
     cntools_wallet_create_styled_row "Device" "${device}" value
     cntools_wallet_create_styled_row \
       "Derivation" "1852H/1815H/${account}H/x/${key_index}" identifier
-    cntools_wallet_create_styled_row \
-      "Stake registration" "Not registered" warning
   } | cntools_ui_table --separator $'\t' --widths "${widths}" || return 1
 
   cntools_ui_render_detail "Addresses" || return 1
@@ -242,10 +243,9 @@ cntools_wallet_action_import_hardware() {
     :
   else
     status=$?
-    if (( status == 1 )); then
+    if (( status == 1 || status == 130 )); then
       cntools_wallet_hardware_log CHOICE \
         "hardware wallet import cancelled during settings"
-      cntools_gum_clear
       return 0
     fi
     cntools_wallet_hardware_log ERROR \
@@ -264,40 +264,23 @@ cntools_wallet_action_import_hardware() {
       cntools_ui_wait
       return 1
     fi
+    # One stop before the device: the plan doubles as the "device ready" step.
     cntools_ui_render_status info \
-      "Only public keys and hardware signing references are stored. Private keys never leave the device."
+      "Connect and unlock the device (Ledger: open the Cardano app; Trezor: bridge running). Only public keys and signing references are stored; private keys never leave the device."
     cntools_ui_render_status warn \
-      "This imports standard CIP-1852 payment and stake keys only."
+      "Only standard CIP-1852 payment and stake keys are imported. Verify the derivation paths on the device before approving."
     status=0
-    cntools_wallet_derivation_confirm "Import this hardware wallet now?" 'Import wallet' || status=$?
+    cntools_wallet_derivation_confirm "Import from the connected hardware wallet now?" 'Import wallet' || status=$?
     (( status == 4 )) || break
-    cntools_wallet_hardware_prompt_derivation_into account key_index || true
+    # Esc while changing keeps the shown values; Ctrl+C cancels.
+    status=0
+    cntools_wallet_hardware_prompt_derivation_into account key_index || status=$?
+    (( status != 130 )) || return 130
   done
-  if (( status == 0 )); then
-    :
-  else
-    if (( status == 1 )); then
+  if (( status != 0 )); then
+    if (( status == 1 || status == 130 )); then
       cntools_wallet_hardware_log CHOICE \
         "hardware wallet import declined wallet=${name}"
-      cntools_gum_clear
-      return 0
-    fi
-    return "${status}"
-  fi
-
-  cntools_wallet_hardware_screen_begin
-  cntools_ui_render_status info \
-    "Connect and unlock the hardware wallet. On Ledger, open the Cardano app; on Trezor, ensure its bridge is available."
-  cntools_ui_render_status warn \
-    "Verify the requested derivation paths on the device before approving them."
-  if cntools_ui_confirm "The hardware wallet is ready"; then
-    :
-  else
-    status=$?
-    if (( status == 1 )); then
-      cntools_wallet_hardware_log CHOICE \
-        "hardware wallet import cancelled before device check wallet=${name}"
-      cntools_gum_clear
       return 0
     fi
     return "${status}"
