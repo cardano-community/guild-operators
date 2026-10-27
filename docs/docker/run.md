@@ -57,6 +57,7 @@ run as relays. Persist the database and expose the configured relay port:
 ```bash
 docker run --init --detach --interactive --tty \
   --name dingo-preprod \
+  --stop-timeout 60 \
   --security-opt=no-new-privileges \
   --publish 3001:3001 \
   --volume dingo-preprod-db:/opt/cardano/dingo/db \
@@ -78,6 +79,7 @@ hot-key directory and select the matching folder name:
 ```bash
 docker run --init --detach --interactive --tty \
   --name dingo-preprod-producer \
+  --stop-timeout 60 \
   --security-opt=no-new-privileges \
   --env POOL_NAME=my-pool \
   --publish 3001:3001 \
@@ -113,9 +115,15 @@ docker exec -it dingo-preprod \
   /opt/cardano/dingo/scripts/cntools.sh
 ```
 
-TCP 12798 is not published by the command above. Dingo binds metrics using its
-shared public bind address, so do not publish that port unless remote
-Prometheus access is deliberately secured.
+Dingo binds its Prometheus listener to loopback inside the container, so
+publishing TCP 12798 alone does not expose it. For a remote Prometheus server,
+pass `--env DINGO_METRICS_BIND_ADDR=0.0.0.0` together with
+`--env DINGO_METRICS_AUTH_TOKEN=<token>`, publish the port, and restrict who can
+reach it. gLiveView and the healthcheck send the token automatically. The
+`/healthz` and `/readyz` probe listener is disabled in the Guild profile.
+
+`--stop-timeout 60` gives Dingo time to finish its 30-second graceful shutdown;
+Docker's default of 10 seconds can interrupt it.
 
 ### Amaru
 
@@ -134,6 +142,7 @@ Then start the relay with the same volumes:
 ```bash
 docker run --init --detach --interactive --tty \
   --name amaru-preprod \
+  --stop-timeout 90 \
   --security-opt=no-new-privileges \
   --publish 3000:3000 \
   --volume amaru-preprod-state:/var/lib/amaru \
@@ -141,16 +150,20 @@ docker run --init --detach --interactive --tty \
 ```
 
 The container sets `AMARU_STATE_ROOT=/var/lib/amaru`, causing Amaru to create
-`chain/` and `ledger/` below the mounted parent. Mounting the two child paths
-directly would pre-create them and trigger Amaru's bootstrap overwrite guard.
+`chain/` and `ledger/` below the mounted parent, so one volume holds both
+databases. Amaru can take up to about a minute to shut down cleanly, which is
+why the relay uses `--stop-timeout 90`.
 
 For the default `amaru.sh run` entrypoint, the container starts and supervises
 two processes: Amaru and `amaru.sh metrics` running the local OpenTelemetry
 Collector with the minimal Amaru reference-bridge profile. Signals are
-forwarded to both, and the remaining process is stopped if either exits. The
-healthcheck verifies the deployment identity, both processes, and the loopback
-Prometheus endpoint on port 8889; it does not determine whether chain sync is
-current.
+forwarded to both, and the remaining process is stopped if either exits.
+SIGHUP is ignored because Amaru has nothing to reload and would otherwise exit
+without a clean shutdown. Amaru's built-in terminal dashboard is switched off
+with `AMARU_TUI_OFF=true` so container logs stay readable; use gLiveView
+instead. The healthcheck verifies the deployment identity, both processes, and
+the loopback Prometheus endpoint on port 8889; it does not determine whether
+chain sync is current.
 
 The Amaru image installs gLiveView and the CNTools 14 interface skeleton, but
 does not install Mithril helper scripts, db-sync, or Ogmios. Open the dashboard

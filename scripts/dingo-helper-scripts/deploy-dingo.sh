@@ -272,7 +272,6 @@ dingo_deploy_prepare_layout() {
     "${NODE_HOME}/files" \
     "${NODE_HOME}/logs" \
     "${NODE_HOME}/priv/pool" \
-    "${NODE_HOME}/snapshots" \
     "${NODE_HOME}/sockets" \
     "${NODE_HOME}/scripts" \
     "${NODE_HOME}/scripts/adapters" \
@@ -288,7 +287,6 @@ dingo_deploy_prepare_layout() {
     "${NODE_HOME}/logs" \
     "${NODE_HOME}/priv" \
     "${NODE_HOME}/priv/pool" \
-    "${NODE_HOME}/snapshots" \
     "${NODE_HOME}/sockets" \
     "${NODE_HOME}/scripts" \
     "${NODE_HOME}/scripts/adapters" \
@@ -679,6 +677,30 @@ dingo_deploy_show_next_steps() {
   fi
 }
 
+dingo_deploy_config_scalar() {
+  local key="$1"
+  sed -n "s/^${key}:[[:space:]]*\"\{0,1\}\([^\"#[:space:]]*\).*/\1/p" \
+    "${NODE_HOME}/files/dingo.yaml" 2>/dev/null | head -n 1
+}
+
+dingo_deploy_warn_exposed_listeners() {
+  local metrics_bind health_port
+  [[ -f "${NODE_HOME}/files/dingo.yaml" ]] || return 0
+  metrics_bind="$(dingo_deploy_config_scalar metricsBindAddr)"
+  # An absent key means Dingo's own default listener on TCP 12799.
+  health_port="$(dingo_deploy_config_scalar healthPort)"
+  health_port="${health_port:-12799}"
+  case "${metrics_bind:-127.0.0.1}" in
+    127.0.0.1|::1|localhost) ;;
+    *)
+      dingo_deploy_warn "Dingo metrics bind ${metrics_bind}; set DINGO_METRICS_AUTH_TOKEN and firewall the metrics port."
+      ;;
+  esac
+  if [[ "${health_port}" != "0" ]]; then
+    dingo_deploy_warn "Dingo health probes listen on the public bind address, TCP ${health_port}; firewall it unless an orchestrator needs it."
+  fi
+}
+
 deploy_dingo_profile() {
   dingo_deploy_validate_context || return 1
   dingo_deploy_parse_flags || return 1
@@ -712,5 +734,5 @@ deploy_dingo_profile() {
     dingo_deploy_warn "Dingo cardano-cli companion is not installed; re-run with -s d."
   fi
   dingo_deploy_show_next_steps
-  dingo_deploy_warn "Dingo metrics share the public bind address; protect TCP 12798 with a firewall."
+  dingo_deploy_warn_exposed_listeners
 }

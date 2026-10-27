@@ -122,10 +122,9 @@ case "${command_name}" in
     ;;
 esac
 
-# A container volume must mount a parent directory: Docker creates the mount
-# point itself, while Amaru bootstrap deliberately refuses pre-existing chain
-# and ledger directories. AMARU_STATE_ROOT relocates only those two children
-# without changing deployment or service identity.
+# A container volume mounts a parent directory so both databases share one
+# volume. AMARU_STATE_ROOT relocates only the chain and ledger children without
+# changing deployment or service identity.
 if [[ -n "${AMARU_STATE_ROOT:-}" ]]; then
   if [[ "${AMARU_STATE_ROOT}" == "/" ||
         ! "${AMARU_STATE_ROOT}" =~ ^/[A-Za-z0-9._/+@:-]+$ ]]; then
@@ -139,10 +138,12 @@ if [[ -n "${AMARU_STATE_ROOT:-}" ]]; then
     exit 1
   fi
   mkdir -p -- "${AMARU_STATE_ROOT}"
-  AMARU_CHAIN_DIR="${AMARU_STATE_ROOT%/}/chain"
-  AMARU_LEDGER_DIR="${AMARU_STATE_ROOT%/}/ledger"
-  export AMARU_CHAIN_DIR AMARU_LEDGER_DIR
+  AMARU_DB_CHAIN="${AMARU_STATE_ROOT%/}/chain"
+  AMARU_DB_LEDGER="${AMARU_STATE_ROOT%/}/ledger"
 fi
+: "${AMARU_DB_CHAIN:=${GUILD_NODE_HOME}/chain}"
+: "${AMARU_DB_LEDGER:=${GUILD_NODE_HOME}/ledger}"
+export AMARU_DB_CHAIN AMARU_DB_LEDGER
 
 AMARU_SYSTEMD_LIBRARY="${AMARU_SCRIPT_DIR}/lib/systemd.library"
 if [[ ! -r "${AMARU_SYSTEMD_LIBRARY}" ]]; then
@@ -173,7 +174,9 @@ Commands:
   -h, --help          Show this help
 
 Amaru support is experimental and relay-only. Bootstrap must complete before
-the service can start.
+the service can start. Running "run" from an interactive terminal (with the
+service stopped) shows Amaru's built-in dashboard; set AMARU_TUI_OFF=true to
+keep plain log output.
 EOF
 }
 
@@ -209,6 +212,12 @@ amaru_require_environment() {
     printf 'ERROR: deployment paths contain unsupported systemd characters\n' >&2
     return 1
   fi
+}
+
+# Amaru accepts empty state directories for bootstrap, so only content marks
+# a bootstrapped node.
+amaru_state_populated() {
+  [[ -d "$1" ]] && find "$1" -mindepth 1 -print -quit 2>/dev/null | grep -q .
 }
 
 amaru_require_supported_profile() {
@@ -309,7 +318,7 @@ WorkingDirectory=${GUILD_NODE_HOME}
 ExecStart=${AMARU_SCRIPT_DIR}/amaru.sh run
 Restart=always
 RestartSec=5
-TimeoutStopSec=45
+TimeoutStopSec=90
 LimitNOFILE=65536
 UMask=0027
 NoNewPrivileges=true
@@ -352,7 +361,8 @@ amaru_remove_service() {
 case "${command_name}" in
   run)
     amaru_require_supported_profile
-    if [[ ! -d "${AMARU_CHAIN_DIR}" || ! -d "${AMARU_LEDGER_DIR}" ]]; then
+    if ! amaru_state_populated "${AMARU_DB_CHAIN}" ||
+       ! amaru_state_populated "${AMARU_DB_LEDGER}"; then
       printf 'ERROR: Amaru is not bootstrapped. Run %s bootstrap first.\n' "$0" >&2
       exit 1
     fi

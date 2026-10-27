@@ -35,8 +35,9 @@ untrusted image, script branch, or host safe.
   and enforce host and network firewalls.
 - Amaru's OTLP/gRPC receiver and Prometheus bridge are loopback-only inside the
   container and do not need publishing for gLiveView. Dingo's native metrics
-  listener shares its public bind address; leave TCP 12798 unpublished unless
-  remote monitoring is deliberate and separately protected.
+  listener binds loopback by default. Expose it only deliberately, with
+  `DINGO_METRICS_AUTH_TOKEN` set and access restricted; the token still
+  travels over plain HTTP.
 - Mount only required paths. Use read-only mounts for inputs that never need to
   change, and separate node state from operational keys.
 - Additional capability drops, a read-only root filesystem, seccomp, or

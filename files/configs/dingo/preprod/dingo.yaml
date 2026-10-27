@@ -7,7 +7,13 @@ bindAddr: "0.0.0.0"
 relayPort: "@NODE_PORT@"
 privateBindAddr: "127.0.0.1"
 privatePort: 3002
+# Prometheus is unauthenticated plain HTTP and stays on loopback for gLiveView.
+# Set DINGO_METRICS_AUTH_TOKEN in dingo.env before binding it elsewhere.
+metricsBindAddr: "127.0.0.1"
 metricsPort: 12798
+# The /healthz and /readyz listener always binds the public bindAddr without
+# authentication, so it stays disabled. Set a port here to enable it.
+healthPort: 0
 debugPort: 0
 storageMode: "core"
 runMode: "serve"

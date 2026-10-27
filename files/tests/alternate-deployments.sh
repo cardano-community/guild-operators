@@ -1146,6 +1146,8 @@ run_alternate_profile_test() (
     grep -F "network: \"${network}\"" "${NODE_HOME}/files/dingo.yaml" >/dev/null
     grep -F "relayPort: ${default_port}" "${NODE_HOME}/files/dingo.yaml" >/dev/null
     grep -F 'blockProducer: false' "${NODE_HOME}/files/dingo.yaml" >/dev/null
+    grep -F 'metricsBindAddr: "127.0.0.1"' "${NODE_HOME}/files/dingo.yaml" >/dev/null
+    grep -F 'healthPort: 0' "${NODE_HOME}/files/dingo.yaml" >/dev/null
     grep -F 'DINGO_STORAGE_MODE="core"' "${config_env}" >/dev/null
     grep -F 'POOL_FOLDER=' "${config_env}" >/dev/null
     grep -F 'POOL_NAME="${POOL_NAME:-CHANGE_ME}"' "${config_env}" >/dev/null
@@ -1163,8 +1165,15 @@ run_alternate_profile_test() (
     assert_not_exists "${NODE_HOME}/chain"
     assert_not_exists "${NODE_HOME}/ledger"
     grep -F "AMARU_NETWORK=\"${network}\"" "${config_env}" >/dev/null
-    grep -F "AMARU_LISTEN_ADDRESS=\"0.0.0.0:${default_port}\"" "${config_env}" >/dev/null
-    grep -F 'AMARU_WITH_OPEN_TELEMETRY="true"' "${config_env}" >/dev/null
+    grep -F "AMARU_PEERS_LISTEN_ON=\"0.0.0.0:${default_port}\"" "${config_env}" >/dev/null
+    grep -F "AMARU_DB_CHAIN=\"${NODE_HOME}/chain\"" "${config_env}" >/dev/null
+    grep -F "AMARU_DB_LEDGER=\"${NODE_HOME}/ledger\"" "${config_env}" >/dev/null
+    grep -F 'AMARU_DB_CHAIN_AUTOMATIC_MIGRATION="true"' "${config_env}" >/dev/null
+    grep -F 'AMARU_WITH_OPEN_TELEMETRY="metrics"' "${config_env}" >/dev/null
+    if grep -Eq '^AMARU_(CHAIN_DIR|LEDGER_DIR|LISTEN_ADDRESS|PEER_ADDRESS|UPSTREAM_PEERS|DOWNSTREAM_PEERS|MAX_EXTRA_LEDGER_SNAPSHOTS|PID_FILE)=' \
+      "${config_env}"; then
+      fail "Amaru config uses deprecated environment variable names"
+    fi
     grep -F 'OTEL_EXPORTER_OTLP_ENDPOINT="http://127.0.0.1:4317"' \
       "${config_env}" >/dev/null
     if grep -q '^OTEL_EXPORTER_OTLP_METRICS_ENDPOINT=' "${config_env}"; then
@@ -1213,7 +1222,11 @@ run_alternate_profile_test() (
 
   case "${implementation}" in
     dingo) : > "${NODE_HOME}/db/.guidance-state" ;;
-    amaru) mkdir "${NODE_HOME}/chain" "${NODE_HOME}/ledger" ;;
+    amaru)
+      mkdir "${NODE_HOME}/chain" "${NODE_HOME}/ledger"
+      : > "${NODE_HOME}/chain/CURRENT"
+      : > "${NODE_HOME}/ledger/CURRENT"
+      ;;
   esac
   guidance_output="$(
     SYSTEMD_UNIT_DIR="${guidance_unit_dir}" "${next_steps_function}"
@@ -1232,7 +1245,7 @@ run_alternate_profile_test() (
   fi
   case "${implementation}" in
     dingo) command rm -f -- "${NODE_HOME}/db/.guidance-state" ;;
-    amaru) rmdir "${NODE_HOME}/chain" "${NODE_HOME}/ledger" ;;
+    amaru) command rm -rf -- "${NODE_HOME}/chain" "${NODE_HOME}/ledger" ;;
   esac
 
   # Both alternate adapters expose the common monitoring contract used by
@@ -1352,12 +1365,14 @@ run_alternate_profile_test() (
       "  printf '%s\\n' 'dingo ${expected_version}'" \
       '  exit 0' \
       'fi' \
-      'printf "%s\n%s\n%s\n%s\n%s\n" \
+      'printf "%s\n%s\n%s\n%s\n%s\n%s\n%s\n" \
         "${CARDANO_BLOCK_PRODUCER:-unset}" \
         "${CARDANO_SHELLEY_KES_KEY:-unset}" \
         "${CARDANO_SHELLEY_VRF_KEY:-unset}" \
         "${CARDANO_SHELLEY_OPERATIONAL_CERTIFICATE:-unset}" \
-        "$*" > "${DINGO_ROLE_CAPTURE:?}"' \
+        "$*" \
+        "${CARDANO_SHELLEY_KES_AGENT_SOCKET:-unset}" \
+        "${SHELLEY_KES_KEY:-unset}" > "${DINGO_ROLE_CAPTURE:?}"' \
       > "${HOME}/.local/bin/dingo"
     chmod 0755 "${HOME}/.local/bin/dingo"
 
@@ -1387,6 +1402,44 @@ run_alternate_profile_test() (
       fail "Dingo producer did not receive its VRF key path"
     [[ "$(sed -n '4p' "${dingo_capture}")" == "${dingo_pool_dir}/op.cert" ]] ||
       fail "Dingo producer did not receive its operational certificate path"
+    CARDANO_SHELLEY_KES_AGENT_SOCKET="${test_root}/kes-agent.socket" \
+      SHELLEY_KES_KEY="${test_root}/stray.skey" \
+      DINGO_ROLE_CAPTURE="${dingo_capture}" "${launcher}" run
+    [[ "$(sed -n '6p' "${dingo_capture}")" == "unset" ]] ||
+      fail "Dingo producer inherited a KES agent socket alongside its key file"
+    [[ "$(sed -n '7p' "${dingo_capture}")" == "unset" ]] ||
+      fail "Dingo inherited an unprefixed KES key fallback"
+
+    # Reload signals only a running process that was started as a producer.
+    local reload_systemctl="${test_root}/bin/systemctl-reload"
+    local reload_log="${test_root}/systemctl-reload.log"
+    local reload_proc="${test_root}/proc"
+    mkdir -p "${reload_proc}/4321"
+    printf '%s\n' \
+      '#!/usr/bin/env bash' \
+      'printf "%s\n" "$*" >> "${SYSTEMCTL_LOG:?}"' \
+      '[[ "${1:-}" != "show" ]] || printf "4321\n"' \
+      > "${reload_systemctl}"
+    chmod 0755 "${reload_systemctl}"
+    : > "${reload_log}"
+    printf 'HOME=/home/test\0CARDANO_BLOCK_PRODUCER=false\0' \
+      > "${reload_proc}/4321/environ"
+    if SYSTEMCTL_BIN="${reload_systemctl}" SYSTEMCTL_LOG="${reload_log}" \
+      SUDO="N" DINGO_PROCFS_ROOT="${reload_proc}" \
+      "${launcher}" reload >/dev/null 2>&1; then
+      fail "Dingo reload accepted a service running as a relay"
+    fi
+    if grep -q '^kill' "${reload_log}"; then
+      fail "Dingo reload signalled a relay, which would stop it"
+    fi
+    printf 'HOME=/home/test\0CARDANO_BLOCK_PRODUCER=true\0' \
+      > "${reload_proc}/4321/environ"
+    SYSTEMCTL_BIN="${reload_systemctl}" SYSTEMCTL_LOG="${reload_log}" \
+      SUDO="N" DINGO_PROCFS_ROOT="${reload_proc}" \
+      "${launcher}" reload >/dev/null
+    grep -Fxq "kill --signal=SIGHUP --kill-whom=main ${service_name}" \
+      "${reload_log}" ||
+      fail "Dingo reload did not signal the producer's main process"
 
     rm -f -- "${dingo_pool_dir}/op.cert"
     if DINGO_ROLE_CAPTURE="${dingo_capture}" \
@@ -1408,7 +1461,7 @@ run_alternate_profile_test() (
       '#!/usr/bin/env bash' \
       'case "${2:-}" in' \
       '  bootstrap)' \
-      '    printf "%s\n%s\n%s\n" "${AMARU_CHAIN_DIR}" "${AMARU_LEDGER_DIR}" "${AMARU_WITH_OPEN_TELEMETRY:-unset}" > "${AMARU_STATE_CAPTURE}"' \
+      '    printf "%s\n%s\n%s\n" "${AMARU_DB_CHAIN}" "${AMARU_DB_LEDGER}" "${AMARU_WITH_OPEN_TELEMETRY:-unset}" > "${AMARU_STATE_CAPTURE}"' \
       '    ;;' \
       '  run)' \
       '    printf "%s\n" "${AMARU_WITH_OPEN_TELEMETRY:-unset}" > "${AMARU_TELEMETRY_CAPTURE}"' \
@@ -1431,11 +1484,17 @@ run_alternate_profile_test() (
       fail "Amaru ledger state override was not passed to the binary"
     [[ "$(sed -n '3p' "${state_capture}")" == "false" ]] ||
       fail "Amaru bootstrap did not suppress OpenTelemetry export"
+    # Amaru accepts empty state directories, so only content marks a
+    # bootstrapped node.
     mkdir -p "${state_root}/chain" "${state_root}/ledger"
+    if AMARU_STATE_ROOT="${state_root}" "${launcher}" run >/dev/null 2>&1; then
+      fail "Amaru run accepted empty state directories as bootstrapped"
+    fi
+    touch "${state_root}/chain/CURRENT" "${state_root}/ledger/CURRENT"
     AMARU_STATE_ROOT="${state_root}" \
       AMARU_TELEMETRY_CAPTURE="${telemetry_capture}" \
       "${launcher}" run
-    [[ "$(sed -n '1p' "${telemetry_capture}")" == "true" ]] ||
+    [[ "$(sed -n '1p' "${telemetry_capture}")" == "metrics" ]] ||
       fail "Amaru run did not restore configured OpenTelemetry export"
     if AMARU_STATE_ROOT="/" "${launcher}" bootstrap >/dev/null 2>&1; then
       fail "Amaru launcher accepted / as its state root"

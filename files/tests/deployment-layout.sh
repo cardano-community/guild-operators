@@ -307,9 +307,9 @@ for documentation_heading in \
     fail "gLiveView documentation is missing ${documentation_heading}"
 done
 for documented_metric in \
-  'Tip gap' 'Disk util' 'OpCert starts / expires' \
-  'Goroutines' 'Forge validation' 'Replay err' \
-  'Process CPU' 'Mempool rejected' 'Fetch wait'; do
+  'Tip gap' 'Disk util' 'OpCert starts / expires' 'Total' 'ALERT' 'SYNC' \
+  'Goroutines' 'Valid fail' 'Replay err' 'Lost slots' 'Keys valid' \
+  'Proc CPU' 'Tx reject' 'Hdr delay' 'Fetch wait'; do
   grep -Fq "| ${documented_metric} |" "${GLIVEVIEW_DOCS}" ||
     fail "gLiveView documentation is missing metric: ${documented_metric}"
 done

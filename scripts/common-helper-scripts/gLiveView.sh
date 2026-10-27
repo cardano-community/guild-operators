@@ -577,6 +577,27 @@ glvMetricCell() {
       fi
       unit="slots"
       ;;
+    forge_keys_valid)
+      if [[ "${value}" == "1" ]]; then
+        value="yes"
+        style="${style_status_1}"
+      else
+        value="NO"
+        style="${style_status_3}"
+      fi
+      ;;
+    leader_lost)
+      [[ "${value}" =~ ^[1-9][0-9]*$ ]] && style="${style_status_2}"
+      ;;
+    glv_opcert_counters)
+      # The on-disk certificate counter must equal the on-chain counter, or
+      # exceed it by one for a certificate not yet used to forge a block.
+      if [[ "${value}" =~ ^([0-9]+)\|([0-9]+)$ ]] &&
+         (( BASH_REMATCH[1] != BASH_REMATCH[2] &&
+            BASH_REMATCH[1] != BASH_REMATCH[2] + 1 )); then
+        style="${style_status_3}"
+      fi
+      ;;
   esac
 
   # Implementation-specific byte gauges use the same bounded binary-unit
@@ -680,7 +701,7 @@ glvMetricRow() {
 glvRenderConnections() {
   local metric any_available=N
   local -a all_metrics=(
-    conn_incoming conn_outgoing conn_duplex
+    conn_incoming conn_outgoing conn_duplex conn_total
     inbound_governor_hot peer_selection_hot
     peer_known peer_established peer_active
   )
@@ -704,6 +725,11 @@ glvRenderConnections() {
     conn_incoming "Incoming" "" \
     conn_outgoing "Outgoing" "" \
     conn_duplex "Duplex" "" || true
+  # Implementations without a connection manager report only a session total.
+  glvMetricRow \
+    conn_total "Total" "" \
+    "" "" "" \
+    "" "" "" || true
   glvMetricRow \
     peer_known "Known" "" \
     peer_established "Established" "" \
@@ -749,6 +775,7 @@ glvRenderCustomMetrics() {
 }
 
 glvRenderProducerMetrics() {
+  local schedule_label=""
   local -a producer_metrics=()
   node_has forge || return 0
   [[ "${nodemode}" == "Core" ]] || return 0
@@ -761,14 +788,36 @@ glvRenderProducerMetrics() {
     node_metric_set glv_kes_expiration "${kes_expiration:-?}"
     producer_metrics+=(glv_kes_expiration "KES expires" "")
   fi
+  node_metric_has forge_keys_valid &&
+    producer_metrics+=(forge_keys_valid "Keys valid" "")
+  # A node may publish the schedule of the current or the next epoch.
+  if node_metric_has leader_sched_slots &&
+     node_metric_has leader_sched_epoch &&
+     [[ "${leader_sched_epoch}" =~ ^[0-9]+$ && "${epochnum:-}" =~ ^[0-9]+$ ]]; then
+    if (( leader_sched_epoch == epochnum )); then
+      schedule_label="Scheduled"
+    elif (( leader_sched_epoch == epochnum + 1 )); then
+      schedule_label="Next sched"
+    fi
+    [[ -n "${schedule_label}" ]] &&
+      producer_metrics+=(leader_sched_slots "${schedule_label}" "")
+  fi
   node_metric_has isleader &&
     producer_metrics+=(isleader "Leader slots" "")
   node_metric_has adopted &&
     producer_metrics+=(adopted "Adopted" "")
   node_metric_has didntadopt &&
     producer_metrics+=(didntadopt "Not adopted" "")
+  node_metric_has leader_lost &&
+    producer_metrics+=(leader_lost "Lost slots" "")
 
   if [[ "${VERBOSE}" == "Y" ]]; then
+    if node_metric_has opcert_counter_disk &&
+       node_metric_has opcert_counter_chain; then
+      node_metric_set glv_opcert_counters \
+        "${opcert_counter_disk}|${opcert_counter_chain}"
+      producer_metrics+=(glv_opcert_counters "OpCert #" "")
+    fi
     node_metric_has about_to_lead &&
       producer_metrics+=(about_to_lead "Leader checks" "")
     node_metric_has not_leader &&
@@ -850,7 +899,8 @@ glvFrameHeader() {
   implementation_label="$(glv_text_clip 12 "${NODE_IMPLEMENTATION_NAME}")"
   role_label="$(glv_text_clip 6 "${nodemode}")"
   network_label="$(glv_text_clip 8 "${NETWORK_NAME}")"
-  version_label="$(glv_text_clip 12 "${running_node_version}")"
+  # Amaru's date-based versions such as 10.11.20261022 need 14 characters.
+  version_label="$(glv_text_clip 14 "${running_node_version}")"
   plain_header="> ${node_label} [${implementation_label}] - ${role_label} - ${network_label} : ${version_label} <"
   (( ${#plain_header} < width )) &&
     header_padding=$(( (width - ${#plain_header}) / 2 )) ||
@@ -872,9 +922,27 @@ glvFrameHeader() {
   glv_frame_add "$(glvFrameHeaderDivider bottom)"
 }
 
+# Add one full-width progress bar row for a 0-100 percentage.
+glvFrameProgressBar() {
+  local percent="${1:-0}"
+  local style="${2:-${style_values_1}}"
+  local items i progress_row="${VL} "
+
+  items=$(( $(LC_NUMERIC=C printf '%.0f' "${percent}") * granularity / 100 ))
+  for i in $(seq 0 $((granularity-1))); do
+    if (( i < items )); then
+      progress_row+="${style}${char_marked}"
+    else
+      progress_row+="${NC}${char_unmarked}"
+    fi
+  done
+  progress_row+="${NC} ${VL}"
+  glv_frame_add "${progress_row}"
+}
+
 glvFrameEpoch() {
   local epoch_length="${EPOCH_LENGTH:-0}"
-  local epoch_progress epoch_items_local i epoch_text epoch_row="" progress_row=""
+  local epoch_progress epoch_text epoch_row=""
 
   if node_metric_has epochnum &&
      node_metric_has slot_in_epoch &&
@@ -885,17 +953,32 @@ glvFrameEpoch() {
     epoch_text="$(glv_text_pad $((width - 1)) "${epoch_text}")"
     epoch_row="${VL}${style_values_1}${epoch_text}${NC}${VL}"
     glv_frame_add "${epoch_row}"
-    epoch_items_local=$(( $(printf '%.0f' "${epoch_progress}") * granularity / 100 ))
-    progress_row="${VL} "
-    for i in $(seq 0 $((granularity-1))); do
-      if (( i < epoch_items_local )); then
-        progress_row+="${style_values_1}${char_marked}"
-      else
-        progress_row+="${NC}${char_unmarked}"
-      fi
-    done
-    progress_row+="${NC} ${VL}"
-    glv_frame_add "${progress_row}"
+    glvFrameProgressBar "${epoch_progress}"
+  fi
+}
+
+# Optional attention and synchronization rows reported by the adapter, such
+# as a halted ledger or a running Mithril bootstrap.
+glvFrameStatus() {
+  local status_text
+
+  if node_metric_has node_alert && [[ -n "${node_alert}" ]]; then
+    status_text="$(glv_text_pad $((width - 1)) " ALERT: ${node_alert}")"
+    glv_frame_add "${VL}${style_status_3}${status_text}${NC}${VL}"
+  fi
+  if node_metric_has sync_phase && [[ -n "${sync_phase}" ]]; then
+    status_text=" SYNC: ${sync_phase}"
+    if node_metric_has sync_progress; then
+      status_text+=" [${sync_progress}%]"
+    fi
+    if node_metric_has sync_rate && [[ -n "${sync_rate}" ]]; then
+      status_text+=" ${sync_rate}"
+    fi
+    status_text="$(glv_text_pad $((width - 1)) "${status_text}")"
+    glv_frame_add "${VL}${style_status_2}${status_text}${NC}${VL}"
+    if node_metric_has sync_progress; then
+      glvFrameProgressBar "${sync_progress}" "${style_status_2}"
+    fi
   fi
 }
 
@@ -906,6 +989,7 @@ glvRenderCommonDashboard() {
   glv_frame_reset
   glvFrameHeader
   glvFrameEpoch
+  glvFrameStatus
 
   glvMetricGrid "CHAIN" \
     blocknum "Block" "" \
@@ -1843,6 +1927,7 @@ while true; do
       printf "${VL} [p] runs the cnode-only one-shot peer analysis." && closeRow
     fi
     printf "${VL} Missing metrics and empty sections are hidden, not shown as zero." && closeRow
+    printf "${VL} ALERT and SYNC rows appear only while the node reports them." && closeRow
     printf "${blank_line}\n" && ((line++))
     printf "${VL} Detailed definitions and implementation-specific fields:" && closeRow
     printf "${VL} https://cardano-community.github.io/guild-operators/Scripts/gliveview" && closeRow

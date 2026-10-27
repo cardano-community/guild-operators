@@ -48,8 +48,16 @@ case "${NODE_IMPLEMENTATION}" in
             echo "${NODE_IMPLEMENTATION} process is not healthy"
             exit 1
         }
+        metrics_token=""
         case "${NODE_IMPLEMENTATION}" in
-            dingo) metrics_url="http://127.0.0.1:12798/metrics" ;;
+            dingo)
+                metrics_url="http://127.0.0.1:12798/metrics"
+                metrics_token="${DINGO_METRICS_AUTH_TOKEN:-$(
+                    sed -n 's/^DINGO_METRICS_AUTH_TOKEN="\([^"]*\)"[[:space:]]*$/\1/p' \
+                        "${NODE_HOME}/scripts/dingo.env" 2>/dev/null | tail -n 1
+                )}"
+                [[ "${metrics_token}" =~ ^[A-Za-z0-9._~+/=-]+$ ]] || metrics_token=""
+                ;;
             amaru)
                 metrics_url="http://127.0.0.1:8889/metrics"
                 pgrep -xo otelcol-contrib >/dev/null || {
@@ -58,8 +66,15 @@ case "${NODE_IMPLEMENTATION}" in
                 }
                 ;;
         esac
-        curl --fail --silent --show-error --max-time 5 \
-            "${metrics_url}" >/dev/null || {
+        # An optional Bearer token is passed on stdin so it stays out of argv.
+        if [[ -n "${metrics_token}" ]]; then
+            printf 'header = "Authorization: Bearer %s"\n' "${metrics_token}" |
+                curl --fail --silent --show-error --max-time 5 \
+                    --config - "${metrics_url}" >/dev/null
+        else
+            curl --fail --silent --show-error --max-time 5 \
+                "${metrics_url}" >/dev/null
+        fi || {
             echo "${NODE_IMPLEMENTATION} metrics endpoint is not healthy"
             exit 1
         }

@@ -85,6 +85,8 @@ adapter marks the current sample as available. An absent field therefore means
 | Uptime | Elapsed time for the current node process, not host uptime. The adapters use a trustworthy native start value or local process timing. |
 | Port | The node-to-node listening port, not the metrics port. |
 | Epoch and progress | Epoch number and the latest locally processed slot's position within that epoch. The bar is local ledger progress through the epoch, not network synchronization progress. |
+| ALERT | Shown only while the node reports a condition that needs operator action, such as a halted or stuck ledger, the operator's own pool equivocating, or invalid forging keys. Several conditions are listed together, most severe first. |
+| SYNC | Shown only while the node reports bootstrap or catch-up progress, such as Dingo's Mithril download or ledger import, with its percentage, rate, and a progress bar. |
 
 ## Common live sections
 
@@ -114,6 +116,7 @@ lag far behind wall-clock time. cnode can additionally display `DB Replay` or
 | Label | Mode | Meaning |
 | --- | --- | --- |
 | Incoming | Compact | Current inbound connections reported by the connection manager. |
+| Total | Compact | Established node-to-node sessions owned by the node process, shown when an implementation exports no connection-manager counters (currently Amaru). Loopback telemetry sessions are excluded; inbound and outbound sessions cannot be told apart. |
 | Outgoing | Compact | Current outbound connections reported by the connection manager. |
 | Duplex | Compact | Connections actively used in both directions. |
 | Known | Compact | Peers known to the peer-selection subsystem. |
@@ -148,7 +151,8 @@ block counts. A topology with consistently low delay and a high share within
 three seconds is generally preferable, but block production randomness,
 temporary network congestion, and a node that is still syncing can distort
 short observations. Not every implementation currently exports every
-propagation field.
+propagation field. For Amaru, gLiveView derives these values itself from the
+latest block timings; see [Amaru](#amaru).
 
 ### Node resource usage
 
@@ -262,29 +266,57 @@ can display:
 
 Dingo exposes the cardano-node-compatible family used by the common Chain,
 Connections, Block Propagation, Runtime, and Block Production sections. It
-also contributes native fields to the verbose `DINGO METRICS` section.
+also contributes native fields to the verbose `DINGO METRICS` section, the
+ALERT and SYNC rows, and the Network page. Dingo has no terminal dashboard of
+its own; these fields follow what its upstream Grafana dashboards and alert
+rules treat as the primary operational signals.
 
-Dingo's Haskell-compatible Runtime labels are approximate Go mappings:
-`Live memory` is `runtime.MemStats.HeapAlloc`, `Heap` is `HeapSys`, `GC minor`
-counts automatic collections (`NumGC - NumForcedGC`), and `GC major` counts
-forced collections (`NumForcedGC`). They make the common layout useful, but
-should not be compared numerically with cnode's Haskell RTS values as if the
-runtimes were identical.
+Dingo's outbound peer-temperature gauges also count peers that connected
+inbound. gLiveView subtracts those inbound peers so that `Out cold`, `Out
+warm`, and `Out hot` describe only outbound selection; the inbound peers remain
+visible as `In warm` and `In hot`.
+
+`Live memory` is Go's `runtime.MemStats.HeapAlloc` and `Heap` is `HeapSys`.
+Go's collector is not generational, so the Haskell `GC minor` and `GC major`
+fields stay hidden and the total collection count appears as `GC cycles`
+instead. Do not compare these values numerically with cnode's Haskell RTS
+values as if the runtimes were identical.
 
 | Label | Meaning |
 | --- | --- |
 | Goroutines | Current Go goroutine count. |
+| GC cycles | Completed Go garbage collections since the process started. |
 | DB size | Sum of Dingo's exported database-store size gauges, displayed with a binary byte unit. |
 | UTxO hits | Cumulative hot UTxO CBOR-cache hits divided by hits plus misses. `n/a` means no cache observations exist yet. |
 | Block hits | Cumulative block-LRU cache hits divided by hits plus misses. `n/a` means no cache observations exist yet. |
-| Slot clock | Nonzero count of errors while reading the slot clock for forging. Hidden while zero. |
-| Slot battles | Competing blocks detected at the same slot. |
-| Forge sync skips | Forging attempts skipped because an upstream tip was ahead of the local tip. |
-| Forge validation | Forged blocks dropped because optional self-validation failed. A displayed zero is an exported zero, unlike an absent metric. |
-| Gov decode | Nonzero count of stored governance proposals whose CBOR could not be decoded during ratifiability checks. Hidden while zero. |
-| Rollback | Nonzero unrecoverable rollback counter. This can indicate local-chain divergence that requires operator investigation or re-bootstrap. Hidden while zero. |
-| At-tip err | Nonzero at-tip recovery attempts that did not converge. Hidden while zero. |
-| Replay err | Nonzero replay recovery attempts that made no forward progress. Hidden while zero. |
+| Mempool | Current mempool size as a share of its configured capacity. |
+| Adopt avg | Mean time from a block's slot to its adoption as the local tip, since the process started. Unlike `Last block`, it includes validation and commit. |
+| Slot batls | Producer only. Competing blocks detected at the same slot. |
+| Sync skips | Producer only. Leader slots skipped because an upstream tip was ahead of the local tip. |
+| Tip skips | Producer only. Leader slots skipped because the local chain was stale or unsafe to extend. |
+| Forge avg | Producer only. Mean time from slot start until a forged block was built. |
+| Valid fail | Forged blocks dropped because self-validation failed. Hidden while zero. |
+| Slot clock | Errors while reading the slot clock for forging. Hidden while zero. |
+| Hot short | Hot peers missing below the configured minimum. Hidden while zero. |
+| Pipe rstrt | Ledger pipeline restarts without tip progress, an early sign of a stuck ledger. Hidden while zero. |
+| Snap fail | Failed stake-snapshot captures. Hidden while zero. |
+| Gov decode | Stored governance proposals whose CBOR could not be decoded during ratifiability checks. Hidden while zero. |
+| Rollback | Unrecoverable rollbacks. This can indicate local-chain divergence that requires investigation or a fresh bootstrap. Hidden while zero. |
+| At-tip err | At-tip recovery attempts that did not converge. Hidden while zero. |
+| Replay err | Replay recovery attempts that made no forward progress. Hidden while zero. |
+| Mithril fb | Fallbacks from node-managed Mithril sync to Ouroboros sync. Hidden while zero. |
+
+The ALERT row reports, most severe first: a halted ledger pipeline, the
+operator's own pool equivocating, invalid forging credentials on a producer,
+a stuck ledger pipeline, skipped epoch reward rounds, a stuck or waiting
+Mithril restore, and Mithril sync errors.
+
+While `dingo.sh bootstrap` runs, the bootstrap process serves only its Mithril
+progress metrics on the same endpoint. gLiveView then shows a SYNC row with
+the active phase (download, block copy, the ledger stage being imported, gap
+blocks, or finalising), its percentage and rate, and takes the version from the
+installed binary. A node started with `mithril.enabled` reports `Mithril
+restore` or `Mithril catch-up` in the same row.
 
 Dingo producer mode also uses the shared Block Production section:
 
@@ -293,50 +325,81 @@ Dingo producer mode also uses the shared Block Production section:
 | KES current | Compact | Current network KES period. |
 | KES remaining | Compact | Remaining usable KES periods for the loaded operational certificate. |
 | KES expires | Compact | Expiry time calculated from KES and network timing. |
-| Leader slots | Compact | Slots in which Dingo was elected leader. |
+| Keys valid | Compact | `yes` while the loaded credentials can sign at the current slot; `NO` raises an alert. |
+| Scheduled / Next sched | Compact | Leader slots in Dingo's latest computed schedule, for the current or the next epoch. |
+| Leader slots | Compact | Slots in which Dingo was elected leader and passed its pre-forging checks. |
 | Adopted | Compact | Forged blocks adopted onto the chain. |
 | Not adopted | Compact | Forged blocks minus adopted blocks. |
+| Lost slots | Compact | Leader slots that did not end with this pool's block adopted, whether refused, failed, or lost in a slot battle. |
+| OpCert # | Verbose | Operational certificate counter loaded from disk and recorded on chain. It turns red unless the disk counter equals the chain counter or exceeds it by one. The chain value appears after the pool's first block. |
 | Leader checks | Verbose | Slots that reached the "about to lead" forging check. |
 | Not leader | Verbose | Checked slots where the pool was not elected. |
 | Forge failed | Verbose | Slots where forging failed because of sync state, block construction, or another reported error. |
-| Missed checks | Verbose | Missed slot checks when Dingo exports the compatible counter. |
 | OpCert starts / expires | Verbose | Operational certificate's starting and ending KES-period bounds. |
 
-Static Dingo values are intentionally kept off the live dashboard. Its Go
-runtime version, native epoch length, and Shelley start time appear on the
-Network page. Dingo is a rolling-release profile, so a newly published build
-can temporarily omit an optional field; the adapter evaluates each field on
-every scrape.
+Dingo has no counter for missed leadership checks, so `Missed checks` stays
+hidden.
+
+Static Dingo values are kept off the live dashboard. Its Go runtime version
+and processor count, native epoch length, Shelley start time, KES period
+length, mempool implementation and capacity, and latest stake snapshot appear
+on the Network page. Dingo is a rolling-release profile, so a newly published
+build can temporarily omit an optional field; the adapter evaluates each field
+on every scrape.
 
 ### Amaru
 
-Amaru's reference bridge supplies a cardano-node-compatible subset for common
-chain, mempool, connection, propagation, and build fields. Amaru is currently
-relay-only in Guild Operators, so it has no Block Production section.
+Amaru's reference bridge supplies a cardano-node-compatible subset for the
+common chain, mempool, served-block, and build fields. Amaru is relay-only in
+Guild Operators, so it has no Block Production section; its network-derived
+KES period is listed on the Network page instead.
+
+Amaru's own terminal dashboard runs inside the node process and is therefore
+only available when `amaru.sh run` is started from an interactive terminal.
+Under systemd, gLiveView shows the same node, chain, mempool, resource, and
+block-timing data that Amaru exports as metrics. Its per-peer table, peer-set
+sizes, round-trip times, protocol version, and stake and governance views are
+produced from in-process traces and are not exported, so gLiveView cannot show
+them.
+
+Amaru exports no connection-manager counters. gLiveView counts the node
+process's established TCP sessions as `Total` in the Connections section.
+
+Block propagation is derived from Amaru's timing histograms. For each new
+block, `Last block` is the time from the start of its slot until the block was
+received: the header delay, the wait before fetching, and the fetch itself.
+The `Within` shares cover the live blocks observed while gLiveView has been
+running, up to the latest 100, so they start empty and are not node-lifetime
+figures. Values disappear when no block has arrived for 10 minutes.
 
 The verbose `AMARU METRICS` section contains:
 
 | Label | Meaning |
 | --- | --- |
-| Process CPU | Amaru's own current process CPU gauge. It can differ slightly from gLiveView's locally sampled `CPU (sys)`. |
-| Disk read | Data read by Amaru since its preceding system-metrics refresh, converted to KiB. It is a per-refresh amount, not filesystem capacity use. |
-| Disk write | Data written by Amaru since its preceding system-metrics refresh, converted to KiB. |
-| Pool sync | Latest time in milliseconds to synchronize/revalidate the mempool after block adoption. |
-| Mempool accepted | Cumulative transaction insertion attempts whose result is `accepted`, summed across local and remote origins. |
-| Mempool rejected | Cumulative insertion attempts with a `rejected_*` result, summed across origins and rejection reasons. |
-| Headers ok | Consensus headers that reached the terminal `valid` outcome. |
-| Rejected | Sum of invalid, invalid-header, undecodable-header, and header-store-error terminal outcomes. Duplicate or superseded outcomes are not included. |
-| Forks sw | All completed fork-switch outcomes reported by Amaru, including applied and abandoned outcomes. |
-| Fetch wait | Mean time from receiving a valid header until its block was requested or the wait was abandoned. Derived from cumulative histogram sum/count and shown in milliseconds. |
-| Fetch avg | Mean time from requesting a valid header's block until receiving it, in milliseconds. |
-| Forward | Mean time from receiving a valid header until its block was adopted, invalidated, or abandoned, in milliseconds. |
+| Proc CPU | Amaru's own current process CPU gauge. It can differ slightly from gLiveView's locally sampled `CPU (sys)`. |
+| Disk rd/s | Bytes read by Amaru per second, displayed with a binary byte unit. |
+| Disk wr/s | Bytes written by Amaru per second, displayed with a binary byte unit. |
+| Tx accept | Transaction insertions accepted into the mempool, summed across local and remote origins. |
+| Tx reject | Transaction insertions rejected as invalid, duplicate, or because the mempool was full. |
+| Pool sync | Latest time in milliseconds to revalidate the mempool after block adoption. |
+| Hdr delay | Latest time from slot start until a valid header arrived. Recorded only once Amaru follows the tip. |
+| Fetch wait | Latest time from receiving a valid header until its block was requested. |
+| Fetch time | Latest time from requesting a block until receiving it. |
+| Forward | Latest time from receiving a valid header until its block was adopted. |
+| Hdr reject | Invalid blocks plus headers that were invalid, undecodable, or failed to store. Duplicate and pruned headers are not included. |
 
-`Open files` appears in the shared Runtime section rather than `AMARU
-METRICS`. Uptime is calculated from the active Amaru service PID using Linux's
-monotonic process start time, with a bounded `ps` fallback; collector runtime
-and garbage-collection telemetry is not presented as Amaru node telemetry.
+The millisecond timings are the mean of the blocks received since the
+previous refresh, which is normally one block, rather than an average since
+the process started. `Forks` in the Chain section counts only fork switches
+that changed the selected chain.
 
-Amaru releases evolve quickly. The table documents the current adapter
+`Open files` and `Max files` appear in the shared Runtime section. Uptime is
+calculated from the active Amaru service PID using Linux's monotonic process
+start time, with a bounded `ps` fallback; collector runtime telemetry is not
+presented as Amaru node telemetry. The Network page adds the build platform,
+host memory, and the current KES period.
+
+Amaru releases evolve quickly. The tables document the current adapter
 contract, but gLiveView displays a native metric only when the running release
 actually exports the required series.
 
@@ -349,7 +412,7 @@ measurements.
 | --- | --- |
 | Node | Implementation, version and revision, role, service name |
 | Network | Network name, network magic, node port, epoch length, slot length, active-slots coefficient, Shelley start time |
-| Node Runtime | Adapter-supplied static runtime metadata, currently including Dingo's Go version when available |
+| Node Runtime | Adapter-supplied static runtime metadata, such as Dingo's Go runtime and stake snapshot or Amaru's build platform and host memory |
 | Deployment | Node home, implementation configuration, node socket when applicable, metrics provider, metrics endpoint |
 
 Long values are clipped to the fixed terminal cell and end in `~`. Large
@@ -407,9 +470,10 @@ curl --fail http://127.0.0.1:8889/metrics
 ```
 
 For Amaru, a healthy node without port 8889 normally means the collector unit
-or configuration needs attention. For Dingo, the upstream metrics listener
-shares Dingo's public bind address; protect TCP 12798 with the host or network
-firewall even though gLiveView connects over loopback.
+or configuration needs attention. Dingo binds its metrics listener to
+`metricsBindAddr`, loopback in the Guild profile. If you set
+`DINGO_METRICS_AUTH_TOKEN` in `dingo.env`, gLiveView sends it automatically;
+add `-H "Authorization: Bearer <token>"` to the `curl` check above.
 
 If automatic discovery is wrong, review `env`, the implementation environment,
 and the User Variables section of `gLiveView.sh`. Report reproducible adapter

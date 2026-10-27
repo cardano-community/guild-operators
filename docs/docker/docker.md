@@ -113,7 +113,7 @@ defaults; publish only the endpoints the host actually needs.
 | Implementation | Relay port | Metrics/API |
 | --- | ---: | --- |
 | cnode | 6000 | Prometheus 12798 |
-| Dingo | 3001 | Prometheus 12798; protect it with a firewall |
+| Dingo | 3001 | Prometheus 12798 on loopback; health probes disabled |
 | Amaru | 3000 | Loopback OTLP/gRPC 4317 and Prometheus 8889; submit API disabled |
 
 The Amaru telemetry ports are internal loopback listeners and should not be

@@ -107,7 +107,7 @@ GUILD_NODE_IMPLEMENTATION="${_manifest_implementation:-${_env_node_implementatio
 CARDANO_NETWORK="${_manifest_network:-${_env_node_network:-}}"
 
 case "${command_name}" in
-  run|bootstrap|-d|install|version)
+  run|bootstrap|-d|install|reload|version)
     if [[ -n "${_env_node_home_resolved}" &&
           "${_env_node_home_resolved}" != "${GUILD_NODE_HOME}" ]] ||
        [[ -n "${_manifest_service}" && -n "${_env_node_service}" &&
@@ -154,6 +154,7 @@ Commands:
   remove              Stop, disable, and remove the systemd service
   status              Show systemd service status
   start|stop|restart  Control the installed systemd service
+  reload              Reload rotated KES/VRF/op.cert files in a running producer
   logs                Follow service logs
   version             Print the installed Dingo version
   -h, --help          Show this help
@@ -236,9 +237,16 @@ dingo_configure_runtime_role() {
   local file
   local -a missing=()
 
+  # Dingo also reads the unprefixed names when a CARDANO_* variable is unset,
+  # and refuses to start when a KES key file and a KES agent are both set.
   export CARDANO_BLOCK_PRODUCER=false
   unset CARDANO_SHELLEY_KES_KEY CARDANO_SHELLEY_VRF_KEY
   unset CARDANO_SHELLEY_OPERATIONAL_CERTIFICATE
+  unset CARDANO_SHELLEY_KES_AGENT_SOCKET CARDANO_SHELLEY_KES_AGENT_MODE
+  unset CARDANO_SHELLEY_KES_AGENT_SIGN_TIMEOUT
+  unset BLOCK_PRODUCER SHELLEY_KES_KEY SHELLEY_VRF_KEY
+  unset SHELLEY_OPERATIONAL_CERTIFICATE SHELLEY_KES_AGENT_SOCKET
+  unset SHELLEY_KES_AGENT_MODE SHELLEY_KES_AGENT_SIGN_TIMEOUT
   DINGO_RUNTIME_ROLE="relay"
 
   # Snapshot import never forges and should not require online hot keys.
@@ -330,6 +338,44 @@ EOF
   printf 'Installed %s for Dingo %s mode.\n' "${unit_name}" "${DINGO_RUNTIME_ROLE}"
 }
 
+dingo_reload_credentials() {
+  command -v "${SYSTEMCTL_BIN}" >/dev/null 2>&1 || {
+    printf 'ERROR: systemd is required to reload the service\n' >&2
+    return 1
+  }
+
+  local unit_name main_pid environ_file
+  unit_name="${GUILD_NODE_SERVICE}.service"
+  main_pid="$(
+    "${SYSTEMCTL_BIN}" show --property MainPID --value "${unit_name}" 2>/dev/null || true
+  )"
+  if [[ ! "${main_pid}" =~ ^[1-9][0-9]*$ ]]; then
+    printf 'ERROR: %s is not running\n' "${unit_name}" >&2
+    return 1
+  fi
+
+  # Only a process started as a block producer installs Dingo's SIGHUP
+  # credential-reload handler. A relay keeps Go's default action and exits.
+  environ_file="${DINGO_PROCFS_ROOT:-/proc}/${main_pid}/environ"
+  if [[ ! -r "${environ_file}" ]]; then
+    printf 'ERROR: cannot inspect the running Dingo process; run reload as the service user\n' >&2
+    return 1
+  fi
+  if ! tr '\0' '\n' < "${environ_file}" |
+       grep -Fxq 'CARDANO_BLOCK_PRODUCER=true'; then
+    printf 'ERROR: %s runs as a relay; use restart to change its role\n' "${unit_name}" >&2
+    return 1
+  fi
+  if [[ "${DINGO_RUNTIME_ROLE}" != "producer" ]]; then
+    printf 'ERROR: POOL_DIR no longer holds a complete credential set; refusing to reload\n' >&2
+    return 1
+  fi
+
+  systemd_control kill --signal=SIGHUP --kill-whom=main "${unit_name}" || return 1
+  printf 'Asked %s to reload its KES key, VRF key and operational certificate.\n' "${unit_name}"
+  printf 'Dingo keeps the current credentials if the new set fails validation; check the logs.\n'
+}
+
 dingo_remove_service() {
   command -v "${SYSTEMCTL_BIN}" >/dev/null 2>&1 || {
     printf 'ERROR: systemd is required to remove the service\n' >&2
@@ -369,6 +415,11 @@ case "${command_name}" in
   start|stop|restart)
     dingo_require_identity
     systemd_control "${command_name}" "${GUILD_NODE_SERVICE}.service"
+    ;;
+  reload)
+    dingo_require_supported_profile
+    dingo_configure_runtime_role run
+    dingo_reload_credentials
     ;;
   logs)
     dingo_require_identity

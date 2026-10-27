@@ -1,10 +1,18 @@
 # Amaru deployment profile
 
 !!! danger "Experimental rolling-release support"
-    Amaru is under rapid development and its newest published build may be a
-    prerelease. The Guild Operators profile is restricted to `preprod` and
-    `preview`, runs as a relay, and does not support block production. Do not
-    use it as a mainnet or stake-pool deployment.
+    Amaru is under rapid development and ships a new public-beta build most
+    weeks. Upstream now documents mainnet relays and testnet block production,
+    but the Guild Operators profile remains restricted to `preprod` and
+    `preview` and runs Amaru as a relay only. Do not use it as a mainnet or
+    stake-pool deployment.
+
+!!! warning "Coming from an earlier Amaru deployment"
+    Current Amaru releases refuse chain databases created by older releases,
+    and the environment template now uses Amaru's renamed settings. Start over
+    fresh: stop both services, remove `chain/`, `ledger/`, and `snapshots/`,
+    refresh with `guild-deploy.sh -i amaru -n <network> -s df`, reinstall the
+    units with `amaru.sh -d`, and bootstrap again.
 
 ## Supported deployment
 
@@ -72,7 +80,7 @@ The default layout below assumes `/opt/cardano/amaru`:
 │   └── otelcol.yaml
 ├── logs/
 ├── runtime/
-├── snapshots/
+├── snapshots/             # downloaded bootstrap snapshots, reused on retry
 └── scripts/
     ├── adapters/amaru.adapter
     ├── archive/
@@ -85,15 +93,30 @@ The default layout below assumes `/opt/cardano/amaru`:
     └── env
 ```
 
-Amaru embeds the global parameters, bootstrap snapshot catalogue, and default
-peer information for well-known networks. No cardano-node-style config or
-genesis JSON bundle is needed for the supported networks. Guild Operators
-self-hosts a small environment template for each network, the rolling Amaru
-release policy, and pinned collector metadata.
+Amaru embeds the global parameters and a peer snapshot for well-known networks
+and downloads its bootstrap snapshot catalogue when bootstrapping. No
+cardano-node-style config or genesis JSON bundle is needed for the supported
+networks. Guild Operators self-hosts a small environment template for each
+network, the rolling Amaru release policy, and pinned collector metadata.
+
+The environment template uses Amaru's current setting names, such as
+`AMARU_DB_CHAIN`, `AMARU_DB_LEDGER`, `AMARU_PEERS_LISTEN_ON`, and `AMARU_PEER`.
+Amaru still accepts the older names but has deprecated them. The template also
+sets:
+
+- `AMARU_DB_CHAIN_AUTOMATIC_MIGRATION=true`, so a newer release can upgrade the
+  chain database in place when upstream provides a migration;
+- `AMARU_WITH_OPEN_TELEMETRY=metrics`, because the local collector keeps only
+  metrics;
+- `AMARU_LOG`, matching Amaru's default log filter;
+- `AMARU_PEER`, the network's public relay, because current releases no longer
+  default to one.
 
 The profile deliberately does not create `chain/` or `ledger/`. Upstream
-bootstrap refuses to proceed if either target already exists, which prevents a
-partial or existing database from being overwritten automatically.
+bootstrap refuses to proceed if either already holds data, which prevents a
+partial or existing database from being overwritten automatically. The
+launcher treats a node as bootstrapped only when both directories contain
+data.
 
 ## Bootstrap and service
 
@@ -110,6 +133,11 @@ state directory exists and suggests `-d` only when one or both managed
 systemd units are absent. Refreshing an existing deployment therefore does not
 repeat completed next steps.
 
+Bootstrap downloads compressed snapshots over HTTPS from Amaru's public
+snapshot storage into `snapshots/<network>/`, so the host needs outbound HTTPS
+access. A retried bootstrap reuses archives already downloaded there; delete
+them after a successful bootstrap to reclaim the space.
+
 The bootstrap command disables OpenTelemetry export only for that invocation.
 Bootstrap telemetry is not used by gLiveView. Normal `run` and systemd
 operation continue to use the telemetry settings from `amaru.env`.
@@ -119,16 +147,21 @@ remove the partial state yourself before retrying; the Guild launcher will
 never delete it.
 
 For container volumes, the launcher accepts `AMARU_STATE_ROOT` as a parent
-directory and derives `<root>/chain` and `<root>/ledger` without pre-creating
-either child. Host deployments leave it unset and retain the paths in
-`amaru.env`.
+directory and derives `<root>/chain` and `<root>/ledger` from it. Host
+deployments leave it unset and retain the paths in `amaru.env`.
 
 `-d` installs and enables two systemd units but intentionally does not start
 them: `<service-name>.service` for Amaru and
 `<service-name>-metrics.service` for the local OpenTelemetry Collector. The
 collector restarts on failure. The experimental Amaru node unit uses
 `Restart=always` so unexpected node exits are restarted. An explicit
-`systemctl stop` is still honored.
+`systemctl stop` is still honored, and the unit allows 90 seconds for Amaru to
+close its ledger cleanly before systemd kills it.
+
+Running `amaru.sh run` yourself in an interactive terminal, with the service
+stopped, opens Amaru's built-in terminal dashboard. It runs inside the node
+process, so it cannot attach to the systemd service; use gLiveView for that.
+Set `AMARU_TUI_OFF=true` to keep plain log output in a terminal.
 
 The other lifecycle commands are `start`, `status`, `stop`, `restart`, `logs`,
 and `remove`; they manage both units. `remove` deletes only those units and
@@ -140,10 +173,17 @@ implementation, network, service, or deployment root, run/bootstrap/install
 commands stop and require a corrected deployment instead of managing the
 wrong target.
 
-The default relay listener is TCP 3000 on `0.0.0.0`. Amaru currently provides
-no cardano-node-compatible node-to-client socket in this profile and block
-production is unsupported. Its optional HTTP transaction submission endpoint
-is disabled because it has no built-in authentication or TLS.
+The default relay listener is TCP 3000 on `0.0.0.0`. `AMARU_PEERS_MAX_DOWNSTREAM`
+also caps accepted inbound connections, 10 by default; raise it for a busier
+public relay. Outbound connections reuse the listen port as their source port
+when the operating system allows it, so firewall rules that match on source
+port should allow the relay port in both directions. Set
+`AMARU_PEERS_EPHEMERAL_OUTBOUND_PORT=true` to use ephemeral ports instead.
+
+Amaru provides no cardano-node-compatible node-to-client socket, and this
+profile does not enable Amaru's testnet block production. Its optional HTTP
+transaction submission endpoint, `AMARU_SUBMIT_API_LISTEN_ON`, is disabled
+because it has no built-in authentication or TLS.
 
 ## Monitoring and helper compatibility
 
@@ -176,9 +216,12 @@ Run the dashboard after both services are active:
 /opt/cardano/amaru/scripts/gLiveView.sh
 ```
 
-The shared adapter normalizes Amaru's common chain, epoch, density, mempool,
-connection, served-block, version, uptime, and process measurements. Uptime is
-derived from local timing for the active node process.
+The shared adapter normalizes Amaru's common chain, epoch, density, fork,
+mempool, served-block, version, uptime, and process measurements. Uptime is
+derived from local timing for the active node process. Amaru exports no
+connection or peer-set metrics, so gLiveView counts the node process's
+established TCP sessions instead. Peer details remain available only in
+Amaru's own terminal dashboard.
 
 Epoch progress is calculated from Amaru's latest locally validated epoch and
 epoch slot. While the node is catching up this is local-ledger epoch progress,
@@ -190,15 +233,17 @@ The adapter also handles scientific-notation values emitted through
 OpenTelemetry. The header explicitly identifies `[Amaru]`.
 
 Amaru uses the same availability-driven relay dashboard as the other
-implementations. Compact mode presents the primary operational metrics.
-Verbose mode adds any available connection, propagation, runtime, and
-Amaru-specific samples, including:
+implementations. Compact mode presents the primary operational metrics,
+including the latest block delay, which gLiveView derives from Amaru's header
+and block-fetch timings. Verbose mode adds the share of recent blocks received
+within 1, 3, and 5 seconds, runtime, and Amaru-specific samples, including:
 
-- process CPU usage;
-- open file descriptors and recent disk activity;
+- process CPU usage and disk read/write rates;
+- open file descriptors and their limit;
 - mempool synchronization time and accepted/rejected insertions;
-- consensus header outcomes and fork switches;
-- cumulative mean fetch-wait, block-fetch, and header-forwarding durations.
+- rejected consensus headers;
+- the latest header delay, fetch wait, block fetch, and header-forwarding
+  durations.
 
 Each item is shown only if the installed Amaru release exports the underlying
 sample. Amaru does not expose managed-runtime garbage-collection metrics; the

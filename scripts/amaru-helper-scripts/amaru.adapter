@@ -7,6 +7,39 @@ NODE_ADAPTER_IMPLEMENTATION="amaru"
 NODE_IMPLEMENTATION_DISPLAY_NAME="Amaru"
 NODE_CAPABILITIES="process process_pid metrics prometheus_bridge"
 
+# Histogram state kept between gLiveView refreshes. node_adapter_collect_metrics
+# runs in gLiveView's own shell, so per-interval means survive across scrapes.
+declare -gA AMARU_HIST_PREV_SUM=()
+declare -gA AMARU_HIST_PREV_COUNT=()
+declare -gA AMARU_HIST_LAST_MEAN_US=()
+declare -gA AMARU_HIST_LAST_AT=()
+declare -ga AMARU_BLOCK_DELAYS=()
+AMARU_BLOCK_DELAY_WINDOW=100
+AMARU_DURATION_MAX_AGE=600
+
+# Read one KEY="value" assignment from amaru.env without sourcing it.
+amaru_adapter_env_value() {
+  local key="${1:?environment key required}"
+  local env_file="${2:-}"
+  [[ "${key}" =~ ^[A-Z_]+$ && -f "${env_file}" && -r "${env_file}" ]] || return 1
+  sed -n "s/^${key}=\"\([^\"]*\)\"[[:space:]]*$/\1/p" "${env_file}" | tail -n 1
+}
+
+# Apply listener settings from the deployed environment once per process.
+# Values already present in the caller's environment take precedence.
+amaru_adapter_load_deployment_config() {
+  local env_file key value
+  [[ -z "${AMARU_ADAPTER_CONFIG_LOADED:-}" ]] || return 0
+  AMARU_ADAPTER_CONFIG_LOADED=Y
+  env_file="${NODE_HOME}/scripts/amaru.env"
+  for key in AMARU_PEERS_LISTEN_ON AMARU_SUBMIT_API_LISTEN_ON AMARU_PROMETHEUS_URL; do
+    [[ -z "${!key:-}" ]] || continue
+    value="$(amaru_adapter_env_value "${key}" "${env_file}" 2>/dev/null || true)"
+    [[ -n "${value}" ]] && printf -v "${key}" '%s' "${value}"
+  done
+  return 0
+}
+
 node_adapter_defaults() {
   : "${NODE_IMPLEMENTATION:=amaru}"
   : "${NODE_HOME:=${GUILD_NODE_HOME:-/opt/cardano/amaru}}"
@@ -17,8 +50,9 @@ node_adapter_defaults() {
   # still has no node-to-client socket, local query, or local submit capability.
   : "${CCLI:=${HOME}/.local/bin/cardano-cli-amaru}"
   : "${NODE_NETWORK:=${AMARU_NETWORK:-${NETWORK:-preview}}}"
-  : "${AMARU_LISTEN_ADDRESS:=0.0.0.0:3000}"
-  : "${NODE_PORT:=${AMARU_LISTEN_ADDRESS##*:}}"
+  amaru_adapter_load_deployment_config
+  : "${AMARU_PEERS_LISTEN_ON:=0.0.0.0:3000}"
+  : "${NODE_PORT:=${AMARU_PEERS_LISTEN_ON##*:}}"
   : "${CNODE_PORT:=${NODE_PORT}}"
   : "${NODE_CONFIG:=}"
   NODE_SOCKET=""
@@ -28,7 +62,7 @@ node_adapter_defaults() {
   NODE_HAS_N2C="N"
   NODE_HAS_LOCAL_QUERY="N"
   NODE_HAS_LOCAL_SUBMIT="N"
-  NODE_HAS_HTTP_SUBMIT="$([[ -n "${AMARU_SUBMIT_API_ADDRESS:-}" ]] && printf Y || printf N)"
+  NODE_HAS_HTTP_SUBMIT="$([[ -n "${AMARU_SUBMIT_API_LISTEN_ON:-}" ]] && printf Y || printf N)"
   : "${NODE_METRICS_HOST:=${PROM_HOST:-127.0.0.1}}"
   : "${NODE_METRICS_PORT:=${PROM_PORT:-8889}}"
   : "${NODE_METRICS_PATH:=/metrics}"
@@ -191,13 +225,6 @@ amaru_adapter_metric_sum_by_result() {
   ' <<< "${metrics}"
 }
 
-amaru_adapter_bytes_to_kib() {
-  local value="${1:-}"
-  [[ "${value}" =~ ^[0-9]+([.][0-9]+)?$ ]] || return 1
-  LC_NUMERIC=C awk -v value="${value}" \
-    'BEGIN { printf "%.1f\n", value / 1024 }'
-}
-
 amaru_adapter_metric_sum_by_outcome() {
   local metrics="${1:-}"
   local requested="${2:-}"
@@ -231,8 +258,9 @@ amaru_adapter_metric_sum_by_outcome() {
           record !~ /outcome="valid"/) {
         next
       }
+      # Invalid blocks plus every header the consensus stage refused.
       if (outcome_class == "header_rejected" &&
-          record !~ /outcome="(invalid|invalid header|undecodable header|store header error)"/) {
+          record !~ /outcome="(invalid|invalid_header|undecodable_header|store_header_error)"/) {
         next
       }
       value = sample_value()
@@ -250,7 +278,8 @@ amaru_adapter_metric_sum_by_outcome() {
   ' <<< "${metrics}"
 }
 
-amaru_adapter_histogram_mean_ms() {
+# Print "<sum> <count>" for one histogram outcome, summed across label sets.
+amaru_adapter_histogram_totals() {
   local metrics="${1:-}"
   local requested="${2:-}"
   local outcome="${3:-valid}"
@@ -269,8 +298,7 @@ amaru_adapter_histogram_mean_ms() {
     /^[[:space:]]*#/ || NF < 2 { next }
     {
       record = $0
-      series = $1
-      name = series
+      name = $1
       sub(/\{.*/, "", name)
       if (index(record, "outcome=\"" outcome "\"") == 0) {
         next
@@ -288,11 +316,140 @@ amaru_adapter_histogram_mean_ms() {
       }
     }
     END {
-      if (sum_found && count_found && total_count > 0) {
-        printf "%.2f\n", total_sum / total_count / 1000
+      if (sum_found && count_found) {
+        printf "%.0f %.0f\n", total_sum, total_count
       }
     }
   ' <<< "${metrics}"
+}
+
+# Record the mean of the samples added to one histogram since the previous
+# scrape. Cumulative means would still include the initial sync, so gLiveView
+# shows the latest interval instead. This must run in the calling shell to keep
+# its state. It succeeds only when new samples arrived.
+amaru_adapter_track_histogram() {
+  local key="${1:?histogram key required}"
+  local totals="${2:-}"
+  local now="${3:?timestamp required}"
+  local sum="" count="" previous_sum previous_count
+
+  read -r sum count <<< "${totals}"
+  if [[ ! "${sum}" =~ ^[0-9]+$ || ! "${count}" =~ ^[0-9]+$ ]]; then
+    unset "AMARU_HIST_PREV_SUM[${key}]" "AMARU_HIST_PREV_COUNT[${key}]"
+    return 1
+  fi
+  previous_sum="${AMARU_HIST_PREV_SUM[${key}]:-}"
+  previous_count="${AMARU_HIST_PREV_COUNT[${key}]:-}"
+  AMARU_HIST_PREV_SUM["${key}"]="${sum}"
+  AMARU_HIST_PREV_COUNT["${key}"]="${count}"
+  # The first scrape is only a baseline; a smaller count means a restart.
+  [[ -n "${previous_count}" ]] || return 1
+  (( count > previous_count && sum >= previous_sum )) || return 1
+  AMARU_HIST_LAST_MEAN_US["${key}"]=$(( (sum - previous_sum) / (count - previous_count) ))
+  AMARU_HIST_LAST_AT["${key}"]="${now}"
+}
+
+# Print the latest per-interval mean in milliseconds while it is recent.
+amaru_adapter_recent_mean_ms() {
+  local key="${1:?histogram key required}"
+  local now="${2:?timestamp required}"
+  local max_age="${3:-${AMARU_DURATION_MAX_AGE}}"
+  local mean="${AMARU_HIST_LAST_MEAN_US[${key}]:-}"
+  local observed="${AMARU_HIST_LAST_AT[${key}]:-}"
+  [[ "${mean}" =~ ^[0-9]+$ && "${observed}" =~ ^[0-9]+$ ]] || return 1
+  (( now - observed <= max_age )) || return 1
+  LC_NUMERIC=C awk -v mean="${mean}" 'BEGIN { printf "%.1f\n", mean / 1000 }'
+}
+
+# Slot start to block received: header arrival after the slot began, the wait
+# before fetching, and the fetch itself. Each part is the latest interval mean.
+amaru_adapter_update_block_delay() {
+  local now="${1:?timestamp required}"
+  local block_fetched="${2:-N}"
+  local header_ms wait_ms fetch_ms delay count ratios
+  local -a shares=()
+
+  header_ms="$(amaru_adapter_recent_mean_ms slot_start "${now}" 2>/dev/null || true)"
+  wait_ms="$(amaru_adapter_recent_mean_ms fetch_wait "${now}" 2>/dev/null || true)"
+  fetch_ms="$(amaru_adapter_recent_mean_ms block_fetch "${now}" 2>/dev/null || true)"
+  if [[ -z "${header_ms}" || -z "${wait_ms}" || -z "${fetch_ms}" ]]; then
+    node_metric_unset block_delay
+    node_metric_unset blocks_w1s
+    node_metric_unset blocks_w3s
+    node_metric_unset blocks_w5s
+    return 0
+  fi
+  delay="$(
+    LC_NUMERIC=C awk -v h="${header_ms}" -v w="${wait_ms}" -v f="${fetch_ms}" \
+      'BEGIN { printf "%.3f\n", (h + w + f) / 1000 }'
+  )"
+  node_metric_set block_delay "${delay}"
+
+  # Header delays are recorded only once Amaru follows the tip, so a block
+  # fetched while that measurement is fresh is a live block.
+  if [[ "${block_fetched}" == "Y" ]] &&
+     (( now - ${AMARU_HIST_LAST_AT[slot_start]:-0} <= 60 )); then
+    AMARU_BLOCK_DELAYS+=("${delay}")
+    count=${#AMARU_BLOCK_DELAYS[@]}
+    if (( count > AMARU_BLOCK_DELAY_WINDOW )); then
+      AMARU_BLOCK_DELAYS=("${AMARU_BLOCK_DELAYS[@]:count-AMARU_BLOCK_DELAY_WINDOW}")
+    fi
+  fi
+  (( ${#AMARU_BLOCK_DELAYS[@]} > 0 )) || return 0
+  # Shares of the live blocks seen while gLiveView has been running.
+  ratios="$(
+    printf '%s\n' "${AMARU_BLOCK_DELAYS[@]}" | LC_NUMERIC=C awk '
+      { count++; if ($1 <= 1) one++; if ($1 <= 3) three++; if ($1 <= 5) five++ }
+      END { printf "%.4f %.4f %.4f\n", one / count, three / count, five / count }
+    '
+  )"
+  read -r -a shares <<< "${ratios}"
+  node_metric_set blocks_w1s "${shares[0]}"
+  node_metric_set blocks_w3s "${shares[1]}"
+  node_metric_set blocks_w5s "${shares[2]}"
+}
+
+# Amaru does not export connection-manager gauges, so count the established
+# TCP sessions owned by the node process. Outbound sessions reuse the listen
+# port, so direction cannot be told apart; loopback telemetry is excluded.
+amaru_adapter_tcp_peers() {
+  local pid="${1:-}"
+  [[ "${pid}" =~ ^[1-9][0-9]*$ ]] || return 1
+  command -v ss >/dev/null 2>&1 || return 1
+  ss -Htnp state established 2>/dev/null | awk -v owner="pid=${pid}," '
+    NF { sessions++ }
+    /users:\(/ { visible = 1 }
+    index($0, owner) == 0 { next }
+    {
+      peer = ""
+      for (field = 1; field <= NF; field++) {
+        if ($field ~ /^users:/) {
+          peer = $(field - 1)
+          break
+        }
+      }
+      if (peer == "" ||
+          peer ~ /^(127\.|\[::1\]|\[::ffff:127\.|::1:)/) {
+        next
+      }
+      count++
+    }
+    END {
+      # Sessions without any process column mean the caller cannot see which
+      # process owns them.
+      if (sessions > 0 && !visible) {
+        exit 1
+      }
+      print count + 0
+    }
+  '
+}
+
+amaru_adapter_max_open_files() {
+  local pid="${1:-}"
+  local limits_file="${AMARU_PROCFS_ROOT:-/proc}/${pid}/limits"
+  [[ "${pid}" =~ ^[1-9][0-9]*$ && -r "${limits_file}" ]] || return 1
+  awk '/^Max open files/ { print $4; exit }' "${limits_file}"
 }
 
 amaru_adapter_host_uptime() {
@@ -383,8 +540,21 @@ amaru_adapter_set_optional_custom_metric() {
   fi
 }
 
+amaru_adapter_set_info() {
+  local variable="${1:?variable name required}"
+  local value="${2:-}"
+  local label="${3:?metric label required}"
+  local unit="${4:-}"
+  if [[ -n "${value}" ]]; then
+    node_metric_set_info "${variable}" "${value}" "${label}" "${unit}"
+  else
+    node_metric_unset_info "${variable}"
+  fi
+}
+
 node_adapter_collect_metrics() {
-  local node_metrics normalized_metrics value pid
+  local node_metrics normalized_metrics value pid now
+  local os arch block_fetched=N
   node_adapter_defaults
   node_metrics="$(
     curl --fail --silent --show-error \
@@ -395,77 +565,112 @@ node_adapter_collect_metrics() {
 
   normalized_metrics="$(printf '%s\n' "${node_metrics}" | prometheus_normalize_metrics)"
   common_parse_cardano_metrics "${normalized_metrics}"
+  printf -v now '%(%s)T' -1
+
+  # Amaru derives its KES gauges from the network clock rather than from an
+  # operational certificate, and it does not forge here. The current period
+  # is still useful context for offline operational-certificate work.
+  node_metric_unset kesperiod
+  node_metric_unset remaining_kes_periods
+  if prometheus_first_metric_value value cardano_node_metrics_currentKESPeriod_int &&
+     node_metric_value_is_numeric "${value}"; then
+    amaru_adapter_set_info amaru_kes_period "${value}" "KES period"
+  else
+    node_metric_unset_info amaru_kes_period
+  fi
+
+  # Only fork switches that changed the selected chain count as forks.
+  value="$(
+    amaru_adapter_metric_sum_by_outcome \
+      "${normalized_metrics}" amaru_consensus_fork_switch_total valid
+  )"
+  amaru_adapter_set_optional_metric forks "${value}"
 
   # The service PID is authoritative for node uptime and cannot collide with
   # process-runtime series from another Amaru invocation.
   pid="$(node_adapter_process_pid 2>/dev/null || true)"
   value="$(amaru_adapter_process_uptime "${pid}" 2>/dev/null || true)"
   amaru_adapter_set_optional_metric uptimes "${value}"
+  value="$(amaru_adapter_tcp_peers "${pid}" 2>/dev/null || true)"
+  amaru_adapter_set_optional_metric conn_total "${value}"
+  value="$(amaru_adapter_metric_value "${normalized_metrics}" "process_open_files")"
+  amaru_adapter_set_optional_metric open_files "${value}"
+  value="$(amaru_adapter_max_open_files "${pid}" 2>/dev/null || true)"
+  amaru_adapter_set_optional_metric max_files "${value}"
 
   value="$(amaru_adapter_metric_value "${normalized_metrics}" "process_cpu_live")"
   amaru_adapter_set_optional_custom_metric \
-    amaru_cpu_percent "${value}" "Process CPU" "%"
-  value="$(amaru_adapter_metric_value "${normalized_metrics}" "process_open_files")"
-  amaru_adapter_set_optional_metric open_files "${value}"
+    amaru_cpu_percent "${value}" "Proc CPU" "%"
   value="$(amaru_adapter_metric_value "${normalized_metrics}" "process_disk_live_read")"
-  value="$(amaru_adapter_bytes_to_kib "${value}" 2>/dev/null || true)"
   amaru_adapter_set_optional_custom_metric \
-    amaru_disk_read_kib "${value}" "Disk read" "KiB"
+    amaru_disk_read_rate "${value}" "Disk rd/s" "B"
   value="$(amaru_adapter_metric_value "${normalized_metrics}" "process_disk_live_write")"
-  value="$(amaru_adapter_bytes_to_kib "${value}" 2>/dev/null || true)"
   amaru_adapter_set_optional_custom_metric \
-    amaru_disk_write_kib "${value}" "Disk write" "KiB"
+    amaru_disk_write_rate "${value}" "Disk wr/s" "B"
+  value="$(amaru_adapter_metric_sum_by_result "${normalized_metrics}" accepted)"
+  amaru_adapter_set_optional_custom_metric \
+    amaru_tx_accepted "${value}" "Tx accept"
+  value="$(amaru_adapter_metric_sum_by_result "${normalized_metrics}" rejected)"
+  amaru_adapter_set_optional_custom_metric \
+    amaru_tx_rejected "${value}" "Tx reject"
   value="$(
     amaru_adapter_metric_value \
       "${normalized_metrics}" "cardano_node_metrics_txsSyncDuration_int"
   )"
   amaru_adapter_set_optional_custom_metric \
     amaru_mempool_sync_ms "${value}" "Pool sync" "ms"
-  value="$(amaru_adapter_metric_sum_by_result "${normalized_metrics}" accepted)"
-  amaru_adapter_set_optional_custom_metric \
-    amaru_mempool_insertions_accepted "${value}" "Mempool accepted"
-  value="$(amaru_adapter_metric_sum_by_result "${normalized_metrics}" rejected)"
-  amaru_adapter_set_optional_custom_metric \
-    amaru_mempool_insertions_rejected "${value}" "Mempool rejected"
 
-  value="$(
-    amaru_adapter_metric_sum_by_outcome \
-      "${normalized_metrics}" amaru_consensus_header_total valid
-  )"
+  amaru_adapter_track_histogram slot_start "$(
+    amaru_adapter_histogram_totals "${normalized_metrics}" \
+      amaru_consensus_slot_start_to_header_duration_microseconds valid
+  )" "${now}" || true
+  amaru_adapter_track_histogram fetch_wait "$(
+    amaru_adapter_histogram_totals "${normalized_metrics}" \
+      amaru_consensus_block_fetch_wait_duration_microseconds valid
+  )" "${now}" || true
+  if amaru_adapter_track_histogram block_fetch "$(
+    amaru_adapter_histogram_totals "${normalized_metrics}" \
+      amaru_consensus_block_fetch_duration_microseconds valid
+  )" "${now}"; then
+    block_fetched=Y
+  fi
+  amaru_adapter_track_histogram header_forward "$(
+    amaru_adapter_histogram_totals "${normalized_metrics}" \
+      amaru_consensus_header_forward_duration_microseconds valid
+  )" "${now}" || true
+  amaru_adapter_update_block_delay "${now}" "${block_fetched}"
+
+  value="$(amaru_adapter_recent_mean_ms slot_start "${now}" 2>/dev/null || true)"
   amaru_adapter_set_optional_custom_metric \
-    amaru_headers_valid "${value}" "Headers ok"
+    amaru_header_delay_ms "${value}" "Hdr delay" "ms"
+  value="$(amaru_adapter_recent_mean_ms fetch_wait "${now}" 2>/dev/null || true)"
+  amaru_adapter_set_optional_custom_metric \
+    amaru_fetch_wait_ms "${value}" "Fetch wait" "ms"
+  value="$(amaru_adapter_recent_mean_ms block_fetch "${now}" 2>/dev/null || true)"
+  amaru_adapter_set_optional_custom_metric \
+    amaru_block_fetch_ms "${value}" "Fetch time" "ms"
+  value="$(amaru_adapter_recent_mean_ms header_forward "${now}" 2>/dev/null || true)"
+  amaru_adapter_set_optional_custom_metric \
+    amaru_header_forward_ms "${value}" "Forward" "ms"
   value="$(
     amaru_adapter_metric_sum_by_outcome \
       "${normalized_metrics}" amaru_consensus_header_total header_rejected
   )"
   amaru_adapter_set_optional_custom_metric \
-    amaru_headers_rejected "${value}" "Rejected"
-  value="$(
-    amaru_adapter_metric_sum_by_outcome \
-      "${normalized_metrics}" amaru_consensus_fork_switch_total all
-  )"
-  amaru_adapter_set_optional_custom_metric \
-    amaru_fork_switches "${value}" "Forks sw"
+    amaru_headers_rejected "${value}" "Hdr reject"
 
-  value="$(
-    amaru_adapter_histogram_mean_ms \
-      "${normalized_metrics}" \
-      amaru_consensus_block_fetch_wait_duration_microseconds valid
-  )"
-  amaru_adapter_set_optional_custom_metric \
-    amaru_fetch_wait_ms "${value}" "Fetch wait" "ms"
-  value="$(
-    amaru_adapter_histogram_mean_ms \
-      "${normalized_metrics}" \
-      amaru_consensus_block_fetch_duration_microseconds valid
-  )"
-  amaru_adapter_set_optional_custom_metric \
-    amaru_block_fetch_ms "${value}" "Fetch avg" "ms"
-  value="$(
-    amaru_adapter_histogram_mean_ms \
-      "${normalized_metrics}" \
-      amaru_consensus_header_forward_duration_microseconds valid
-  )"
-  amaru_adapter_set_optional_custom_metric \
-    amaru_header_forward_ms "${value}" "Forward" "ms"
+  value=""
+  if [[ -n "${PROMETHEUS_SAMPLE_VALUE[cardano_node_metrics_cardano_build_info]+present}" ]] &&
+     os="$(prometheus_metric_label cardano_node_metrics_cardano_build_info os)" &&
+     arch="$(prometheus_metric_label cardano_node_metrics_cardano_build_info arch)"; then
+    value="${os}/${arch}"
+  fi
+  amaru_adapter_set_info amaru_platform "${value}" "Platform"
+  value="$(amaru_adapter_metric_value "${normalized_metrics}" "host_memory_total")"
+  if node_metric_value_is_numeric "${value}"; then
+    value="$(LC_NUMERIC=C awk -v bytes="${value}" 'BEGIN { printf "%.1f", bytes / 1073741824 }')"
+  else
+    value=""
+  fi
+  amaru_adapter_set_info amaru_host_memory "${value}" "Host memory" "GiB"
 }

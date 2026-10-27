@@ -1,11 +1,17 @@
 # Dingo deployment profile
 
 !!! danger "Experimental testnet support"
-    Dingo describes itself as under heavy active development and not ready for
-    production use. The Guild Operators profile is therefore restricted to
-    `preprod` and `preview`. Relay and block-producer modes are available for
-    testing, but must not be used on mainnet or with keys controlling real
-    funds.
+    Dingo is under heavy active development and upstream states that it is not
+    yet ready for mainnet block production. The Guild Operators profile is
+    restricted to `preprod` and `preview`. Relay and block-producer modes are
+    available for testing, but must not be used on mainnet or with keys
+    controlling real funds.
+
+!!! warning "Coming from an earlier Dingo deployment"
+    The profile tracks the newest Dingo release, whose database format is not
+    compatible with databases created by older releases. Start over fresh:
+    stop the service, delete the contents of `db/`, refresh the configuration
+    with `guild-deploy.sh -i dingo -n <network> -s df`, and bootstrap again.
 
 ## Supported deployment
 
@@ -57,10 +63,12 @@ must publish a valid GitHub SHA-256 digest. Its repository, tag, filename,
 download URL, size, and digest are validated together before download.
 
 The Dingo CLI pin is 11.4.0.0, the same release pinned by the cnode and Amaru
-profiles. It offers node-to-client V23, which Dingo's gouroboros handshake
-supports. Dingo does not provide a separate operator CLI: its Unix
-socket implements Ouroboros node-to-client and is designed for `cardano-cli`
-and other standard Cardano clients.
+profiles and by Dingo's own container image. Current Dingo releases negotiate
+node-to-client V23 with it and answer `cardano-cli query tip`. Dingo does not
+yet answer the stake-pool state query on preview or preprod. Dingo does not
+provide a separate operator CLI: its Unix socket implements Ouroboros
+node-to-client and is designed for `cardano-cli` and other standard Cardano
+clients.
 
 Resolution fails instead of falling back to an older node release if GitHub is
 unavailable or the newest release has missing, ambiguous, or malformed asset
@@ -75,7 +83,7 @@ The default layout below assumes `/opt/cardano/dingo`:
 ```text
 /opt/cardano/dingo/
 ├── .deployment.json
-├── db/
+├── db/                    # blob/, metadata.sqlite, Mithril download cache
 ├── files/
 │   ├── dingo-release.json
 │   └── dingo.yaml
@@ -86,7 +94,6 @@ The default layout below assumes `/opt/cardano/dingo`:
 │           ├── hot.skey       # online KES signing key
 │           ├── vrf.skey       # online VRF signing key
 │           └── op.cert        # operational certificate
-├── snapshots/
 ├── sockets/
 │   └── dingo.socket       # created while Dingo is running
 └── scripts/
@@ -111,15 +118,19 @@ The supplied YAML uses a conservative relay default:
 - `storageMode: core`
 - `runMode: serve`
 - `blockProducer: false`
+- `metricsBindAddr: 127.0.0.1`, so Prometheus is reachable only locally
+- `healthPort: 0`, which disables the unauthenticated `/healthz` and `/readyz`
+  listener that would otherwise bind the public relay address on TCP 12799
 - optional Blockfrost, UTxO RPC, Mesh, Bark, pprof, and tracing endpoints off
 - a 30-second graceful shutdown window
 
 `dingo.sh` owns the effective runtime role. It resets inherited Dingo forging
 variables, inspects the configured `POOL_DIR`, and exports Dingo's official
 `CARDANO_BLOCK_PRODUCER` and `CARDANO_SHELLEY_*` variables only when the
-complete operational credential set is present. Environment variables have
-higher priority than the YAML relay default, matching Dingo's upstream
-configuration precedence.
+complete operational credential set is present. It also clears Dingo's KES
+agent settings, because Dingo refuses to start with both a KES key file and a
+KES agent. Environment variables have higher priority than the YAML relay
+default, matching Dingo's upstream configuration precedence.
 
 ## Relay and block-producer modes
 
@@ -167,6 +178,19 @@ operational-certificate counter in a reviewed offline workflow; Dingo support
 does not change that security model. CNTools 14 is currently an interface
 skeleton and does not yet implement these operational workflows.
 
+To rotate the KES key or operational certificate of a running producer,
+replace `hot.skey` and `op.cert` in place and run:
+
+```bash
+/opt/cardano/dingo/scripts/dingo.sh reload
+```
+
+Dingo re-reads the credential files and switches to them only if the new set
+validates; otherwise it keeps forging with the current set and logs why. The
+command refuses to signal a service that was started as a relay, because a
+relay exits on that signal. Use `restart` to change between relay and producer
+mode.
+
 `dingo.sh bootstrap` always forces relay mode and does not require hot keys.
 This permits state import before the operational credentials are copied. The
 generated systemd unit remains role-neutral: every service start repeats the
@@ -196,8 +220,9 @@ binary or script refresh of an existing deployment therefore prints neither
 next step.
 
 `-d` installs and enables the systemd unit but intentionally does not start it.
-The other lifecycle commands are `start`, `status`, `stop`, `restart`, `logs`,
-and `remove`. `remove` deletes only the unit; it leaves the database and config
+The other lifecycle commands are `start`, `status`, `stop`, `restart`,
+`reload` (producers only, see above), `logs`, and `remove`. `remove` deletes
+only the unit; it leaves the database and config
 intact. The launcher can recover the service identity from `.deployment.json`,
 so `status` and `remove` still work if the Dingo binary or configuration files
 have already been removed. The manifest and launcher location are authoritative:
@@ -205,10 +230,18 @@ if `dingo.env` declares a conflicting implementation, network, service, or
 deployment root, run/bootstrap/install commands stop and require a corrected
 deployment instead of managing the wrong target.
 
-Upstream's current guidance estimates that bootstrap needs about
-150 GB free for preprod or 50 GB for preview because the snapshot and database
-coexist during import. These figures grow over time, so check upstream before
-provisioning a host.
+Bootstrap downloads the snapshot into `db/.mithril-cache` and removes it after
+the import, so the snapshot and the database briefly need space on the same
+filesystem together. Extraction stops when free space falls below the larger
+of 1 GiB or 10% of the filesystem, and the whole download must finish within
+24 hours. Upstream no longer publishes per-network sizes; as a rough Guild
+estimate, allow about 150 GB for preprod and 50 GB for preview, and check
+current snapshot sizes before provisioning a host.
+
+If a bootstrap is interrupted, run `dingo.sh bootstrap` again. It resumes the
+same snapshot. Until it completes, the service refuses to start and logs
+`incomplete sync detected`. If Mithril no longer serves that snapshot, delete
+the contents of `db/` and bootstrap from the start.
 
 ## Network exposure
 
@@ -217,11 +250,15 @@ provisioning a host.
 | Ouroboros node-to-node | TCP 3001 | `0.0.0.0` |
 | Ouroboros node-to-client | TCP 3002 | `127.0.0.1` |
 | Ouroboros node-to-client | Unix socket | `$NODE_HOME/sockets/dingo.socket` |
-| Prometheus | TCP 12798 | Dingo's shared public bind address |
+| Prometheus | TCP 12798 | `127.0.0.1` (`metricsBindAddr`) |
+| Health probes | Disabled | Would bind `0.0.0.0` on TCP 12799 if enabled |
 
-Because the metrics listener uses Dingo's `bindAddr`, the supplied
-`0.0.0.0` public relay bind also exposes TCP 12798. Restrict that port with the
-host or network firewall.
+To scrape metrics from another host, set `metricsBindAddr` (or
+`DINGO_METRICS_BIND_ADDR`) and also set `DINGO_METRICS_AUTH_TOKEN` in
+`dingo.env`. Dingo then requires the token as a Bearer token, and gLiveView and
+the Docker healthcheck send it automatically. The endpoint remains plain HTTP,
+so restrict access with a firewall or an encrypted tunnel. `guild-deploy.sh`
+warns when the deployed configuration exposes either listener.
 
 ## Monitoring and helper compatibility
 
@@ -233,8 +270,9 @@ Run the dashboard after the relay starts:
 /opt/cardano/dingo/scripts/gLiveView.sh
 ```
 
-The adapter reads Dingo's native Prometheus endpoint and accepts the
-`network="<network>"` label that Dingo adds to its metric samples. Common
+The adapter reads Dingo's native Prometheus endpoint, using the relay port,
+metrics address, and metrics port from the deployed `dingo.yaml`, and accepts
+the `network="<network>"` label that Dingo adds to its metric samples. Common
 chain, epoch, density, mempool, connection, propagation, process, and runtime
 measurements are mapped into the shared gLiveView interface. The header
 explicitly identifies `[Dingo]`.
@@ -245,9 +283,14 @@ CHAIN section alongside the local block and slot; a separate reference-tip
 field is not shown. Compact mode presents the primary operational metrics,
 including aggregate known, established, and active peer sets when exported.
 Verbose mode adds available connection, propagation, Go runtime, open-file,
-database-size, and cache-efficiency detail. Selected internal error counters
-are shown only when nonzero. Metrics absent from the current scrape are omitted
-instead of displayed as zero.
+database-size, cache-efficiency, mempool-fill, and block-adoption detail.
+Internal error counters are shown only when nonzero. An ALERT row appears for
+conditions that need operator action, such as a halted or stuck ledger, the
+operator's own pool equivocating, or invalid forging keys. Metrics absent from
+the current scrape are omitted instead of displayed as zero.
+
+gLiveView can also follow `dingo.sh bootstrap`: while it runs, a SYNC row shows
+the Mithril phase, its progress, and the download or copy rate.
 
 Press `n` to open the Network page. Dingo's Go runtime version, epoch length,
 and Shelley start time appear there with the common node, network, service,
@@ -262,10 +305,11 @@ and display controls.
 
 When Dingo reports forging enabled, gLiveView identifies the role as `Core` and
 adds an availability-driven block-production section. Current and remaining
-KES periods, calculated KES expiry, leader slots, and forged/adopted outcomes
-are shown when exported. Verbose mode adds leadership checks, non-leader and
-failed-forge counters, operational-certificate KES bounds, and Dingo-specific
-forge diagnostics. CNCLI blocklog, Koios pool data, Mithril signer, and
+KES periods, calculated KES expiry, credential validity, scheduled and won
+leader slots, forged/adopted outcomes, and lost leader slots are shown when
+exported. Verbose mode adds the operational-certificate counters on disk and
+on chain, leadership checks, non-leader and failed-forge counters,
+operational-certificate KES bounds, and Dingo-specific forge diagnostics. CNCLI blocklog, Koios pool data, Mithril signer, and
 interactive peer analysis remain cnode-only.
 
 The Dingo adapter exposes `cardano-cli-dingo` and
@@ -288,9 +332,8 @@ If gLiveView cannot connect, verify the process and endpoint independently:
 curl --fail http://127.0.0.1:12798/metrics
 ```
 
-The endpoint is consumed through loopback by gLiveView, but Dingo binds the
-metrics listener with its shared public `bindAddr`; the firewall warning above
-still applies.
+If you set `DINGO_METRICS_AUTH_TOKEN`, add
+`-H "Authorization: Bearer <token>"` to the `curl` check.
 
 ## Upstream release contract and sources
 

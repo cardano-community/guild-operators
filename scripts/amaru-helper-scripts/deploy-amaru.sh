@@ -285,8 +285,9 @@ amaru_deploy_prepare_layout() {
     "${NODE_HOME}/scripts/archive" \
     "${NODE_HOME}/scripts/lib" || return 1
 
-  # Do not create chain or ledger here. `amaru node bootstrap` intentionally
-  # refuses to operate when either destination directory already exists.
+  # Do not create chain or ledger here. Their presence with content is what
+  # marks a bootstrapped node, and `amaru node bootstrap` refuses to touch a
+  # populated destination.
   amaru_deploy_ok "Amaru relay layout" "${NODE_HOME}"
 }
 
@@ -379,7 +380,8 @@ amaru_deploy_install_environment() {
   if [[ -f "${destination}" ]]; then
     current_network="$(sed -n 's/^AMARU_NETWORK="\([^"]*\)".*/\1/p' "${destination}" | head -n 1)"
     if [[ -n "${current_network}" && "${current_network}" != "${NETWORK}" ]]; then
-      if [[ -d "${NODE_HOME}/chain" || -d "${NODE_HOME}/ledger" ]]; then
+      if amaru_deploy_state_populated "${NODE_HOME}/chain" ||
+         amaru_deploy_state_populated "${NODE_HOME}/ledger"; then
         rm -f -- "${rendered}"
         amaru_deploy_fail "Refusing network change from ${current_network} to ${NETWORK} while Amaru state exists; use a new NODE_HOME"
         return 1
@@ -630,8 +632,8 @@ amaru_deploy_install_binary() (
   mkdir "${temporary_dir}/extract"
   tar -xzf "${archive}" -C "${temporary_dir}/extract"
   binary="$(find "${temporary_dir}/extract" -type f -path '*/bin/amaru' -print -quit)"
-  # The official release archive stores bin/amaru with mode 0644. Validate the
-  # resolved release layout here; install(1) applies the executable mode below.
+  # Validate the resolved release layout here; install(1) applies the
+  # executable mode below regardless of the mode stored in the archive.
   [[ -n "${binary}" && -f "${binary}" ]] || {
     amaru_deploy_fail "Verified Amaru archive does not contain bin/amaru"
     exit 1
@@ -711,8 +713,13 @@ amaru_deploy_install_binary() (
     "Installed verified OpenTelemetry Collector" "${collector_version}"
 )
 
+amaru_deploy_state_populated() {
+  [[ -d "$1" ]] && find "$1" -mindepth 1 -print -quit 2>/dev/null | grep -q .
+}
+
 amaru_deploy_show_next_steps() {
-  if [[ ! -e "${NODE_HOME}/chain" && ! -e "${NODE_HOME}/ledger" ]]; then
+  if ! amaru_deploy_state_populated "${NODE_HOME}/chain" &&
+     ! amaru_deploy_state_populated "${NODE_HOME}/ledger"; then
     amaru_deploy_info \
       "Bootstrap node state: ${NODE_HOME}/scripts/amaru.sh bootstrap"
   fi

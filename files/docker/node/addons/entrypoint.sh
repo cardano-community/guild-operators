@@ -169,6 +169,8 @@ if [[ "${NODE_IMPLEMENTATION}" == "amaru" &&
       ( $# -eq 0 || "${1:-}" == "run" ) ]]; then
   metrics_pid=""
   node_pid=""
+  # Container output is a log stream, not an interactive dashboard.
+  export AMARU_TUI_OFF="${AMARU_TUI_OFF:-true}"
   forward_amaru_signal() {
     local signal_name="$1"
     [[ -n "${node_pid}" ]] && kill "-${signal_name}" "${node_pid}" 2>/dev/null || true
@@ -176,7 +178,9 @@ if [[ "${NODE_IMPLEMENTATION}" == "amaru" &&
   }
   trap 'forward_amaru_signal INT' INT
   trap 'forward_amaru_signal TERM' TERM
-  trap 'forward_amaru_signal HUP' HUP
+  # Amaru has no reload action and exits on SIGHUP without a clean shutdown,
+  # so the children inherit an ignored SIGHUP.
+  trap '' HUP
 
   "${NODE_HOME}/scripts/amaru.sh" metrics &
   metrics_pid=$!

@@ -506,7 +506,9 @@ common_parse_cardano_metrics() {
     conn_outgoing conn_uni_dir conn_bi_dir conn_duplex forging_enabled
     running_node_version running_node_rev tip_gap inbound_governor_warm
     inbound_governor_hot peer_known peer_established peer_active open_files
-    max_files
+    max_files conn_total node_alert sync_phase sync_progress sync_rate
+    leader_lost leader_sched_slots leader_sched_epoch forge_keys_valid
+    opcert_counter_disk opcert_counter_chain
   )
   if [[ $# -gt 0 ]]; then
     node_metrics="${1}"
@@ -522,6 +524,7 @@ common_parse_cardano_metrics() {
     case "${metric_name}" in
       density) printf -v "${metric_name}" '%s' "0.0" ;;
       running_node_version|running_node_rev) printf -v "${metric_name}" '%s' "?" ;;
+      node_alert|sync_phase|sync_rate) printf -v "${metric_name}" '%s' "" ;;
       *) printf -v "${metric_name}" '%s' "0" ;;
     esac
     NODE_METRIC_AVAILABLE["${metric_name}"]=0
