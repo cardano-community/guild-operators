@@ -386,9 +386,10 @@ cntools_wallet_mnemonic_render_phrase() {
     "Anyone with these words can control this wallet. Record them offline and never share them."
   cntools_ui_render_detail "Recovery phrase — copy as one line" || return 1
   # Over stdin, never argv: process arguments are visible to other users.
+  # The width includes the border but not the 2+2 margin.
   printf '%s\n' "${phrase}" |
     cntools_gum style --margin "0 2 1 2" --padding "0 1" \
-      --width "${width}" --border rounded \
+      --width "$((width - 4))" --border rounded \
       --border-foreground "${CNTOOLS_GUM_COLOR_WARNING}" \
       --foreground "${CNTOOLS_GUM_COLOR_TEXT}" || return 1
   unset phrase

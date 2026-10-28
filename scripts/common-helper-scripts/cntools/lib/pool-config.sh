@@ -86,7 +86,7 @@ cntools_pool_public_save() {
 cntools_pool_config_save() {
   local directory="${CNTOOLS_POOL_DIRECTORIES[CNTOOLS_POOL_REG_INDEX]}" file='' filename='' record='' owners='[]' reward=''
   while IFS= read -r record; do
-    record="$(jq --argjson public "$(jq . "$(jq -r .vkey <<< "${record}")")" '{label,hash,address,publicKey:$public}' <<< "${record}")" || return 1
+    record="$(jq --argjson public "$(jq . "$(jq -r .vkey <<< "${record}")")" '{label: .label, hash: .hash, address: .address, publicKey: $public}' <<< "${record}")" || return 1
     owners="$(jq -c --argjson record "${record}" '.+[$record]' <<< "${owners}")" || return 1
   done < <(jq -c '.[]' <<< "${CNTOOLS_POOL_REG_OWNERS}")
   reward="$(jq -cn --arg reward_label "${CNTOOLS_POOL_REG_REWARD_LABEL}" --arg hash "${CNTOOLS_POOL_REG_REWARD_HASH}" \

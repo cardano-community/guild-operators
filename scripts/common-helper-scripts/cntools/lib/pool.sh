@@ -198,14 +198,23 @@ cntools_pool_policy_rows() {
     untouched="${CNTOOLS_FUNDING_REFERENCE_SKIPPED:-0}"
   fi
   [[ "${untouched}" =~ ^[0-9]+$ ]] || untouched=0
-  if [[ "${extra}" =~ ^[1-9][0-9]*$ ]]; then untouched=$((untouched + extra)) what='script or datum UTxO'; fi
+  # EXTRA more UTxOs of kind EXTRA_WHAT (a metadata build's datum UTxOs).
+  if [[ "${extra}" =~ ^[1-9][0-9]*$ ]]; then
+    if ((untouched == 0)); then what="${3:-script or datum UTxO}"
+    elif [[ "${what}" != "${3:-}" ]]; then what='script or datum UTxO'; fi
+    untouched=$((untouched + extra))
+  fi
   if ((untouched > 0)); then
     label="$(cntools_number_format "${untouched}") ${what}"
     (( untouched == 1 )) || label+=s
     cntools_table_pair 'Left untouched' "${label}" value
   fi
-  [[ "${CNTOOLS_CHANGE_TOKEN_STATUS:-}" == Disabled* || -z "${CNTOOLS_CHANGE_TOKEN_STATUS:-}" ]] ||
+  # The split the value-size limit forces is shown even with fragmentation off.
+  if [[ "${CNTOOLS_CHANGE_TOKEN_STATUS:-}" == *'safety split into '* ]]; then
+    cntools_table_pair 'Token change' "Split into ${CNTOOLS_CHANGE_TOKEN_STATUS##*safety split into } · value-size limit" value
+  elif [[ "${CNTOOLS_CHANGE_TOKEN_STATUS:-}" != Disabled* && -n "${CNTOOLS_CHANGE_TOKEN_STATUS:-}" ]]; then
     cntools_table_pair 'Token fragmentation' "${CNTOOLS_CHANGE_TOKEN_STATUS}" value
+  fi
   [[ "${CNTOOLS_CHANGE_UTXO_STATUS:-}" == Disabled* || -z "${CNTOOLS_CHANGE_UTXO_STATUS:-}" ]] ||
     cntools_table_pair 'ADA-only management' "${CNTOOLS_CHANGE_UTXO_STATUS}" value
   [[ "${CNTOOLS_CHANGE_COLLATERAL_STATUS:-}" == Disabled* || -z "${CNTOOLS_CHANGE_COLLATERAL_STATUS:-}" ]] ||

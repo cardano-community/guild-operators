@@ -285,8 +285,13 @@ cntools_transaction_ui_render_policy_rows() {
   label="$(cntools_settings_strategy_name "${strategy}" 2>/dev/null)" || label="${strategy}"
   label+=" · $(cntools_number_format "${inputs}") input"; (( inputs == 1 )) || label+=s
   cntools_transaction_ui_styled_row 'Input selection' "${label}" value
-  [[ "${CNTOOLS_CHANGE_TOKEN_STATUS:-}" == Disabled* || -z "${CNTOOLS_CHANGE_TOKEN_STATUS:-}" ]] ||
+  # The split the value-size limit forces is shown even with fragmentation
+  # off: it explains the extra change outputs.
+  if [[ "${CNTOOLS_CHANGE_TOKEN_STATUS:-}" == *'safety split into '* ]]; then
+    cntools_transaction_ui_styled_row 'Token change' "Split into ${CNTOOLS_CHANGE_TOKEN_STATUS##*safety split into } · value-size limit" value
+  elif [[ "${CNTOOLS_CHANGE_TOKEN_STATUS:-}" != Disabled* && -n "${CNTOOLS_CHANGE_TOKEN_STATUS:-}" ]]; then
     cntools_transaction_ui_styled_row 'Token fragmentation' "${CNTOOLS_CHANGE_TOKEN_STATUS}" value
+  fi
   [[ "${CNTOOLS_CHANGE_UTXO_STATUS:-}" == Disabled* || -z "${CNTOOLS_CHANGE_UTXO_STATUS:-}" ]] ||
     cntools_transaction_ui_styled_row 'ADA-only management' "${CNTOOLS_CHANGE_UTXO_STATUS}" value
   [[ "${CNTOOLS_CHANGE_COLLATERAL_STATUS:-}" == Disabled* || -z "${CNTOOLS_CHANGE_COLLATERAL_STATUS:-}" ]] ||
@@ -539,9 +544,13 @@ cntools_transaction_ui_effect_rows() {
          else $k end)
       elif ($l | test("pool retirement")) then "Pool retirement · epoch " + ($v.epoch // "?" | tostring)
       elif ($l | test("pool registration")) then "Pool registration"
+      elif ($l | test("committee")) then
+        (if ($l | test("hot key")) then "Committee hot key authorization"
+         elif ($l | test("resignation")) then "Committee resignation"
+         else ($k | sub(" certificate$"; "")) end)
       elif ($l | test("drep unregistration")) then "DRep retirement"
       elif ($l | test("drep registration")) then "DRep registration"
-      elif ($l | test("drep update")) then "DRep update"
+      elif ($l | test("drep")) and ($l | test("update")) then "DRep update"
       elif ($l | test("deregistration|unregistration")) then "Stake deregistration"
       elif ($l | test("registration")) then "Stake registration"
       else ($k | sub(" certificate$"; "")) end end;
@@ -1105,7 +1114,8 @@ cntools_transaction_action_sign() {
     "transaction signing review accepted id=${original_id}"
   cntools_ui_spin_function 'Finding matching keys in local wallets…' cntools_transaction_sources_collect || return 2
 
-  while IFS= read -r record; do
+  # Records arrive on fd 3: the prompts in this loop must not read them.
+  while IFS= read -r -u 3 record; do
     IFS=$'\037' read -r key_id labels preferred hardware_group <<< "${record}"
     signer_allow_defer="Y"
     if [[ -n "${hardware_group}" ]]; then
@@ -1152,7 +1162,7 @@ cntools_transaction_action_sign() {
       cntools_transaction_ui_log CHOICE \
         "hardware session selected group=${hardware_group}"
     fi
-  done < <(jq -r '
+  done 3< <(jq -r '
     . as $package |
     $package.signing.required[] |
     . as $signer |
@@ -1198,7 +1208,7 @@ cntools_transaction_action_sign() {
       active_hardware_groups+=("${hardware_group}")
   done
 
-  while IFS= read -r record; do
+  while IFS= read -r -u 3 record; do
     IFS=$'\037' read -r key_id labels hardware_group <<< "${record}"
     group_active="N"
     for source in "${active_hardware_groups[@]}"; do
@@ -1219,7 +1229,7 @@ cntools_transaction_action_sign() {
       return "${status}"
     fi
     change_sources+=("${change_source}")
-  done < <(jq -r '.signing.changeKeys[] |
+  done 3< <(jq -r '.signing.changeKeys[] |
     [.keyId, (.labels | join(", ")), .hardwareGroup] | join("\u001f")' \
     "${input_file}")
 

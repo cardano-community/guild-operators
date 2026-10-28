@@ -231,6 +231,34 @@ cntools_wallet_protection_relock() {
   cntools_wallet_protection_log WALLET "wallet=${directory##*/} operation=relock files=${CNTOOLS_WALLET_PROTECTION_FILES} lock=${CNTOOLS_WALLET_PROTECTION_LOCK_METHOD}"
 }
 
+# Plaintext wallet keys and no encrypted ones, in files that are locked
+# (read-only): Decrypt unlocks the files without touching a key.
+cntools_wallet_protection_unlock_candidate() {
+  local directory="${1:-}" protection=''
+  local -a unlock_clear=() unlock_encrypted=()
+  protection="$(cntools_wallet_protection "${directory}")" || return 1
+  [[ "${protection}" == Open ]] || return 1
+  cntools_wallet_protection_present_into unlock_clear encrypt "${directory}" || return 1
+  cntools_wallet_protection_present_into unlock_encrypted decrypt "${directory}" || return 1
+  (( ${#unlock_clear[@]} > 0 && ${#unlock_encrypted[@]} == 0 )) || return 1
+  cntools_wallet_protection_lock_would_change "${directory}" decrypt
+}
+
+cntools_wallet_protection_unlock_files() {
+  local directory="${1:-}"
+  cntools_wallet_protection_reset_result
+  cntools_wallet_protection_unlock_candidate "${directory}" || {
+    cntools_wallet_protection_set_error \
+      "The wallet has no plaintext keys in locked files to unlock."
+    return 1
+  }
+  cntools_wallet_protection_directory_mutable "${directory}" &&
+    cntools_wallet_protection_entries_safe "${directory}" &&
+    cntools_wallet_protection_clear_immutable "${directory}" &&
+    cntools_wallet_protection_unlock_permissions "${directory}" || return 1
+  cntools_wallet_protection_log WALLET "wallet=${directory##*/} operation=unlock files=${CNTOOLS_WALLET_PROTECTION_FILES}"
+}
+
 cntools_wallet_protection_directory_mutable() {
   local wallet_directory="${1:-}"
   local mode=""
@@ -379,6 +407,11 @@ cntools_wallet_protection_keys_into() {
     # Named in the plan and the result: CNTools never claims they are protected.
     cntools_wallet_protection_unknown_keys_into \
       CNTOOLS_WALLET_PROTECTION_UNKNOWN_KEYS "${_cntools_wallet_directory}" || return 2
+  elif [[ "${_cntools_operation}" == "complete" ]]; then
+    # A partly protected wallet keeps its encrypted keys: only the clear ones
+    # are encrypted, with the passphrase that already protects the others.
+    cntools_wallet_protection_unknown_keys_into \
+      CNTOOLS_WALLET_PROTECTION_UNKNOWN_KEYS "${_cntools_wallet_directory}" || return 2
   elif [[ "${_cntools_operation}" == "decrypt" ]]; then
     _cntools_all_gpg=("${_cntools_wallet_directory}"/*.gpg)
     for _cntools_candidate in "${_cntools_all_gpg[@]}"; do
@@ -401,8 +434,13 @@ cntools_wallet_protection_keys_into() {
     _cntools_clear_file="${_cntools_wallet_directory}/${_cntools_entry#*:}"
     _cntools_encrypted_file="${_cntools_clear_file}.gpg"
     case "${_cntools_operation}" in
-      encrypt)
+      encrypt|complete)
         [[ -e "${_cntools_clear_file}" || -L "${_cntools_clear_file}" ]] || continue
+        if [[ -e "${_cntools_encrypted_file}" || -L "${_cntools_encrypted_file}" ]]; then
+          cntools_wallet_protection_set_error \
+            "Both ${_cntools_clear_file##*/} and ${_cntools_encrypted_file##*/} exist in this wallet. Neither was changed."
+          return 1
+        fi
         if [[ ! -f "${_cntools_clear_file}" || -L "${_cntools_clear_file}" ||
               ! -O "${_cntools_clear_file}" ]] ||
            ! cntools_wallet_key_signing_type \
@@ -436,7 +474,7 @@ cntools_wallet_protection_keys_into() {
     _cntools_roles_ref+=("${_cntools_role#ms-}")
   done
   if (( ${#_cntools_files_ref[@]} == 0 )); then
-    if [[ "${_cntools_operation}" == "encrypt" ]]; then
+    if [[ "${_cntools_operation}" != "decrypt" ]]; then
       cntools_wallet_protection_set_error \
         "This wallet has no clear wallet signing keys to encrypt."
     else
@@ -638,17 +676,31 @@ cntools_wallet_protection_chattr_run() {
   cntools_run_command "${mask}" -- "${command[@]}" >/dev/null 2>&1
 }
 
+# Finds a chattr that works on DIRECTORY's filesystem: chattr itself, or
+# sudo -n chattr. The probe file sits in the state work folder on the same
+# filesystem (or in DIRECTORY), so wallet, pool and policy folders qualify.
 cntools_wallet_protection_chattr_prepare() {
   local wallet_directory="${1:-}"
   local chattr=""
   local sudo_command=""
   local test_file=""
+  local probe_parent=""
+  local previous_umask=""
   local candidate_status=1
 
   CNTOOLS_WALLET_PROTECTION_CHATTR_COMMAND=()
   cntools_wallet_protection_resolve_command_into chattr chattr || return 1
-  cntools_wallet_material_temp_file \
-    test_file "${wallet_directory}" "protect-chattr-test" || return 1
+  [[ -d "${wallet_directory}" && ! -L "${wallet_directory}" &&
+     -O "${wallet_directory}" && -w "${wallet_directory}" ]] || return 1
+  cntools_state_work_directory_into probe_parent "${wallet_directory}" || return 1
+  previous_umask="$(umask)"
+  umask 077
+  test_file="$(mktemp "${probe_parent%/}/.cntools-protect-chattr-test.XXXXXX")" || {
+    umask "${previous_umask}"
+    return 1
+  }
+  umask "${previous_umask}"
+  CNTOOLS_WALLET_MATERIAL_TEMP_FILES+=("${test_file}")
 
   CNTOOLS_WALLET_PROTECTION_CHATTR_COMMAND=("${chattr}")
   if cntools_wallet_protection_chattr_run +i "${test_file}" &&
@@ -669,6 +721,27 @@ cntools_wallet_protection_chattr_prepare() {
   fi
   cntools_wallet_material_remove_temp "${test_file}" || true
   return "${candidate_status}"
+}
+
+# Checked before any prompt: immutable files (v13 locked them with an
+# interactive sudo chattr +i) must be unlockable without a password, or the
+# action would fail only after the confirmation and the passphrase. FILES
+# limits the check; by default every file in DIRECTORY counts.
+cntools_wallet_protection_unlock_ready() {
+  local directory="${1:-}" lsattr='' file='' attributes=''
+  local -a files=("${@:2}")
+  cntools_wallet_protection_resolve_command_into lsattr lsattr || return 0
+  (( ${#files[@]} > 0 )) || files=("${directory}"/* "${directory}"/.[!.]* "${directory}"/..?*)
+  for file in "${files[@]}"; do
+    [[ -f "${file}" && ! -L "${file}" && "${file##*/}" != .cntools-* ]] || continue
+    attributes="$(cntools_run_command 0000 -- "${lsattr}" -d -- "${file}" 2>/dev/null || true)"
+    [[ "${attributes%% *}" == *i* ]] || continue
+    # An unwritable folder is reported by the action itself.
+    [[ -w "${directory}" ]] || return 0
+    cntools_wallet_protection_chattr_prepare "${directory}" && return 0
+    cntools_wallet_protection_set_error "$(cntools_wallet_immutable_remedy "${directory}")"
+    return 1
+  done
 }
 
 cntools_wallet_protection_immutable_files_into() {
@@ -701,13 +774,16 @@ cntools_wallet_protection_apply_locks() {
   local wallet_directory="${1:-}"
   local file=""
   local applied=""
+  local mode=""
   local failures=0
   local -a files=()
   local -a immutable_applied=()
 
   cntools_wallet_protection_files_into files "${wallet_directory}" || return 1
   for file in "${files[@]}"; do
-    if ! cntools_run_command 000 -- chmod 0400 "${file}" >/dev/null 2>&1; then
+    # An immutable file refuses chmod; already read-only, it is no failure.
+    if ! cntools_run_command 000 -- chmod 0400 "${file}" >/dev/null 2>&1 &&
+       { ! cntools_filesystem_mode_into mode "${file}" || (( (8#${mode} & 0222) != 0 )); }; then
       failures=$((failures + 1))
     fi
   done
@@ -738,15 +814,25 @@ cntools_wallet_protection_apply_locks() {
   CNTOOLS_WALLET_PROTECTION_LOCK_METHOD="read-only permissions + immutable flag"
 }
 
+# Clears the immutable flag of DIRECTORY's files, or only of the listed FILES.
 cntools_wallet_protection_clear_immutable() {
   local wallet_directory="${1:-}"
   local file=""
   local restored=""
+  local wanted=""
   local -a immutable_files=()
   local -a cleared=()
+  local -a only=("${@:2}")
+  local -a kept=()
 
   cntools_wallet_protection_immutable_files_into \
     immutable_files "${wallet_directory}" || return 1
+  if (( ${#only[@]} > 0 )); then
+    for file in "${immutable_files[@]}"; do
+      for wanted in "${only[@]}"; do [[ "${file}" != "${wanted}" ]] || kept+=("${file}"); done
+    done
+    immutable_files=("${kept[@]}")
+  fi
   CNTOOLS_WALLET_PROTECTION_CLEARED_IMMUTABLE=()
   (( ${#immutable_files[@]} > 0 )) || return 0
   if ! cntools_wallet_protection_chattr_prepare "${wallet_directory}"; then
@@ -813,9 +899,32 @@ cntools_wallet_protection_remove_sources() {
   (( failures == 0 ))
 }
 
+# Completing a partly protected wallet reuses the passphrase of its encrypted
+# keys: it must open one of them first (a wrong one sets BAD_PASSPHRASE).
+cntools_wallet_protection_passphrase_check() {
+  local wallet_directory="${1:-}" passphrase="${2:-}" entry='' file='' role='' staged=''
+  local -a role_table=()
+  cntools_wallet_protection_roles_into role_table || return 2
+  for entry in "${role_table[@]}"; do
+    file="${wallet_directory}/${entry#*:}.gpg"
+    if [[ ! -O "${file}" ]] || ! cntools_wallet_safe_regular_file "${file}" 1048576; then continue; fi
+    role="${entry%%:*}"
+    cntools_wallet_protection_stage_decrypt staged "${file}" "${role#ms-}" "${passphrase}" || return 1
+    cntools_wallet_material_remove_temp "${staged}" || true
+    return 0
+  done
+  cntools_wallet_protection_set_error \
+    "The wallet has no readable encrypted key to check the passphrase against."
+  return 1
+}
+
+# MODE complete encrypts the clear keys of a partly protected wallet with
+# its existing passphrase (any length: it already protects the other keys).
 cntools_wallet_protection_encrypt() {
   local wallet_directory="${1:-}"
   local passphrase="${2:-}"
+  local mode="${3:-new}"
+  local operation=encrypt
   local index=0
   local staged=""
   local target=""
@@ -828,17 +937,23 @@ cntools_wallet_protection_encrypt() {
   local -a staged_files=()
 
   cntools_wallet_protection_reset_result
-  [[ ${#passphrase} -ge 12 && "${passphrase}" != *$'\n'* &&
-     "${passphrase}" != *$'\r'* ]] || {
+  [[ "${mode}" != complete ]] || operation=complete
+  if [[ -z "${passphrase}" || "${passphrase}" == *$'\n'* || "${passphrase}" == *$'\r'* ]] ||
+     { [[ "${mode}" != complete ]] && (( ${#passphrase} < 12 )); }; then
     cntools_wallet_protection_set_error \
       "New wallet passphrases must contain at least 12 characters and no line breaks."
     return 2
-  }
+  fi
   cntools_wallet_protection_environment_ready || return 1
   cntools_wallet_protection_keys_into \
-    sources roles encrypt "${wallet_directory}" || return 1
+    sources roles "${operation}" "${wallet_directory}" || return 1
+  if [[ "${mode}" == complete ]] &&
+     ! cntools_wallet_protection_passphrase_check "${wallet_directory}" "${passphrase}"; then
+    cntools_wallet_material_cleanup
+    return 1
+  fi
   cntools_wallet_protection_log WALLET \
-    "encrypting wallet=${wallet_directory##*/} keys=${#sources[@]} cipher=AES256"
+    "encrypting wallet=${wallet_directory##*/} keys=${#sources[@]} mode=${mode} cipher=AES256"
 
   for ((index = 0; index < ${#sources[@]}; index++)); do
     if ! cntools_wallet_protection_stage_encrypt staged \
@@ -859,6 +974,14 @@ cntools_wallet_protection_encrypt() {
       return 1
     fi
   done
+  # A clear key can only be retired without its immutable flag (v13 locked
+  # every file, and a v13 hardware wallet's Catalyst key too). Only the
+  # retired keys are unlocked; apply_locks below relocks every file.
+  if ! cntools_wallet_protection_clear_immutable "${wallet_directory}" "${sources[@]}"; then
+    cntools_wallet_protection_remove_published
+    cntools_wallet_material_cleanup
+    return 1
+  fi
   if ! cntools_wallet_protection_remove_sources "${sources[@]}"; then
     # Recover any clear key already removed before discarding the new encrypted
     # targets. This path is deliberately conservative and should only be
@@ -881,11 +1004,13 @@ cntools_wallet_protection_encrypt() {
         rm -f -- "${target}.gpg" 2>/dev/null || true
       done
     fi
+    cntools_wallet_protection_restore_immutable || true
     cntools_wallet_protection_set_error \
       "The clear signing keys could not all be retired after encryption. Review the wallet before retrying."
     cntools_wallet_material_cleanup
     return 1
   fi
+  CNTOOLS_WALLET_PROTECTION_CLEARED_IMMUTABLE=()
 
   CNTOOLS_WALLET_PROTECTION_PUBLISHED_TARGETS=()
   CNTOOLS_WALLET_PROTECTION_PUBLISHED_SOURCES=()

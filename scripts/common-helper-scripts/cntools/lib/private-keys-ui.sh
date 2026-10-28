@@ -62,6 +62,7 @@ cntools_private_keys_workflow() {
   cntools_log CHOICE "Private-key deletion scope=${scope} object=${object:-all} encrypted=${encrypted}" || true
   cntools_ui_spin_function 'Validating the exact key deletion preview…' cntools_private_keys_inventory "${scope}" "${encrypted}" "${object}" || return 2
   if (( ${#CNTOOLS_PRIVATE_KEY_FILES[@]} == 0 )); then cntools_ui_render_status info 'No matching private keys were found.'; return 0; fi
+  cntools_private_keys_unlock_ready || return 2
   for index in "${!CNTOOLS_PRIVATE_KEY_FILES[@]}"; do
     folder="${CNTOOLS_PRIVATE_KEY_FILES[index]%/*}"; folder="${folder%/*}"
     [[ -n "${seen[${folder}]+x}" ]] || { seen["${folder}"]=Y; folders+=("${folder}"); }

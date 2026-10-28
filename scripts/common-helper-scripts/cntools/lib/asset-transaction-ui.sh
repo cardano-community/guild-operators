@@ -182,23 +182,39 @@ cntools_asset_tx_save_unsigned() {
 }
 
 # The first build. Metadata the CLI rejects (for example text over 64 bytes)
-# returns to the metadata editor instead of ending the action.
+# returns to the metadata editor instead of ending the action, but only when
+# the same transaction builds without it; any other failure (too little ADA,
+# an expired policy) is reported as it is.
 cntools_asset_tx_first_build_into() {
-  local _first_output="$1" _first_lifetime="$2" _first_choice='' _first_status=0
+  local _first_output="$1" _first_lifetime="$2" _first_choice='' _first_status=0 _first_error=''
+  local -a _first_metadata=()
   while true; do
     cntools_ui_spin_function 'Checking policy, funds and building the asset transaction…' \
       cntools_asset_tx_refresh_build_into "${_first_output}" "${_first_lifetime}" && return 0
     [[ -n "${CNTOOLS_METADATA_CUSTOM}${CNTOOLS_METADATA_MESSAGE}" ]] || return 2
+    _first_error="${CNTOOLS_TRANSACTION_ERROR:-}"
+    _first_metadata=("${CNTOOLS_METADATA_MODE}" "${CNTOOLS_METADATA_SCHEMA}" "${CNTOOLS_METADATA_MESSAGE}" "${CNTOOLS_METADATA_CUSTOM}")
+    cntools_metadata_reset; cntools_transaction_clear_error
+    _first_status=0
+    cntools_ui_spin_function 'Checking whether the metadata is the problem…' \
+      cntools_asset_tx_refresh_build_into "${_first_output}" "${_first_lifetime}" || _first_status=$?
+    CNTOOLS_METADATA_MODE="${_first_metadata[0]}"; CNTOOLS_METADATA_SCHEMA="${_first_metadata[1]}"
+    CNTOOLS_METADATA_MESSAGE="${_first_metadata[2]}"; CNTOOLS_METADATA_CUSTOM="${_first_metadata[3]}"
+    if ((_first_status != 0)); then
+      cntools_transaction_set_error "${_first_error:-The asset transaction could not be built.}"
+      return 2
+    fi
     cntools_transaction_log WARN 'Asset transaction with metadata could not be built; offering to change it'
     cntools_asset_tx_begin
-    cntools_ui_render_status warn "The asset transaction could not be built with this metadata: ${CNTOOLS_TRANSACTION_ERROR:-see ${CNTOOLS_LOG} for details.}"
+    cntools_ui_render_status warn "The asset transaction could not be built with this metadata: ${_first_error:-see ${CNTOOLS_LOG} for details.}"
     cntools_transaction_clear_error
     cntools_ui_choose _first_choice 'Metadata' 'Change metadata' 'Remove metadata' Cancel || return $?
     case "${_first_choice}" in
       'Change metadata')
         _first_status=0; cntools_send_metadata_edit || _first_status=$?
         ((_first_status == 0 || _first_status == 1)) || return "${_first_status}" ;;
-      'Remove metadata') cntools_metadata_reset ;;
+      # The build without metadata above is the staged transaction.
+      'Remove metadata') cntools_metadata_reset; return 0 ;;
       *) return 1 ;;
     esac
   done

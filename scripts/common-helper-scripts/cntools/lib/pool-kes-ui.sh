@@ -62,6 +62,8 @@ cntools_kes_counter_notice() {
   fi
 }
 
+# ROLE is a theme role (success, warning, danger…): an unknown one would drop
+# the Result row from the table.
 cntools_kes_result() {
   local message="$1" role="${2:-success}"
   {
@@ -127,7 +129,7 @@ cntools_kes_counter_ready() {
 cntools_kes_lock_offer() {
   local choice='' counter='' certificate='None' reason=''
   cntools_ui_spin_function 'Inspecting the certificate lock…' cntools_kes_lock_inspect ||
-    { cntools_kes_result 'The certificate lock could not be inspected. Check the CNTools state folder.' error; return 0; }
+    { cntools_kes_result 'The certificate lock could not be inspected. Check the CNTools state folder.' danger; return 0; }
   cntools_pool_file_name_into counter counter
   if [[ "${CNTOOLS_KES_LOCK_CERT}" == Y ]]; then
     certificate="Issued · counter ${CNTOOLS_KES_LOCK_CERT_COUNTER:-unreadable}"
@@ -169,7 +171,7 @@ cntools_kes_lock_offer() {
   ((choice_status != 130)) || return 130
   ((choice_status == 0)) && [[ "${choice}" == 'Release lock' ]] || return 0
   if ! cntools_ui_spin_function 'Releasing the certificate lock…' cntools_kes_lock_force_release; then
-    cntools_kes_result "${CNTOOLS_POOL_WRITE_ERROR:-The lock could not be released.}" error; return 0
+    cntools_kes_result "${CNTOOLS_POOL_WRITE_ERROR:-The lock could not be released.}" danger; return 0
   fi
   cntools_ui_render_status success 'Lock released · recovery folder kept. Open Pool → Rotate again to issue a certificate.'
   cntools_ui_wait
@@ -300,7 +302,7 @@ cntools_kes_discard_offer() {
   cntools_kes_confirm 'Discard this KES request?' false || return 0
   cntools_transaction_log CHOICE "KES request discard approved recovery=${CNTOOLS_KES_STAGE}"
   if ! cntools_ui_spin_function 'Releasing the rotation lock…' cntools_kes_discard; then
-    cntools_kes_result "${CNTOOLS_POOL_WRITE_ERROR:-The request could not be discarded. Inspect the lock and recovery folder.}" error; return 0
+    cntools_kes_result "${CNTOOLS_POOL_WRITE_ERROR:-The request could not be discarded. Inspect the lock and recovery folder.}" danger; return 0
   fi
   cntools_kes_result 'Request discarded · active keys and counter unchanged; recovery folder kept' success
 }
@@ -379,26 +381,26 @@ cntools_pool_action_rotate() {
   CNTOOLS_KES_STAGE='' CNTOOLS_KES_BUSY='' CNTOOLS_KES_START='' CNTOOLS_KES_CURRENT=''
   CNTOOLS_KES_COUNTER_APPROVED=N CNTOOLS_KES_INSTALL_APPROVED=N CNTOOLS_KES_PERIOD_SOURCE='' CNTOOLS_KES_COUNTER_VERIFIED=N
   cntools_ui_action_begin Rotate '/ Pool / Rotate'
-  cntools_kes_environment || { cntools_kes_result "${CNTOOLS_POOL_WRITE_ERROR:-${CNTOOLS_TRANSACTION_ERROR:-KES prerequisites unavailable}}" error; return 0; }
+  cntools_kes_environment || { cntools_kes_result "${CNTOOLS_POOL_WRITE_ERROR:-${CNTOOLS_TRANSACTION_ERROR:-KES prerequisites unavailable}}" danger; return 0; }
   cntools_ui_spin_function 'Reading pool identities…' cntools_pool_catalog_build || return 1
   (( ${#CNTOOLS_POOL_NAMES[@]} != 0 )) || { cntools_pool_empty_notice; return 0; }
   cntools_pool_choose_into selected || status=$?
   ((status != 1)) || return 0; ((status == 0)) || return "${status}"
   if ! cntools_ui_spin_function 'Validating pool cold identity and counter…' cntools_kes_identity "${selected}"; then
-    cntools_kes_result "${CNTOOLS_POOL_WRITE_ERROR:-${CNTOOLS_TRANSACTION_ERROR:-Invalid pool signing material or counter.}}" error; return 0
+    cntools_kes_result "${CNTOOLS_POOL_WRITE_ERROR:-${CNTOOLS_TRANSACTION_ERROR:-Invalid pool signing material or counter.}}" danger; return 0
   fi
   cntools_ui_spin_function 'Checking current KES health and counter…' cntools_pool_inspect_catalog "${selected}" || return 1
   cntools_ui_spin_function 'Checking operational certificate…' cntools_pool_health_collect "${selected}" || return 1
   if cntools_pool_legacy_opcert_lock "${CNTOOLS_KES_DIRECTORY}"; then
-    cntools_kes_result "An earlier CNTools build left an operational-certificate lock in ${CNTOOLS_KES_DIRECTORY}/.cntools-opcert-lock. Finish or inspect that operation manually; no new certificate will be issued." error
+    cntools_kes_result "An earlier CNTools build left an operational-certificate lock in ${CNTOOLS_KES_DIRECTORY}/.cntools-opcert-lock. Finish or inspect that operation manually; no new certificate will be issued." danger
     return 0
   fi
   local lock=''
   cntools_pool_folder_name_supported "${CNTOOLS_KES_DIRECTORY}" || {
-    cntools_kes_result "$(cntools_pool_folder_unsupported_message "${CNTOOLS_KES_DIRECTORY}")" error; return 0;
+    cntools_kes_result "$(cntools_pool_folder_unsupported_message "${CNTOOLS_KES_DIRECTORY}")" danger; return 0;
   }
   cntools_pool_opcert_lock_into lock "${CNTOOLS_KES_DIRECTORY}" || {
-    cntools_kes_result 'The owner-only CNTools state folder (.cntools in the node home) is unavailable.' error; return 0;
+    cntools_kes_result 'The owner-only CNTools state folder (.cntools in the node home) is unavailable.' danger; return 0;
   }
   if [[ -e "${lock}" || -L "${lock}" ]]; then
     # Another operation's lock, or this node's rotation interrupted while
@@ -422,13 +424,16 @@ cntools_pool_action_rotate() {
       cntools_kes_choose choice 'KES workflow' "${workflows[@]}" Cancel || return $?
       [[ "${choice}" != Cancel ]] || return 0
     fi
+    # Said before the counter and period questions, not after them.
+    [[ "${only_workflow}" != Y || "${CNTOOLS_KES_ENCRYPTED}" != Y ]] ||
+      cntools_ui_render_status info 'The cold signing key is encrypted, so only an offline request can be prepared here. To rotate or sign on this system, press Esc and use Pool → Decrypt first.'
     # The hardware cold key signs through cardano-hw-cli: check it before any input.
     if [[ "${choice}" != 'Prepare offline request' && "${CNTOOLS_KES_KIND}" == hardware ]] && ! cntools_transaction_require_hwcli; then
-      cntools_kes_result "${CNTOOLS_TRANSACTION_ERROR:-cardano-hw-cli is required to sign with the hardware cold key.} Prepare an offline request instead, or install it and try again." error
+      cntools_kes_result "${CNTOOLS_TRANSACTION_ERROR:-cardano-hw-cli is required to sign with the hardware cold key.} Prepare an offline request instead, or install it and try again." danger
       return 0
     fi
     if [[ "${choice}" != 'Sign an offline request' ]] && ! cntools_kes_counter_choose; then
-      [[ -z "${CNTOOLS_POOL_WRITE_ERROR}" ]] || cntools_kes_result "${CNTOOLS_POOL_WRITE_ERROR}" error
+      [[ -z "${CNTOOLS_POOL_WRITE_ERROR}" ]] || cntools_kes_result "${CNTOOLS_POOL_WRITE_ERROR}" danger
       return 0
     fi
     case "${choice}" in
@@ -459,7 +464,7 @@ cntools_pool_action_rotate() {
         ((status != 0)) || cntools_kes_offline_instructions || status=$? ;;
       'Sign an offline request')
         cntools_ui_pick_path request 'Offline request directory' 'Choose the public request folder copied from the node.' "${CNTOOLS_KES_DIRECTORY}" directory || return $?
-        cntools_kes_request_validate "${request}" || { cntools_kes_result 'The request does not match this pool, network or counter.' error; return 0; }
+        cntools_kes_request_validate "${request}" || { cntools_kes_result 'The request does not match this pool, network or counter.' danger; return 0; }
         CNTOOLS_KES_START="$(jq -r '.startPeriod' "${request}/request.json")"
         CNTOOLS_KES_NEXT="$(jq -r '.issueCounter' "${request}/request.json")" CNTOOLS_KES_COUNTER_SOURCE='Offline request'
         cntools_kes_review || return 1
@@ -476,7 +481,7 @@ cntools_pool_action_rotate() {
   fi
   ((status != 130)) || return 130
   if ((status != 0)); then
-    cntools_kes_result "${CNTOOLS_POOL_WRITE_ERROR:-${CNTOOLS_TRANSACTION_ERROR:-KES operation failed.} Recovery files were kept; reopen Pool → Rotate to continue, or inspect ${CNTOOLS_LOG}.}" error
+    cntools_kes_result "${CNTOOLS_POOL_WRITE_ERROR:-${CNTOOLS_TRANSACTION_ERROR:-KES operation failed.} Recovery files were kept; reopen Pool → Rotate to continue, or inspect ${CNTOOLS_LOG}.}" danger
   fi
   return 0
 }

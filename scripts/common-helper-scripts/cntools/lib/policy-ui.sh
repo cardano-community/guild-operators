@@ -44,27 +44,23 @@ cntools_policy_action_create() {
     else date+=" · in $(( (seconds + 59) / 60 )) minutes"; fi
   fi
   cntools_transaction_log CHOICE "Policy expiry selected slot=${expiry}"
-  # Quick creates a policy without an expiry at once: no review is drawn for
-  # the result screen to replace, and the result says what the review would.
-  if [[ "${expiry}" != 0 ]] || ! cntools_flow_quick; then
-    cntools_ui_action_begin 'Create Policy' '/ Advanced / Asset / Create Policy'
-    {
-      cntools_table_pair Name "${name}" identifier
-      cntools_table_pair Authority 'New single-signature native policy' value
-      cntools_table_pair Expiry "${date}" warning
-      cntools_table_pair Directory "${target}" identifier
-    } | cntools_table_render 'Create policy' || return 1
-    if [[ "${expiry}" == 0 ]]; then
-      cntools_ui_render_status warn 'The policy cannot be changed after creation. With no expiry, the signing key remains authorized indefinitely.'
-    else
-      cntools_ui_render_status warn 'The policy cannot be changed after creation. Expiry permanently prevents both minting and burning. Check your system clock before proceeding.'
-    fi
-    cntools_ui_render_status info 'This creates keys and a policy only: no tokens, transaction or fee.'
+  cntools_ui_action_begin 'Create Policy' '/ Advanced / Asset / Create Policy'
+  {
+    cntools_table_pair Name "${name}" identifier
+    cntools_table_pair Authority 'New single-signature native policy' value
+    cntools_table_pair Expiry "${date}" warning
+    cntools_table_pair Directory "${target}" identifier
+  } | cntools_table_render 'Create policy' || return 1
+  if [[ "${expiry}" == 0 ]]; then
+    cntools_ui_render_status warn 'The policy cannot be changed after creation. With no expiry, the signing key remains authorized indefinitely.'
+  else
+    cntools_ui_render_status warn 'The policy cannot be changed after creation. Expiry permanently prevents both minting and burning. Check your system clock before proceeding.'
   fi
-  # A permanent expiry is asked in both flow styles (default No): a mistyped
-  # duration cannot be undone once tokens are minted.
+  cntools_ui_render_status info 'This creates keys and a policy only: no tokens, transaction or fee.'
+  # New key material is asked in both flow styles; a permanent expiry
+  # defaults to No: a mistyped duration cannot be undone once tokens are minted.
   status=0
-  if [[ "${expiry}" == 0 ]]; then cntools_ui_flow_confirm "Create policy ${name}?" false || status=$?
+  if [[ "${expiry}" == 0 ]]; then cntools_ui_confirm "Create policy ${name} now?" || status=$?
   else cntools_ui_confirm "Create policy ${name} expiring ${date%% · *}? The expiry cannot be changed." false || status=$?; fi
   cntools_policy_cancelled "${status}" && return 0
   ((status == 0)) || return "${status}"
@@ -80,7 +76,6 @@ cntools_policy_action_create() {
       cntools_table_pair Directory "${CNTOOLS_POLICY_DIRECTORY}" identifier
       cntools_table_pair Result Created success
     } | cntools_table_render Policy
-    [[ "${expiry}" != 0 ]] || ! cntools_flow_quick || cntools_ui_render_status warn 'The policy cannot be changed. With no expiry, the signing key remains authorized indefinitely.'
     cntools_ui_render_status warn 'Back up the signing key securely. Anyone with that key can mint or burn under this policy while it remains valid.'
   else
     [[ -n "${CNTOOLS_POLICY_ERROR}" ]] || cntools_policy_error 'Policy creation failed; no incomplete policy was published.' || true

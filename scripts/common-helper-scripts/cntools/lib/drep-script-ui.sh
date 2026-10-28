@@ -136,13 +136,14 @@ cntools_drep_script_threshold_into() {
 
 cntools_drep_script_workflow() {
   local directory='' wallet='' choice='' threshold='' entered='' note='' status=0
-  local -a choices=()
+  local -a choices=() saved_hashes=() saved_labels=() saved_sources=()
   CNTOOLS_DREP_SCRIPT_HASHES=(); CNTOOLS_DREP_SCRIPT_LABELS=(); CNTOOLS_DREP_SCRIPT_SOURCES=()
   cntools_governance_wallet_select_into directory 'MultiSig DRep' drep-script-create || return $?
   wallet="${directory##*/}"
   cntools_drep_script_preflight "${directory}" && cntools_transaction_require_cli || return 2
   # Participants, then the threshold (Esc returns to the participants), then
-  # (Detailed) a review that can change either.
+  # (Detailed) a review that can change either; Esc in a review change keeps
+  # the reviewed participants and threshold.
   while true; do
     cntools_drep_script_participants_edit "${wallet}" || return $?
     note=''
@@ -156,8 +157,10 @@ cntools_drep_script_workflow() {
       ((status == 1)) && continue
       ((status == 0)) || return "${status}"
     fi
-    # Quick creates at once (the result says what to back up).
-    cntools_flow_quick && break
+    break
+  done
+  # Quick creates at once (the result says what to back up).
+  if ! cntools_flow_quick; then
     choice=''
     while true; do
       cntools_drep_script_begin
@@ -178,12 +181,31 @@ cntools_drep_script_workflow() {
           cntools_drep_script_threshold_into entered "${threshold}" || status=$?
           ((status <= 1)) || return "${status}"
           ((status != 0)) || threshold="${entered}" ;;
-        'Create this DRep identity'|'Change participants') break ;;
+        'Change participants')
+          saved_hashes=("${CNTOOLS_DREP_SCRIPT_HASHES[@]}") saved_labels=("${CNTOOLS_DREP_SCRIPT_LABELS[@]}")
+          saved_sources=("${CNTOOLS_DREP_SCRIPT_SOURCES[@]}")
+          status=0; cntools_drep_script_participants_edit "${wallet}" || status=$?
+          # A changed participant list asks the threshold again.
+          if ((status == 0)); then
+            if ((${#CNTOOLS_DREP_SCRIPT_HASHES[@]} == 1)); then
+              threshold=1 note='One participant, so one signature is required.'
+            else
+              cntools_drep_script_threshold_into entered "${threshold}" || status=$?
+              ((status != 0)) || threshold="${entered}" note=''
+            fi
+          fi
+          if ((status == 1)); then
+            CNTOOLS_DREP_SCRIPT_HASHES=("${saved_hashes[@]}") CNTOOLS_DREP_SCRIPT_LABELS=("${saved_labels[@]}")
+            CNTOOLS_DREP_SCRIPT_SOURCES=("${saved_sources[@]}")
+            cntools_log CHOICE 'Script DRep participant change cancelled; reviewed participants kept' || true
+          elif ((status != 0)); then
+            return "${status}"
+          fi ;;
+        'Create this DRep identity') break ;;
         *) return 1 ;;
       esac
     done
-    [[ "${choice}" == 'Change participants' ]] || break
-  done
+  fi
   cntools_log CHOICE "Script DRep creation confirmed wallet=${wallet} threshold=${threshold} participants=${#CNTOOLS_DREP_SCRIPT_HASHES[@]}" || true
   cntools_drep_script_create "${directory}" "${threshold}" && cntools_drep_key_inspect "${directory}" || return 2
   cntools_drep_script_begin

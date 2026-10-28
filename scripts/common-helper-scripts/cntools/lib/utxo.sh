@@ -34,6 +34,15 @@ cntools_utxo_fail() {
   return 1
 }
 
+# Name why SOURCE's UTxO response was rejected: count, duplicate or invalid.
+cntools_utxo_response_fail() {
+  case "${2:-}" in
+    count) cntools_utxo_fail "${1} returned more than $(cntools_number_format "${CNTOOLS_UTXO_MAX_COUNT}") UTxOs, the most CNTools loads at once." ;;
+    duplicate) cntools_utxo_fail "${1} returned the same UTxO twice; the wallet likely changed while it was loading. Try again." ;;
+    *) cntools_utxo_fail "${1} returned an invalid UTxO response." ;;
+  esac
+}
+
 # Payment-only metadata actions must not consume a datum/reference script and
 # return only its value as change. Preserve the complete eligible inventory.
 cntools_utxo_keep_simple_into() {
@@ -133,22 +142,23 @@ cntools_utxo_load_local() {
   local datum=""
   local reference_script=""
   local lovelace_rows=0
+  local problem=""
   local -A addresses=()
   local -A datums=()
   local -A scripts=()
 
   cntools_utxo_reset
   [[ -f "${source_file}" && ! -L "${source_file}" ]] || return 2
-  jq -e --arg base "${base_address}" --arg payment "${payment_address}" --argjson maximum "${CNTOOLS_UTXO_MAX_COUNT}" '
-    type == "object" and length <= $maximum and
-    all(to_entries[];
-      (.key | test("^[0-9a-f]{64}#(0|[1-9][0-9]{0,9})$")) and
-      (.value | type == "object") and
-      (.value.address == $base or .value.address == $payment) and
-      (.value.value | type == "object" and has("lovelace")))
-  ' "${source_file}" >/dev/null 2>&1 ||
-    cntools_utxo_fail "The local node returned an invalid UTxO response, or more than $(cntools_number_format "${CNTOOLS_UTXO_MAX_COUNT}") UTxOs." ||
-    return 1
+  problem="$(jq -r --arg base "${base_address}" --arg payment "${payment_address}" --argjson maximum "${CNTOOLS_UTXO_MAX_COUNT}" '
+    if type == "object" and
+      all(to_entries[];
+        (.key | test("^[0-9a-f]{64}#(0|[1-9][0-9]{0,9})$")) and
+        (.value | type == "object") and
+        (.value.address == $base or .value.address == $payment) and
+        (.value.value | type == "object" and has("lovelace")))
+    then (if length > $maximum then "count" else "ok" end) else "invalid" end
+  ' "${source_file}" 2>/dev/null)" || problem=invalid
+  [[ "${problem}" == ok ]] || { cntools_utxo_response_fail 'The local node' "${problem}"; return 1; }
   while IFS=$'\037' read -r reference address datum reference_script; do
     [[ -n "${reference}" ]] || continue
     addresses["${reference}"]="${address}"
@@ -208,29 +218,32 @@ cntools_utxo_load_koios() {
   local fourth=""
   local fifth=""
   local current_index=""
+  local problem=""
 
   cntools_utxo_reset
   [[ -f "${source_file}" && ! -L "${source_file}" ]] || return 2
-  jq -e --arg base "${base_address}" --arg payment "${payment_address}" --argjson maximum "${CNTOOLS_UTXO_MAX_COUNT}" '
+  problem="$(jq -r --arg base "${base_address}" --arg payment "${payment_address}" --argjson maximum "${CNTOOLS_UTXO_MAX_COUNT}" '
     def uint: type == "string" and length <= 80 and test("^(0|[1-9][0-9]*)$");
     def policy: type == "string" and test("^[0-9a-fA-F]{56}$");
     def asset_name:
       type == "null" or
       (type == "string" and test("^([0-9a-fA-F]{2}){0,32}$"));
-    type == "array" and length <= $maximum and
-    all(.[].tx_hash; type == "string" and test("^[0-9a-f]{64}$")) and
-    all(.[].tx_index;
-      type == "number" and . >= 0 and . <= 4294967295 and floor == .) and
-    all(.[].address; . == $base or . == $payment) and
-    all(.[].value; uint) and
-    all(.[].asset_list;
-      . == null or (type == "array" and all(.[].policy_id; policy) and
-        all(.[].asset_name; asset_name) and all(.[].quantity; uint))) and
-    ([.[] | (.tx_hash + "#" + (.tx_index | tostring))] | unique | length)
-      == length
-  ' "${source_file}" >/dev/null 2>&1 ||
-    cntools_utxo_fail "Koios returned an invalid UTxO response, or more than $(cntools_number_format "${CNTOOLS_UTXO_MAX_COUNT}") UTxOs." ||
-    return 1
+    if type == "array" and
+      all(.[].tx_hash; type == "string" and test("^[0-9a-f]{64}$")) and
+      all(.[].tx_index;
+        type == "number" and . >= 0 and . <= 4294967295 and floor == .) and
+      all(.[].address; . == $base or . == $payment) and
+      all(.[].value; uint) and
+      all(.[].asset_list;
+        . == null or (type == "array" and all(.[].policy_id; policy) and
+          all(.[].asset_name; asset_name) and all(.[].quantity; uint)))
+    then
+      if length > $maximum then "count"
+      elif ([.[] | (.tx_hash + "#" + (.tx_index | tostring))] | unique | length) != length then "duplicate"
+      else "ok" end
+    else "invalid" end
+  ' "${source_file}" 2>/dev/null)" || problem=invalid
+  [[ "${problem}" == ok ]] || { cntools_utxo_response_fail Koios "${problem}"; return 1; }
   while IFS=$'\037' read -r kind first second third fourth fifth; do
     case "${kind}" in
       U)

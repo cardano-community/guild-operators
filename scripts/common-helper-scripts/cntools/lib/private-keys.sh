@@ -222,9 +222,25 @@ cntools_private_keys_restore_locks() {
   CNTOOLS_PRIVATE_KEY_UNLOCKED=()
 }
 
+# Before the confirmation: every listed key that is immutable must be
+# unlockable without a sudo password. All blocked folders are named at once.
+cntools_private_keys_unlock_ready() {
+  local file='' folder='' seen=''
+  local -a blocked=()
+  for file in "${CNTOOLS_PRIVATE_KEY_FILES[@]}"; do
+    cntools_wallet_protection_unlock_ready "${file%/*}" "${file}" && continue
+    for folder in "${blocked[@]}"; do [[ "${folder}" != "${file%/*}" ]] || seen=Y; done
+    [[ "${seen}" == Y ]] || blocked+=("${file%/*}")
+    seen=''
+  done
+  (( ${#blocked[@]} == 0 )) && return 0
+  CNTOOLS_PRIVATE_KEY_ERROR="$(cntools_wallet_immutable_remedy "${blocked[@]}")"
+  cntools_log ERROR "${CNTOOLS_PRIVATE_KEY_ERROR}" || true
+  return 1
+}
+
 cntools_private_keys_delete() {
-  local acknowledgement="$1" index=0 file='' stamp='' directory='' locked='' has_immutable=N
-  local -a immutable=()
+  local acknowledgement="$1" index=0 file='' stamp='' directory='' attributes='' lsattr='' has_immutable=N
   CNTOOLS_PRIVATE_KEY_REMOVED=0
   [[ "${acknowledgement}" == 'DELETE PRIVATE KEYS' && ${#CNTOOLS_PRIVATE_KEY_FILES[@]} -gt 0 &&
     ${#CNTOOLS_PRIVATE_KEY_FILES[@]} == "${#CNTOOLS_PRIVATE_KEY_STAMPS[@]}" &&
@@ -239,14 +255,18 @@ cntools_private_keys_delete() {
       cntools_private_keys_fail 'A retained public key changed. Nothing was deleted; reopen this action.'; return 1;
     }
   done
+  # Each listed key is checked for the immutable flag itself: wallet, pool and
+  # policy folders alike. Encrypted keys are read-only: rm -f, so rm never asks
+  # inside the TUI, and a key counts as removed only once it is really gone.
+  cntools_wallet_protection_resolve_command_into lsattr lsattr || lsattr=''
   for index in "${!CNTOOLS_PRIVATE_KEY_FILES[@]}"; do
     file="${CNTOOLS_PRIVATE_KEY_FILES[index]}"; directory="${file%/*}"
-    cntools_wallet_protection_immutable_files_into immutable "${directory}" || {
-      cntools_private_keys_restore_locks
-      cntools_private_keys_fail "Could not inspect key protection. Removed ${CNTOOLS_PRIVATE_KEY_REMOVED} keys; remaining keys were retained."; return 1;
-    }
     has_immutable=N
-    for locked in "${immutable[@]}"; do [[ "${locked}" != "${file}" ]] || has_immutable=Y; done
+    if [[ -n "${lsattr}" ]]; then
+      # A filesystem without attributes makes lsattr fail: nothing to unlock.
+      attributes="$(cntools_run_command 0000 -- "${lsattr}" -d -- "${file}" 2>/dev/null || true)"
+      [[ "${attributes%% *}" != *i* ]] || has_immutable=Y
+    fi
     if [[ "${has_immutable}" == Y ]]; then
       if ! cntools_wallet_protection_chattr_prepare "${directory}" || ! cntools_wallet_protection_chattr_run -i "${file}"; then
         cntools_private_keys_restore_locks
@@ -256,7 +276,7 @@ cntools_private_keys_delete() {
     fi
     if ! cntools_private_key_stamp_into stamp "${file}" || [[ "${stamp}" != "${CNTOOLS_PRIVATE_KEY_STAMPS[index]}" ]] ||
        ! cntools_private_key_stamp_into stamp "${CNTOOLS_PRIVATE_KEY_PUBLIC_FILES[index]}" || [[ "${stamp}" != "${CNTOOLS_PRIVATE_KEY_PUBLIC_STAMPS[index]}" ]] ||
-       ! cntools_run_command 000 -- rm -- "${file}"; then
+       ! cntools_run_command 0000 -- rm -f -- "${file}" || [[ -e "${file}" || -L "${file}" ]]; then
       cntools_private_keys_restore_locks
       cntools_private_keys_fail "Deletion stopped at ${file}. Removed ${CNTOOLS_PRIVATE_KEY_REMOVED} keys; remaining keys were retained."; return 1
     fi

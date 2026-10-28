@@ -16,6 +16,7 @@
     "wallet.sh",
     "wallet-material.sh",
     "wallet-key.sh",
+    "wallet-protection.sh",
     "wallet-address.sh",
     "wallet-id.sh",
     "asset.sh",

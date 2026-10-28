@@ -417,19 +417,26 @@ cntools_pool_registration_hwcli_check() {
   fi
 }
 
-# What the funding wallet must hold at least: the pool deposit (Register)
-# plus about 1 ADA for the fee and the change output.
+# What the funding wallet must hold at least: the deposits (pool deposit for
+# Register, plus EXTRA, e.g. a stake deposit), the minimum fee and a minimum
+# change output.
 cntools_pool_registration_funds_needed_into() {
-  local pfn_output="$1" pfn_needed=''
-  cntools_uint_add_into pfn_needed "${CNTOOLS_WALLET_REGISTER_DEPOSIT:-0}" 1000000 || return 1
+  local pfn_output="$1" pfn_extra="${2:-0}" pfn_needed='' pfn_fee='' pfn_change=''
+  cntools_coin_initial_fee_into pfn_fee "${CNTOOLS_WALLET_REGISTER_PROTOCOL_FILE}" &&
+    cntools_change_plain_min_into pfn_change "${CNTOOLS_WALLET_REGISTER_PROTOCOL_FILE}" "${CNTOOLS_WALLET_REGISTER_BASE_ADDRESS}" &&
+    cntools_uint_add_into pfn_needed "${CNTOOLS_WALLET_REGISTER_DEPOSIT:-0}" "${pfn_extra}" &&
+    cntools_uint_add_into pfn_needed "${pfn_needed}" "${pfn_fee}" &&
+    cntools_uint_add_into pfn_needed "${pfn_needed}" "${pfn_change}" || return 1
   printf -v "${pfn_output}" '%s' "${pfn_needed}"
 }
 
 # Chooses and checks the funding wallet right away, before any settings: a
-# wallet that cannot pay the deposit and fee is named, and another one is
-# offered while one is left. 3: none can fund it (shown and acknowledged).
+# wallet that cannot pay the deposit and fee, or has no spendable UTxOs, is
+# named, and another one is offered while one is left. 3: none can fund it
+# (shown and acknowledged).
 cntools_pool_registration_choose_funding_into() {
-  local pcf_output="$1" pcf_context='' pcf_wallet='' pcf_status=0 pcf_needed='' pcf_index=0 pcf_note='' pcf_other=N pcf_tried='' pcf_message=''
+  local pcf_output="$1" pcf_context='' pcf_wallet='' pcf_status=0 pcf_needed='' pcf_index=0 pcf_note='' pcf_other=0 pcf_tried='' pcf_message=''
+  local pcf_next=''
   local -a pcf_skipped=()
   pcf_context="$(cntools_pool_registration_funding_context)"
   while true; do
@@ -439,34 +446,44 @@ cntools_pool_registration_choose_funding_into() {
     CNTOOLS_WALLET_SELECTION_EXCLUDE_DIRS=()
     ((pcf_status == 0)) || return "${pcf_status}"
     cntools_pool_registration_prepare_funding "${CNTOOLS_WALLET_PATHS[pcf_wallet]}" || return 2
+    pcf_status=0
     cntools_ui_spin_function "$([[ "${CNTOOLS_WALLET_REGISTER_OPERATION}" == pool-retire ]] && printf 'Checking pool state, retirement limits and funding…' ||
-      printf 'Checking pool registration, protocol parameters and funding…')" cntools_pool_registration_collect || return 2
-    cntools_pool_registration_funds_needed_into pcf_needed || return 2
-    if cntools_uint_greater_equal "${CNTOOLS_WALLET_REGISTER_AVAILABLE_LOVELACE:-0}" "${pcf_needed}"; then
-      printf -v "${pcf_output}" '%s' "${pcf_wallet}"; return 0
-    fi
-    pcf_message="${CNTOOLS_WALLET_NAMES[pcf_wallet]} has $(cntools_number_format_lovelace "${CNTOOLS_WALLET_REGISTER_AVAILABLE_LOVELACE:-0}") spendable; "
-    if [[ "${CNTOOLS_WALLET_REGISTER_DEPOSIT:-0}" != 0 ]]; then
-      pcf_message+="${CNTOOLS_WALLET_REGISTER_TITLE} needs the $(cntools_number_format_lovelace "${CNTOOLS_WALLET_REGISTER_DEPOSIT}") pool deposit plus about 1 ADA for the fee and change."
+      printf 'Checking pool registration, protocol parameters and funding…')" cntools_pool_registration_collect || pcf_status=$?
+    if ((pcf_status == 0)); then
+      cntools_pool_registration_funds_needed_into pcf_needed || return 2
+      if cntools_uint_greater_equal "${CNTOOLS_WALLET_REGISTER_AVAILABLE_LOVELACE:-0}" "${pcf_needed}"; then
+        printf -v "${pcf_output}" '%s' "${pcf_wallet}"; return 0
+      fi
+      pcf_message="${CNTOOLS_WALLET_NAMES[pcf_wallet]} has $(cntools_number_format_lovelace "${CNTOOLS_WALLET_REGISTER_AVAILABLE_LOVELACE:-0}") spendable; ${CNTOOLS_WALLET_REGISTER_TITLE} needs at least $(cntools_number_format_lovelace "${pcf_needed}")"
+      if [[ "${CNTOOLS_WALLET_REGISTER_DEPOSIT:-0}" != 0 ]]; then
+        pcf_message+=": the $(cntools_number_format_lovelace "${CNTOOLS_WALLET_REGISTER_DEPOSIT}") pool deposit, the fee and the change."
+      else
+        pcf_message+=" for the fee and the change."
+      fi
+      cntools_transaction_log POOL "Funding wallet=${CNTOOLS_WALLET_NAMES[pcf_wallet]} short available=${CNTOOLS_WALLET_REGISTER_AVAILABLE_LOVELACE:-0} needed=${pcf_needed}"
+    elif [[ "${CNTOOLS_FUNDING_EMPTY:-N}" == Y ]]; then
+      # An empty wallet is an outcome, like a short one: offer another wallet.
+      pcf_message="${CNTOOLS_WALLET_NAMES[pcf_wallet]} has no spendable UTxOs."
+      cntools_transaction_log POOL "Funding wallet=${CNTOOLS_WALLET_NAMES[pcf_wallet]} empty"
     else
-      pcf_message+="${CNTOOLS_WALLET_REGISTER_TITLE} needs about 1 ADA for the fee and change."
+      return 2
     fi
-    cntools_transaction_log POOL "Funding wallet=${CNTOOLS_WALLET_NAMES[pcf_wallet]} short available=${CNTOOLS_WALLET_REGISTER_AVAILABLE_LOVELACE:-0} needed=${pcf_needed}"
     pcf_skipped+=("${CNTOOLS_WALLET_PATHS[pcf_wallet]}")
-    # Another wallet the picker would still offer?
-    pcf_other=N
+    # Other wallets the picker would still offer: one is picked automatically.
+    pcf_other=0 pcf_next=''
     for pcf_index in "${!CNTOOLS_WALLET_PATHS[@]}"; do
       for pcf_tried in "${pcf_skipped[@]}"; do [[ "${pcf_tried}" != "${CNTOOLS_WALLET_PATHS[pcf_index]}" ]] || continue 2; done
       cntools_wallet_selection_candidate_into pcf_note "${pcf_index}" "${pcf_context}" || continue
-      pcf_other=Y; break
+      pcf_other=$((pcf_other + 1)) pcf_next="${CNTOOLS_WALLET_NAMES[pcf_index]}"
     done
-    if [[ "${pcf_other}" != Y ]]; then
+    if ((pcf_other == 0)); then
       cntools_pool_registration_begin
       cntools_ui_render_status info "${pcf_message} No other wallet can fund it; add funds and try again."
       cntools_ui_wait; return 3
     fi
-    # The picker redraws next and repeats this warning.
-    cntools_ui_render_status warn "${pcf_message} Choose another wallet."
+    # The picker (or the next screen, for a lone wallet) repeats this warning.
+    if ((pcf_other == 1)); then cntools_ui_render_status warn "${pcf_message} Using ${pcf_next} instead."
+    else cntools_ui_render_status warn "${pcf_message} Choose another wallet."; fi
   done
 }
 
@@ -567,7 +584,7 @@ cntools_pool_registration_rebuild_into() {
 # Retire. 0: changed and rebuild needed (what in the second variable); 1:
 # kept (Esc, or nothing to rebuild); others end the action.
 cntools_pool_registration_change_common() {
-  local pcc_choice="$1" pcc_workflow_name="$2" pcc_can_sign="$3" pcc_status=0
+  local pcc_choice="$1" pcc_workflow_name="$2" pcc_can_sign="$3" pcc_status=0 pcc_before=
   case "${pcc_choice}" in
     'Change workflow')
       cntools_pool_registration_save "${pcc_workflow_name}"
@@ -577,7 +594,10 @@ cntools_pool_registration_change_common() {
       cntools_transaction_ui_unsigned_lifetime_into CNTOOLS_WALLET_REGISTER_LIFETIME "${!pcc_workflow_name}" || return 1 ;;
     'Change expiry')
       cntools_pool_registration_save
-      cntools_transaction_ui_expiry_into CNTOOLS_WALLET_REGISTER_LIFETIME || return $? ;;
+      pcc_before="${CNTOOLS_WALLET_REGISTER_LIFETIME}"
+      cntools_transaction_ui_expiry_into CNTOOLS_WALLET_REGISTER_LIFETIME || return $?
+      # The same expiry again: the reviewed transaction stands.
+      [[ "${CNTOOLS_WALLET_REGISTER_LIFETIME}" != "${pcc_before}" ]] || return 1 ;;
     *) return 2 ;;
   esac
 }

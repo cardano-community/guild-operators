@@ -225,6 +225,12 @@ cntools_wallet_action_remove() {
     cntools_wallet_remove_log WARN \
       "Some public wallet material could not be prepared before removal wallet=${wallet_name}"
   fi
+  # Immutable files that need a sudo password fail only after the confirm.
+  if ! cntools_wallet_protection_unlock_ready "${wallet_directory}"; then
+    cntools_ui_render_status error "${CNTOOLS_WALLET_PROTECTION_ERROR}"
+    cntools_ui_wait
+    return 1
+  fi
   if cntools_ui_spin_function \
       "Checking ${wallet_name} balances and registrations…" \
       cntools_wallet_remove_inspect "${wallet_directory}"; then

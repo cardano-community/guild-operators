@@ -63,9 +63,6 @@ cntools_wallet_register_render_collect_error() {
   case "${status}" in
     4) message="Nothing to register: ${wallet}'s stake address is already registered." ;;
     5) message="${wallet} has no spendable UTxOs at its base or payment address." ;;
-    6)
-      message="${wallet}'s balance must be greater than the current stake deposit so it can also pay the transaction fee."
-      ;;
     7)
       message="${wallet}'s stake address is not registered."
       [[ "${CNTOOLS_WALLET_REGISTER_OPERATION}" != deregister ]] || message="Nothing to de-register: ${message}"
@@ -346,6 +343,9 @@ cntools_wallet_register_workflow() {
         cntools_drep_lifecycle_choose_metadata change || status=$?
         (( status != 1 )) || continue
         (( status == 0 )) || return "${status}"
+        # The same metadata again (Keep current metadata) needs no rebuild.
+        [[ "${CNTOOLS_DREP_LIFECYCLE_ANCHOR_URL}" != "${CNTOOLS_WALLET_REGISTER_SAVED[1]}" ||
+           "${CNTOOLS_DREP_LIFECYCLE_ANCHOR_HASH}" != "${CNTOOLS_WALLET_REGISTER_SAVED[3]}" ]] || continue
         cntools_wallet_register_rebuild_into staged metadata "${building}" || return $? ;;
       'Change vote')
         cntools_wallet_register_save CNTOOLS_GOV_VOTE_DECISION CNTOOLS_DREP_LIFECYCLE_ANCHOR_URL CNTOOLS_DREP_LIFECYCLE_ANCHOR_HASH

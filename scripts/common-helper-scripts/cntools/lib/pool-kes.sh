@@ -92,7 +92,7 @@ cntools_kes_counter_from_ledger() {
 }
 
 cntools_kes_counter_guard() {
-  local index="${CNTOOLS_KES_INDEX}" cert='' hot='' cold='' disk='' period='' signature=''
+  local index="${CNTOOLS_KES_INDEX}" cert='' cold='' disk=''
   CNTOOLS_KES_LEDGER="${CNTOOLS_POOL_CERT_CHAIN[index]:-}"
   [[ "${CNTOOLS_KES_NEXT}" =~ ^(0|[1-9][0-9]{0,9})$ ]] && ((CNTOOLS_KES_NEXT < 2147483647)) || return 1
   if [[ -n "${CNTOOLS_KES_LEDGER}" ]]; then
@@ -105,11 +105,15 @@ cntools_kes_counter_guard() {
     cntools_kes_error 'The ledger counter is unavailable. Enter and approve the issue counter before proceeding.'; return 1;
   }
   # Without a ledger, never issue below the certificate already installed.
-  cntools_pool_file_name_into cert opcert; cntools_pool_file_name_into hot kes-vkey; cntools_pool_file_name_into cold cold-vkey
+  # Only its cold-key binding counts: it may certify another KES key than
+  # hot.vkey (a rotation outside CNTools), which this rotation replaces.
+  cntools_pool_file_name_into cert opcert; cntools_pool_file_name_into cold cold-vkey
   if [[ -e "${CNTOOLS_KES_DIRECTORY}/${cert}" || -L "${CNTOOLS_KES_DIRECTORY}/${cert}" ]]; then
-    cntools_pool_opcert_fields_into disk period signature "${CNTOOLS_KES_DIRECTORY}/${cert}" \
-      "${CNTOOLS_KES_DIRECTORY}/${cold}" "${CNTOOLS_KES_DIRECTORY}/${hot}" && ((CNTOOLS_KES_NEXT >= disk)) || {
-      cntools_kes_error 'The current certificate is invalid or the issue counter is below its counter. Nothing was issued.'; return 1;
+    cntools_pool_opcert_cold_counter_into disk "${CNTOOLS_KES_DIRECTORY}/${cert}" "${CNTOOLS_KES_DIRECTORY}/${cold}" || {
+      cntools_kes_error "${cert} was not issued by this pool's cold key or is unreadable, so the issue counter cannot be checked against it. Move it out of the pool folder, then rotate again. Nothing was issued."; return 1;
+    }
+    ((CNTOOLS_KES_NEXT >= disk)) || {
+      cntools_kes_error "The issue counter is below the counter of the installed certificate (${disk}). Nothing was issued."; return 1;
     }
   fi
 }
@@ -468,7 +472,14 @@ cntools_kes_issue() {
     # counter is unchanged, so the request is ready again.
     rm -f -- "${stage}/replacement/op.cert"
     cntools_kes_phase_set prepared || true
-    cntools_kes_error 'Certificate issuance failed or timed out. No certificate was accepted and the issue counter is unchanged.'; return 1
+    # A node-side request stays prepared; an offline signing releases its lock
+    # (cntools_kes_unlock_unissued adds that a retry can start).
+    if [[ "${stage##*/}" == kes-sign.* ]]; then
+      cntools_kes_error 'Certificate issuance failed or timed out. No certificate was accepted and the issue counter is unchanged.'
+    else
+      cntools_kes_error 'Certificate issuance failed or timed out. No certificate was accepted and the issue counter is unchanged. The prepared request is kept; reopen Pool → Rotate to issue it again or discard it.'
+    fi
+    return 1
   fi
   CNTOOLS_KES_ISSUED=Y
   cntools_kes_response_validate "${stage}/replacement" || {
@@ -566,7 +577,7 @@ cntools_kes_lock_release() {
   cntools_pool_opcert_lock_into lock "${CNTOOLS_KES_DIRECTORY}" &&
     cntools_pool_directory_writable "${lock}" && [[ "$(< "${lock}/rotation")" == "${CNTOOLS_KES_STAGE##*/}" ]] || return 1
   cntools_kes_cleanup
-  rm -- "${lock}/rotation" && rmdir -- "${lock}"
+  rm -f -- "${lock}/rotation" && rmdir -- "${lock}"
 }
 
 cntools_kes_cleanup() {

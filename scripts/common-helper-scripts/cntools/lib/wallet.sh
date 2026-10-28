@@ -211,6 +211,19 @@ cntools_wallet_protection() {
   printf 'Open\n'
 }
 
+# Immutable files whose chattr needs a sudo password: CNTools never asks for
+# one (v13 did), so name the shell command that unlocks them, for one or
+# several folders.
+cntools_wallet_immutable_remedy() {
+  local names='' globs='' folder=''
+  for folder in "$@"; do
+    names+="${names:+, }${folder##*/}"
+    globs+="${globs:+ }$(printf '%q' "${folder}")/*"
+  done
+  printf '%s %s immutable files, and unlocking them needs a sudo password, which CNTools never asks for. Run sudo chattr -i %s in a shell, then try again. Nothing was changed.' \
+    "${names}" "$( (( $# == 1 )) && printf has || printf have)" "${globs}"
+}
+
 # Display role of a Key protection value; a partly protected wallet warns.
 cntools_wallet_protection_role() {
   case "${1:-}" in

@@ -54,7 +54,8 @@ cntools_funding_tip_into() {
 }
 
 # Koios returns at most 1,000 rows per request: page through a wallet's UTxOs
-# (up to CNTOOLS_UTXO_MAX_COUNT) and merge them into RESPONSE_FILE.
+# (up to CNTOOLS_UTXO_MAX_COUNT) and merge them into RESPONSE_FILE. Offset
+# paging needs a stable order, or pages repeat and drop rows.
 cntools_funding_koios_utxos() {
   local fku_response="$1" fku_payload='' fku_page='' fku_offset=0 fku_rows=0
   local -a fku_pages=()
@@ -62,7 +63,7 @@ cntools_funding_koios_utxos() {
   while true; do
     cntools_transaction_temp_file fku_page funding-utxo-page || return 1
     cntools_wallet_query_http \
-      "${CNTOOLS_KOIOS_API%/}/address_utxos?select=tx_hash%2Ctx_index%2Caddress%2Cvalue%3A%3Atext%2Casset_list%2Cdatum_hash%2Cinline_datum%2Creference_script&limit=1000&offset=${fku_offset}" \
+      "${CNTOOLS_KOIOS_API%/}/address_utxos?select=tx_hash%2Ctx_index%2Caddress%2Cvalue%3A%3Atext%2Casset_list%2Cdatum_hash%2Cinline_datum%2Creference_script&order=tx_hash.asc%2Ctx_index.asc&limit=1000&offset=${fku_offset}" \
       "${fku_payload}" "${fku_page}" 16777216 || return 1
     # The loader validates the response; a malformed page ends paging.
     fku_rows="$(jq -r 'if type == "array" then length else 0 end' "${fku_page}" 2>/dev/null)" || fku_rows=0
@@ -74,7 +75,9 @@ cntools_funding_koios_utxos() {
   if (( ${#fku_pages[@]} == 1 )); then
     cat -- "${fku_pages[0]}" > "${fku_response}" || return 1
   else
-    jq -cs 'add' "${fku_pages[@]}" > "${fku_response}" || return 1
+    # A UTxO created while paging shifts later pages by one row: keep one copy.
+    jq -cs 'if all(.[]; type == "array") then add | unique_by([.tx_hash, .tx_index]) else null end' \
+      "${fku_pages[@]}" > "${fku_response}" || return 1
   fi
 }
 

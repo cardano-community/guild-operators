@@ -59,6 +59,24 @@ cntools_pool_locks_unlock() {
   done
 }
 
+# Checked before any prompt: immutable files (v13 locked them with an
+# interactive sudo chattr +i) must be unlockable without a password.
+cntools_pool_unlock_ready() {
+  local directory="$1" file='' lsattr='' attributes='' status=0
+  lsattr="$(type -P lsattr 2>/dev/null || true)"; [[ -n "${lsattr}" ]] || return 0
+  for file in "${directory}"/* "${directory}"/.[!.]* "${directory}"/..?*; do
+    [[ -f "${file}" && ! -L "${file}" && "${file##*/}" != .cntools-* ]] || continue
+    attributes="$(cntools_run_command 0000 -- "${lsattr}" -d -- "${file}" 2>/dev/null || true)"
+    [[ "${attributes%% *}" == *i* ]] || continue
+    [[ -w "${directory}" ]] || return 0
+    cntools_pool_chattr_prepare "${directory}" || status=$?
+    cntools_pool_files_cleanup_temps
+    ((status == 0)) && return 0
+    cntools_pool_write_error "$(cntools_wallet_immutable_remedy "${directory}")"
+    return 1
+  done
+}
+
 cntools_pool_locks_apply() {
   local directory="$1" operation="$2" file="" applied_file="" status=0 mode=0400
   local -a files=() applied=()

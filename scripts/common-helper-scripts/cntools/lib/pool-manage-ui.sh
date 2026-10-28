@@ -39,18 +39,16 @@ cntools_pool_action_new() {
   cntools_pool_manage_name_into name create || status=$?
   ((status != 1)) || return 0; ((status == 0)) || return "${status}"
   cntools_pool_target_into target "${name}" || return 1
-  # Quick creates it at once, so the plan is drawn only when a question follows.
-  if ! cntools_flow_quick; then
-    cntools_ui_action_begin New '/ Pool / New'
-    {
-      cntools_table_pair Name "${name}" identifier
-      cntools_table_pair Directory "${target}" identifier
-      cntools_table_pair 'Cold identity' 'New CLI signing and verification keys' value
-      cntools_table_pair 'Node keys' 'New KES and VRF key pairs' value
-      cntools_table_pair Counter 'New issue counter (0)' number
-    } | cntools_table_render 'Create pool'
-  fi
-  status=0; cntools_ui_flow_confirm "Create pool ${name}?" false || status=$?
+  cntools_ui_action_begin New '/ Pool / New'
+  {
+    cntools_table_pair Name "${name}" identifier
+    cntools_table_pair Directory "${target}" identifier
+    cntools_table_pair 'Cold identity' 'New CLI signing and verification keys' value
+    cntools_table_pair 'Node keys' 'New KES and VRF key pairs' value
+    cntools_table_pair Counter 'New issue counter (0)' number
+  } | cntools_table_render 'Create pool'
+  # New key material: a real confirmation in both styles, naming the pool.
+  status=0; cntools_ui_confirm "Create pool ${name} now?" || status=$?
   ((status != 1)) || return 0; ((status == 0)) || return "${status}"
   cntools_transaction_log CHOICE "Pool creation confirmed name=${name}"
   status=0
@@ -172,6 +170,27 @@ cntools_pool_action_protection() {
     fi
   done
   cntools_pool_key_state_into calidus_state "${directory}" calidus-skey || return 1
+  # After Restore an encrypted pool's files are writable again: lock them
+  # without decrypting anything, as Wallet → Encrypt does.
+  if [[ "${operation}" == encrypt && "${encrypted}" == Y ]] && (( ${#keys[@]} == 0 )) && ! cntools_pool_directory_locked "${directory}"; then
+    cntools_ui_render_status info "${CNTOOLS_POOL_NAMES[selected]} is encrypted, but its files are writable again (as after Restore). Only its file permissions and immutable flags change; no key is decrypted or encrypted again."
+    status=0; cntools_ui_flow_confirm "Lock the files of ${CNTOOLS_POOL_NAMES[selected]}?" false || status=$?
+    ((status != 1)) || return 0; ((status == 0)) || return "${status}"
+    cntools_transaction_log CHOICE "Pool relock started pool=${directory##*/}"
+    status=0
+    cntools_ui_spin_function "Locking the files of ${CNTOOLS_POOL_NAMES[selected]}…" cntools_pool_relock "${directory}" || status=$?
+    cntools_ui_action_begin "${title}" "/ Pool / ${title}"
+    if ((status == 0)); then
+      { cntools_table_pair Pool "${directory##*/}" identifier; cntools_table_pair Result 'Files locked' success
+        cntools_table_pair Protection "${CNTOOLS_POOL_LOCK_METHOD}" value; } | cntools_table_render Pool
+    else
+      cntools_ui_render_status error "${CNTOOLS_POOL_WRITE_ERROR:-The pool files could not be locked.} See ${CNTOOLS_LOG}."
+    fi
+    [[ -z "${CNTOOLS_POOL_WRITE_WARNING}" ]] || cntools_ui_render_status warn "${CNTOOLS_POOL_WRITE_WARNING}"
+    cntools_ui_wait
+    ((status == 0)) || return 1
+    return 0
+  fi
   if [[ "${operation}" == encrypt && "${encrypted}" == Y ]]; then
     { cntools_table_pair Pool "${CNTOOLS_POOL_NAMES[selected]}" identifier
       cntools_table_pair 'Cold key' "${CNTOOLS_POOL_PROTECTIONS[selected]}" value
@@ -186,6 +205,10 @@ cntools_pool_action_protection() {
   fi
   if (( ${#keys[@]} > 0 )) && ! { cntools_key_crypto_available || type -P gpg2 >/dev/null 2>&1; }; then
     cntools_ui_render_status error "GnuPG (gpg) is required to ${operation} the signing keys of ${CNTOOLS_POOL_NAMES[selected]}. Install it and try again; nothing was changed."
+    cntools_ui_wait; return 1
+  fi
+  if [[ "${operation}" == decrypt ]] && ! cntools_pool_unlock_ready "${directory}"; then
+    cntools_ui_render_status error "${CNTOOLS_POOL_WRITE_ERROR}"
     cntools_ui_wait; return 1
   fi
   keys_text="${keys[*]}"; keys_text="${keys_text// / and }"
@@ -212,7 +235,11 @@ cntools_pool_action_protection() {
       cntools_ui_render_status warn 'Decryption opens all protected keys together with one password and leaves them unencrypted on this system.'
     cntools_ui_confirm "Decrypt ${CNTOOLS_POOL_NAMES[selected]}?" false || status=$?
   elif (( ${#keys[@]} > 0 )); then
-    cntools_ui_render_status warn 'Keep offline backups. Password loss cannot be recovered. Both signing keys use the same password.'
+    if (( ${#keys[@]} > 1 )); then
+      cntools_ui_render_status warn 'Keep offline backups. Password loss cannot be recovered. Both signing keys use the same password.'
+    else
+      cntools_ui_render_status warn 'Keep offline backups. Password loss cannot be recovered.'
+    fi
   else
     cntools_ui_flow_confirm "Lock the files of ${CNTOOLS_POOL_NAMES[selected]}?" false || status=$?
   fi

@@ -172,9 +172,9 @@ flow style and saves the answer. Change it any time in
 **Settings → Flow Style**.
 
 - **Quick** uses sensible defaults instead of asking. Transactions follow the
-  shortened flow above, summary confirmations such as "Create this pool?" are
-  skipped, and optional lookups such as pool details or asset names are
-  fetched directly. Defaults that matter can still be changed: wallets start
+  shortened flow above, summary confirmations such as "Lock the files of this
+  pool?" are skipped, and optional lookups such as pool details or asset names
+  are fetched directly. Defaults that matter can still be changed: wallets start
   at account and key index 0 with **Change account and key index** at the
   plan step, and reviews offer options such as **Change scope**,
   **Change stake setup** or **Change metadata**.
@@ -183,8 +183,8 @@ flow style and saves the answer. Change it any time in
 Both styles keep warnings and safety confirmations, such as self-sends,
 retiring pools, pool retirement and burn submission, deletions, restores, key
 decryption, KES rotation and cold-key signing. Creating new key material (a
-wallet, DRep or Catalyst key, a policy with an expiry) asks in both styles and
-names the wallet or object. For encryption, entering the passphrase is the
+wallet, pool, policy, DRep or Catalyst key) asks in both styles and names the
+wallet or object. For encryption, entering the passphrase is the
 confirmation; Escape cancels. Warnings shown before a step Quick confirms
 automatically are repeated on the next screen.
 

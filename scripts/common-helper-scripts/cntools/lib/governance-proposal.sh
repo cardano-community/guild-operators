@@ -93,7 +93,7 @@ cntools_proposals_koios_fetch() {
   cntools_transaction_temp_file combined proposals-combined || return 1
   printf '[]\n' > "${output}"
   while ((offset < 10000)); do
-    cntools_wallet_query_http "${CNTOOLS_KOIOS_API%/}/proposal_list?expiration=gte.${epoch}&enacted_epoch=is.null&dropped_epoch=is.null&expired_epoch=is.null&limit=500&offset=${offset}" '' "${part}" 33554432 GET || return 1
+    cntools_wallet_query_http "${CNTOOLS_KOIOS_API%/}/proposal_list?expiration=gte.${epoch}&enacted_epoch=is.null&dropped_epoch=is.null&expired_epoch=is.null&order=proposal_tx_hash.asc%2Cproposal_index.asc&limit=500&offset=${offset}" '' "${part}" 33554432 GET || return 1
     count="$(jq -er 'select(type == "array" and length <= 500) | length' "${part}")" || return 1
     jq -cs '.[0]+.[1]' "${output}" "${part}" > "${combined}" || return 1
     cntools_transaction_file_safe "${combined}" 33554432 || {

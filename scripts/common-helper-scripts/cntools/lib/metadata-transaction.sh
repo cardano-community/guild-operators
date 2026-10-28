@@ -1,12 +1,22 @@
 #!/usr/bin/env bash
 # Metadata-only adapter: reuse Send's balanced payment/change/fee engine.
 # shellcheck disable=SC2034
-# Datum/reference-script UTxOs the last build left alone (the review says so).
+# Datum/reference-script UTxOs the last build left alone, and what they are
+# (the review says so).
 CNTOOLS_METADATA_TRANSACTION_SKIPPED=0
+CNTOOLS_METADATA_TRANSACTION_SKIPPED_WHAT='reference-script UTxO'
 
 cntools_metadata_transaction_build_into() {
   local result="$1" intent="$2" description="$3" context="$4" metadata="$5" view='' expected='' skipped=0
+  local index=0 scripts=0 datums=0
   CNTOOLS_METADATA_TRANSACTION_SKIPPED=0
+  for index in "${!CNTOOLS_UTXO_REFS[@]}"; do
+    if [[ "${CNTOOLS_UTXO_HAS_REFERENCE_SCRIPT[index]:-N}" != N ]]; then scripts=$((scripts + 1))
+    elif [[ "${CNTOOLS_UTXO_HAS_DATUM[index]:-N}" != N ]]; then datums=$((datums + 1)); fi
+  done
+  CNTOOLS_METADATA_TRANSACTION_SKIPPED_WHAT='reference-script UTxO'
+  if ((scripts > 0 && datums > 0)); then CNTOOLS_METADATA_TRANSACTION_SKIPPED_WHAT='script or datum UTxO'
+  elif ((datums > 0)); then CNTOOLS_METADATA_TRANSACTION_SKIPPED_WHAT='datum UTxO'; fi
   cntools_utxo_keep_simple_into skipped || return 1
   CNTOOLS_METADATA_TRANSACTION_SKIPPED="${skipped}"
   cntools_transaction_log TRANSACTION "Metadata-only inventory excluded=${skipped} datum/reference-script UTxOs"

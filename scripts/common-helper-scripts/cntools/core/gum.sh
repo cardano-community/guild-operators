@@ -510,6 +510,17 @@ cntools_gum() {
   "${CNTOOLS_GUM_BIN}" "$@"
 }
 
+# Gum input takes a piped stdin as its initial value, so a prompt inside a
+# "while read … done < <(…)" loop would swallow the loop's records. Text
+# prompts read from the terminal instead.
+cntools_gum_prompt() {
+  if [[ "${CNTOOLS_UI_INTERACTIVE:-N}" == Y ]] && { : </dev/tty; } 2>/dev/null; then
+    cntools_gum "$@" </dev/tty
+  else
+    cntools_gum "$@"
+  fi
+}
+
 # Header fragments are composed through command substitutions. Gum correctly
 # treats those pipes as non-interactive, so explicitly retain ANSI styling for
 # the fragments that will immediately be rendered back to the user's terminal.
@@ -939,6 +950,35 @@ cntools_ui_action_begin() {
   cntools_ui_render_begin "${1:-Action}" "${2:-/}"
 }
 
+# Width (padding included) for a status box whose message is wider than the
+# terminal: the 2+2 margin, border and padding stay on screen and the text
+# wraps inside. Empty when the message fits on its lines as is.
+cntools_ui_status_width_into() {
+  local _csw_output="$1" _csw_message="${2:-}" _csw_terminal='' _csw_line='' _csw_longest=0
+  printf -v "${_csw_output}" '%s' ''
+  _csw_terminal="$(cntools_gum_width)" || _csw_terminal=80
+  [[ "${_csw_terminal}" =~ ^[0-9]+$ ]] || _csw_terminal=80
+  while IFS= read -r _csw_line; do
+    (( ${#_csw_line} <= _csw_longest )) || _csw_longest=${#_csw_line}
+  done <<< "${_csw_message}"
+  (( _csw_longest + 8 > _csw_terminal && _csw_terminal >= 30 )) || return 0
+  printf -v "${_csw_output}" '%s' "$((_csw_terminal - 6))"
+}
+
+# Rows a status box takes on screen, border and bottom margin included.
+cntools_ui_status_rows_into() {
+  local _csr_output="$1" _csr_width='' _csr_lines=''
+  cntools_ui_status_width_into _csr_width "${2:-}"
+  if [[ -n "${_csr_width}" ]]; then
+    _csr_lines="$(printf '%s\n' "${2:-}" | fold -s -w "$((_csr_width - 2))" | wc -l)"
+  else
+    _csr_lines="$(printf '%s\n' "${2:-}" | wc -l)"
+  fi
+  _csr_lines="${_csr_lines//[[:space:]]/}"
+  [[ "${_csr_lines}" =~ ^[1-9][0-9]*$ ]] || _csr_lines=1
+  printf -v "${_csr_output}" '%s' "$((_csr_lines + 3))"
+}
+
 cntools_ui_render_status() {
   local level="${1:-info}"
   local message="${2:-}"
@@ -950,6 +990,9 @@ cntools_ui_render_status() {
   if [[ -n "${width}" ]]; then
     [[ "${width}" =~ ^[1-9][0-9]*$ ]] || return 2
     width_arguments=(--width "${width}")
+  else
+    cntools_ui_status_width_into width "${message}"
+    [[ -z "${width}" ]] || width_arguments=(--width "${width}")
   fi
   if [[ "${level}" == warn || "${level}" == error ]]; then
     local record="${level}"$'\037'"${message}" existing=""
@@ -1021,7 +1064,7 @@ cntools_ui_wait() {
   cntools_ui_seen
   [[ "${CNTOOLS_UI_INTERACTIVE:-N}" == "Y" ]] || return 0
   printf '\n'
-  cntools_gum input --no-show-help \
+  cntools_gum_prompt input --no-show-help \
     --prompt "" --placeholder "Press Enter to return…" \
     --cursor.foreground "${CNTOOLS_GUM_COLOR_BRAND}" >/dev/null || true
 }
@@ -1052,7 +1095,7 @@ cntools_ui_input() {
       --placeholder.foreground "${CNTOOLS_GUM_COLOR_MUTED}"
     )
   fi
-  _cntools_value="$(cntools_gum input --prompt "${_cntools_prompt}: " \
+  _cntools_value="$(cntools_gum_prompt input --prompt "${_cntools_prompt}: " \
     "${_cntools_placeholder_arguments[@]}" \
     --prompt.foreground "${CNTOOLS_GUM_COLOR_BRAND}" \
     --cursor.foreground "${CNTOOLS_GUM_COLOR_BRAND}")" || return $?
@@ -1073,7 +1116,7 @@ cntools_ui_password() {
   [[ "${_cntools_output_name}" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || return 2
   local -n _cntools_output_ref="${_cntools_output_name}"
   _cntools_output_ref=""
-  _cntools_value="$(cntools_gum input --password \
+  _cntools_value="$(cntools_gum_prompt input --password \
     --prompt "${_cntools_prompt}: " \
     --prompt.foreground "${CNTOOLS_GUM_COLOR_BRAND}" \
     --cursor.foreground "${CNTOOLS_GUM_COLOR_BRAND}")" || return $?
@@ -1238,10 +1281,11 @@ cntools_ui_file_selected() {
           cntools_ui_render_status warn 'The selected target changed or is no longer safe to delete. Nothing was deleted.'
           cntools_ui_wait; return 1
         fi
-        local -a file_action_command=(rm -- "${file_action_target}")
-        [[ "${file_action_kind}" != directory ]] || file_action_command=(rm -r -- "${file_action_target}")
+        # -f: a read-only file must not make rm ask on the hidden terminal.
+        local -a file_action_command=(rm -f -- "${file_action_target}")
+        [[ "${file_action_kind}" != directory ]] || file_action_command=(rm -rf -- "${file_action_target}")
         cntools_gum_log CMD "$(printf '%q ' "${file_action_command[@]}")"
-        if file_action_errors="$("${file_action_command[@]}" 2>&1)"; then
+        if file_action_errors="$("${file_action_command[@]}" 2>&1)" && [[ ! -e "${file_action_target}" && ! -L "${file_action_target}" ]]; then
           cntools_gum_log FILE "Permanently deleted ${file_action_kind}=$(printf '%q' "${file_action_target}")"
           cntools_ui_render_status success "Selected ${file_action_kind} permanently deleted. It cannot be restored through CNTools."
           cntools_ui_wait; return 3
@@ -1657,6 +1701,7 @@ cntools_gum_menu_run() {
   local height=12
   local mapping=-1
   local rows_above_filter=""
+  local status_rows=0
   local row=""
   local row_key=""
   local row_signature=""
@@ -1711,7 +1756,9 @@ cntools_gum_menu_run() {
     fi
     if [[ -n "${status_message}" ]]; then
       cntools_ui_render_status "${status_level}" "${status_message}"
-      rows_above_filter=$((rows_above_filter + CNTOOLS_GUM_STATUS_ROWS))
+      # A long message wraps over more rows than the default box.
+      cntools_ui_status_rows_into status_rows "${status_message}"
+      rows_above_filter=$((rows_above_filter + status_rows))
       status_level=""
       status_message=""
     fi

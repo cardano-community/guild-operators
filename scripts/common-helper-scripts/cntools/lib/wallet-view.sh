@@ -12,6 +12,8 @@ cntools_wallet_identity_rows() {
   local registration_role=""
 
   protection_role="$(cntools_wallet_protection_role "${key_protection}")" || return 1
+  # Named here too: Encrypt finishes a wallet that v13 encrypted partly.
+  [[ "${key_protection}" != 'Partly protected' ]] || key_protection+=' · Wallet → Encrypt protects the rest'
 
   cntools_table_row "Wallet detail" "Value" || return 1
   cntools_table_wrapped_pair \

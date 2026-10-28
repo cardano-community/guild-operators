@@ -79,12 +79,15 @@ cntools_gov_vote_choose_rationale() {
 # The decision menu for the selected proposal, with the published-metadata
 # check offered alongside the votes. Optional current decision is marked.
 # Returns 1 on Esc or Back.
+# CURRENT marks the vote already on chain; REVIEWED the decision the review
+# shows (Change vote).
 cntools_gov_vote_decision_into() {
-  local vd_output="$1" vd_current="${2:-}" vd_choice='' vd_url='' vd_hash='' vd_option='' vd_back="${3:-Back to proposals}"
+  local vd_output="$1" vd_current="${2:-}" vd_choice='' vd_url='' vd_hash='' vd_option='' vd_back="${3:-Back to proposals}" vd_reviewed="${4:-}"
   local -a vd_choices=()
   vd_url="$(jq -r '.anchor.url // ""' <<< "${CNTOOLS_GOV_VOTE_PROPOSAL}")"; vd_hash="$(jq -r '.anchor.dataHash // ""' <<< "${CNTOOLS_GOV_VOTE_PROPOSAL}")"
   for vd_option in Yes No Abstain; do
     [[ "${vd_option}" != "${vd_current}" ]] || vd_option+=' · current'
+    [[ "${vd_option%% · *}" != "${vd_reviewed}" ]] || vd_option+=' · reviewed'
     vd_choices+=("${vd_option}")
   done
   ! cntools_public_metadata_verifiable "${vd_url}" "${vd_hash}" || vd_choices+=('Verify published metadata')
@@ -100,7 +103,7 @@ cntools_gov_vote_decision_into() {
           cntools_public_metadata_verify "${vd_url}" "${vd_hash}"
         fi ;;
       "${vd_back}") return 1 ;;
-      *) printf -v "${vd_output}" '%s' "${vd_choice% · current}"; return 0 ;;
+      *) printf -v "${vd_output}" '%s' "${vd_choice%% · *}"; return 0 ;;
     esac
   done
 }
@@ -179,10 +182,11 @@ cntools_gov_vote_choose() {
 # changed, so the caller rebuilds.
 cntools_gov_vote_change() {
   local cv_decision="${CNTOOLS_GOV_VOTE_DECISION}" cv_url="${CNTOOLS_DREP_LIFECYCLE_ANCHOR_URL}" cv_hash="${CNTOOLS_DREP_LIFECYCLE_ANCHOR_HASH}"
-  local cv_vote='' cv_status=0
+  local cv_vote='' cv_status=0 cv_previous=''
   # The review is on screen, not the indexed metadata: a check shows the bytes.
   local CNTOOLS_PROPOSAL_METADATA_SHOWN=N
-  cntools_gov_vote_decision_into cv_vote "${cv_decision}" Cancel || cv_status=$?
+  [[ "${CNTOOLS_GOV_VOTE_PREVIOUS:-null}" == null ]] || cntools_gov_vote_label_into cv_previous "${CNTOOLS_GOV_VOTE_PREVIOUS}"
+  cntools_gov_vote_decision_into cv_vote "${cv_previous}" Cancel "${cv_decision}" || cv_status=$?
   if ((cv_status == 0)); then
     CNTOOLS_GOV_VOTE_DECISION="${cv_vote}"
     cntools_gov_vote_choose_rationale change || cv_status=$?

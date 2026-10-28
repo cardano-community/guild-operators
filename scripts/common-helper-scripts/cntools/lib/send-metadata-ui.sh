@@ -60,7 +60,7 @@ cntools_send_metadata_message() {
   cntools_send_choose protection 'Message protection' 'Plain (CIP-20)' 'Encrypted (CIP-83)' || return $?
   cntools_ui_render_status warn 'Metadata is permanent. Encryption hides only the message, not addresses, amounts or other metadata.'
   cntools_ui_seen # A raw gum prompt: what is on screen has been seen.
-  entered="$(cntools_gum write --char-limit 4096 --height 5 --width "$(cntools_gum_width)" \
+  entered="$(cntools_gum_prompt write --char-limit 4096 --height 5 --width "$(cntools_gum_width)" \
     --prompt.foreground "${CNTOOLS_GUM_COLOR_BRAND}" --cursor.foreground "${CNTOOLS_GUM_COLOR_BRAND}" \
     --placeholder.foreground "${CNTOOLS_GUM_COLOR_MUTED}" --placeholder 'Transaction message (Ctrl+D to finish)')" || return $?
   [[ -n "${entered}" ]] || return 0

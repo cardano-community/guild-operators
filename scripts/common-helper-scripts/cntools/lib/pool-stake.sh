@@ -190,11 +190,33 @@ cntools_pool_stake_state_into() {
 declare -Ag CNTOOLS_POOL_STAKE_SETUP_CHOSEN=()
 CNTOOLS_POOL_STAKE_SETUP_NOTE=''
 
-# Quick includes the main-owner delegation and reward registration; "ask"
-# (review → Change stake setup) asks in both styles; "reuse" keeps answers
-# already given in both styles.
+# True when the funding wallet can also pay a further stake DEPOSIT on top
+# of the deposits planned so far, the fee and the change.
+cntools_pool_stake_affordable() {
+  local psa_needed=''
+  cntools_pool_registration_funds_needed_into psa_needed "$1" || return 0
+  cntools_uint_greater_equal "${CNTOOLS_WALLET_REGISTER_AVAILABLE_LOVELACE:-0}" "${psa_needed}"
+}
+
+# WHAT and DEPOSIT name the setup; MODE ask: the question follows (the funds
+# loaded for this transaction stay the same until Register runs again).
+cntools_pool_stake_unaffordable_text() {
+  local pst_start=''
+  printf -v pst_start '%s cannot also pay the %s deposit for the %s' \
+    "${CNTOOLS_WALLET_REGISTER_WALLET:-The funding wallet}" "$(cntools_number_format_lovelace "$2")" "$1"
+  if [[ "${3:-}" == ask ]]; then
+    printf '%s, so including it would fail. Keep it separate and set it up later with Wallet → Register and Funds → Delegate, or add funds and run Pool → Register again.' "${pst_start}"
+  else
+    printf '%s, so it is left out of this transaction. Add funds and run Pool → Register again, or set it up later with Wallet → Register and Funds → Delegate.' "${pst_start}"
+  fi
+}
+
+# Quick includes the main-owner delegation and reward registration when the
+# funding wallet can pay for them; "ask" (review → Change stake setup) asks
+# in both styles; "reuse" keeps answers already given in both styles.
 cntools_pool_stake_setup_choose() {
   local mode="${1:-}" record='' source='' kind='' hash='' status='' choice='' deposit='' plan='[]' primary='' title='' remembered=''
+  local -a options=()
   CNTOOLS_POOL_STAKE_PLAN='[]'; CNTOOLS_POOL_EXTRA_RECORDS='[]'; CNTOOLS_POOL_EXTRA_EXPECTED='[]'; CNTOOLS_POOL_EXTRA_CERTIFICATES=()
   CNTOOLS_POOL_STAKE_SETUP_ASKABLE=N; CNTOOLS_POOL_STAKE_SETUP_NOTE=''
   CNTOOLS_WALLET_REGISTER_DEPOSIT="${CNTOOLS_POOL_REG_POOL_DEPOSIT}"
@@ -232,10 +254,23 @@ cntools_pool_stake_setup_choose() {
       remembered="${CNTOOLS_POOL_STAKE_SETUP_CHOSEN[delegate:${hash}]:-}"
       if [[ "${mode}" == reuse && -n "${remembered}" ]] || { [[ "${mode}" != ask ]] && cntools_flow_quick; }; then
         choice="${remembered:-Register if needed and delegate to this pool}"
+        # Quick leaves out a stake registration the wallet cannot also pay
+        # for, instead of failing the first build. The review can add it.
+        if [[ -z "${remembered}" && "${status}" == no ]] && ! cntools_pool_stake_affordable "${deposit}"; then
+          choice='Keep stake setup separate'
+          cntools_ui_render_status warn "$(cntools_pool_stake_unaffordable_text 'main-owner stake registration' "${deposit}")"
+        fi
         cntools_transaction_log CHOICE "Pool menu=${title} default=${choice} $([[ "${mode}" == reuse ]] && printf kept || printf flow=quick)$([[ -z "${remembered}" ]] || printf ' remembered')"
       else
         cntools_ui_render_status info "Main owner: $(jq -r .label <<< "${record}"). Stake registration (if needed) and delegation can be included atomically with pool registration."
-        cntools_pool_registration_choose choice "${title}" 'Register if needed and delegate to this pool' 'Keep stake setup separate' || return $?
+        options=('Register if needed and delegate to this pool' 'Keep stake setup separate')
+        # A registration the wallet cannot also pay for is named, and the
+        # separate setup comes first.
+        if [[ "${status}" == no ]] && ! cntools_pool_stake_affordable "${deposit}"; then
+          cntools_ui_render_status warn "$(cntools_pool_stake_unaffordable_text 'main-owner stake registration' "${deposit}" ask)"
+          options=("${options[1]}" "${options[0]}")
+        fi
+        cntools_pool_registration_choose choice "${title}" "${options[@]}" || return $?
         CNTOOLS_POOL_STAKE_SETUP_CHOSEN["delegate:${hash}"]="${choice}"
       fi
       [[ "${choice}" == 'Register if needed and delegate to this pool' ]] || continue
@@ -245,9 +280,18 @@ cntools_pool_stake_setup_choose() {
       remembered="${CNTOOLS_POOL_STAKE_SETUP_CHOSEN[register:${hash}]:-}"
       if [[ "${mode}" == reuse && -n "${remembered}" ]] || { [[ "${mode}" != ask ]] && cntools_flow_quick; }; then
         choice="${remembered:-Include reward registration}"
+        if [[ -z "${remembered}" ]] && ! cntools_pool_stake_affordable "${deposit}"; then
+          choice='Keep reward registration separate'
+          cntools_ui_render_status warn "$(cntools_pool_stake_unaffordable_text 'reward account registration' "${deposit}")"
+        fi
         cntools_transaction_log CHOICE "Pool menu=${title} default=${choice} $([[ "${mode}" == reuse ]] && printf kept || printf flow=quick)$([[ -z "${remembered}" ]] || printf ' remembered')"
       else
-        cntools_pool_registration_choose choice "${title}" 'Include reward registration' 'Keep reward registration separate' || return $?
+        options=('Include reward registration' 'Keep reward registration separate')
+        if ! cntools_pool_stake_affordable "${deposit}"; then
+          cntools_ui_render_status warn "$(cntools_pool_stake_unaffordable_text 'reward account registration' "${deposit}" ask)"
+          options=("${options[1]}" "${options[0]}")
+        fi
+        cntools_pool_registration_choose choice "${title}" "${options[@]}" || return $?
         CNTOOLS_POOL_STAKE_SETUP_CHOSEN["register:${hash}"]="${choice}"
       fi
       [[ "${choice}" == 'Include reward registration' ]] || continue

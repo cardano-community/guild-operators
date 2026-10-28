@@ -15,7 +15,7 @@ cntools_collect_render() {
   {
     printf 'Property\tValue\n'
     cntools_transaction_ui_styled_row Wallet "${CNTOOLS_SEND_WALLET}" identifier
-    cntools_transaction_ui_styled_row Scope "${scope}" status
+    cntools_transaction_ui_styled_row Scope "${scope}" value
     cntools_transaction_ui_styled_row 'Return address' "${CNTOOLS_SEND_ADDRESS}" address
     (( remaining <= 0 )) || cntools_transaction_ui_styled_row 'Collected UTxOs' "${collected}" number
     cntools_transaction_ui_styled_row 'Collected ADA' "$(cntools_number_format_lovelace "${CNTOOLS_COIN_SELECTED_LOVELACE}")" number
@@ -31,9 +31,30 @@ cntools_collect_render() {
   if (( remaining > 0 )); then
     cntools_ui_render_status info "One transaction holds $(cntools_number_format "${#CNTOOLS_COLLECT_INPUTS[@]}") of the $(cntools_number_format "${CNTOOLS_COLLECT_ELIGIBLE}") eligible UTxOs. Run Collect again afterwards for the remaining $(cntools_number_format "${remaining}")."
   fi
+  # Settings are named only when they shaped the change (an Applied status);
+  # otherwise say why the UTxO count does not go down.
   if (( CNTOOLS_COLLECT_OUTPUT_COUNT >= ${#CNTOOLS_COLLECT_INPUTS[@]} )); then
-    cntools_ui_render_status warn 'Your change settings produce as many or more outputs than the selected inputs. This reshapes funds rather than reducing the UTxO count.'
+    if [[ "${CNTOOLS_CHANGE_TOKEN_STATUS:-}" == Applied* || "${CNTOOLS_CHANGE_UTXO_STATUS:-}" == Applied* ||
+          "${CNTOOLS_CHANGE_COLLATERAL_STATUS:-}" == Applied* ]]; then
+      cntools_ui_render_status warn 'Your change settings produce as many or more outputs than the selected inputs. This reshapes funds rather than reducing the UTxO count.'
+    elif (( CNTOOLS_COIN_SELECTED_ASSET_COUNT > 0 )); then
+      cntools_ui_render_status info 'Native assets return as separate change, so this collection does not reduce the UTxO count.'
+    elif cntools_collect_moves_to_base; then
+      cntools_ui_render_status info 'This collection moves the funds to the base address without reducing the UTxO count.'
+    else
+      cntools_ui_render_status info 'This collection does not reduce the UTxO count.'
+    fi
   fi
+}
+
+# True when a selected input sits at another address than the return (base)
+# address, such as the wallet's payment address.
+cntools_collect_moves_to_base() {
+  local cmb_index=''
+  for cmb_index in "${CNTOOLS_COIN_SELECTED_INDICES[@]}"; do
+    [[ "${CNTOOLS_UTXO_ADDRESSES[cmb_index]:-}" == "${CNTOOLS_SEND_ADDRESS}" ]] || return 0
+  done
+  return 1
 }
 
 cntools_collect_result() {

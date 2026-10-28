@@ -46,6 +46,20 @@ cntools_pool_protection_preflight() {
   cntools_pool_directory_writable "${directory}"
 }
 
+# Lock the files of an already encrypted pool again (Restore leaves them
+# writable). No key is decrypted or encrypted.
+cntools_pool_relock() {
+  local directory="$1" status=0
+  CNTOOLS_POOL_WRITE_ERROR=''; CNTOOLS_POOL_WRITE_WARNING=''; CNTOOLS_POOL_PROTECTION_KEYS=0
+  cntools_pool_protection_preflight "${directory}" relock || {
+    [[ -n "${CNTOOLS_POOL_WRITE_ERROR}" ]] || cntools_pool_write_error 'The pool must be owned, writable and safe to modify.'; return 1;
+  }
+  cntools_pool_locks_apply "${directory}" encrypt || status=$?
+  cntools_pool_files_cleanup_temps
+  cntools_transaction_log POOL "Protection pool=${directory##*/} operation=relock lock=${CNTOOLS_POOL_LOCK_METHOD} warning=${CNTOOLS_POOL_WRITE_WARNING:-none}"
+  return "${status}"
+}
+
 cntools_pool_cold_matches() {
   local signing="$1" directory="$2" public="" derived=""
   cntools_pool_key_validate "${signing}" cold signing || return 1

@@ -20,6 +20,8 @@ cntools_catalyst_action_finish() {
   elif ((status != 0)); then
     [[ "${CNTOOLS_METADATA_TRANSACTION_RESULT_SHOWN:-N}" == Y ]] ||
       cntools_ui_render_status error "${CNTOOLS_TRANSACTION_ERROR:-${failure}} See ${CNTOOLS_LOG} for details."
+    # A failure after signing (no funds, node down) keeps what was saved.
+    [[ -z "${CNTOOLS_CATALYST_SAVED_NOTE}" ]] || cntools_ui_render_status info "${CNTOOLS_CATALYST_SAVED_NOTE}"
     status=1
   fi
   cntools_ui_wait
@@ -100,7 +102,9 @@ cntools_catalyst_registration_workflow() {
   local selected='' choice='' nonce='' metadata='' saved='' status=0 context='' wallet='' signable=N imported=N
   CNTOOLS_CATALYST_NONCE=''; CNTOOLS_CATALYST_METADATA=''; CNTOOLS_CATALYST_SAVED_NOTE=''
   CNTOOLS_METADATA_TRANSACTION_RESULT_SHOWN=N
-  cntools_wallet_catalog_build && cntools_transaction_require_cli || return 2
+  # Cardano Signer creates, signs and verifies every authorization: checked
+  # before any choice.
+  cntools_wallet_catalog_build && cntools_transaction_require_cli && cntools_catalyst_signer_require || return 2
   cntools_wallet_choose selected Cancel catalyst || return $?
   cntools_catalyst_identity "${CNTOOLS_WALLET_PATHS[selected]}" || return 2
   CNTOOLS_CATALYST_DIRECTORY="${CNTOOLS_WALLET_PATHS[selected]}" wallet="${CNTOOLS_WALLET_PATHS[selected]##*/}"
@@ -321,22 +325,27 @@ cntools_catalyst_verify_workflow() {
       labels+=("Wallet · ${CNTOOLS_WALLET_NAMES[index]}"); paths+=("${CNTOOLS_WALLET_PATHS[index]}")
     done
   fi
-  choice='External voting public key'
-  if ((${#labels[@]} > 0)); then
-    cntools_ui_choose choice 'Voting key to verify' "${labels[@]}" 'External voting public key' Cancel || return $?
-    [[ "${choice}" != Cancel ]] || return 1
-  else
-    cntools_ui_render_status info 'No CNTools wallet has a Catalyst voting key. Enter an external voting public key.'
-  fi
-  cntools_log CHOICE "Catalyst verify key source=${choice}" || true
-  if [[ "${choice}" == 'External voting public key' ]]; then
+  ((${#labels[@]} > 0)) || cntools_ui_render_status info 'No CNTools wallet has a Catalyst voting key. Enter an external voting public key.'
+  # Esc at the external key goes back to the key picker, when there is one.
+  while true; do
+    choice='External voting public key'
+    if ((${#labels[@]} > 0)); then
+      cntools_ui_choose choice 'Voting key to verify' "${labels[@]}" 'External voting public key' Cancel || return $?
+      [[ "${choice}" != Cancel ]] || return 1
+    fi
+    cntools_log CHOICE "Catalyst verify key source=${choice}" || true
+    [[ "${choice}" == 'External voting public key' ]] || break
+    status=0
     while true; do
-      cntools_ui_input public 'Voting public key' '64 hexadecimal characters' || return $?
+      cntools_ui_input public 'Voting public key' '64 hexadecimal characters' || { status=$?; break; }
       public="${public,,}"; public="${public#0x}"
       [[ "${public}" =~ ^[0-9a-f]{64}$ ]] && break
       cntools_ui_render_status warn 'Enter exactly 64 hexadecimal characters.'
     done
-  else
+    ((status != 0)) || break
+    ((status == 1 && ${#labels[@]} > 0)) || return "${status}"
+  done
+  if [[ "${choice}" != 'External voting public key' ]]; then
     for index in "${!labels[@]}"; do
       [[ "${labels[index]}" != "${choice}" ]] || value="${paths[index]}"
     done

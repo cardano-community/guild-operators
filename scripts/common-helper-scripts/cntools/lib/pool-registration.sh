@@ -291,14 +291,16 @@ cntools_pool_registration_validate_body() {
     expected="$(jq -c '.certificates[0]["Pool retirement"]' <<< "${view}")" || return 1
   else expected="$(cntools_pool_parameters_json)" || return 1; fi
   inputs="$(printf '%s\n' "${CNTOOLS_WALLET_REGISTER_INPUTS[@]}" | jq -Rsc 'split("\n")|map(select(length>0))|sort')"
+  # cardano-cli 11.4 shows "blsKey": null in the pool parameters. CNTools never
+  # sets one, so require it empty and compare the rest exactly.
   jq -e --argjson params "${expected}" --argjson inputs "${inputs}" --arg address "${CNTOOLS_WALLET_REGISTER_BASE_ADDRESS}" \
     --argjson setup "${CNTOOLS_POOL_EXTRA_EXPECTED:-[]}" --arg operation "${CNTOOLS_WALLET_REGISTER_OPERATION}" \
     --arg expiry "${CNTOOLS_WALLET_REGISTER_EXPIRY}" --arg fee "${CNTOOLS_WALLET_REGISTER_FEE} Lovelace" '
     (.certificates|type == "array" and length == (1+($setup|length))) and
     (.certificates[0]|keys == [if $operation == "pool-retire" then "Pool retirement" else "Pool registration" end]) and
     .certificates[1:] == $setup and
-    (if $operation == "pool-retire" then .certificates[0]["Pool retirement"] else
-      (.certificates[0]["Pool registration"]["pool params"] | .owners |= sort) end) == $params and
+    (if $operation == "pool-retire" then .certificates[0]["Pool retirement"] == $params else
+      (.certificates[0]["Pool registration"]["pool params"] | .blsKey == null and (del(.blsKey) | .owners |= sort) == $params) end) and
     (.inputs|sort) == $inputs and .fee == $fee and
     (."validity range"["upper bound"]|if . == null then "" else tostring end) == $expiry and ."validity range"["lower bound"] == null and
     (.outputs|length > 0 and all(.[];.address == $address and .datum == null and ."reference script" == null)) and

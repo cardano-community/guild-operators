@@ -9,8 +9,9 @@ transaction does not undo separate key generation or operational-certificate
 issuance that you already approved.
 
 The steps below describe the **Detailed** flow style. **Quick** skips the
-questions that have a sensible default and summary confirmations such as
-"Create this wallet now?"; warnings and key-safety confirmations remain. See
+questions that have a sensible default and optional lookups such as
+"Fetch token supply and metadata from Koios?"; warnings and key-safety
+confirmations remain. See
 [Flow style](cntools.md#flow-style).
 
 ## Wallets
@@ -117,13 +118,27 @@ plaintext; the wallet then shows **Partly protected**. Optional immutable
 locking follows `ENABLE_CHATTR` in `env`; when unavailable, read-only
 protection is retained with a warning. A protected wallet whose files became
 writable again (for example after Restore) is offered **lock files only**.
-Wallet pickers show whether a hardware or watch-only wallet's files are locked.
+A wallet with encrypted keys next to plaintext wallet keys (CNTools v13
+encrypted only the payment and stake keys) is offered too: enter its existing
+passphrase, and the remaining keys are encrypted with it. A hardware wallet's
+Catalyst voting key (saved there by Catalyst Registration) is protected the
+same way. Wallet pickers show whether a hardware or watch-only wallet's files
+are locked.
 
 **Wallet → Decrypt** unlocks keys using their existing passphrase after a
 warning and a confirmation that names the wallet. It accepts shorter
 passphrases as well, and asks again after a wrong passphrase. A wrong
 passphrase or invalid file does not replace the protected keys. Inspection
-never decrypts keys automatically.
+never decrypts keys automatically. A wallet with plaintext keys in locked files
+(for example a locked hardware wallet that later got a Catalyst voting key) is
+offered **unlock files only**.
+
+CNTools runs `chattr` directly or through `sudo -n`, and never asks for a sudo
+password. Files locked immutable with a password-protected sudo (as CNTools
+v13 did) are detected before any confirmation or passphrase in Wallet →
+Encrypt, Decrypt and Remove, Pool → Decrypt, Advanced → Decrypt / Unlock
+Policy and Delete Private Keys. The message names one command that unlocks
+every affected folder (`sudo chattr -i <folder>/* …`).
 
 Keep the passphrase separately from the backup. Encryption is not a backup.
 
@@ -191,8 +206,8 @@ Add, edit or remove recipients before continuing; an edit starts with
 **Keep current recipient**, and Enter keeps the current amount. Cancel an edit
 or addition to return to the recipient list without losing the existing draft.
 From the review, **Back to review** returns without changes. Send never spends
-UTxOs that carry reference scripts and uses UTxOs with datums only when nothing
-else covers the amount; the review lists any that were left untouched. If a
+UTxOs that carry reference scripts and prefers UTxOs without datums; the
+review lists any that were left untouched. If a
 build fails, the error is shown and the recipients stay open for editing, with
 **Back to review** restoring the reviewed transaction. The source
 uses eligible funds across its base and payment addresses; rewards and deposits
@@ -402,15 +417,18 @@ fetches it directly. Unavailable data is identified rather than treated as zero.
 **Pool → Encrypt / Decrypt** protects or unlocks cold and applicable Calidus
 signing keys. GnuPG is checked first. For Encrypt, entering the password is the
 confirmation (Escape cancels); Decrypt confirms first, asks again only after a
-wrong password, and says when there is nothing to decrypt. Operational KES/VRF files needed by the running node are not a
+wrong password, and says when there is nothing to decrypt. An encrypted pool
+whose files became writable again (for example after Restore) is offered
+**Lock the files**, without decrypting anything. Operational KES/VRF files needed by the running node are not a
 substitute for cold-key recovery backups.
 
 ### Register or modify a pool
 
 **Pool → Register / Modify** guides pool and funding-wallet selection, pledge,
 cost, margin, reward account, owners, relays and optional metadata. The
-funding wallet is checked right away for the deposit and fee, and another
-wallet is offered when it cannot cover them. Relays are checked field by
+funding wallet is checked right away for the deposit, fee and change, and
+another wallet is offered when it cannot cover them or has no spendable
+UTxOs. Relays are checked field by
 field: duplicates are refused and private or loopback addresses get a warning.
 In the review, Escape in a **Change …** step keeps everything as it was, and a
 change whose rebuild fails is undone with a warning. Modify's
@@ -440,8 +458,11 @@ session and funding-source requirements.
 
 Where offered, initial registration can include the main owner's stake
 registration and delegation and the reward-account registration. Quick
-includes both and shows them in the review; **Change stake setup** there asks
-again. An owner already delegated to this pool needs no setup. A hardware
+includes both when the funding wallet can also pay their deposits (otherwise
+it says so and leaves them out) and shows them in the review; **Change stake
+setup** there asks again. When a deposit is not covered, Detailed and Change
+stake setup say so and offer keeping it separate first; add funds and run
+Register again to include it. An owner already delegated to this pool needs no setup. A hardware
 funding wallet must hold the pool cold key on the same Ledger, so CNTools uses
 one combined device session without asking. Registration can also prepare a
 missing operational certificate when its prerequisites are met; the KES start
@@ -462,8 +483,11 @@ certificate counter + 1, whatever `cold.counter` holds. If `cold.counter` is
 ahead, the certificates in between were issued but never used on chain; never
 deploy them. Without a ledger counter (offline, or a pool that has not made a
 block yet), enter the issue counter yourself; the prompt defaults to
-`cold.counter`. An offline signing system uses the counter in the node's
-request, then sets its own `cold.counter` to that counter + 1.
+`cold.counter`, and it may not be below the counter of the installed
+`op.cert`. An `op.cert` issued for another KES key (for example after a
+rotation outside CNTools) does not block Rotate: the new certificate replaces
+it. An offline signing system uses the counter in the node's request, then
+sets its own `cold.counter` to that counter + 1.
 
 When the cold signing key or hardware wallet file is on the same system,
 choose **Rotate now**. One confirmation generates the new KES keys and issues
@@ -594,15 +618,17 @@ proposal and decision before using the shared transaction flow.
 ### Register and use Catalyst voting
 
 **Vote → Catalyst → Registration** creates or reuses a separate voting identity
-and prepares registration with stake-key authorization. Creating the voting
-key asks "Create and save a Catalyst voting key in <wallet>?" in both styles.
+and prepares registration with stake-key authorization. Cardano Signer is
+checked before any choice. Creating the voting key asks "Create and save a
+Catalyst voting key in <wallet>?" in both styles.
 Keep the voting key: it is not recovered from the payment-wallet mnemonic.
 Offline authorization can be transferred for an online registration
 transaction. When the stake key cannot sign here, no voting key is created:
 copy `catalyst.vkey` from the signing system and import its signed metadata
 (or decrypt the stake key first). Offline, the nonce defaults to the estimated
 current slot. Imported metadata that fails verification returns you to the
-choice.
+choice. When the funding transaction fails after signing, the result still
+names the saved authorization and any new voting key.
 
 **Display QR** creates a private voting QR with a four-digit PIN for the voting
 app. Keep both private. Catalyst Toolbox and an unlocked voting key are checked
@@ -638,6 +664,8 @@ must lie in the future, and a create with a "Spendable before" bound asks for
 confirmation (default No).
 The review offers **Change participants**, **Change threshold**, **Change
 stake address** and **Change time bounds** before the wallet is written.
+While creating, Escape (or **Back** in a time-bound menu) returns to the
+previous question and keeps the participants.
 
 Use **Vote → Governance → MultiSig DRep** for a separate threshold DRep
 identity; its review offers **Change threshold** and **Change participants**,
@@ -732,7 +760,7 @@ protect or delete it. Restore only trusted archives.
 
 Restored files do not regain immutable locking automatically. Use
 **Wallet → Encrypt**, which offers **lock files only** for protected wallets,
-and **Pool → Encrypt** where appropriate. Do not start a pool with old operational
+and **Pool → Encrypt**, which offers **Lock the files** for encrypted pools. Do not start a pool with old operational
 files or an older issue counter: verify current state and rotate KES safely.
 Full backups also include KES and operational-certificate recovery from
 `${NODE_HOME}/.cntools/recovery/`. Restore lists it as "KES/recovery data · not

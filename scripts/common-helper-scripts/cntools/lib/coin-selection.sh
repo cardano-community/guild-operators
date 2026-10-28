@@ -9,6 +9,8 @@ CNTOOLS_COIN_SELECTED_LOVELACE="0"
 CNTOOLS_COIN_SELECTED_ASSET_COUNT=0
 CNTOOLS_COIN_PROTECTED_COLLATERAL_INDEX=""
 CNTOOLS_COIN_SELECTION_REASON=""
+# Y when every usable UTxO was selected and the total was still short.
+CNTOOLS_COIN_SHORT=N
 declare -ag CNTOOLS_COIN_SELECTED_INDICES=()
 declare -ag CNTOOLS_COIN_SELECTED_REFS=()
 declare -ag CNTOOLS_COIN_SELECTED_ASSET_IDS=()
@@ -22,6 +24,7 @@ cntools_coin_reset() {
   CNTOOLS_COIN_SELECTED_ASSET_COUNT=0
   CNTOOLS_COIN_PROTECTED_COLLATERAL_INDEX=""
   CNTOOLS_COIN_SELECTION_REASON=""
+  CNTOOLS_COIN_SHORT=N
   CNTOOLS_COIN_SELECTED_INDICES=()
   CNTOOLS_COIN_SELECTED_REFS=()
   CNTOOLS_COIN_SELECTED_ASSET_IDS=()
@@ -40,6 +43,7 @@ cntools_coin_fail_input_limit() {
 
 # Every usable UTxO is selected and still short: say how much is needed.
 cntools_coin_fail_short() {
+  CNTOOLS_COIN_SHORT=Y
   cntools_coin_fail "Not enough spendable ADA: this needs at least $(cntools_number_format_lovelace "$1"), and the wallet's usable UTxOs hold $(cntools_number_format_lovelace "${CNTOOLS_COIN_SELECTED_LOVELACE}")."
 }
 

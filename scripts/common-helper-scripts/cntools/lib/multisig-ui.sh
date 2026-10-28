@@ -229,10 +229,11 @@ cntools_multisig_render_participants() {
   } | cntools_table_render Participants
 }
 
+# 1 (Esc or Back): Create goes back a step, the review keeps the bounds.
 cntools_multisig_prompt_bound() {
   local destination="$1" title="$2" entered='' units='' choice=''
-  cntools_ui_choose choice "${title}" 'No bound' 'Start of epoch' 'Absolute slot' Cancel || return $?
-  case "${choice}" in 'No bound') printf -v "${destination}" ''; return 0 ;; Cancel) return 1 ;; esac
+  cntools_ui_choose choice "${title}" 'No bound' 'Start of epoch' 'Absolute slot' Back || return $?
+  case "${choice}" in 'No bound') printf -v "${destination}" ''; return 0 ;; Back) return 1 ;; esac
   while true; do
     cntools_ui_input entered "${title} · $([[ "${choice}" == 'Start of epoch' ]] && printf Epoch || printf Slot) (blank = no bound)" '' || return $?
     if [[ -z "${entered}" ]]; then printf -v "${destination}" ''; return 0; fi
@@ -250,23 +251,29 @@ cntools_multisig_prompt_bound() {
   done
 }
 
-# Spending window. A rejected 'Spendable before' asks only that bound again.
+# Spending window. A rejected 'Spendable before' asks only that bound again;
+# Back or Esc there returns to 'Spendable from'.
 cntools_multisig_prompt_bounds_into() {
-  local _msb_after_name="$1" _msb_before_name="$2" _msb_after='' _msb_before='' _msb_now='' _msb_date=''
-  cntools_multisig_prompt_bound _msb_after 'Spendable from' || return $?
+  local _msb_after_name="$1" _msb_before_name="$2" _msb_after='' _msb_before='' _msb_now='' _msb_date='' _msb_status=0
   while true; do
-    cntools_multisig_prompt_bound _msb_before 'Spendable before' || return $?
-    if [[ -n "${_msb_after}" && -n "${_msb_before}" ]] && ((_msb_after >= _msb_before)); then
-      cntools_ui_render_status warn 'Spendable before must be later than Spendable from. Choose it again.'; continue
-    fi
-    # A past expiry creates an address whose funds can never be spent.
-    _msb_now="$(cntools_health_reference_slot "${CNTOOLS_NETWORK:-}" 2>/dev/null)" || _msb_now=''
-    if [[ -n "${_msb_before}" && "${_msb_now}" =~ ^[0-9]+$ ]] && ((_msb_before <= _msb_now)); then
-      cntools_slot_datetime_into _msb_date "${_msb_before}" || _msb_date="slot ${_msb_before}"
-      cntools_ui_render_status warn "Spendable before (${_msb_date}) has already passed, so funds sent to this address could never be spent. Choose a future bound or No bound."
-      continue
-    fi
-    break
+    cntools_multisig_prompt_bound _msb_after 'Spendable from' || return $?
+    _msb_status=0
+    while true; do
+      cntools_multisig_prompt_bound _msb_before 'Spendable before' || { _msb_status=$?; break; }
+      if [[ -n "${_msb_after}" && -n "${_msb_before}" ]] && ((_msb_after >= _msb_before)); then
+        cntools_ui_render_status warn 'Spendable before must be later than Spendable from. Choose it again.'; continue
+      fi
+      # A past expiry creates an address whose funds can never be spent.
+      _msb_now="$(cntools_health_reference_slot "${CNTOOLS_NETWORK:-}" 2>/dev/null)" || _msb_now=''
+      if [[ -n "${_msb_before}" && "${_msb_now}" =~ ^[0-9]+$ ]] && ((_msb_before <= _msb_now)); then
+        cntools_slot_datetime_into _msb_date "${_msb_before}" || _msb_date="slot ${_msb_before}"
+        cntools_ui_render_status warn "Spendable before (${_msb_date}) has already passed, so funds sent to this address could never be spent. Choose a future bound or No bound."
+        continue
+      fi
+      break
+    done
+    ((_msb_status == 0)) && break
+    ((_msb_status == 1)) || return "${_msb_status}"
   done
   printf -v "${_msb_after_name}" '%s' "${_msb_after}"; printf -v "${_msb_before_name}" '%s' "${_msb_before}"
   cntools_log CHOICE "Multisig time bounds after=${_msb_after:-none} before=${_msb_before:-none}" || true
@@ -369,24 +376,49 @@ cntools_multisig_create_workflow() {
     cntools_wallet_create_name_valid "${name}" && cntools_wallet_create_target_available "${name}" && break
     cntools_ui_render_status warn 'Use a valid unused wallet name (1–64 letters, numbers, dots, underscores or hyphens).'
   done
-  cntools_multisig_participants_edit || return $?
-  count="${#CNTOOLS_MULTISIG_PAYMENT_HASHES[@]}"
   # Quick uses all participants, a stake script when every participant has a
-  # stake key, and no time bounds; the review changes each of them.
-  threshold="${count}"
-  if (( count == 1 )); then
-    cntools_log CHOICE 'Multisig threshold auto-selected=1 (single participant)' || true
-  elif cntools_flow_quick; then
-    cntools_log CHOICE "Multisig threshold default=${count} of ${count} flow=quick" || true
-  else
-    cntools_multisig_prompt_threshold_into threshold || return $?
-  fi
-  if cntools_multisig_staking_possible && ! cntools_flow_quick; then
-    cntools_ui_choose choice 'Stake address' 'Include threshold stake script' 'Payment-only wallet' Cancel || return $?
-    case "${choice}" in 'Include threshold stake script') ;; 'Payment-only wallet') wanted=N ;; *) return 1 ;; esac
-  fi
-  if cntools_flow_quick; then cntools_log CHOICE 'Multisig time bounds default=none flow=quick' || true
-  else cntools_multisig_prompt_bounds_into after before || return $?; fi
+  # stake key, and no time bounds; the review changes each of them. Esc in a
+  # step goes back to the step asked before it, keeping the participants.
+  local step=participants
+  local -a asked=()
+  while [[ "${step}" != review ]]; do
+    status=0
+    case "${step}" in
+      participants)
+        cntools_multisig_participants_edit || return $?
+        count="${#CNTOOLS_MULTISIG_PAYMENT_HASHES[@]}" threshold="${#CNTOOLS_MULTISIG_PAYMENT_HASHES[@]}"
+        asked=(participants) step=threshold ;;
+      threshold)
+        step=stake
+        if (( count == 1 )); then
+          cntools_log CHOICE 'Multisig threshold auto-selected=1 (single participant)' || true; continue
+        elif cntools_flow_quick; then
+          cntools_log CHOICE "Multisig threshold default=${count} of ${count} flow=quick" || true; continue
+        fi
+        cntools_multisig_prompt_threshold_into threshold "${threshold}" || status=$?
+        asked+=(threshold) ;;
+      stake)
+        step=bounds
+        if ! cntools_multisig_staking_possible || cntools_flow_quick; then continue; fi
+        cntools_ui_choose choice 'Stake address' 'Include threshold stake script' 'Payment-only wallet' Cancel || status=$?
+        if ((status == 0)); then
+          case "${choice}" in 'Include threshold stake script') wanted=Y ;; 'Payment-only wallet') wanted=N ;; *) return 1 ;; esac
+        fi
+        asked+=(stake) ;;
+      bounds)
+        step=review
+        if cntools_flow_quick; then cntools_log CHOICE 'Multisig time bounds default=none flow=quick' || true; continue; fi
+        cntools_multisig_prompt_bounds_into after before || status=$?
+        asked+=(bounds) ;;
+    esac
+    ((status != 0)) || continue
+    ((status == 1)) || return "${status}"
+    # Esc: back to the previous question; it is asked (and recorded) again.
+    unset 'asked[-1]'
+    step="${asked[-1]}"
+    unset 'asked[-1]'
+    cntools_log CHOICE "Multisig creation step left; back to ${step}" || true
+  done
   # Inside a Change step Esc keeps the current values; Ctrl+C cancels.
   while true; do
     count="${#CNTOOLS_MULTISIG_PAYMENT_HASHES[@]}"

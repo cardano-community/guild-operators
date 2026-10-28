@@ -151,7 +151,7 @@ cntools_asset_cache_clear() {
     name="${file##*/}"
     [[ "${name}" =~ ^(mainnet|preprod|preview|guild)-[0-9a-f]{56}\.([0-9a-f]{2}){0,32}\.json$ ]] || continue
     [[ -f "${file}" && ! -L "${file}" && -O "${file}" ]] || continue
-    rm -- "${file}" || return 1
+    rm -f -- "${file}" || return 1
     count=$((count+1))
   done
   cntools_log CACHE "Cleared asset metadata cache entries=${count}" || true

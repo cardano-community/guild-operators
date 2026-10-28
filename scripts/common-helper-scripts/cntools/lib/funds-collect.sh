@@ -45,10 +45,14 @@ cntools_collect_select() {
   (( ${#CNTOOLS_COIN_SELECTED_INDICES[@]} > 0 )) || {
     cntools_collect_fail "Nothing to collect: ${CNTOOLS_SEND_WALLET} has no eligible UTxOs. Datum and reference-script UTxOs are left untouched."; return 1;
   }
+  # Token fragmentation can only reshape a UTxO with more assets than one
+  # output may hold.
   if (( CNTOOLS_COLLECT_ELIGIBLE == 1 )) &&
       [[ "${CNTOOLS_UTXO_ADDRESSES[CNTOOLS_COIN_SELECTED_INDICES[0]]}" == "${CNTOOLS_SEND_ADDRESS}" &&
-         "${CNTOOLS_TX_TOKEN_FRAGMENTATION:-N}" != Y && "${CNTOOLS_TX_UTXO_MANAGEMENT:-N}" != Y ]]; then
-    cntools_collect_fail "Nothing to collect: ${CNTOOLS_SEND_WALLET} has one eligible UTxO, already at its return address, and no change-shaping policy is enabled."; return 1
+         "${CNTOOLS_TX_UTXO_MANAGEMENT:-N}" != Y ]] &&
+      { [[ "${CNTOOLS_TX_TOKEN_FRAGMENTATION:-N}" != Y ]] ||
+        (( CNTOOLS_COIN_SELECTED_ASSET_COUNT <= ${CNTOOLS_TX_TOKEN_MAX_ASSETS:-20} )); }; then
+    cntools_collect_fail "Nothing to collect: ${CNTOOLS_SEND_WALLET} has one eligible UTxO, already at its return address, and no change setting would reshape it."; return 1
   fi
   CNTOOLS_COLLECT_INPUTS=("${CNTOOLS_COIN_SELECTED_REFS[@]}")
   CNTOOLS_COIN_SELECTION_REASON='Explicit collection of all eligible inputs'

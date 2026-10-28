@@ -71,7 +71,7 @@ cntools_policy_render() {
   local index="$1" date='' role=warning
   {
     cntools_table_pair 'Policy ID' "${CNTOOLS_POLICY_IDS[index]:-Unavailable}" identifier
-    cntools_table_pair 'Key protection' "${CNTOOLS_POLICY_STATES[index]}" status
+    cntools_table_pair 'Key protection' "${CNTOOLS_POLICY_STATES[index]}" "$(cntools_text_status_role "${CNTOOLS_POLICY_STATES[index]}")"
     cntools_table_pair 'Known assets' "${#CNTOOLS_POLICY_ASSET_IDS[@]}" number
     if [[ -n "${CNTOOLS_POLICY_WINDOWS[index]}" ]]; then
       if [[ -n "${CNTOOLS_POLICY_BEFORE[index]}" ]] && cntools_slot_datetime_into date "${CNTOOLS_POLICY_BEFORE[index]}"; then
@@ -220,6 +220,11 @@ cntools_policy_action_protection_inner() {
     cntools_policy_show_error
     return 1
   fi
+  # Immutable files that need a sudo password would fail after the questions.
+  if [[ "${operation}" == decrypt ]] && ! cntools_policy_unlock_ready "${directory}"; then
+    cntools_policy_show_error
+    return 1
+  fi
   while true; do
     # Quick locks or unlocks files without a prompt, so it draws no table
     # that the result screen would replace at once.
@@ -227,7 +232,7 @@ cntools_policy_action_protection_inner() {
       cntools_policy_manage_begin "${title}"
       {
         cntools_table_pair Policy "${CNTOOLS_POLICY_NAMES[selected]}" identifier
-        cntools_table_pair 'Key protection' "${CNTOOLS_POLICY_STATES[selected]}" status
+        cntools_table_pair 'Key protection' "${CNTOOLS_POLICY_STATES[selected]}" "$(cntools_text_status_role "${CNTOOLS_POLICY_STATES[selected]}")"
         cntools_table_pair Directory "${directory}" identifier
       } | cntools_table_render Policy || return 1
       # Lock-only (no key file) sets no password, so it needs no password warning.

@@ -484,17 +484,15 @@ cntools_wallet_register_chain_state_validate() {
   esac
 }
 
+# A short balance is reported by input selection, with the full amount.
 cntools_wallet_register_funding_validate() {
   (( ${#CNTOOLS_WALLET_REGISTER_INPUTS[@]} > 0 )) || return 5
-  if [[ "${CNTOOLS_WALLET_REGISTER_OPERATION}" != "deregister" ]]; then
-    cntools_wallet_register_uint_greater \
-      "${CNTOOLS_WALLET_REGISTER_LOVELACE}" \
-      "${CNTOOLS_WALLET_REGISTER_DEPOSIT}" || return 6
-  fi
 }
 
 cntools_wallet_register_select_inputs() {
   local required=""
+  local full=""
+  local change_min=""
   local expanded=""
   local status=0
   local attempt=0
@@ -518,6 +516,14 @@ cntools_wallet_register_select_inputs() {
   for (( attempt = 1; attempt <= 4; attempt++ )); do
     if ! cntools_coin_select_lovelace \
         "${required}" "${CNTOOLS_TX_SELECTION_STRATEGY}"; then
+      # The first attempt does not count the change output yet: name the
+      # whole need, so topping up by the amount shown is enough.
+      if (( attempt == 1 )) && [[ "${CNTOOLS_COIN_SHORT}" == Y ]] &&
+         cntools_change_plain_min_into change_min \
+           "${CNTOOLS_WALLET_REGISTER_PROTOCOL_FILE}" "${CNTOOLS_WALLET_REGISTER_BASE_ADDRESS}" &&
+         cntools_uint_add_into full "${required}" "${change_min}"; then
+        cntools_coin_fail_short "${full}" || true
+      fi
       cntools_wallet_register_set_error \
         "${CNTOOLS_COIN_ERROR:-Coin selection could not fund this transaction.}"
       return 9

@@ -208,7 +208,7 @@ cntools_calidus_registration_render_review() {
     cntools_table_pair Fee "$(cntools_number_format_lovelace "${CNTOOLS_SEND_FEE}")" number
     cntools_table_pair 'Returned change' "$(cntools_number_format_lovelace "${total}")" number
     # Reference-script UTxOs (funding) and datum UTxOs (this build) stay put.
-    cntools_pool_policy_rows "${#CNTOOLS_COIN_SELECTED_REFS[@]}" "${CNTOOLS_METADATA_TRANSACTION_SKIPPED:-0}"
+    cntools_pool_policy_rows "${#CNTOOLS_COIN_SELECTED_REFS[@]}" "${CNTOOLS_METADATA_TRANSACTION_SKIPPED:-0}" "${CNTOOLS_METADATA_TRANSACTION_SKIPPED_WHAT:-}"
     cntools_table_pair Expires "${expiry}" number
   } | cntools_table_render 'Transaction information'
   cntools_ui_render_status info 'No deposit or refund. The funding wallet pays only the transaction fee; all selected funds and assets return as change.'
@@ -218,6 +218,8 @@ cntools_calidus_registration_render_review() {
 cntools_calidus_registration_workflow() {
   local index="$1" selected='' workflow='' can_sign=N lifetime=1800 staged='' signed='' saved='' proceed='' backend='' txid='' body='' status=0 rebuild=N change_status=0
   local previous_lifetime='' previous_workflow='' previous_chosen='' reason='' building='Checking authorization and balancing the funding transaction…'
+  local other=0 next='' candidate=0 tried='' note=''
+  local -a skipped=()
   [[ "${CNTOOLS_MODE:-}" != offline ]] || {
     cntools_calidus_registration_fail 'Publishing needs current chain data, so it is unavailable in offline mode. Use Prepare registration/revocation metadata here, then publish from an online system; it can save the funding transaction unsigned for offline signing.'; return 2;
   }
@@ -235,16 +237,43 @@ cntools_calidus_registration_workflow() {
     cntools_ui_render_status warn 'This transaction replaces the indexed Calidus key. Review the local Calidus ID before proceeding.'
   fi
   # The funding wallet first: authorizing is the step that needs the cold key.
+  # An empty wallet is named, and another offered, before the authorization.
   cntools_wallet_catalog_build || return 2
-  cntools_ui_render_detail 'Funding wallet'
-  cntools_wallet_choose selected Cancel send || return $?
-  cntools_send_prepare_wallet "${CNTOOLS_WALLET_PATHS[selected]}" multisig || return 2
+  while true; do
+    cntools_ui_render_detail 'Funding wallet'
+    CNTOOLS_WALLET_SELECTION_EXCLUDE_DIRS=("${skipped[@]}")
+    status=0; cntools_wallet_choose selected Cancel send || status=$?
+    CNTOOLS_WALLET_SELECTION_EXCLUDE_DIRS=()
+    ((status == 0)) || return "${status}"
+    cntools_send_prepare_wallet "${CNTOOLS_WALLET_PATHS[selected]}" multisig || return 2
+    cntools_ui_spin_function "Checking the funds of ${CNTOOLS_SEND_WALLET}…" \
+      cntools_funding_collect "${CNTOOLS_SEND_ADDRESS}" "${CNTOOLS_SEND_PAYMENT}" && break
+    [[ "${CNTOOLS_FUNDING_EMPTY:-N}" == Y ]] || return 2
+    cntools_transaction_log POOL "Calidus funding wallet=${CNTOOLS_SEND_WALLET} empty"
+    skipped+=("${CNTOOLS_WALLET_PATHS[selected]}")
+    # Other wallets the picker would still offer: one is picked automatically.
+    other=0 next=''
+    for candidate in "${!CNTOOLS_WALLET_PATHS[@]}"; do
+      for tried in "${skipped[@]}"; do [[ "${tried}" != "${CNTOOLS_WALLET_PATHS[candidate]}" ]] || continue 2; done
+      cntools_wallet_selection_candidate_into note "${candidate}" send || continue
+      other=$((other + 1)) next="${CNTOOLS_WALLET_NAMES[candidate]}"
+    done
+    if ((other == 0)); then
+      cntools_ui_render_status info "${CNTOOLS_SEND_WALLET} has no spendable UTxOs to pay the fee, and no other wallet is available. Add funds and try again."
+      cntools_ui_wait; return 3
+    fi
+    if ((other == 1)); then cntools_ui_render_status warn "${CNTOOLS_SEND_WALLET} has no spendable UTxOs to pay the fee. Using ${next} instead."
+    else cntools_ui_render_status warn "${CNTOOLS_SEND_WALLET} has no spendable UTxOs to pay the fee. Choose another wallet."; fi
+  done
   # A hardware funding wallet needs cardano-hw-cli: say so before any question.
   [[ "${CNTOOLS_SEND_TYPE}" != Hardware ]] || cntools_transaction_require_hwcli || return 2
   [[ "${CNTOOLS_SEND_TYPE}" != MultiSig ]] || cntools_multisig_spend_choose_signers cntools_calidus_registration_begin || return $?
   cntools_calidus_registration_prompt_authorization onchain || return $?
   [[ -z "${CNTOOLS_SEND_SOURCE}" ]] || can_sign=Y
   [[ "${CNTOOLS_SEND_TYPE}" != MultiSig ]] || can_sign="${CNTOOLS_MULTISIG_CAN_SIGN}"
+  # An encrypted funding key: the review names Wallet → Decrypt.
+  [[ "${can_sign}" == Y || "${CNTOOLS_SEND_TYPE}" == MultiSig ]] ||
+    cntools_transaction_ui_encrypted_reason_set 'Wallet → Decrypt' "${CNTOOLS_SEND_DIRECTORY}/${CNTOOLS_WALLET_PAY_SKEY_FILENAME:-payment.skey}" || true
   cntools_transaction_ui_initial_workflow_into workflow "${can_sign}" || return $?
   cntools_transaction_ui_initial_expiry_into lifetime || return $?
   cntools_ui_spin_function "${building}" cntools_calidus_registration_refresh_build_into staged "${lifetime}" || return 2
@@ -277,7 +306,8 @@ cntools_calidus_registration_workflow() {
         ! cntools_transaction_ui_unsigned_lifetime_into lifetime "${workflow}" || rebuild=Y ;;
       'Change expiry')
         change_status=0; cntools_transaction_ui_expiry_into lifetime || change_status=$?
-        if ((change_status == 0)); then rebuild=Y
+        # The same expiry again: the reviewed transaction stands.
+        if ((change_status == 0)); then [[ "${lifetime}" == "${previous_lifetime}" ]] || rebuild=Y
         elif ((change_status == 1)); then cntools_transaction_log CHOICE 'Review change cancelled; current value kept step=cntools_transaction_ui_expiry_into'
         else return "${change_status}"; fi ;;
       *) return 2 ;;

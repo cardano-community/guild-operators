@@ -111,7 +111,7 @@ cntools_pool_wizard_prepare_stake() {
 
 # Register only: Modify's draft path and generic notes add nothing to its result.
 cntools_pool_wizard_followups() {
-  local record='' label='' setup='' filename='' cert='' start='' counter=''
+  local record='' label='' setup='' filename='' cert='' counter=''
   [[ "${CNTOOLS_WALLET_REGISTER_OPERATION}" == pool-register ]] || return 0
   { if [[ "${CNTOOLS_WALLET_REGISTER_OPERATION}" == pool-register && "${CNTOOLS_CONFIGURED_POOL_NAME:-}" != "${CNTOOLS_POOL_REG_NAME}" ]]; then
       cntools_table_pair 'Node configuration' "After successful pool registration, set POOL_NAME=\"${CNTOOLS_POOL_REG_NAME}\" in the common env and configure the node with the pool operational certificate/KES/VRF files. CNTools does not edit env." muted
@@ -125,11 +125,14 @@ cntools_pool_wizard_followups() {
       cntools_table_pair "${label} stake setup" "$([[ "${setup}" == delegate ]] && printf 'Registration if needed + pool delegation' || printf 'Reward registration') included in this transaction; effective only after inclusion" success
     done < <(jq -c '.[]' <<< "${CNTOOLS_POOL_STAKE_PLAN}")
     if [[ "${CNTOOLS_POOL_OPCERT_OFFLINE:-N}" == Y ]]; then
-      cntools_pool_file_name_into cert opcert; cntools_pool_file_name_into start kes-start; cntools_pool_file_name_into counter counter
+      cntools_pool_file_name_into cert opcert; cntools_pool_file_name_into counter counter
       if cntools_pool_registration_cold_encrypted; then
         cntools_table_pair 'Operational certificate' "The cold signing key is encrypted. Use Pool → Decrypt, then Pool → Rotate to issue ${cert}; or issue it on the signing system with the real ${counter}." warning
+      elif [[ -n "${CNTOOLS_POOL_REG_COLD_SOURCE}" ]]; then
+        # Unsigned package, cold key on this system: Rotate issues it here.
+        cntools_table_pair 'Operational certificate' "Issue ${cert} with Pool → Rotate on this system; it uses the cold key here and the real ${counter}." warning
       else
-        cntools_table_pair 'Operational certificate' "Issue ${cert} on the signing system with the existing KES public key and the real ${counter}, and record its KES start period in ${start}. Return ${cert}, ${start} and the advanced counter to this pool folder. Never copy the cold signing key to the node." warning
+        cntools_table_pair 'Operational certificate' "Use Pool → Rotate → Prepare offline request here, sign it with Pool → Rotate → Sign an offline request on the system that holds the cold key, then reopen Pool → Rotate here to install ${cert}. Never copy the cold signing key to the node." warning
       fi
     elif [[ -n "${CNTOOLS_POOL_OPCERT_NOTE:-}" ]]; then
       cntools_table_pair 'Operational certificate' "${CNTOOLS_POOL_OPCERT_NOTE}" warning

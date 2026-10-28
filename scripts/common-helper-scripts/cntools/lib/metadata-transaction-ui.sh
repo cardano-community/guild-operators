@@ -3,13 +3,14 @@
 # shellcheck disable=SC2034,SC2015
 
 cntools_metadata_transaction_render_review() {
-  local expiry='' total=0 coin='' widths='' untouched=0
+  local expiry='' total=0 coin='' widths='' untouched=0 what="${CNTOOLS_METADATA_TRANSACTION_SKIPPED_WHAT:-reference-script UTxO}"
   "${mt_identity_render}" || return 1
   for coin in "${CNTOOLS_CHANGE_OUTPUT_LOVELACE[@]}"; do cntools_uint_add_into total "${total}" "${coin}" || return 1; done
   cntools_transaction_ui_expiry_label_into expiry "${CNTOOLS_SEND_EXPIRY}" || return 1
   cntools_transaction_ui_table_widths_into widths 22 || return 1
   # Reference-script UTxOs (funding) and datum UTxOs (this build) stay put.
   untouched=$(( ${CNTOOLS_FUNDING_REFERENCE_SKIPPED:-0} + ${CNTOOLS_METADATA_TRANSACTION_SKIPPED:-0} ))
+  (( ${CNTOOLS_FUNDING_REFERENCE_SKIPPED:-0} == 0 )) || [[ "${what}" == 'reference-script UTxO' ]] || what='script or datum UTxO'
   cntools_ui_render_detail 'Transaction information' || return 1
   {
     printf 'Transaction detail\tValue\n'
@@ -20,7 +21,7 @@ cntools_metadata_transaction_render_review() {
     cntools_transaction_ui_styled_row 'Returned change' "$(cntools_number_format_lovelace "${total}")" number
     # Readable strategy; rows for disabled change features are left out.
     cntools_transaction_ui_render_policy_rows "${CNTOOLS_TX_SELECTION_STRATEGY}" "${#CNTOOLS_COIN_SELECTED_REFS[@]}"
-    cntools_transaction_ui_untouched_row "${untouched}"
+    cntools_transaction_ui_untouched_row "${untouched}" "${what}"
     cntools_transaction_ui_styled_row Expires "${expiry}" number
   } | cntools_ui_table --separator $'\t' --widths "${widths}" || return 1
   cntools_ui_render_status info 'Only the transaction fee is spent. All selected funds and assets return as change.'
@@ -90,7 +91,8 @@ cntools_metadata_transaction_workflow() {
         "${proceed}") break ;;
         'Change expiry')
           cntools_transaction_ui_expiry_into lifetime || change_status=$?
-          ((change_status == 0)) && break ;;
+          # The same expiry again: the reviewed transaction stands.
+          ((change_status == 0)) && [[ "${lifetime}" != "${previous%%|*}" ]] && break ;;
         'Change workflow')
           cntools_transaction_ui_workflow_into workflow "${can_sign}" || change_status=$?
           if ((change_status == 0)); then

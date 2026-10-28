@@ -40,6 +40,44 @@ cntools_pool_health_mismatch() {
   fi
 }
 
+# The op.cert counter bound to this pool's cold key only, whatever KES key it
+# certifies: after a KES rotation outside CNTools, or a mixed restore, it no
+# longer matches hot.vkey, yet Rotate must still stay at or above it.
+cntools_pool_opcert_cold_counter_into() {
+  local _cntools_occ_output="$1" _cntools_occ_cert="$2" _cntools_occ_cold="$3"
+  local _cntools_occ_hex='' _cntools_occ_encoded='' _cntools_occ_counter='' _cntools_occ_rest='' _cntools_occ_pattern=''
+  cntools_pool_public_file_safe "${_cntools_occ_cert}" && cntools_pool_public_file_safe "${_cntools_occ_cold}" || return 1
+  _cntools_occ_hex="$(jq -er '.cborHex | ascii_downcase | select(test("^5820[0-9a-f]{64}$")) | .[4:]' "${_cntools_occ_cold}")" || return 1
+  _cntools_occ_encoded="$(jq -esr 'select(length == 1 and .[0].type == "NodeOperationalCertificate") | .[0].cborHex | ascii_downcase' "${_cntools_occ_cert}" 2>/dev/null)" || return 1
+  _cntools_occ_pattern="^82845820[0-9a-f]{64}${CNTOOLS_POOL_HEALTH_UINT}${CNTOOLS_POOL_HEALTH_UINT}5840[0-9a-f]{128}5820${_cntools_occ_hex}\$"
+  [[ "${_cntools_occ_encoded}" =~ ${_cntools_occ_pattern} ]] || return 1
+  cntools_pool_health_uint_into _cntools_occ_counter _cntools_occ_rest "${_cntools_occ_encoded:72}" || return 1
+  printf -v "${_cntools_occ_output}" '%s' "${_cntools_occ_counter}"
+}
+
+# A certificate that does not match hot.vkey still gets its counters read:
+# the cold-key-bound op.cert counter and the ledger counter (local node for a
+# certificate of this pool, else Koios), so Rotate issues ledger counter + 1
+# instead of stopping.
+cntools_pool_health_counters_only() {
+  local index="$1" cert="$2" cold="$3" query_node="${4:-Y}" disk='' response='' output='' errors='' chain=''
+  if cntools_pool_opcert_cold_counter_into disk "${cert}" "${cold}"; then
+    CNTOOLS_POOL_CERT_DISK[index]="${disk}"
+    if [[ "${query_node}" == Y && "${CNTOOLS_MODE:-offline}" != offline && "${CNTOOLS_LOCAL_CLI_CAPABLE:-false}" == true && -x "${CNTOOLS_CLI:-}" ]] &&
+        cntools_wallet_query_local_socket_ready &&
+        cntools_transaction_temp_file response kes-health && cntools_transaction_temp_file output kes-health-json &&
+        cntools_transaction_temp_file errors kes-health-errors && cntools_wallet_query_network_arguments &&
+        cntools_transaction_run_cli "${response}" "${errors}" -- "${CNTOOLS_CLI}" latest query kes-period-info \
+          "${CNTOOLS_WALLET_NETWORK_ARGS[@]}" --socket-path "${CNTOOLS_SOCKET}" --op-cert-file "${cert}" --output-json --out-file "${output}"; then
+      chain="$(jq -sr 'if length == 1 and (.[0].qKesNodeStateOperationalCertificateNumber | type == "number" and . >= 0 and floor == . and . <= 2147483647)
+        then .[0].qKesNodeStateOperationalCertificateNumber | tostring else "" end' "${output}" 2>/dev/null)" || chain=''
+    fi
+  fi
+  [[ -n "${chain}" ]] || chain="$(jq -r '.op_cert_counter // ""' <<< "${CNTOOLS_POOL_CURRENT[index]:-}" 2>/dev/null)" || chain=''
+  [[ ! "${chain}" =~ ^(0|[1-9][0-9]{0,9})$ ]] || CNTOOLS_POOL_CERT_CHAIN[index]="${chain}"
+  return 0
+}
+
 cntools_pool_health_collect() {
   local index="$1" query_node="${2:-Y}" directory="${CNTOOLS_POOL_DIRECTORIES[$1]}" filename='' cert='' counter='' start='' period='' rest='' saved_start=''
   local slots="${CNTOOLS_SLOTS_PER_KES_PERIOD:-}" evolutions='' genesis="${CNTOOLS_SHELLEY_GENESIS:-}" now='' current='' end=0 remaining=0 expires='' response='' output='' errors='' chain=''
@@ -54,7 +92,8 @@ cntools_pool_health_collect() {
   cntools_pool_file_name_into cold cold-vkey; cntools_pool_file_name_into hot kes-vkey
   if ! cntools_pool_public_file_safe "${directory}/${cold}" || ! cntools_pool_public_file_safe "${directory}/${hot}"; then
     CNTOOLS_POOL_KES_STATUS[index]='Needs attention'
-    cntools_pool_warning_add "${index}" "${hot} or ${cold} is missing or unsafe, so ${filename} cannot be checked"; return 0
+    cntools_pool_warning_add "${index}" "${hot} or ${cold} is missing or unsafe, so ${filename} cannot be checked"
+    cntools_pool_health_counters_only "${index}" "${cert}" "${directory}/${cold}" "${query_node}"; return 0
   fi
   cold_hex="$(jq -er '.cborHex | ascii_downcase | select(test("^5820[0-9a-f]{64}$")) | .[4:]' "${directory}/${cold}")" || cold_hex=''
   hot_hex="$(jq -er '.cborHex | ascii_downcase | select(test("^5820[0-9a-f]{64}$")) | .[4:]' "${directory}/${hot}")" || hot_hex=''
@@ -64,7 +103,10 @@ cntools_pool_health_collect() {
   fi
   cbor="$(jq -esr --arg pattern "^82845820${hot_hex}${uint}${uint}5840[0-9a-f]{128}5820${cold_hex}$" '
     select(length == 1 and .[0].type == "NodeOperationalCertificate") | .[0].cborHex | ascii_downcase | select(test($pattern))' "${cert}" 2>/dev/null)" || cbor=''
-  if [[ -z "${cbor}" ]]; then cntools_pool_health_mismatch "${index}" "${cert}" "${cold_hex}" "${hot}"; return 0; fi
+  if [[ -z "${cbor}" ]]; then
+    cntools_pool_health_mismatch "${index}" "${cert}" "${cold_hex}" "${hot}"
+    cntools_pool_health_counters_only "${index}" "${cert}" "${directory}/${cold}" "${query_node}"; return 0
+  fi
   cntools_pool_health_uint_into counter rest "${cbor:72}" && cntools_pool_health_uint_into start rest "${rest}" || return 0
   CNTOOLS_POOL_CERT_DISK[index]="${counter}"
   cntools_pool_file_name_into filename kes-start
