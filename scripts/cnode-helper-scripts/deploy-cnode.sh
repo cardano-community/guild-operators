@@ -1944,6 +1944,11 @@ cnode_deploy_main_flow() {
     log_info "Using OpenSSL 3 compatibility executable: ${CNODE_DEPLOY_OPENSSL_BIN}"
   [[ "${CNODE_DEPLOY_REFRESH_PAYLOAD}" == "Y" ]] && run_step "Guild source preflight" "snapshot" cnode_deploy_preflight_snapshot
   [[ "${CNODE_DEPLOY_REFRESH_PAYLOAD}" == "Y" ]] && run_step "Scripts and configuration" "default/-s f/s" populate_cnode
+  if [[ "${CNODE_DEPLOY_REFRESH_PAYLOAD}" == "Y" ]] &&
+     declare -F dispatcher_mark_payload_ready >/dev/null 2>&1; then
+    PROFILE_TARGET_NODE_VERSION="${CARDANO_NODE_VERSION:-}"
+    dispatcher_mark_payload_ready
+  fi
   [[ "${CNODE_DEPLOY_BUILD_DEPS}" == "Y" ]] && run_step "Haskell build toolchain" "-s b" build_dependencies
   [[ "${CNODE_DEPLOY_INSTALL_LIBSODIUM}" == "Y" ]] && run_step "libsodium" "-s l" build_libsodium
   [[ "${CNODE_DEPLOY_INSTALL_MITHRIL}" == "Y" ]] && run_step "Mithril binaries" "-s m" download_mithril

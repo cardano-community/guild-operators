@@ -311,6 +311,11 @@ run_alternate_profile_test() (
   dispatcher_mark_in_progress() {
     return 0
   }
+  dispatcher_mark_payload_ready() {
+    [[ -f "${NODE_HOME}/scripts/${implementation}.sh" ]] ||
+      fail "${implementation} marked its payload ready before installing it"
+    PAYLOAD_READY_MARKED="Y"
+  }
   # shellcheck source=/dev/null
   . "${profile}"
 
@@ -435,7 +440,10 @@ run_alternate_profile_test() (
   [[ ! -e "${missing_preflight_target}" ]] ||
     fail "${implementation} mutated its target before snapshot preflight completed"
 
+  PAYLOAD_READY_MARKED="N"
   "${deploy_function}"
+  [[ "${PAYLOAD_READY_MARKED}" == "Y" ]] ||
+    fail "${implementation} did not mark its scripts and configuration ready"
 
   launcher="${NODE_HOME}/scripts/${implementation}.sh"
   resolved_node_home="$(cd "${NODE_HOME}" && pwd -P)"

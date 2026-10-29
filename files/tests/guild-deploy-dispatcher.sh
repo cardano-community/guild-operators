@@ -1079,6 +1079,42 @@ assert_eq \
   "$(jq -r '.deploymentStatus' "${TEST_DIR}/failed_profile/.deployment.json")" \
   "deploying"
 
+# A component that fails after the scripts and configuration are installed
+# must not keep the node from starting.
+if (
+  failing_component_profile() {
+    mkdir -p "${NODE_HOME}"
+    dispatcher_mark_in_progress
+    dispatcher_mark_payload_ready
+    return 1
+  }
+  dispatcher_load_profile() {
+    PROFILE_ENTRYPOINT="failing_component_profile"
+  }
+  dispatcher_adopt_snapshot() {
+    GIT_SOURCE_ROOT="${REPO_ROOT}"
+    GUILD_SOURCE_REVISION="$(git -C "${REPO_ROOT}" rev-parse HEAD)"
+  }
+  unset NODE_IMPLEMENTATION NODE_PARENT NODE_NAME NETWORK BRANCH
+  SUDO="N"
+  GUILD_DEPLOY_SNAPSHOT_STAGE="ready"
+  GUILD_DEPLOY_SOURCE_ACCOUNT="cardano-community"
+  GUILD_DEPLOY_SOURCE_BRANCH="master"
+  GUILD_DEPLOY_SOURCE_REVISION="$(git -C "${REPO_ROOT}" rev-parse HEAD)"
+  GUILD_DEPLOY_TARGET_PATH="$(dispatcher_canonical_target_path "${TEST_DIR}/failed_component")"
+  GUILD_DEPLOY_TARGET_STATE_TOKEN="absent"
+  guild_deploy_main \
+    -i dingo \
+    -n preprod \
+    -p "${TEST_DIR}" \
+    -t failed-component
+) >/dev/null 2>&1; then
+  fail "dispatcher reported success after a component install failed"
+fi
+assert_eq \
+  "$(jq -r '.deploymentStatus' "${TEST_DIR}/failed_component/.deployment.json")" \
+  "deployed"
+
 source_helper_root="${TEST_DIR}/source-helper"
 mkdir -p "${source_helper_root}/safe"
 printf 'snapshot payload\n' > "${source_helper_root}/safe/payload"

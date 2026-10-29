@@ -2705,6 +2705,7 @@ dispatcher_validate_capability() {
 
 dispatcher_write_manifest() {
   local deployment_status="${1:-deployed}"
+  local announce="${2:-Y}"
   [[ -d "${NODE_HOME}" ]] || err_exit "Deployment profile completed without creating ${NODE_HOME}."
   case "${deployment_status}" in
     deploying|deployed) ;;
@@ -2786,13 +2787,20 @@ dispatcher_write_manifest() {
     rm -f -- "${manifest_tmp}"
     err_exit "Unable to atomically replace ${DEPLOYMENT_FILE}."
   fi
-  if [[ "${deployment_status}" = "deployed" ]]; then
+  if [[ "${deployment_status}" = "deployed" && "${announce}" = "Y" ]]; then
     log_ok "Deployment metadata updated" "${DEPLOYMENT_FILE}"
   fi
 }
 
 dispatcher_mark_in_progress() {
   dispatcher_write_manifest deploying
+}
+
+# The node and its helpers need only the scripts and configuration. Profiles
+# call this once those are in place, so a later failure in another component,
+# such as a binary or tool download, cannot keep the node from starting.
+dispatcher_mark_payload_ready() {
+  dispatcher_write_manifest deployed N
 }
 
 cleanup_dispatcher() {

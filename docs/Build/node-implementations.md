@@ -40,9 +40,10 @@ The downloaded `guild-deploy.sh` is the common dispatcher. It:
 5. makes one shallow checkout of that exact repository branch and records its
    commit revision;
 6. loads the selected profile and all Guild-owned payloads from that checkout;
-7. runs the profile with the manifest marked `deploying`, installs the current
-   dispatcher in the target `scripts` directory, and finalizes the manifest as
-   `deployed` only after success.
+7. runs the profile with the manifest marked `deploying`, marks it `deployed`
+   once the profile has installed scripts and configuration, and after the
+   remaining steps succeed installs the current dispatcher in the target
+   `scripts` directory and records the final manifest.
 
 The bootstrap file does not download profiles or payload files one by one.
 Every Guild-owned file comes from the same temporary checkout, while external
@@ -180,8 +181,11 @@ On both first installs and updates, the dispatcher records
 `deploymentStatus: "deploying"` after ensuring the target layout exists and
 before the profile changes scripts or configuration. This makes an
 interrupted operation visible and safely resumable. Helpers refuse to consume
-an unfinished manifest; the status changes to `"deployed"` only after the
-profile completes.
+an unfinished manifest. The status changes to `"deployed"` as soon as the
+profile has installed scripts and configuration, which is all the node and
+its helpers need. A later step that fails, such as a binary or tool download,
+is reported but leaves the node able to start; re-run the dispatcher to
+finish it.
 
 The manifest replaces `scripts/.env_branch`. On the first successful update of
 a legacy cnode deployment, the old branch value is imported and the sidecar is

@@ -745,6 +745,9 @@ deploy_amaru_profile() {
     dispatcher_mark_in_progress || return 1
   fi
   amaru_deploy_install_payloads || return 1
+  if declare -F dispatcher_mark_payload_ready >/dev/null 2>&1; then
+    dispatcher_mark_payload_ready || return 1
+  fi
   if [[ "${AMARU_DEPLOY_INSTALL_BINARY}" == "Y" ]]; then
     amaru_deploy_install_binary || return 1
   fi
