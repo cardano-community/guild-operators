@@ -1556,6 +1556,14 @@ download_blockperf() {
   elif [[ -e "${blockperf_install_dir}" ]]; then
     blockperf_mode="reinstall"
   fi
+  # Left alone, the installer derives the node config from the node unit's
+  # ExecStart and fails for units it does not recognise. NODE_CONFIG_PATH is
+  # the installer's own override, which sudo would not pass through.
+  if [[ -n "${NODE_CONFIG_PATH:-}" ]]; then
+    blockperf_common_args+=(--node-config "${NODE_CONFIG_PATH}")
+  elif [[ -f "${NODE_HOME}/files/config.json" ]]; then
+    blockperf_common_args+=(--node-config "${NODE_HOME}/files/config.json")
+  fi
 
   release_data="$(
     jq -er '

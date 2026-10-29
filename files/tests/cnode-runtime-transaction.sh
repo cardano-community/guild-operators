@@ -758,6 +758,7 @@ run_managed_installer_policy_test() (
   BLOCKPERF_INSTALL_DIR="${node_root}/openblockperf"
   BLOCKPERF_SERVICE_FILE="${node_root}/openblockperf.service"
   sudo=""
+  unset NODE_CONFIG_PATH
   export BLOCKPERF_TEST_LOG
 
   cnode_deploy_load_release_metadata() {
@@ -791,23 +792,33 @@ run_managed_installer_policy_test() (
   tail -n 1 "${invocation_log}" |
     grep -qF "PACKAGE_VERSION=|${paths}|--install --yes " ||
     fail "latest openBlockPerf policy did not delegate an unpinned stable install"
+  # Without the instance config the installer still searches the node unit.
+  ! tail -n 1 "${invocation_log}" | grep -qF -- "--node-config" ||
+    fail "openBlockPerf received a node config that does not exist"
 
   # A kept installer copy alone must not turn a later run into an update.
   [[ -f "${node_root}/scripts/blockperf-install.sh" ]] ||
     fail "validated openBlockPerf installer was not kept"
+  printf '{}\n' > "${node_root}/files/config.json"
   download_blockperf
   tail -n 1 "${invocation_log}" |
     grep -qF "PACKAGE_VERSION=|${paths}|--install --yes " ||
     fail "kept openBlockPerf installer selected update without an installation"
+  tail -n 1 "${invocation_log}" |
+    grep -qE -- "--node-config ${node_root}/files/config\.json$" ||
+    fail "openBlockPerf did not receive the instance node config"
 
   # A virtualenv without config or service is an interrupted install.
   mkdir -p "${BLOCKPERF_INSTALL_DIR}/venv/bin"
   printf '#!/usr/bin/env bash\n' > "${BLOCKPERF_INSTALL_DIR}/venv/bin/blockperf"
   chmod 0755 "${BLOCKPERF_INSTALL_DIR}/venv/bin/blockperf"
-  download_blockperf
+  NODE_CONFIG_PATH="${node_root}/custom/config.json" download_blockperf
   tail -n 1 "${invocation_log}" |
     grep -qF "PACKAGE_VERSION=|${paths}|--reinstall --yes " ||
     fail "incomplete openBlockPerf installation was not reinstalled"
+  tail -n 1 "${invocation_log}" |
+    grep -qE -- "--node-config ${node_root}/custom/config\.json$" ||
+    fail "NODE_CONFIG_PATH did not override the openBlockPerf node config"
 
   printf '{}\n' > "${BLOCKPERF_INSTALL_DIR}/config.json"
   : > "${BLOCKPERF_SERVICE_FILE}"
