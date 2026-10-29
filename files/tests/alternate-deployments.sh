@@ -1414,32 +1414,43 @@ run_alternate_profile_test() (
     local reload_systemctl="${test_root}/bin/systemctl-reload"
     local reload_log="${test_root}/systemctl-reload.log"
     local reload_proc="${test_root}/proc"
-    mkdir -p "${reload_proc}/4321"
+    local reload_marker="${test_root}/reload.marker"
+    local reload_pid
     printf '%s\n' \
       '#!/usr/bin/env bash' \
       'printf "%s\n" "$*" >> "${SYSTEMCTL_LOG:?}"' \
-      '[[ "${1:-}" != "show" ]] || printf "4321\n"' \
+      '[[ "${1:-}" != "show" ]] || printf "%s\n" "${RELOAD_MAIN_PID:?}"' \
       > "${reload_systemctl}"
     chmod 0755 "${reload_systemctl}"
     : > "${reload_log}"
+    # The stand-in main process records SIGHUP instead of exiting on it.
+    "${BASH}" -c 'trap "printf hup > \"$1\"; exit 0" HUP; for _ in $(seq 300); do sleep 0.1; done' \
+      _ "${reload_marker}" </dev/null >/dev/null 2>&1 &
+    reload_pid=$!
+    mkdir -p "${reload_proc}/${reload_pid}"
     printf 'HOME=/home/test\0CARDANO_BLOCK_PRODUCER=false\0' \
-      > "${reload_proc}/4321/environ"
+      > "${reload_proc}/${reload_pid}/environ"
     if SYSTEMCTL_BIN="${reload_systemctl}" SYSTEMCTL_LOG="${reload_log}" \
-      SUDO="N" DINGO_PROCFS_ROOT="${reload_proc}" \
+      RELOAD_MAIN_PID="${reload_pid}" SUDO="N" DINGO_PROCFS_ROOT="${reload_proc}" \
       "${launcher}" reload >/dev/null 2>&1; then
       fail "Dingo reload accepted a service running as a relay"
     fi
-    if grep -q '^kill' "${reload_log}"; then
+    sleep 0.3
+    if [[ -e "${reload_marker}" ]] || grep -q '^kill' "${reload_log}"; then
       fail "Dingo reload signalled a relay, which would stop it"
     fi
     printf 'HOME=/home/test\0CARDANO_BLOCK_PRODUCER=true\0' \
-      > "${reload_proc}/4321/environ"
+      > "${reload_proc}/${reload_pid}/environ"
     SYSTEMCTL_BIN="${reload_systemctl}" SYSTEMCTL_LOG="${reload_log}" \
-      SUDO="N" DINGO_PROCFS_ROOT="${reload_proc}" \
+      RELOAD_MAIN_PID="${reload_pid}" SUDO="N" DINGO_PROCFS_ROOT="${reload_proc}" \
       "${launcher}" reload >/dev/null
-    grep -Fxq "kill --signal=SIGHUP --kill-whom=main ${service_name}" \
-      "${reload_log}" ||
-      fail "Dingo reload did not signal the producer's main process"
+    for _ in $(seq 50); do
+      [[ -e "${reload_marker}" ]] && break
+      sleep 0.1
+    done
+    [[ "$(cat "${reload_marker}" 2>/dev/null)" == "hup" ]] ||
+      fail "Dingo reload did not send SIGHUP to the producer's main process"
+    wait "${reload_pid}" 2>/dev/null || true
 
     rm -f -- "${dingo_pool_dir}/op.cert"
     if DINGO_ROLE_CAPTURE="${dingo_capture}" \

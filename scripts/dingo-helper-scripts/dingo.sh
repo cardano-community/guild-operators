@@ -371,8 +371,15 @@ dingo_reload_credentials() {
     return 1
   fi
 
-  systemd_control kill --signal=SIGHUP --kill-whom=main "${unit_name}" || return 1
-  printf 'Asked %s to reload its KES key, VRF key and operational certificate.\n' "${unit_name}"
+  # Signal the PID directly: systemctl kill --kill-whom= needs systemd 252+,
+  # and older releases spell the option --kill-who=.
+  if ! kill -HUP "${main_pid}" 2>/dev/null &&
+     ! systemd_as_root kill -HUP "${main_pid}"; then
+    printf 'ERROR: could not send SIGHUP to %s (PID %s)\n' "${unit_name}" "${main_pid}" >&2
+    return 1
+  fi
+  printf 'Asked %s (PID %s) to reload its KES key, VRF key and operational certificate.\n' \
+    "${unit_name}" "${main_pid}"
   printf 'Dingo keeps the current credentials if the new set fails validation; check the logs.\n'
 }
 
