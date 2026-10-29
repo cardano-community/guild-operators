@@ -112,9 +112,11 @@ lag far behind wall-clock time. cardano-node exports no tip while it replays
 its ledger at startup, so gLiveView reads the replay progress from the node's
 systemd journal instead. Relays show it as a `SYNC: Ledger replay` row with a
 progress bar, and cnode block producers as `DB Replay` in place of the tip
-gap. This needs the node to run as its systemd service and the user running
-gLiveView to be allowed to read the system journal, for example as a member of
-the `systemd-journal` or `adm` group; otherwise a producer shows
+gap. This needs the node to run as its systemd service and gLiveView to be able
+to read that service's log. Running gLiveView as the node's own user is enough
+when the journal is stored on disk (`/var/log/journal`). Any other user, or any
+user on a host that keeps the journal only in memory, needs to be in the
+`systemd-journal` or `adm` group. Without that access a producer shows
 `Status: starting` until the replay ends.
 
 ### Connections
