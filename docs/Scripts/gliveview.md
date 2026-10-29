@@ -435,11 +435,17 @@ aggregate connection metrics.
 
 Latency methods are attempted in `LATENCY_TOOLS` order:
 
-1. `cncli` performs a Cardano handshake, or only its TCP connection phase when
-   `CNCLI_CONNECT_ONLY=true`.
-2. `ss` reads RTT from an established TCP socket.
+1. `ss` reads the RTT the kernel measures on the established connection. It
+   is instant, sends no traffic, and works for inbound and outbound peers.
+2. `cncli` times a Cardano handshake on a new connection, or only its TCP
+   connection phase when `CNCLI_CONNECT_ONLY=true`. It is slower, and an
+   inbound peer's ephemeral port usually makes it wait for its timeout.
 3. `tcptraceroute` probes the peer's Cardano TCP port.
 4. `ping` falls back to ICMP.
+
+`ss` measures the TCP round trip on the link the node already uses, so it is
+usually a little lower than a handshake measured by `cncli`. Put `cncli` first
+in `LATENCY_TOOLS` to measure handshakes instead.
 
 Incoming connections often use an ephemeral remote port, so TCP methods that
 need the peer's listening port may not apply. ICMP may also be blocked. An
@@ -527,7 +533,7 @@ tracker](https://github.com/cardano-community/guild-operators/issues).
 #PEER_LIST_CNT=10                         # Peers per cnode analysis page
 #THEME="dark"                             # dark | light
 #ENABLE_IP_GEOLOCATION=Y                  # Geolocate peer addresses
-#LATENCY_TOOLS="cncli|ss|tcptraceroute|ping"
+#LATENCY_TOOLS="ss|cncli|tcptraceroute|ping"
 #CNCLI_CONNECT_ONLY=false                 # false performs full handshake
 #HIDE_DUPLICATE_IPS=N                     # Filter duplicate/local peer IPs
 #ENABLE_OPENBLOCKPERF=Y                   # Show openBlockPerf peer columns

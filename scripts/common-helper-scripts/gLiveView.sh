@@ -17,7 +17,7 @@
 #THEME="dark"                             # dark  = suited for terminals with a dark background
                                           # light = suited for terminals with a bright background
 #ENABLE_IP_GEOLOCATION=Y                  # Enable IP geolocation on outgoing and incoming connections using ip-api.com (default: Y)
-#LATENCY_TOOLS="cncli|ss|tcptraceroute|ping" # Preferred latency check tool order, valid entries: cncli|ss|tcptraceroute|ping (must be separated by |)
+#LATENCY_TOOLS="ss|cncli|tcptraceroute|ping" # Preferred latency check tool order, valid entries: ss|cncli|tcptraceroute|ping (must be separated by |)
 #CNCLI_CONNECT_ONLY=false                 # By default cncli measure full connect handshake duration. If set to false, only connect is measured similar to other tools
 #HIDE_DUPLICATE_IPS=N                     # If set to 'Y', duplicate and local IP's will be filtered out in peer analysis, else all connected peers are shown (default: N)
 #ENABLE_OPENBLOCKPERF=Y                   # Show openBlockPerf connection use and peer scores in peer analysis when its local endpoint answers (default: Y)
@@ -297,7 +297,7 @@ declare -gA geoIP=()
 
 [[ -z ${PEER_LIST_CNT} ]] && PEER_LIST_CNT=10
 
-[[ -z ${LATENCY_TOOLS} ]] && LATENCY_TOOLS="cncli|ss|tcptraceroute|ping"
+[[ -z ${LATENCY_TOOLS} ]] && LATENCY_TOOLS="ss|cncli|tcptraceroute|ping"
 
 [[ -z ${CNCLI_CONNECT_ONLY} ]] && CNCLI_CONNECT_ONLY=false
 
@@ -1869,11 +1869,11 @@ while true; do
     printf "${VL} is display and grouped in ranges of 0-50, 50-100, 100-200, 200<." && closeRow
     printf "${blank_line}\n" && ((line++))
     printf "${VL} Connections ping type order(unless overridden in settings):" && closeRow
-    printf "${VL} 1. ${style_values_2}cncli${NC} - If available, this gives the most accurate measure as" && closeRow
-    printf "${VL}    it checks the entire handshake process against the remote peer." && closeRow
-    printf "${VL} 2. ${style_values_2}ss${NC} - Sends a TCP SYN package to ping the remote peer on" && closeRow
-    printf "${VL}    the cardano-node port. Should give ~100%% success rate." && closeRow
-    printf "${VL} 3. ${style_values_2}tcptraceroute${NC} - Same as ss" && closeRow
+    printf "${VL} 1. ${style_values_2}ss${NC} - Reads the RTT the kernel measures on the existing" && closeRow
+    printf "${VL}    connection. Instant, sends no traffic, works in both directions." && closeRow
+    printf "${VL} 2. ${style_values_2}cncli${NC} - Times a full Cardano handshake on a new connection" && closeRow
+    printf "${VL}    to the peer's port. Slower, fails on ephemeral inbound ports." && closeRow
+    printf "${VL} 3. ${style_values_2}tcptraceroute${NC} - Sends a TCP SYN to the peer's port." && closeRow
     printf "${VL} 4. ${style_values_2}ping${NC} - fallback method using ICMP ping against IP." && closeRow
     printf "${VL}    Only work if the FW of remote peer accepts ICMP traffic." && closeRow
     printf "${blank_line}\n" && ((line++))
