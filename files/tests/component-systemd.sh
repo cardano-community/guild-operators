@@ -186,6 +186,53 @@ for expected in \
   }
 done
 
+# cnode.sh systemd reload signals only a deployed unit whose main process is
+# already cardano-node, never cnode.sh while it still prepares the start.
+cat > "${TEST_ROOT}/systemctl-reload" <<'SCRIPT'
+#!/usr/bin/env bash
+case "$*" in
+  "show --property LoadState --value cnode.service") printf '%s\n' "${RELOAD_LOAD_STATE}" ;;
+  "show --property MainPID --value cnode.service") printf '%s\n' "${RELOAD_MAIN_PID}" ;;
+esac
+SCRIPT
+chmod 755 "${TEST_ROOT}/systemctl-reload"
+RELOAD_PROC="${TEST_ROOT}/proc"
+RELOAD_MARKER="${TEST_ROOT}/reload.marker"
+# shellcheck disable=SC2016 # expanded by the child shell
+"${BASH}" -c 'trap "printf hup > \"$1\"; exit 0" HUP; for _ in $(seq 300); do sleep 0.1; done' \
+  _ "${RELOAD_MARKER}" &
+RELOAD_PID=$!
+mkdir -p "${RELOAD_PROC}/${RELOAD_PID}"
+reload_cnode() {
+  SYSTEMCTL_BIN="${TEST_ROOT}/systemctl-reload" CNODE_PROCFS_ROOT="${RELOAD_PROC}" \
+    RELOAD_LOAD_STATE="$1" RELOAD_MAIN_PID="$2" \
+    "${BASH}" "${SCRIPT_ROOT}/cnode.sh" systemd reload >/dev/null
+}
+printf 'cardano-node\n' > "${RELOAD_PROC}/${RELOAD_PID}/comm"
+if reload_cnode not-found 0; then
+  fail "cnode reload accepted a unit that is not deployed"
+fi
+if reload_cnode loaded 0; then
+  fail "cnode reload accepted a unit that is not running"
+fi
+printf 'bash\n' > "${RELOAD_PROC}/${RELOAD_PID}/comm"
+if reload_cnode loaded "${RELOAD_PID}"; then
+  fail "cnode reload signalled cnode.sh before cardano-node started"
+fi
+sleep 0.3
+[[ ! -e "${RELOAD_MARKER}" ]] ||
+  fail "cnode reload sent SIGHUP to a process that is not cardano-node"
+printf 'cardano-node\n' > "${RELOAD_PROC}/${RELOAD_PID}/comm"
+reload_cnode loaded "${RELOAD_PID}" ||
+  fail "cnode reload refused a running node"
+for _ in $(seq 50); do
+  [[ -e "${RELOAD_MARKER}" ]] && break
+  sleep 0.1
+done
+[[ "$(cat "${RELOAD_MARKER}" 2>/dev/null)" == "hup" ]] ||
+  fail "cnode reload did not send SIGHUP to the node's main process"
+wait "${RELOAD_PID}" 2>/dev/null || true
+
 AMARU_NODE_ROOT="${TEST_ROOT}/amaru-test"
 AMARU_SCRIPT_ROOT="${AMARU_NODE_ROOT}/scripts"
 AMARU_UNIT_ROOT="${TEST_ROOT}/amaru-units"

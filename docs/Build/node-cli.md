@@ -147,7 +147,17 @@ cd "${CNODE_HOME}"/scripts
 To install the node's systemd unit, use `./cnode.sh -d` or the explicit
 `./cnode.sh systemd install` form. The same script owns
 `systemd remove` and `systemd status`; the former central
-`deploy-as-systemd.sh` script has been removed.
+`deploy-as-systemd.sh` script has been removed. The unit is named after the
+top-level folder, for example `cnode.service` for `/opt/cardano/cnode`.
+
+`./cnode.sh systemd reload` sends SIGHUP to the running unit. cardano-node then
+re-reads its topology file and, on a block producer, its KES key, VRF key and
+operational certificate, so a KES rotation needs no restart. The keys are
+re-read from the paths the node was started with: a node started as a relay
+(without pool keys) needs a restart to become a block producer. The command
+refuses a unit that is not deployed or not running, and waits for a node that
+is still starting, for example during a Mithril download, because SIGHUP would
+end that startup.
 
 You should see logs flooding your screen (dont worry, that is expected) - and perhaps also include warn/errors to connect to some peers depending on your topology and remote peer status. If the node is running for few mins (i.e. you do not get returned to prompt), Press Ctrl-C to exit node and return to console.
 

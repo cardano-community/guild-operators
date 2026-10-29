@@ -327,7 +327,8 @@ existing operators can still replace or remove them safely.
 
 | Component | Command |
 | --- | --- |
-| cnode, db-sync, submit-api, Ogmios, Mithril signer | `<script> systemd install\|remove\|status` |
+| cnode | `cnode.sh -d` or `cnode.sh systemd install\|remove\|status\|reload`; `reload` sends SIGHUP to the running node |
+| db-sync, submit-api, Ogmios, Mithril signer | `<script> systemd install\|remove\|status` |
 | Dingo | `dingo.sh -d` or `dingo.sh install`; also `remove` and `status` |
 | Amaru node and metrics bridge | `amaru.sh -d` or `amaru.sh install`; lifecycle commands manage both units |
 | CNCLI operational units | `cncli.sh -d [scope]` or `cncli.sh systemd install\|remove\|status [scope]` |

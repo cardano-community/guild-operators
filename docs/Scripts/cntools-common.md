@@ -501,8 +501,8 @@ rather than issuing another certificate.
 After installation, a cnode running as an active systemd unit can be reloaded
 from CNTools with SIGHUP, which loads the new key without a restart. CNTools
 then checks the node's metrics for the new certificate. Otherwise reload the
-node yourself (`sudo kill -SIGHUP $(systemctl show --property MainPID --value <name>.service)`)
-or restart it, and verify its health.
+node yourself (`"${CNODE_HOME}"/scripts/cnode.sh systemd reload`, which sends
+the same signal) or restart it, and verify its health.
 
 For offline cold-key signing:
 

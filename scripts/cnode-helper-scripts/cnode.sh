@@ -23,14 +23,16 @@ usage() {
   cat <<-EOF
 
 		Usage: $(basename "$0") [-d|-s]
-		       $(basename "$0") systemd <install|remove|status>
+		       $(basename "$0") systemd <install|remove|status|reload>
 
 		Cardano Node wrapper script !!
 		-d    Deploy cnode as a systemd service
 		-s    Stop cnode using SIGINT
 		systemd
 		      Install, remove, or show the status of the cnode service
-		
+		      reload sends SIGHUP to the running service: the node re-reads its
+		      topology and, on a block producer, its KES key, VRF key and op.cert
+
 		EOF
   exit 1
 }
@@ -143,12 +145,51 @@ deploy_systemd() {
     echo "${unit_name} deployed successfully!!"
 }
 
+# cardano-node re-reads its topology and block-forging credentials on SIGHUP.
+# A SIGHUP that reaches cnode.sh itself, while it still prepares the start
+# (for example a Mithril download), would end the startup instead.
+reload_systemd() {
+  local unit_name="${CNODE_VNAME}.service"
+  local node_name main_pid process_name
+
+  load_systemd_library || return 1
+  if ! command -v "${SYSTEMCTL_BIN}" >/dev/null 2>&1; then
+    echo "ERROR: systemd is required to reload ${unit_name}."
+    return 1
+  fi
+  if [[ "$("${SYSTEMCTL_BIN}" show --property LoadState --value "${unit_name}" 2>/dev/null)" != "loaded" ]]; then
+    echo "ERROR: ${unit_name} is not deployed. Install it with: $(basename "$0") systemd install"
+    return 1
+  fi
+  main_pid="$("${SYSTEMCTL_BIN}" show --property MainPID --value "${unit_name}" 2>/dev/null)"
+  if [[ ! "${main_pid}" =~ ^[1-9][0-9]*$ ]]; then
+    echo "ERROR: ${unit_name} is not running. Start it with: sudo systemctl start ${unit_name}"
+    return 1
+  fi
+  node_name="$(basename "${CNODEBIN:-cardano-node}")"
+  if ! process_name="$(cat "${CNODE_PROCFS_ROOT:-/proc}/${main_pid}/comm" 2>/dev/null)"; then
+    echo "ERROR: Cannot inspect the main process of ${unit_name}; run the reload as the service user or root."
+    return 1
+  fi
+  # The kernel shortens process names to 15 characters.
+  if [[ "${process_name}" != "${node_name:0:15}" ]]; then
+    echo "ERROR: ${unit_name} is still starting (PID ${main_pid} runs ${process_name}, not ${node_name}). Try again once the node runs."
+    return 1
+  fi
+  if ! kill -HUP "${main_pid}" 2>/dev/null && ! systemd_as_root kill -HUP "${main_pid}"; then
+    echo "ERROR: Could not send SIGHUP to ${unit_name} (PID ${main_pid})."
+    return 1
+  fi
+  echo "Sent SIGHUP to ${unit_name} (PID ${main_pid}). The node re-reads its topology and, when it runs as a block producer, its KES key, VRF key and operational certificate."
+}
+
 manage_systemd() {
   local action="${1:-}"
   local unit_name="${CNODE_VNAME}.service"
 
   case "${action}" in
     install) deploy_systemd ;;
+    reload) reload_systemd ;;
     remove)
       load_systemd_library &&
         systemd_remove_units --owner-token "${CNODE_HOME}/scripts/cnode.sh" "${unit_name}" &&
@@ -183,7 +224,7 @@ done
 [[ ${0} != '-bash' ]] && PARENT="$(dirname $0)" || PARENT="$(pwd)"
 # Check if env file is missing in current folder (no update checks as will mostly run as daemon), source env if present
 [[ ! -f "${PARENT}"/env ]] && echo -e "\nCommon env file missing in \"${PARENT}\", please ensure latest guild-deploy.sh was run and this script is being run from ${CNODE_HOME}/scripts folder! \n" && exit 1
-if [[ "${SYSTEMD_ACTION}" == "remove" || "${SYSTEMD_ACTION}" == "status" ]]; then
+if [[ "${SYSTEMD_ACTION}" == "remove" || "${SYSTEMD_ACTION}" == "status" || "${SYSTEMD_ACTION}" == "reload" ]]; then
   . "${PARENT}"/env definitions
 else
   . "${PARENT}"/env offline
