@@ -38,6 +38,8 @@ jobs:
       run: bash files/tests/systemd-library.sh
     - name: Test component systemd recovery
       run: bash files/tests/component-systemd.sh
+    - name: Test cnode metrics adapter
+      run: bash files/tests/cnode-metrics.sh
     - name: Test Dingo metrics adapter
       run: bash files/tests/dingo-metrics.sh
     - name: Test Amaru metrics adapter

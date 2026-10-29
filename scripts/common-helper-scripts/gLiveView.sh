@@ -1532,10 +1532,14 @@ glvUpdateTipGap() {
   node_metric_set tip_gap "${calculated_gap}"
 }
 
+# The adapter reports a running ledger replay as a sync phase while it
+# collects metrics.
 getBlockReplayStatus() {
-  unset replay_log_line block_replay_pct
+  unset block_replay_pct
   node_has block_replay_log || return
-  block_replay_pct="$(node_replay_progress 2>/dev/null || true)"
+  if node_metric_has sync_progress; then
+    block_replay_pct="${sync_progress}"
+  fi
 }
 
 #####################################

@@ -55,21 +55,34 @@ node_adapter_operational_certificate() {
   return 1
 }
 
+# cardano-node reports ledger replay progress only in its log. JSON tracing
+# writes "progress":"98.785..." in ChainDB.ReplayBlock.LedgerReplay; the
+# legacy text format ends in "Progress: 98.78%". Other traces, such as the
+# periodic Resources line, can follow the latest replay line.
 node_adapter_replay_progress() {
-  local replay_log_line
-  if command -v journalctl >/dev/null &&
-     command -v systemctl >/dev/null &&
-     systemctl is-active --quiet "${CNODE_VNAME}.service" 2>/dev/null; then
-    replay_log_line=$(journalctl -n 1 -u "${CNODE_VNAME}.service" 2>/dev/null | grep LedgerReplay)
-    [[ ${replay_log_line} =~ ([0-9.]+)% ]] || return 1
-    printf '%s\n' "${BASH_REMATCH[1]}"
-    return 0
+  local replay_log_line progress
+  local json_pattern='"progress":"?([0-9]+([.][0-9]+)?)'
+  local text_pattern='([0-9]+([.][0-9]+)?)%'
+
+  command -v journalctl >/dev/null && command -v systemctl >/dev/null || return 1
+  node_adapter_defaults
+  systemctl is-active --quiet "${NODE_SERVICE}" 2>/dev/null || return 1
+  replay_log_line="$(
+    journalctl -q -n 10 -o cat -u "${NODE_SERVICE}" 2>/dev/null |
+      grep -F LedgerReplay | tail -n 1
+  )"
+  if [[ ${replay_log_line} =~ ${json_pattern} ]]; then
+    progress="${BASH_REMATCH[1]}"
+  elif [[ ${replay_log_line} =~ ${text_pattern} ]]; then
+    progress="${BASH_REMATCH[1]}"
+  else
+    return 1
   fi
-  return 1
+  LC_NUMERIC=C printf '%.2f\n' "${progress}"
 }
 
 node_adapter_collect_metrics() {
-  local node_metrics process_elapsed metrics_url
+  local node_metrics process_elapsed metrics_url replay_progress
   node_adapter_refresh_process >/dev/null 2>&1 || true
   metrics_url="$(node_adapter_metrics_url)" || return 1
   node_metrics="$(
@@ -79,6 +92,13 @@ node_adapter_collect_metrics() {
   )" || return 1
   [[ -n "${node_metrics}" ]] || return 1
   common_parse_cardano_metrics "${node_metrics}" || return 1
+
+  # The node exports no tip until its ledger replay has finished.
+  if { ! node_metric_has slotnum || [[ "${slotnum}" == "0" ]]; } &&
+     replay_progress="$(node_adapter_replay_progress)"; then
+    node_metric_set sync_phase "Ledger replay"
+    node_metric_set sync_progress "${replay_progress}"
+  fi
 
   process_elapsed=""
   if [[ "${CNODE_PID:-}" =~ ^[1-9][0-9]*$ ]]; then

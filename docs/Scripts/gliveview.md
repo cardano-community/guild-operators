@@ -86,7 +86,7 @@ adapter marks the current sample as available. An absent field therefore means
 | Port | The node-to-node listening port, not the metrics port. |
 | Epoch and progress | Epoch number and the latest locally processed slot's position within that epoch. The bar is local ledger progress through the epoch, not network synchronization progress. |
 | ALERT | Shown only while the node reports a condition that needs operator action, such as a halted or stuck ledger, the operator's own pool equivocating, or invalid forging keys. Several conditions are listed together, most severe first. |
-| SYNC | Shown only while the node reports bootstrap or catch-up progress, such as Dingo's Mithril download or ledger import, with its percentage, rate, and a progress bar. |
+| SYNC | Shown only while the node reports bootstrap or catch-up progress, such as Dingo's Mithril download or ledger import, or cardano-node's ledger replay after a restart, with its percentage, rate, and a progress bar. |
 
 ## Common live sections
 
@@ -108,8 +108,14 @@ implementation can expose a different subset.
 | Mempool | Current serialized mempool size. | Displayed with a bounded binary byte unit such as KiB or MiB. |
 
 When a node is still bootstrapping or replaying its database, chain fields can
-lag far behind wall-clock time. cnode can additionally display `DB Replay` or
-`Status` before it has a usable local tip.
+lag far behind wall-clock time. cardano-node exports no tip while it replays
+its ledger at startup, so gLiveView reads the replay progress from the node's
+systemd journal instead. Relays show it as a `SYNC: Ledger replay` row with a
+progress bar, and cnode block producers as `DB Replay` in place of the tip
+gap. This needs the node to run as its systemd service and the user running
+gLiveView to be allowed to read the system journal, for example as a member of
+the `systemd-journal` or `adm` group; otherwise a producer shows
+`Status: starting` until the replay ends.
 
 ### Connections
 
