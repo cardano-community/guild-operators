@@ -1428,6 +1428,34 @@ dispatcher_target_lock_is_owned() {
   esac
 }
 
+# Matches deployment_remove_stale_stages in deployment.library: a fresh lock
+# means that no process of this user is staging in the target, so stage folders
+# it still owns were left by a SIGKILL or a power loss. A CNTools stage that
+# holds the previous tree is a recovery copy and is kept.
+dispatcher_remove_stale_stages() {
+  local canonical_target="${1:-}"
+  local scripts_directory="${canonical_target}/scripts"
+  local stage_path
+
+  [[ -n "${canonical_target}" &&
+     -d "${scripts_directory}" &&
+     ! -L "${scripts_directory}" ]] || return 0
+  while IFS= read -r -d '' stage_path; do
+    [[ -O "${stage_path}" && ! -L "${stage_path}" ]] || continue
+    if [[ "${stage_path##*/}" == .cntools-install.* &&
+          ( -e "${stage_path}/previous" || -L "${stage_path}/previous" ) ]]; then
+      continue
+    fi
+    rm -rf -- "${stage_path}" 2>/dev/null || true
+  done < <(
+    find "${scripts_directory}" -mindepth 1 -maxdepth 1 -type d \
+      \( -name '.common-runtime-stage.??????' -o \
+         -name '.common-runtime-install.??????' -o \
+         -name '.cntools-install.??????' \) -print0 2>/dev/null
+  )
+  return 0
+}
+
 dispatcher_acquire_target_lock() {
   local lock_base
   local lock_key
@@ -1472,6 +1500,7 @@ dispatcher_acquire_target_lock() {
   DISPATCHER_LOCK_OWNER_PID="$$"
   GUILD_DEPLOY_LOCK_HELD_FOR="${canonical_target}"
   export GUILD_DEPLOY_LOCK_HELD_FOR
+  dispatcher_remove_stale_stages "${canonical_target}"
 }
 
 dispatcher_release_target_lock() {

@@ -637,6 +637,86 @@ assert_eq "${alias_lock_key}" "${physical_lock_key}"
   deployment_target_lock_release
 )
 
+# A fresh target lock removes the stage folders a SIGKILL left behind. Other
+# names, files, symlinks, CNTools recovery copies and the stage of a nested
+# acquisition are kept.
+stale_stage_fixture() {
+  local scripts_directory="$1/scripts"
+  local stage_name
+
+  rm -rf "$1" "${TEST_DIR}/stage-link-target"
+  mkdir -p "${scripts_directory}" "${TEST_DIR}/stage-link-target"
+  for stage_name in .common-runtime-stage.Ab12Cd .common-runtime-install.Ab12Cd \
+      .cntools-install.Ab12Cd; do
+    mkdir -p "${scripts_directory}/${stage_name}/candidate"
+    printf 'stale\n' > "${scripts_directory}/${stage_name}/candidate/env"
+  done
+  mkdir -p "${scripts_directory}/.cntools-install.Kept12/previous/.transactions" \
+    "${scripts_directory}/.common-runtime-stage.notes" \
+    "${scripts_directory}/custom-scooper"
+  printf 'keep\n' > "${scripts_directory}/.common-runtime-stage.File12"
+  printf 'keep\n' > "${TEST_DIR}/stage-link-target/marker"
+  ln -s "${TEST_DIR}/stage-link-target" "${scripts_directory}/.common-runtime-stage.Link12"
+}
+
+assert_stale_stages_removed() {
+  local scripts_directory="$1/scripts"
+  local stage_name
+
+  for stage_name in .common-runtime-stage.Ab12Cd .common-runtime-install.Ab12Cd \
+      .cntools-install.Ab12Cd; do
+    [[ ! -e "${scripts_directory}/${stage_name}" ]] ||
+      fail "$2 left the stale ${stage_name} folder"
+  done
+  [[ -d "${scripts_directory}/.cntools-install.Kept12/previous/.transactions" ]] ||
+    fail "$2 removed a CNTools recovery copy"
+  [[ -d "${scripts_directory}/.common-runtime-stage.notes" &&
+     -d "${scripts_directory}/custom-scooper" ]] ||
+    fail "$2 removed a folder that is not a stage folder"
+  [[ -f "${scripts_directory}/.common-runtime-stage.File12" ]] ||
+    fail "$2 removed a file named like a stage folder"
+  [[ -L "${scripts_directory}/.common-runtime-stage.Link12" &&
+     -f "${TEST_DIR}/stage-link-target/marker" ]] ||
+    fail "$2 removed or followed a symlink named like a stage folder"
+}
+
+(
+  NODE_HOME="${TEST_DIR}/stale-stage-library"
+  stale_stage_fixture "${NODE_HOME}"
+  unset GUILD_DEPLOY_LOCK_HELD_FOR DEPLOYMENT_TARGET_LOCK_OWNED
+  unset DISPATCHER_LOCK_KIND DISPATCHER_LOCK_PATH
+  unset DISPATCHER_LOCK_CANONICAL_TARGET DISPATCHER_LOCK_OWNER_PID
+  # shellcheck source=/dev/null
+  . "${REPO_ROOT}/scripts/common-helper-scripts/lib/deployment.library"
+  deployment_target_lock_acquire "${NODE_HOME}"
+  assert_stale_stages_removed "${NODE_HOME}" "runtime library lock"
+  mkdir "${NODE_HOME}/scripts/.common-runtime-stage.Live12"
+  deployment_target_lock_acquire "${NODE_HOME}"
+  assert_eq "${DEPLOYMENT_TARGET_LOCK_DEPTH}" "2"
+  [[ -d "${NODE_HOME}/scripts/.common-runtime-stage.Live12" ]] ||
+    fail "runtime library nested lock removed a live stage folder"
+  deployment_target_lock_release
+  deployment_target_lock_release
+)
+(
+  NODE_HOME="${TEST_DIR}/stale-stage-dispatcher"
+  stale_stage_fixture "${NODE_HOME}"
+  unset GUILD_DEPLOY_LOCK_HELD_FOR DEPLOYMENT_TARGET_LOCK_OWNED
+  unset DISPATCHER_LOCK_KIND DISPATCHER_LOCK_PATH
+  unset DISPATCHER_LOCK_CANONICAL_TARGET DISPATCHER_LOCK_OWNER_PID
+  deployment_target_lock_acquire "${NODE_HOME}"
+  assert_eq "${DEPLOYMENT_TARGET_LOCK_OWNED}" "Y"
+  assert_stale_stages_removed "${NODE_HOME}" "dispatcher lock"
+  mkdir "${NODE_HOME}/scripts/.common-runtime-install.Live12"
+  (
+    deployment_target_lock_acquire "${NODE_HOME}"
+    assert_eq "${DEPLOYMENT_TARGET_LOCK_OWNED}" "N"
+  )
+  [[ -d "${NODE_HOME}/scripts/.common-runtime-install.Live12" ]] ||
+    fail "dispatcher re-entrant lock removed a live stage folder"
+  deployment_target_lock_release
+)
+
 path_injection_marker="${TEST_DIR}/path-injection-ran"
 if (
   unset CNODE_NAME CNODE_PATH NODE_NAME NETWORK BRANCH
