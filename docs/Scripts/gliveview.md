@@ -452,25 +452,42 @@ need the peer's listening port may not apply. ICMP may also be blocked. An
 undetermined peer therefore does not by itself mean the connection is broken.
 
 The result groups round-trip times into 0-50, 50-100, 100-200, and over 200 ms.
-Use Up/Down to select the incoming or outgoing list and Left/Right to change
-pages.
+An RTT below one millisecond, typical for a peer in the same data centre, shows
+as `<1`. Left/Right changes pages.
+
+With `ENABLE_IP_GEOLOCATION=Y`, every public peer address is looked up at
+ip-api.com, 100 addresses per request, and the results are cached next to the
+script in `gLiveView.sh.geodb`.
 
 When [openBlockPerf](https://github.com/cardano-foundation/openblockperf)
-runs with its local endpoint enabled, the peer list shows two more columns:
+runs with its local endpoint enabled and has seen peers, the peer list shows
+two more columns:
 
 - `CONN` says how the node uses the connection, as its connection manager
   counts it: `out` when the node fetches from the peer, `in` when the peer
-  fetches from the node, and `bi` when both happen over the same duplex
+  fetches from the node, and `dup` when both happen over the same duplex
   connection. The letter after it is the hot (`H`), warm (`W`) or cold (`C`)
-  state; `bi` shows the node's state first, then the peer's. openBlockPerf
+  state; `dup` shows the node's side first, then the peer's. openBlockPerf
   records temporary remote ports as 0, so several inbound connections from one
-  address share a value, and `?` marks a connection it has not seen.
+  address share a value. The cell is empty for a connection openBlockPerf has
+  not seen.
 - `SCORE` says how useful the peer was for receiving blocks over the last 30
   minutes. A peer earns 10, 5 or 3 points for being the first, second or third
-  to announce a block header, and 10 points for each block body it serves. A
-  score of 0 means the peer delivered nothing first in that window.
+  to announce a block header, and 10 points for each block body it serves. The
+  cell is empty when the peer delivered nothing first in that window, which is
+  normal for most peers: only the node's hot upstream peers deliver blocks.
 
 Both reset when openBlockPerf restarts.
+
+A filter row at the top of the view then narrows the list, the RTT ranges and
+the average:
+
+| Key | Filter | Choices |
+| --- | --- | --- |
+| `d` | Direction | All, Out, In, Duplex. Out and In include duplex connections, as the node's connection counters do. |
+| `s` | State | Any, Hot, Warm. The state on the chosen direction's side, or the hotter side for All and Duplex. |
+
+Each key cycles through its choices, and the active ones are highlighted.
 
 `guild-deploy.sh -s r` enables the endpoint by adding
 `"local_metrics_enabled": true` to `/opt/cardano/openblockperf/config.json`,
