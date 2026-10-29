@@ -40,6 +40,8 @@ jobs:
       run: bash files/tests/component-systemd.sh
     - name: Cnode metrics adapter tests
       run: bash files/tests/cnode-metrics.sh
+    - name: gLiveView openBlockPerf peer tests
+      run: bash files/tests/gliveview-openblockperf.sh
     - name: Dingo metrics adapter tests
       run: bash files/tests/dingo-metrics.sh
     - name: Amaru metrics adapter tests

@@ -1524,6 +1524,34 @@ download_cardanosigner() {
   log_ok "Deployed Cardano Signer" "${signer_version}"
 }
 
+# gLiveView's peer analysis shows connection use and scores from openBlockPerf's
+# local endpoint, which listens on 127.0.0.1 and is off by default. A
+# local_metrics_enabled value the operator set is kept.
+blockperf_enable_local_metrics() {
+  local config_file="$1"
+  local service_name staged_config
+  service_name="$(basename "$2")"
+
+  [[ -f "${config_file}" ]] || return 0
+  jq -e 'has("local_metrics_enabled")' "${config_file}" >/dev/null 2>&1 && return 0
+  staged_config="$(mktemp)" || {
+    log_warn "Could not enable openBlockPerf local metrics; its gLiveView peer columns stay hidden."
+    return 0
+  }
+  if ! jq '. + {local_metrics_enabled: true}' "${config_file}" > "${staged_config}" 2>/dev/null ||
+     ! $sudo cp -- "${staged_config}" "${config_file}"; then
+    rm -f -- "${staged_config}"
+    log_warn "Could not enable openBlockPerf local metrics in ${config_file}; its gLiveView peer columns stay hidden."
+    return 0
+  fi
+  rm -f -- "${staged_config}"
+  log_info "Enabled openBlockPerf local metrics on 127.0.0.1:14041 for gLiveView peer analysis."
+  if command -v systemctl >/dev/null 2>&1; then
+    $sudo systemctl try-restart "${service_name}" >/dev/null 2>&1 ||
+      log_warn "Restart ${service_name} to apply the openBlockPerf local metrics setting."
+  fi
+}
+
 # Download and execute openBlockPerf installer
 download_blockperf() {
   local installer_dir blockperf_installer staged_installer
@@ -1636,6 +1664,7 @@ download_blockperf() {
   rc=$?
   [[ ${rc} -eq 0 ]] ||
     err_exit "openBlockPerf installer failed with exit code ${rc}."
+  blockperf_enable_local_metrics "${blockperf_install_dir}/config.json" "${blockperf_service_file}"
   if [[ "${policy_mode}" == "pinned" ]]; then
     log_ok "Deployed openBlockPerf" "${package_version}, pinned"
   else

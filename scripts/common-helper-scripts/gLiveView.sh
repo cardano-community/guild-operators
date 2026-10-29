@@ -20,7 +20,9 @@
 #LATENCY_TOOLS="cncli|ss|tcptraceroute|ping" # Preferred latency check tool order, valid entries: cncli|ss|tcptraceroute|ping (must be separated by |)
 #CNCLI_CONNECT_ONLY=false                 # By default cncli measure full connect handshake duration. If set to false, only connect is measured similar to other tools
 #HIDE_DUPLICATE_IPS=N                     # If set to 'Y', duplicate and local IP's will be filtered out in peer analysis, else all connected peers are shown (default: N)
-#VERBOSE=N                                # Start in verbose mode showing additional metrics (default: N)
+#ENABLE_OPENBLOCKPERF=Y                   # Show openBlockPerf connection use and peer scores in peer analysis when its local endpoint answers (default: Y)
+#OPENBLOCKPERF_METRICS_URL="http://127.0.0.1:14041" # openBlockPerf local metrics endpoint (local_metrics_bind and local_metrics_port in its config)
+#VERBOSE=N                               # Start in verbose mode showing additional metrics (default: N)
 #GLV_LOG="${LOG_DIR}/gLiveView.log"       # Log gLiveView errors, set empty to disable. LOG_DIR set in env file.
 
 #####################################
@@ -300,6 +302,12 @@ declare -gA geoIP=()
 [[ -z ${CNCLI_CONNECT_ONLY} ]] && CNCLI_CONNECT_ONLY=false
 
 [[ -z ${HIDE_DUPLICATE_IPS} ]] && HIDE_DUPLICATE_IPS=N
+
+[[ -z ${ENABLE_OPENBLOCKPERF} ]] && ENABLE_OPENBLOCKPERF=Y
+[[ -z ${OPENBLOCKPERF_METRICS_URL} ]] && OPENBLOCKPERF_METRICS_URL="http://127.0.0.1:14041"
+declare -gA peerConn=()
+declare -gA peerScore=()
+openblockperf_peers_available=false
 
 [[ -z ${VERBOSE} ]] && VERBOSE=N
 
@@ -1469,6 +1477,60 @@ checkPeers() {
       done
     fi
   fi
+
+  getOpenBlockPerfPeers
+}
+
+# Command    : getOpenBlockPerfPeers
+# Description: Read connection use and peer scores from openBlockPerf's local
+#              endpoint, which is off unless local_metrics_enabled is set in
+#              its config.
+#              peerConn, keyed by "ip;port", says how the node uses each
+#              connection, as the node's connection manager counts it: out
+#              (our outbound governor uses it), in (the peer's side uses it)
+#              or bi (both), with the hot (H), warm (W) or cold (C) state.
+#              openBlockPerf records ephemeral remote ports as 0.
+#              peerScore, keyed by IP, holds points from the last 30 minutes:
+#              10, 5 or 3 for being the 1st, 2nd or 3rd to announce a block
+#              header, and 10 for each block body served.
+getOpenBlockPerfPeers() {
+  local peers_json peer_key peer_value
+  peerConn=()
+  peerScore=()
+  openblockperf_peers_available=false
+  [[ ${ENABLE_OPENBLOCKPERF} = 'Y' ]] || return 0
+  peers_json="$(curl -s -f -m 2 "${OPENBLOCKPERF_METRICS_URL%/}/peers?all=1" 2>/dev/null)" || return 0
+  # relevance_window_seconds is only set when the scores are included.
+  jq -e '(.peers | type) == "array" and (.relevance_window_seconds | type) == "number"' \
+    <<< "${peers_json}" >/dev/null 2>&1 || return 0
+  while IFS=$'\t' read -r peer_key peer_value; do
+    [[ -n ${peer_key} ]] && peerConn[${peer_key}]=${peer_value}
+  done < <(jq -r '
+      def rank: {"Hot": 3, "Warm": 2, "Cold": 1}[.] // 0;
+      def letter: {"Hot": "H", "Warm": "W", "Cold": "C"}[.] // "-";
+      [(.peers // [])[] | select((.remote_addr | type) == "string")] |
+      group_by([.remote_addr, (.remote_port // 0)])[] |
+      (max_by(.outbound_temperature | rank) | .outbound_temperature) as $out |
+      (max_by(.ig_temperature | rank) | .ig_temperature) as $in |
+      [
+        "\(.[0].remote_addr);\(.[0].remote_port // 0)",
+        if ($out | rank) >= 2 and ($in | rank) >= 2 then "bi \($out | letter)/\($in | letter)"
+        elif ($out | rank) >= 2 then "out \($out | letter)"
+        elif ($in | rank) >= 2 then "in \($in | letter)"
+        elif any(.[]; .we_dialed == true) then "out \($out | letter)"
+        else "in \($in | letter)"
+        end
+      ] | @tsv
+    ' <<< "${peers_json}" 2>/dev/null)
+  while IFS=$'\t' read -r peer_key peer_value; do
+    [[ -n ${peer_key} ]] && peerScore[${peer_key}]=${peer_value}
+  done < <(jq -r '
+      [(.peers // [])[], (.relevance_orphans // [])[]] |
+      map(select((.remote_addr | type) == "string" and (.relevance | type) == "object")) |
+      unique_by(.remote_addr)[] |
+      [.remote_addr, ((.relevance.header_points // 0) + (.relevance.body_points // 0))] | @tsv
+    ' <<< "${peers_json}" 2>/dev/null)
+  openblockperf_peers_available=true
 }
 
 checkNodeVersion() {
@@ -1814,6 +1876,13 @@ while true; do
     printf "${VL} 3. ${style_values_2}tcptraceroute${NC} - Same as ss" && closeRow
     printf "${VL} 4. ${style_values_2}ping${NC} - fallback method using ICMP ping against IP." && closeRow
     printf "${VL}    Only work if the FW of remote peer accepts ICMP traffic." && closeRow
+    printf "${blank_line}\n" && ((line++))
+    printf "${VL} ${style_values_2}CONN${NC} and ${style_values_2}SCORE${NC} show when openBlockPerf's local endpoint answers." && closeRow
+    printf "${VL} CONN: out (node fetches from peer), in (peer fetches from node) or" && closeRow
+    printf "${VL} bi (both), with the hot (H), warm (W) or cold (C) state; bi shows" && closeRow
+    printf "${VL} the node's state, then the peer's." && closeRow
+    printf "${VL} SCORE: points from the last 30 minutes: 10, 5 or 3 for being the" && closeRow
+    printf "${VL} 1st, 2nd or 3rd peer to announce a block, 10 per block body served." && closeRow
   elif [[ ${show_peers} = "true" ]]; then
     printf "${VL}       RTT : Peers / Percent" && closeRow
 
@@ -1860,11 +1929,16 @@ while true; do
     if [[ -n ${rttResultsSorted} ]]; then
       echo "${m3divider}" && ((line++))
 
-      printf "${VL}${style_info}   # %24s  RTT   Geolocation${NC}\n" "REMOTE PEER"
+      if [[ ${openblockperf_peers_available} = true ]]; then
+        printf "${VL}${style_info}   # %24s  RTT   CONN   SCORE Geolocation${NC}\n" "REMOTE PEER"
+        peerLocationWidth=$((width-54))
+      else
+        printf "${VL}${style_info}   # %24s  RTT   Geolocation${NC}\n" "REMOTE PEER"
+        peerLocationWidth=$((width-41))
+      fi
       header_line=$((line++))
 
       peerNbr=0
-      peerLocationWidth=$((width-41))
       for peer in ${rttResultsSorted}; do
         ((peerNbr++))
         [[ ${peerNbr} -lt ${peerNbr_start} ]] && continue
@@ -1893,11 +1967,22 @@ while true; do
         else
           peerLocationFmt="Unknown location"
         fi
-          if [[ ${peerRTT} -lt 50    ]]; then printf "${VL} %3s %19s:%-5s ${style_status_1}%-5s${NC} ${style_values_4}%s" "${peerNbr}" "${peerIP}" "${peerPORT}" "${peerRTT}" "$(alignLeft ${peerLocationWidth} "${peerLocationFmt}")"
-        elif [[ ${peerRTT} -lt 100   ]]; then printf "${VL} %3s %19s:%-5s ${style_status_2}%-5s${NC} ${style_values_4}%s" "${peerNbr}" "${peerIP}" "${peerPORT}" "${peerRTT}" "$(alignLeft ${peerLocationWidth} "${peerLocationFmt}")"
-        elif [[ ${peerRTT} -lt 200   ]]; then printf "${VL} %3s %19s:%-5s ${style_status_3}%-5s${NC} ${style_values_4}%s" "${peerNbr}" "${peerIP}" "${peerPORT}" "${peerRTT}" "$(alignLeft ${peerLocationWidth} "${peerLocationFmt}")"
-        elif [[ ${peerRTT} -lt 99999 ]]; then printf "${VL} %3s %19s:%-5s ${style_status_4}%-5s${NC} ${style_values_4}%s" "${peerNbr}" "${peerIP}" "${peerPORT}" "${peerRTT}" "$(alignLeft ${peerLocationWidth} "${peerLocationFmt}")"
-        else printf "${VL} %3s %19s:%-5s %-5s ${style_values_4}%s" "${peerNbr}" "${peerIP}" "${peerPORT}" "---" "$(alignLeft ${peerLocationWidth} "${peerLocationFmt}")"; fi
+        peerRTTfmt="${peerRTT}"
+          if [[ ${peerRTT} -lt 50    ]]; then peerRTTstyle="${style_status_1}"
+        elif [[ ${peerRTT} -lt 100   ]]; then peerRTTstyle="${style_status_2}"
+        elif [[ ${peerRTT} -lt 200   ]]; then peerRTTstyle="${style_status_3}"
+        elif [[ ${peerRTT} -lt 99999 ]]; then peerRTTstyle="${style_status_4}"
+        else peerRTTstyle=""; peerRTTfmt="---"; fi
+        printf "${VL} %3s %19s:%-5s ${peerRTTstyle}%-5s${NC} " "${peerNbr}" "${peerIP}" "${peerPORT}" "${peerRTTfmt}"
+        if [[ ${openblockperf_peers_available} = true ]]; then
+          # Connection use is keyed by address and port, with ephemeral ports
+          # as 0; scores by address only.
+          peerConnKey="${peerData[1]};${peerData[2]}"
+          peerConnFmt="${peerConn[${peerConnKey}]:-${peerConn[${peerData[1]};0]:-?}}"
+          [[ ${peerConnFmt} = *H* ]] && peerConnStyle="${style_status_1}" || peerConnStyle="${style_values_1}"
+          printf "${peerConnStyle}%-6s${NC} ${style_values_1}%5s${NC} " "${peerConnFmt}" "${peerScore[${peerData[1]}]:-0}"
+        fi
+        printf "${style_values_4}%s" "$(alignLeft ${peerLocationWidth} "${peerLocationFmt}")"
         closeRow
         [[ ${peerNbr} -eq $((peerNbr_start+PEER_LIST_CNT-1)) ]] && break
       done

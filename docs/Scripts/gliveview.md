@@ -449,6 +449,30 @@ The result groups round-trip times into 0-50, 50-100, 100-200, and over 200 ms.
 Use Up/Down to select the incoming or outgoing list and Left/Right to change
 pages.
 
+When [openBlockPerf](https://github.com/cardano-foundation/openblockperf)
+runs with its local endpoint enabled, the peer list shows two more columns:
+
+- `CONN` says how the node uses the connection, as its connection manager
+  counts it: `out` when the node fetches from the peer, `in` when the peer
+  fetches from the node, and `bi` when both happen over the same duplex
+  connection. The letter after it is the hot (`H`), warm (`W`) or cold (`C`)
+  state; `bi` shows the node's state first, then the peer's. openBlockPerf
+  records temporary remote ports as 0, so several inbound connections from one
+  address share a value, and `?` marks a connection it has not seen.
+- `SCORE` says how useful the peer was for receiving blocks over the last 30
+  minutes. A peer earns 10, 5 or 3 points for being the first, second or third
+  to announce a block header, and 10 points for each block body it serves. A
+  score of 0 means the peer delivered nothing first in that window.
+
+Both reset when openBlockPerf restarts.
+
+`guild-deploy.sh -s r` enables the endpoint by adding
+`"local_metrics_enabled": true` to `/opt/cardano/openblockperf/config.json`,
+unless that key is already set. It listens on `127.0.0.1:14041`; if you
+change `local_metrics_bind` or `local_metrics_port`, set
+`OPENBLOCKPERF_METRICS_URL` to match. `ENABLE_OPENBLOCKPERF=N` hides both
+columns.
+
 ## Refresh behavior
 
 At each `REFRESH_RATE`, gLiveView builds a complete logical frame but writes
@@ -506,6 +530,8 @@ tracker](https://github.com/cardano-community/guild-operators/issues).
 #LATENCY_TOOLS="cncli|ss|tcptraceroute|ping"
 #CNCLI_CONNECT_ONLY=false                 # false performs full handshake
 #HIDE_DUPLICATE_IPS=N                     # Filter duplicate/local peer IPs
+#ENABLE_OPENBLOCKPERF=Y                   # Show openBlockPerf peer columns
+#OPENBLOCKPERF_METRICS_URL="http://127.0.0.1:14041"
 #VERBOSE=N                                # Y starts in verbose mode
 #GLV_LOG="${LOG_DIR}/gLiveView.log"       # Empty disables the error log
 ```
