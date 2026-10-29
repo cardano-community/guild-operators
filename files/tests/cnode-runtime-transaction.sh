@@ -740,7 +740,7 @@ run_managed_installer_policy_test() (
     '  printf "blockperf-install.sh version 0.2.0\\n"' \
     '  exit 0' \
     'fi' \
-    'printf "PACKAGE_VERSION=%s|INSTALL_DIR=%s|SERVICE_FILE=%s|%s\\n" "${PACKAGE_VERSION:-}" "${INSTALL_DIR:-}" "${SERVICE_FILE:-}" "$*" >> "${BLOCKPERF_TEST_LOG}"' \
+    'printf "NEEDRESTART_MODE=%s|PACKAGE_VERSION=%s|INSTALL_DIR=%s|SERVICE_FILE=%s|%s\\n" "${NEEDRESTART_MODE:-}" "${PACKAGE_VERSION:-}" "${INSTALL_DIR:-}" "${SERVICE_FILE:-}" "$*" >> "${BLOCKPERF_TEST_LOG}"' \
     > "${fake_installer}"
   chmod 0755 "${fake_installer}"
   installer_sha="$(sha256sum "${fake_installer}" | awk '{print $1}')"
@@ -792,6 +792,9 @@ run_managed_installer_policy_test() (
   tail -n 1 "${invocation_log}" |
     grep -qF "PACKAGE_VERSION=|${paths}|--install --yes " ||
     fail "latest openBlockPerf policy did not delegate an unpinned stable install"
+  # Package installs must not restart the node of an unfinished deployment.
+  tail -n 1 "${invocation_log}" | grep -qF "NEEDRESTART_MODE=l|" ||
+    fail "openBlockPerf installer may restart services during deployment"
   # Without the instance config the installer still searches the node unit.
   ! tail -n 1 "${invocation_log}" | grep -qF -- "--node-config" ||
     fail "openBlockPerf received a node config that does not exist"

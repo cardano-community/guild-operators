@@ -1625,7 +1625,11 @@ download_blockperf() {
 
   log_progress "Running openBlockPerf installer" "${blockperf_mode}/${policy_mode}"
   [[ -t 1 ]] && printf "\n"
-  $sudo env PACKAGE_VERSION="${package_version}" \
+  # The installer may install OS packages. needrestart must only list services
+  # to restart: the deployment is unfinished, so a restarted node would refuse
+  # to start.
+  $sudo env NEEDRESTART_MODE=l \
+    PACKAGE_VERSION="${package_version}" \
     INSTALL_DIR="${blockperf_install_dir}" \
     SERVICE_FILE="${blockperf_service_file}" \
     "${blockperf_installer}" "--${blockperf_mode}" "${blockperf_common_args[@]}"
