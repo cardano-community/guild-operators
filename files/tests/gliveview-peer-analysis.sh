@@ -25,124 +25,291 @@ assert_eq() {
 }
 
 GLIVEVIEW="${REPO_ROOT}/scripts/common-helper-scripts/gLiveView.sh"
-for glv_function in getOpenBlockPerfPeers getNodePeerState peerConnection peerConnAvailable \
-  peerScoreFor peerMatchesFilter computePeerStats waitForKeyOrResize resolvePeerAddress \
-  getStaticPeers staticPeerLabelFor; do
+for glv_function in getNodePeerState readNodeRemoteStates saveNodeRemoteStates peerConnection \
+  peerConnAvailable peerScoreFor peerMatchesFilter computePeerStats waitForKeyOrResize \
+  resolvePeerAddress getStaticPeers staticPeerLabelFor; do
   glv_definition="$(sed -n "/^${glv_function}() {/,/^}/p" "${GLIVEVIEW}")"
   [[ -n "${glv_definition}" ]] || fail "gLiveView no longer defines ${glv_function}"
   eval "${glv_definition}"
 done
 
-CURL_CALLS="${TEST_ROOT}/curl.calls"
-CURL_STATUS=0
-curl() {
-  printf '%s\n' "$*" >> "${CURL_CALLS}"
-  [[ "${CURL_STATUS}" -eq 0 ]] || return "${CURL_STATUS}"
-  printf '%s\n' "${PEERS_FIXTURE}"
-}
-
-# Shape of openBlockPerf 0.0.42 /peers?all=1. Ephemeral remote ports are
-# recorded as 0, and a peer seen only in block samples is listed as a
-# relevance orphan. The node listens on 6000 and binds its outbound
-# connections to it, except for 188.66.62.55:2131, where the peer's own
-# connection already uses that pair and the node dialed from 57376.
-relevance() {
-  printf '{"headers_count":%s,"headers_1st_count":%s,"headers_2nd_count":0,"headers_3rd_count":0,"header_points":%s,"bodies_count":%s,"body_points":%s}' \
-    "$1" "$1" "$2" "$3" "$4"
-}
-session() {
-  printf '{"remote_addr":"%s","remote_port":%s,"local_port":%s,"we_dialed":%s,"outbound_temperature":"%s","ig_temperature":"%s","relevance":%s}' \
-    "$1" "$2" "$3" "$4" "$5" "$6" "$7"
-}
-PEERS_FIXTURE="$(cat <<EOF
-{
-  "at": "2026-10-29T22:00:00+00:00",
-  "export": "open",
-  "node_generation": 1,
-  "relevance_window_seconds": 1800,
-  "counts": {"open": 6, "useful": 4},
-  "peers": [
-    $(session 203.0.113.10 3001 6000 true Hot Warm "$(relevance 4 40 2 20)"),
-    $(session 203.0.113.10 0 6000 false Unconnected Hot "$(relevance 4 40 2 20)"),
-    $(session 2001:db8::7 3001 6000 true Warm Unknown "$(relevance 1 10 0 0)"),
-    $(session 198.51.100.4 6000 6000 false Cold Cold "$(relevance 0 0 0 0)"),
-    $(session 198.51.100.9 0 6000 false Unconnected Warm "$(relevance 0 0 0 0)"),
-    $(session 198.51.100.9 0 6000 false Unconnected Hot "$(relevance 0 0 0 0)"),
-    $(session 188.66.62.55 2131 6000 false Unconnected Hot "$(relevance 0 0 0 0)"),
-    $(session 188.66.62.55 2131 57376 true Hot Unconnected "$(relevance 0 0 0 0)"),
-    $(session ::ffff:192.0.2.80 3001 null true Warm Unconnected "$(relevance 0 0 0 0)")
-  ],
-  "relevance_orphans": [
-    {"remote_addr": "192.0.2.55", "seen_in_blocksample_only": true, "relevance": $(relevance 0 0 1 10)}
-  ]
-}
-EOF
-)"
-
-PEERS_FIXTURE_FULL="${PEERS_FIXTURE}"
-ENABLE_OPENBLOCKPERF=Y
-OPENBLOCKPERF_METRICS_URL="http://127.0.0.1:14041/"
 peer_filter_dir="all"
 peer_filter_state="any"
 peer_search=""
 peer_filter_static="all"
 granularity_small=10
-declare -A openBlockPerfConn=()
-declare -A openBlockPerfScore=()
 declare -A nodeConnUse=()
 declare -A nodePeerTemp=()
 declare -A nodePeerScore=()
-node_peer_state_available=false
+declare -A nodeRemoteTemp=()
 declare -A staticPeer=()
 declare -A staticPeerPort=()
 declare -A staticPeerEntries=()
 staticPeerList=()
+node_peer_state_available=false
 
-getOpenBlockPerfPeers
-assert_eq "${openblockperf_peers_available}" "true" "openBlockPerf peers available"
-assert_eq "$(cat "${CURL_CALLS}")" "-s -f -m 2 http://127.0.0.1:14041/peers?all=1" \
-  "openBlockPerf peers request"
+# The node's own state. On SIGUSR1 cardano-node logs its connection manager
+# and peer selection state, read back from its journal. The peer side's state
+# comes from the inbound governor's promotion and demotion lines in the same
+# log. The process cannot exist, so no unit is found and the journal is
+# matched by PID.
+NODE_IMPLEMENTATION="cnode"
+ENABLE_NODE_STATE_DUMP=Y
+CNODE_PID=99999999
+PS_COMM="cardano-node"
+PS_LSTART="Thu Oct 29 23:28:17 2026"
+PS_ETIMES=75000
+KILL_CALLS="${TEST_ROOT}/kill.calls"
+JOURNAL_CALLS="${TEST_ROOT}/journalctl.calls"
+STATUS_CALLS="${TEST_ROOT}/status.calls"
+PEER_STATE_FILE="${TEST_ROOT}/gLiveView.sh.peerstate"
+JOURNAL_READABLE=Y
+NO_CURSOR_WHEN_EMPTY=N
+DUMP_FIXTURE=""
+LOG_LINES=()
+ps() {
+  case "$*" in
+    *comm=*)   printf '%s\n' "${PS_COMM}" ;;
+    *lstart=*) printf '%s\n' "${PS_LSTART}" ;;
+    *etimes=*) printf '%8s\n' "${PS_ETIMES}" ;;
+  esac
+}
+kill() {
+  printf '%s\n' "$*" >> "${KILL_CALLS}"
+}
+sleep() {
+  :
+}
+peerAnalysisStatus() {
+  printf '%s\n' "$1" >> "${STATUS_CALLS}"
+}
+# LOG_LINES is the node's log; cursor cN points after its Nth line. Reads with
+# --show-cursor follow the log, the others return the state dump.
+journalctl() {
+  local i first=0 after="" show_cursor=N
+  local -a args=("$@")
+  printf '%s\n' "$*" >> "${JOURNAL_CALLS}"
+  for ((i = 0; i < ${#args[@]}; i++)); do
+    case ${args[i]} in
+      -n)
+        [[ ${JOURNAL_READABLE} = Y ]] && printf '{"at":"2026-10-30T10:00:00.00Z","ns":"Resources","data":{}}\n'
+        return 0 ;;
+      --show-cursor) show_cursor=Y ;;
+      --after-cursor) after=${args[i + 1]} ;;
+    esac
+  done
+  if [[ ${show_cursor} = N ]]; then
+    [[ -z ${DUMP_FIXTURE} ]] || printf '%s\n' "${DUMP_FIXTURE}"
+    return 0
+  fi
+  if [[ -n ${after} ]]; then
+    if [[ ! ${after} =~ ^c([0-9]+)$ ]]; then
+      printf 'Failed to seek to cursor: Invalid argument\n' >&2
+      return 1
+    fi
+    first=${BASH_REMATCH[1]}
+  fi
+  for ((i = first; i < ${#LOG_LINES[@]}; i++)); do
+    printf '%s\n' "${LOG_LINES[i]}"
+  done
+  if [[ ${first} -lt ${#LOG_LINES[@]} || ${NO_CURSOR_WHEN_EMPTY} != Y ]]; then
+    printf -- '-- cursor: c%s\n' "${#LOG_LINES[@]}"
+  fi
+}
+conn() {
+  printf '{"connections":[{"localAddress":{"address":"192.0.2.1","port":"%s"},"state":{%s"kind":"%s"}}],"remoteAddress":{"address":"%s","port":"%s"}}' \
+    "$3" "${5:+\"dataFlow\":\"$5\",}" "$4" "$1" "$2"
+}
+addr() {
+  printf '{"address":"%s","port":"%s"}' "$1" "$2"
+}
+cm_state() {
+  local IFS=,
+  printf '{"at":"2026-10-30T10:00:01.00Z","ns":"Net.ConnectionManager.Remote.State","data":{"state":[%s]},"sev":"Info","thread":"5","host":"relay"}' "$*"
+}
+inbound() {
+  printf '{"at":"2026-10-30T09:00:00.00Z","ns":"Net.InboundGovernor.Remote.%s","data":{"connectionId":{"localAddress":{"address":"192.0.2.1","port":"%s"},"remoteAddress":{"address":"%s","port":"%s"}},"kind":"%s"},"sev":"Info"}' \
+    "$1" "$4" "$2" "$3" "$1"
+}
+# The node listens on 6000. 188.66.62.55 runs two nodes: the one on 2131 has
+# a connection of its own to the node, and the node dialed it from 57376.
+CM_STALE="$(cm_state "$(conn 203.0.113.10 3001 6000 InboundIdleSt Duplex)")"
+CM_RECORD="$(cm_state \
+  "$(conn 203.0.113.10 3001 6000 DuplexSt)" \
+  "$(conn 203.0.113.10 43122 6000 InboundSt Duplex)" \
+  "$(conn 2001:db8::7 3001 6000 OutboundDupSt)" \
+  "$(conn 198.51.100.4 6000 6000 InboundIdleSt Duplex)" \
+  "$(conn 188.66.62.55 2111 6000 DuplexSt)" \
+  "$(conn 188.66.62.55 2131 6000 InboundSt Duplex)" \
+  "$(conn 188.66.62.55 2131 57376 OutboundUniSt)" \
+  "$(conn ::ffff:192.0.2.80 3001 6000 OutboundUniSt)" \
+  "$(conn 192.0.2.99 6000 6000 UnnegotiatedSt)")"
+SELECTION_RECORD="$(printf '{"at":"2026-10-30T10:00:01.01Z","ns":"Net.PeerSelection.Selection.DebugState","data":{"activePeers":[%s,%s,%s],"establishedPeers":[%s,%s,%s,%s,%s],"upstreamyness":[[%s,6],[%s,2]],"fetchynessBlocks":[[%s,2],[%s,0]],"targets":{"active":20}},"sev":"Info"}' \
+  "$(addr 203.0.113.10 3001)" "$(addr 188.66.62.55 2111)" "$(addr 188.66.62.55 2131)" \
+  "$(addr 203.0.113.10 3001)" "$(addr 2001:db8::7 3001)" "$(addr 188.66.62.55 2111)" \
+  "$(addr 188.66.62.55 2131)" "$(addr ::ffff:192.0.2.80 3001)" \
+  "$(addr 203.0.113.10 3001)" "$(addr 2001:db8::7 3001)" \
+  "$(addr 203.0.113.10 3001)" "$(addr 188.66.62.55 2111)")"
+MUX_RECORD='{"at":"2026-10-30T10:00:01.00Z","ns":"Net.Mux.Remote.State","data":{"kind":"MuxTraceState"}}'
+# journald splits the long connection manager line into two entries.
+DUMP_FIXTURE="$(printf '%s\n' "${CM_STALE}" "${MUX_RECORD}" "${CM_RECORD:0:300}" "${CM_RECORD:300}" "${SELECTION_RECORD}")"
+LOG_LINES=(
+  "$(inbound PromotedToWarmRemote 203.0.113.10 3001 6000)"
+  "$(inbound PromotedToHotRemote 203.0.113.10 43122 6000)"
+  "${MUX_RECORD}"
+  "$(inbound PromotedToWarmRemote 188.66.62.55 2111 6000)"
+  "$(inbound PromotedToHotRemote 188.66.62.55 2111 6000)"
+  "$(inbound PromotedToWarmRemote 188.66.62.55 2131 6000)"
+  '{"at":"2026-10-30T09:30:00.00Z","ns":"Net.InboundGovernor.Remote.InboundGovernorCounters","data":{"hotPeers":3}}'
+  "$(inbound PromotedToHotRemote 198.51.100.4 6000 6000)"
+  "$(inbound DemotedToColdRemote 198.51.100.4 6000 6000)"
+  "$(inbound PromotedToHotRemote ::ffff:192.0.2.150 3001 6000)"
+  '{"at":"2026-10-30T09:40:00.00Z","ns":"Net.InboundGovernor.Remote.PromotedToHotRemote","data":{"connectionId'
+)
 
-# Connection use, then the outbound and inbound side's state, keyed by
-# address, remote port and local port.
-assert_eq "${openBlockPerfConn[203.0.113.10;3001;6000]:-}" "dup;H;W" "connection used both ways"
-assert_eq "${openBlockPerfConn[203.0.113.10;0;6000]:-}" "in;-;H" "inbound connection"
-assert_eq "${openBlockPerfConn[2001:db8::7;3001;6000]:-}" "out;W;-" "IPv6 outbound connection"
-assert_eq "${openBlockPerfConn[198.51.100.4;6000;6000]:-}" "in;C;C" "cold connection the peer opened"
-assert_eq "${openBlockPerfConn[198.51.100.9;0;6000]:-}" "in;-;H" "hottest of several inbound connections"
-assert_eq "${openBlockPerfConn[188.66.62.55;2131;6000]:-}|${openBlockPerfConn[188.66.62.55;2131;57376]:-}" \
-  "in;-;H|out;H;-" "two connections to one peer port are kept apart"
-assert_eq "${openBlockPerfConn[192.0.2.80;3001;-]:-}" "out;W;-" "IPv4-mapped address without a local port"
-assert_eq "${#openBlockPerfConn[@]}" "8" "one connection entry per address and ports"
+node_state_skipped() {
+  : > "${KILL_CALLS}"
+  getNodePeerState
+  assert_eq "${node_peer_state_available}" "false" "$1: no node state"
+  [[ ! -s "${KILL_CALLS}" ]] || fail "$1: the node was signalled"
+}
+ENABLE_NODE_STATE_DUMP=N
+node_state_skipped "node state disabled"
+ENABLE_NODE_STATE_DUMP=Y
+NODE_IMPLEMENTATION="dingo"
+node_state_skipped "another implementation"
+NODE_IMPLEMENTATION="cnode"
+PS_COMM="dingo"
+node_state_skipped "another process on the node's PID"
+PS_COMM="cardano-node"
+JOURNAL_READABLE=N
+node_state_skipped "unreadable journal"
+JOURNAL_READABLE=Y
+[[ ! -e "${PEER_STATE_FILE}" ]] || fail "a skipped analysis wrote the peer state file"
 
-peerConnection 203.0.113.10 3001 6000
-assert_eq "${peerConnFmt}" "dup H/W" "duplex CONN cell"
-peerConnection 203.0.113.10 43122 6000
-assert_eq "${peerConnFmt}" "in H" "ephemeral port falls back to 0"
-peerConnection 2001:db8::7 3001 6000
-assert_eq "${peerConnFmt}" "out W" "outbound CONN cell"
-peerConnection 188.66.62.55 2131 6000
-assert_eq "${peerConnFmt}" "in H" "the peer's connection to the node"
-peerConnection 188.66.62.55 2131 57376
-assert_eq "${peerConnFmt}" "out H" "the node's own connection to the same peer port"
-peerConnection ::ffff:192.0.2.80 3001 6000
-assert_eq "${peerConnFmt}" "out W" "connection whose local port was not recorded"
-peerConnection 192.0.2.99 6000 6000
-assert_eq "${peerConnUse}|${peerConnFmt}" "|" "connection openBlockPerf has not seen"
+# The first analysis reads the node's whole log since it started.
+: > "${KILL_CALLS}"
+: > "${JOURNAL_CALLS}"
+: > "${STATUS_CALLS}"
+getNodePeerState
+assert_eq "${node_peer_state_available}" "true" "node state available"
+assert_eq "$(cat "${KILL_CALLS}")" "-USR1 99999999" "state dump signal"
+grep -q -- "--show-cursor _PID=99999999 --since @" "${JOURNAL_CALLS}" ||
+  fail "the node's log was not read since the node started: $(cat "${JOURNAL_CALLS}")"
+grep -q -- "--no-pager _PID=99999999 --since @" "${JOURNAL_CALLS}" ||
+  fail "the state dump was not read by PID since the signal: $(cat "${JOURNAL_CALLS}")"
+assert_eq "$(paste -sd'|' - < "${STATUS_CALLS}")" \
+  "Reading the node's log since it started...|Peer analysis started... please wait!" \
+  "status while the whole log is read"
+assert_eq "${nodeConnUse[203.0.113.10;3001;6000]:-}" "dup" "duplex connection, newest dump"
+assert_eq "${nodeConnUse[203.0.113.10;43122;6000]:-}" "in" "connection only the peer uses"
+assert_eq "${nodeConnUse[2001:db8::7;3001;6000]:-}" "out" "IPv6 connection only the node uses"
+assert_eq "${nodeConnUse[198.51.100.4;6000;6000]:-}" "idle" "idle connection"
+assert_eq "${nodeConnUse[188.66.62.55;2131;6000]:-}|${nodeConnUse[188.66.62.55;2131;57376]:-}" \
+  "in|out" "two connections to one peer port"
+assert_eq "${nodeConnUse[192.0.2.80;3001;6000]:-}" "out" "IPv4-mapped address"
+assert_eq "${#nodeConnUse[@]}" "8" "negotiating connection left out"
+assert_eq "${nodePeerTemp[203.0.113.10;3001]:-}|${nodePeerTemp[2001:db8::7;3001]:-}|${nodePeerTemp[192.0.2.80;3001]:-}" \
+  "H|W|W" "the node's hot and warm peers"
+assert_eq "${nodePeerScore[203.0.113.10;3001]:-}|${nodePeerScore[2001:db8::7;3001]:-}|${nodePeerScore[188.66.62.55;2111]:-}" \
+  "8|2|0" "headers first plus blocks fetched first"
+assert_eq "${nodeRemoteTemp[203.0.113.10;3001;6000]:-}|${nodeRemoteTemp[203.0.113.10;43122;6000]:-}|${nodeRemoteTemp[198.51.100.4;6000;6000]:-}|${nodeRemoteTemp[192.0.2.150;3001;6000]:-}" \
+  "W|H|C|H" "the peer side's latest state"
 
-assert_eq "${openBlockPerfScore[203.0.113.10]:-}" "60" "header and body points"
-assert_eq "${openBlockPerfScore[2001:db8::7]:-}" "10" "IPv6 peer points"
-assert_eq "${openBlockPerfScore[198.51.100.4]:-}" "0" "peer without points"
-assert_eq "${openBlockPerfScore[192.0.2.55]:-}" "10" "relevance orphan points"
-assert_eq "${openBlockPerfScore[192.0.2.80]:-}" "0" "score of an IPv4-mapped address"
-assert_eq "${#openBlockPerfScore[@]}" "7" "one score per peer address"
+# The state file keeps the connections the node still has, and where the log
+# was read up to.
+assert_eq "$(grep -v '^#' "${PEER_STATE_FILE}" | LC_ALL=C sort)" "$(printf '%s\n' \
+  "cursor	c11" \
+  "peer	188.66.62.55;2111;6000	H" \
+  "peer	188.66.62.55;2131;6000	W" \
+  "peer	198.51.100.4;6000;6000	C" \
+  "peer	203.0.113.10;3001;6000	W" \
+  "peer	203.0.113.10;43122;6000	H" \
+  "run	99999999:Thu Oct 29 23:28:17 2026")" "peer state file"
 
-# Filters apply to the list and to the RTT summary.
+conn_cell() {
+  peerConnection "$1" "$2" "$3"
+  printf '%s' "${peerConnFmt}"
+}
+score_cell() {
+  peerScoreFor "$1" "$2"
+  printf '%s' "${peerScoreFmt}"
+}
+assert_eq "$(conn_cell 203.0.113.10 3001 6000)" "dup H/W" "duplex cell: the node's side, then the peer's"
+assert_eq "$(conn_cell 188.66.62.55 2111 6000)" "dup H/H" "duplex cell hot on both sides"
+assert_eq "$(conn_cell 203.0.113.10 43122 6000)" "in H" "inbound cell"
+assert_eq "$(conn_cell 188.66.62.55 2131 6000)|$(conn_cell 188.66.62.55 2131 57376)" "in W|out H" \
+  "cells of two connections to one peer port"
+assert_eq "$(conn_cell 2001:db8::7 3001 6000)" "out W" "outbound cell"
+assert_eq "$(conn_cell 198.51.100.4 6000 6000)" "idle" "idle cell"
+assert_eq "$(conn_cell ::ffff:192.0.2.80 3001 6000)" "out W" "IPv4-mapped cell"
+assert_eq "$(conn_cell 192.0.2.99 6000 6000)" "" "negotiating connection cell"
+assert_eq "$(score_cell 203.0.113.10 3001)|$(score_cell 203.0.113.10 43122)|$(score_cell 188.66.62.55 2111)" \
+  "8||" "node scores by address and port"
+
+# The next analysis reads on from the saved cursor.
+LOG_LINES+=("$(inbound DemotedToWarmRemote 203.0.113.10 43122 6000)")
+: > "${JOURNAL_CALLS}"
+: > "${STATUS_CALLS}"
+getNodePeerState
+grep -q -- "--after-cursor c11" "${JOURNAL_CALLS}" ||
+  fail "the node's log was not read on from the saved cursor: $(cat "${JOURNAL_CALLS}")"
+[[ ! -s "${STATUS_CALLS}" ]] || fail "reading on from the cursor showed a status"
+assert_eq "$(conn_cell 203.0.113.10 43122 6000)|$(conn_cell 203.0.113.10 3001 6000)" "in W|dup H/W" \
+  "new lines update saved states"
+assert_eq "$(grep '^cursor' "${PEER_STATE_FILE}")" "cursor	c12" "cursor after new lines"
+
+# Without new lines journalctl may print no cursor; the saved one is kept.
+NO_CURSOR_WHEN_EMPTY=Y
+getNodePeerState
+assert_eq "$(grep '^cursor' "${PEER_STATE_FILE}")|$(conn_cell 203.0.113.10 43122 6000)" "cursor	c12|in W" \
+  "no new lines"
+NO_CURSOR_WHEN_EMPTY=N
+
+# A cursor that no longer works, and a restarted node, read the whole log.
+sed -i.bak 's/^cursor	.*/cursor	broken/' "${PEER_STATE_FILE}"
+: > "${JOURNAL_CALLS}"
+getNodePeerState
+assert_eq "$(grep -c -- '--show-cursor' "${JOURNAL_CALLS}")" "2" "broken cursor: one failed read, one full read"
+grep -q -- "--show-cursor _PID=99999999 --since @" "${JOURNAL_CALLS}" || fail "broken cursor: no full read"
+assert_eq "$(conn_cell 203.0.113.10 43122 6000)|$(grep '^cursor' "${PEER_STATE_FILE}")" "in W|cursor	c12" \
+  "states after a broken cursor"
+PS_LSTART="Fri Oct 30 11:00:00 2026"
+: > "${JOURNAL_CALLS}"
+getNodePeerState
+grep -q -- "--show-cursor _PID=99999999 --since @" "${JOURNAL_CALLS}" || fail "restarted node: no full read"
+grep -q "^run	99999999:Fri Oct 30 11:00:00 2026$" "${PEER_STATE_FILE}" || fail "restarted node: state file not renewed"
+
+# A state file that cannot be written only costs a full read next time.
+saved_state_file="${PEER_STATE_FILE}"
+PEER_STATE_FILE="${TEST_ROOT}/missing/gLiveView.sh.peerstate"
+getNodePeerState
+assert_eq "${node_peer_state_available}/$(conn_cell 203.0.113.10 3001 6000)" "true/dup H/W" "unwritable state file"
+PEER_STATE_FILE="${saved_state_file}"
+
+# A dump that does not arrive, or one without the peer selection state.
+saved_dump="${DUMP_FIXTURE}"
+DUMP_FIXTURE="${MUX_RECORD}"
+getNodePeerState
+assert_eq "${node_peer_state_available}/${#nodeConnUse[@]}" "false/0" "dump that never arrived"
+DUMP_FIXTURE="${CM_RECORD}"
+getNodePeerState
+assert_eq "${node_peer_state_available}/${#nodeConnUse[@]}/${#nodePeerTemp[@]}" "true/8/0" \
+  "connection manager state alone"
+assert_eq "$(conn_cell 203.0.113.10 3001 6000)" "dup -/W" "duplex cell without the node's side"
+DUMP_FIXTURE="${saved_dump}"
+getNodePeerState
+unset -f sleep
+
+# Filters apply to the list and to the RTT summary. 203.0.113.10:43122 is now
+# warm on the peer's side.
 rttResults=(
   "12;203.0.113.10;3001;i;6000"
-  "85;2001:db8::7;3001;i;6000"
   "5;203.0.113.10;43122;i;6000"
+  "85;2001:db8::7;3001;i;6000"
   "30;198.51.100.4;6000;i;6000"
+  "40;188.66.62.55;2111;i;6000"
+  "41;188.66.62.55;2131;i;6000"
   "99999;192.0.2.99;6000;i;6000"
 )
 selected_peers() {
@@ -155,24 +322,25 @@ assert_filter() {
   assert_eq "$(selected_peers)" "$3" "filter $1/$2"
 }
 
-assert_filter all any "203.0.113.10;43122 203.0.113.10;3001 198.51.100.4;6000 2001:db8::7;3001 192.0.2.99;6000"
-assert_eq "${peerCNT}/${peerCNT0}/${peerCNT1}/${peerCNT2}" "5/1/3/1" "all peers by RTT range"
-assert_eq "${peerRTTAVG}" "33" "average RTT of reachable peers"
-assert_filter out any "203.0.113.10;3001 2001:db8::7;3001"
-assert_filter in any "203.0.113.10;43122 203.0.113.10;3001 198.51.100.4;6000"
-assert_filter dup any "203.0.113.10;3001"
-assert_filter all hot "203.0.113.10;43122 203.0.113.10;3001"
-assert_filter all warm "2001:db8::7;3001"
-assert_filter out hot "203.0.113.10;3001"
-assert_filter in warm "203.0.113.10;3001"
-assert_filter in hot "203.0.113.10;43122"
+assert_filter all any "203.0.113.10;43122 203.0.113.10;3001 198.51.100.4;6000 188.66.62.55;2111 188.66.62.55;2131 2001:db8::7;3001 192.0.2.99;6000"
+assert_eq "${peerCNT}/${peerCNT0}/${peerCNT1}/${peerCNT2}" "7/1/5/1" "all peers by RTT range"
+assert_eq "${peerRTTAVG}" "35" "average RTT of reachable peers"
+assert_filter out any "203.0.113.10;3001 188.66.62.55;2111 2001:db8::7;3001"
+assert_filter in any "203.0.113.10;43122 203.0.113.10;3001 188.66.62.55;2111 188.66.62.55;2131"
+assert_filter dup any "203.0.113.10;3001 188.66.62.55;2111"
+assert_filter all hot "203.0.113.10;3001 188.66.62.55;2111"
+assert_filter all warm "203.0.113.10;43122 188.66.62.55;2131 2001:db8::7;3001"
+assert_filter out hot "203.0.113.10;3001 188.66.62.55;2111"
+assert_filter out warm "2001:db8::7;3001"
+assert_filter in hot "188.66.62.55;2111"
+assert_filter in warm "203.0.113.10;43122 203.0.113.10;3001 188.66.62.55;2131"
 assert_filter dup warm ""
 assert_eq "${peerCNT}/${peerRTTAVG}" "0/0" "empty filter result"
 
 # Two connections to the same peer port differ only in their local port: the
 # peer's own connection to the node, and the one the node dialed.
 saved_results=("${rttResults[@]}")
-rttResults=("40;188.66.62.55;2131;i;6000" "41;188.66.62.55;2131;o;57376")
+rttResults=("41;188.66.62.55;2131;i;6000" "42;188.66.62.55;2131;o;57376")
 peer_filter_state="any"
 selected_local_ports() {
   peer_filter_dir="$1"
@@ -299,207 +467,18 @@ computePeerStats
 assert_eq "${#staticPeerList[@]}/${peerListCNT}" "0/0" "no topology file"
 peer_filter_static="all"
 
-# Without openBlockPerf data the filters fall back to every peer.
-PEERS_FIXTURE='{"peers": [], "relevance_orphans": [], "relevance_window_seconds": 1800}'
-getOpenBlockPerfPeers
-assert_eq "${openblockperf_peers_available}" "false" "endpoint that has seen no peers"
-assert_eq "${#openBlockPerfConn[@]}${#openBlockPerfScore[@]}" "00" "peer data cleared"
+# Without the node's data only the search and the Static filter apply.
+ENABLE_NODE_STATE_DUMP=N
+getNodePeerState
+assert_eq "${node_peer_state_available}/${#nodeConnUse[@]}/${#nodeRemoteTemp[@]}" "false/0/0" "node data cleared"
 peer_filter_dir="out"
 peer_filter_state="hot"
 computePeerStats
-assert_eq "${peer_filter_dir}/${peer_filter_state}/${peerCNT}" "all/any/5" "filters reset without data"
+assert_eq "${peer_filter_dir}/${peer_filter_state}/${peerCNT}" "all/any/7" "filters reset without data"
 peer_search="198.51"
 computePeerStats
-assert_eq "$(selected_peers)" "198.51.100.4;6000" "search without openBlockPerf data"
+assert_eq "$(selected_peers)" "198.51.100.4;6000" "search without the node's data"
 peer_search=""
-
-# Without the relevance window the endpoint carries no scores.
-PEERS_FIXTURE='{"peers": [{"remote_addr": "203.0.113.10"}], "relevance_window_seconds": null}'
-getOpenBlockPerfPeers
-assert_eq "${openblockperf_peers_available}" "false" "endpoint without scores"
-
-PEERS_FIXTURE='not json'
-getOpenBlockPerfPeers
-assert_eq "${openblockperf_peers_available}" "false" "invalid endpoint response"
-
-CURL_STATUS=7
-getOpenBlockPerfPeers
-assert_eq "${openblockperf_peers_available}" "false" "unreachable endpoint"
-CURL_STATUS=0
-
-: > "${CURL_CALLS}"
-ENABLE_OPENBLOCKPERF=N
-getOpenBlockPerfPeers
-assert_eq "${openblockperf_peers_available}" "false" "disabled openBlockPerf peers"
-[[ ! -s "${CURL_CALLS}" ]] || fail "disabled openBlockPerf peers still queried the endpoint"
-
-# The node's own state: SIGUSR1 makes cardano-node log its connection manager
-# and peer selection state, read back from its journal. The process cannot
-# exist, so no unit is found and its entries are matched by PID.
-NODE_IMPLEMENTATION="cnode"
-ENABLE_NODE_STATE_DUMP=Y
-CNODE_PID=99999999
-PS_COMM="cardano-node"
-KILL_CALLS="${TEST_ROOT}/kill.calls"
-JOURNAL_CALLS="${TEST_ROOT}/journalctl.calls"
-JOURNAL_READABLE=Y
-JOURNAL_FIXTURE=""
-ps() {
-  printf '%s\n' "${PS_COMM}"
-}
-kill() {
-  printf '%s\n' "$*" >> "${KILL_CALLS}"
-}
-sleep() {
-  :
-}
-journalctl() {
-  printf '%s\n' "$*" >> "${JOURNAL_CALLS}"
-  if [[ " $* " = *" -n 1 "* ]]; then
-    [[ ${JOURNAL_READABLE} = Y ]] && printf '{"at":"2026-10-30T10:00:00.00Z","ns":"Resources","data":{}}\n'
-    return 0
-  fi
-  [[ -z ${JOURNAL_FIXTURE} ]] || printf '%s\n' "${JOURNAL_FIXTURE}"
-}
-conn() {
-  printf '{"connections":[{"localAddress":{"address":"192.0.2.1","port":"%s"},"state":{%s"kind":"%s"}}],"remoteAddress":{"address":"%s","port":"%s"}}' \
-    "$3" "${5:+\"dataFlow\":\"$5\",}" "$4" "$1" "$2"
-}
-addr() {
-  printf '{"address":"%s","port":"%s"}' "$1" "$2"
-}
-cm_state() {
-  local IFS=,
-  printf '{"at":"2026-10-30T10:00:01.00Z","ns":"Net.ConnectionManager.Remote.State","data":{"state":[%s]},"sev":"Info","thread":"5","host":"relay"}' "$*"
-}
-CM_STALE="$(cm_state "$(conn 203.0.113.10 3001 6000 InboundIdleSt Duplex)")"
-CM_RECORD="$(cm_state \
-  "$(conn 203.0.113.10 3001 6000 DuplexSt)" \
-  "$(conn 203.0.113.10 43122 6000 InboundSt Duplex)" \
-  "$(conn 2001:db8::7 3001 6000 OutboundDupSt)" \
-  "$(conn 198.51.100.4 6000 6000 InboundIdleSt Duplex)" \
-  "$(conn 188.66.62.55 2131 6000 DuplexSt)" \
-  "$(conn 188.66.62.55 6000 6000 InboundSt Unidirectional)" \
-  "$(conn ::ffff:192.0.2.80 3001 6000 OutboundUniSt)" \
-  "$(conn 192.0.2.99 6000 6000 UnnegotiatedSt)")"
-SELECTION_RECORD="$(printf '{"at":"2026-10-30T10:00:01.01Z","ns":"Net.PeerSelection.Selection.DebugState","data":{"activePeers":[%s,%s],"establishedPeers":[%s,%s,%s,%s],"upstreamyness":[[%s,6],[%s,2]],"fetchynessBlocks":[[%s,2],[%s,0]],"targets":{"active":20}},"sev":"Info"}' \
-  "$(addr 203.0.113.10 3001)" "$(addr 188.66.62.55 2131)" \
-  "$(addr 203.0.113.10 3001)" "$(addr 2001:db8::7 3001)" "$(addr 188.66.62.55 2131)" "$(addr ::ffff:192.0.2.80 3001)" \
-  "$(addr 203.0.113.10 3001)" "$(addr 2001:db8::7 3001)" \
-  "$(addr 203.0.113.10 3001)" "$(addr 188.66.62.55 2131)")"
-MUX_RECORD='{"at":"2026-10-30T10:00:01.00Z","ns":"Net.Mux.Remote.State","data":{"kind":"MuxTraceState"}}'
-# journald splits the long connection manager line into two entries.
-JOURNAL_FIXTURE="$(printf '%s\n' "${CM_STALE}" "${MUX_RECORD}" "${CM_RECORD:0:300}" "${CM_RECORD:300}" "${SELECTION_RECORD}")"
-
-node_state_skipped() {
-  : > "${KILL_CALLS}"
-  getNodePeerState
-  assert_eq "${node_peer_state_available}" "false" "$1: no node state"
-  [[ ! -s "${KILL_CALLS}" ]] || fail "$1: the node was signalled"
-}
-ENABLE_NODE_STATE_DUMP=N
-node_state_skipped "node state disabled"
-ENABLE_NODE_STATE_DUMP=Y
-NODE_IMPLEMENTATION="dingo"
-node_state_skipped "another implementation"
-NODE_IMPLEMENTATION="cnode"
-PS_COMM="dingo"
-node_state_skipped "another process on the node's PID"
-PS_COMM="cardano-node"
-JOURNAL_READABLE=N
-node_state_skipped "unreadable journal"
-JOURNAL_READABLE=Y
-
-: > "${KILL_CALLS}"
-: > "${JOURNAL_CALLS}"
-getNodePeerState
-assert_eq "${node_peer_state_available}" "true" "node state available"
-assert_eq "$(cat "${KILL_CALLS}")" "-USR1 99999999" "state dump signal"
-grep -q -- "_PID=99999999 --since @" "${JOURNAL_CALLS}" ||
-  fail "the journal was not read by PID since the signal: $(cat "${JOURNAL_CALLS}")"
-assert_eq "${nodeConnUse[203.0.113.10;3001;6000]:-}" "dup" "duplex connection, newest dump"
-assert_eq "${nodeConnUse[203.0.113.10;43122;6000]:-}" "in" "connection only the peer uses"
-assert_eq "${nodeConnUse[2001:db8::7;3001;6000]:-}" "out" "IPv6 connection only the node uses"
-assert_eq "${nodeConnUse[198.51.100.4;6000;6000]:-}" "idle" "idle connection"
-assert_eq "${nodeConnUse[188.66.62.55;2131;6000]:-}|${nodeConnUse[188.66.62.55;6000;6000]:-}" \
-  "dup|in" "connections from two nodes on one address"
-assert_eq "${nodeConnUse[192.0.2.80;3001;6000]:-}" "out" "IPv4-mapped address"
-assert_eq "${#nodeConnUse[@]}" "7" "negotiating connection left out"
-assert_eq "${nodePeerTemp[203.0.113.10;3001]:-}|${nodePeerTemp[2001:db8::7;3001]:-}|${nodePeerTemp[192.0.2.80;3001]:-}" \
-  "H|W|W" "the node's hot and warm peers"
-assert_eq "${nodePeerScore[203.0.113.10;3001]:-}|${nodePeerScore[2001:db8::7;3001]:-}|${nodePeerScore[188.66.62.55;2131]:-}" \
-  "8|2|0" "headers first plus blocks fetched first"
-
-conn_cell() {
-  peerConnection "$1" "$2" "$3"
-  printf '%s' "${peerConnFmt}"
-}
-score_cell() {
-  peerScoreFor "$1" "$2"
-  printf '%s' "${peerScoreFmt}"
-}
-# Without openBlockPerf the node's side is known, the peer's is not.
-assert_eq "$(conn_cell 203.0.113.10 3001 6000)" "dup H" "duplex cell from the node"
-assert_eq "$(conn_cell 203.0.113.10 43122 6000)" "in" "inbound cell from the node"
-assert_eq "$(conn_cell 2001:db8::7 3001 6000)" "out W" "outbound cell from the node"
-assert_eq "$(conn_cell 198.51.100.4 6000 6000)" "idle" "idle cell"
-assert_eq "$(conn_cell 188.66.62.55 2131 6000)|$(conn_cell 188.66.62.55 6000 6000)" "dup H|in" \
-  "cells of two nodes on one address"
-assert_eq "$(conn_cell ::ffff:192.0.2.80 3001 6000)" "out W" "IPv4-mapped cell"
-assert_eq "$(conn_cell 192.0.2.99 6000 6000)" "" "negotiating connection cell"
-assert_eq "$(score_cell 203.0.113.10 3001)|$(score_cell 203.0.113.10 43122)|$(score_cell 188.66.62.55 2131)" \
-  "8||" "node scores by address and port"
-stale_key="203.0.113.10;3001;6000"
-openBlockPerfConn[${stale_key}]="dup;H;W"
-assert_eq "$(conn_cell 203.0.113.10 3001 6000)" "dup H" "peer side only while openBlockPerf has data"
-openBlockPerfConn=()
-
-rttResults=(
-  "12;203.0.113.10;3001;i;6000"
-  "5;203.0.113.10;43122;i;6000"
-  "85;2001:db8::7;3001;i;6000"
-  "30;198.51.100.4;6000;i;6000"
-  "40;188.66.62.55;2131;i;6000"
-  "41;188.66.62.55;6000;i;6000"
-)
-assert_filter out any "203.0.113.10;3001 188.66.62.55;2131 2001:db8::7;3001"
-assert_filter in any "203.0.113.10;43122 203.0.113.10;3001 188.66.62.55;2131 188.66.62.55;6000"
-assert_filter dup any "203.0.113.10;3001 188.66.62.55;2131"
-assert_filter all warm "2001:db8::7;3001"
-assert_filter in hot ""
-assert_filter all any "203.0.113.10;43122 203.0.113.10;3001 198.51.100.4;6000 188.66.62.55;2131 188.66.62.55;6000 2001:db8::7;3001"
-
-# openBlockPerf adds the peer's side and replaces the node's scores.
-ENABLE_OPENBLOCKPERF=Y
-PEERS_FIXTURE="${PEERS_FIXTURE_FULL}"
-getOpenBlockPerfPeers
-assert_eq "${openblockperf_peers_available}" "true" "openBlockPerf next to the node state"
-assert_eq "$(conn_cell 203.0.113.10 3001 6000)" "dup H/W" "duplex cell with the peer's side"
-assert_eq "$(conn_cell 203.0.113.10 43122 6000)" "in H" "inbound cell with the peer's side"
-assert_eq "$(conn_cell 188.66.62.55 2131 6000)" "dup H/H" "duplex cell openBlockPerf saw one way"
-assert_eq "$(conn_cell 198.51.100.4 6000 6000)" "idle" "the node's idle state wins"
-assert_eq "$(conn_cell ::ffff:192.0.2.80 3001 6000)" "out W" "outbound cell keeps the node's state"
-assert_eq "$(score_cell 203.0.113.10 3001)|$(score_cell 203.0.113.10 43122)|$(score_cell 2001:db8::7 3001)" \
-  "60|60|10" "openBlockPerf scores by address"
-assert_filter in hot "203.0.113.10;43122 188.66.62.55;2131"
-assert_filter in warm "203.0.113.10;3001"
-peer_filter_dir="all"
-peer_filter_state="any"
-PEERS_FIXTURE='not json'
-getOpenBlockPerfPeers
-
-# A dump that does not arrive, or one without the peer selection state.
-JOURNAL_FIXTURE="${MUX_RECORD}"
-getNodePeerState
-assert_eq "${node_peer_state_available}/${#nodeConnUse[@]}" "false/0" "dump that never arrived"
-JOURNAL_FIXTURE="${CM_RECORD}"
-getNodePeerState
-assert_eq "${node_peer_state_available}/${#nodeConnUse[@]}/${#nodePeerTemp[@]}" "true/7/0" \
-  "connection manager state alone"
-assert_eq "$(conn_cell 203.0.113.10 3001 6000)" "dup" "duplex cell without the peer selection state"
-JOURNAL_FIXTURE=""
-getNodePeerState
-unset -f sleep
 
 # Static views wait for a key, and redraw only when the terminal is resized.
 TERM_SIZE_CALLS="${TEST_ROOT}/tput.calls"

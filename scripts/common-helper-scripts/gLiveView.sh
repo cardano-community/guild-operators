@@ -20,9 +20,7 @@
 #LATENCY_TOOLS="ss|cncli|tcptraceroute|ping" # Preferred latency check tool order, valid entries: ss|cncli|tcptraceroute|ping (must be separated by |)
 #CNCLI_CONNECT_ONLY=false                 # By default cncli measure full connect handshake duration. If set to false, only connect is measured similar to other tools
 #HIDE_DUPLICATE_IPS=N                     # If set to 'Y', duplicate and local IP's will be filtered out in peer analysis, else all connected peers are shown (default: N)
-#ENABLE_NODE_STATE_DUMP=Y                 # Read connection use, peer states and scores in peer analysis from cardano-node's state dump (SIGUSR1) in its journal (default: Y)
-#ENABLE_OPENBLOCKPERF=Y                   # Add the peer side's state and openBlockPerf's peer scores in peer analysis when its local endpoint answers (default: Y)
-#OPENBLOCKPERF_METRICS_URL="http://127.0.0.1:14041" # openBlockPerf local metrics endpoint (local_metrics_bind and local_metrics_port in its config)
+#ENABLE_NODE_STATE_DUMP=Y                 # Read connection use, peer states and scores in peer analysis from cardano-node's state dump (SIGUSR1) and log in its journal (default: Y)
 #VERBOSE=N                               # Start in verbose mode showing additional metrics (default: N)
 #GLV_LOG="${LOG_DIR}/gLiveView.log"       # Log gLiveView errors, set empty to disable. LOG_DIR set in env file.
 
@@ -308,13 +306,9 @@ declare -gA geoIP=()
 declare -gA nodeConnUse=()   # "ip;remote port;local port" -> dup, out, in or idle
 declare -gA nodePeerTemp=()  # "ip;port" -> H or W on the node's outbound side
 declare -gA nodePeerScore=() # "ip;port" -> headers first plus blocks fetched first
+declare -gA nodeRemoteTemp=() # "ip;remote port;local port" -> H, W or C on the peer's side
 node_peer_state_available=false
-
-[[ -z ${ENABLE_OPENBLOCKPERF} ]] && ENABLE_OPENBLOCKPERF=Y
-[[ -z ${OPENBLOCKPERF_METRICS_URL} ]] && OPENBLOCKPERF_METRICS_URL="http://127.0.0.1:14041"
-declare -gA openBlockPerfConn=()
-declare -gA openBlockPerfScore=()
-openblockperf_peers_available=false
+PEER_STATE_FILE="$0.peerstate" # the peer side's states and how far the node's log was read
 peer_filter_dir="all"     # all | out | in | dup, cycled with [d] in peer analysis
 peer_filter_state="any"   # any | hot | warm, cycled with [s] in peer analysis
 peer_search=""            # IP or port substring, entered with [/] in peer analysis
@@ -1619,7 +1613,6 @@ checkPeers() {
       ' <<< "${geoIPdata}" 2>/dev/null)
   done
 
-  getOpenBlockPerfPeers
   getStaticPeers
   computePeerStats
 }
@@ -1714,36 +1707,25 @@ staticPeerLabelFor() {
 }
 
 # Command    : peerConnection [ip] [remote port] [local port]
-# Description: Look up how a connection is used, from the node's own state
-#              when it was read, else from openBlockPerf. Sets peerConnUse
-#              (out, in, dup, idle or empty when unknown), peerConnOut and
-#              peerConnIn (H, W, C, - or empty when unknown), and peerConnFmt
-#              for the CONN column. The node knows the state of its own side
-#              only; the peer's side comes from openBlockPerf, when it has
-#              seen the connection. openBlockPerf records an ephemeral remote
-#              port as 0, and a connection whose local port it did not record
-#              is matched without it.
+# Description: Look up how a connection is used, from the node's own state.
+#              Sets peerConnUse (out, in, dup, idle or empty when unknown),
+#              peerConnOut and peerConnIn (H, W or empty when unknown) for
+#              the node's and the peer's side, and peerConnFmt for the CONN
+#              column. Only a side that uses the connection has a state.
 peerConnection() {
-  local ip="${1#::ffff:}" conn_key conn_value="" node_key
-  for conn_key in "${ip};$2;${3:--}" "${ip};0;${3:--}" "${ip};$2;-" "${ip};0;-"; do
-    conn_value="${openBlockPerfConn[${conn_key}]:-}"
-    [[ -n ${conn_value} ]] && break
-  done
-  IFS=";" read -r peerConnUse peerConnOut peerConnIn <<< "${conn_value}"
-  if [[ ${node_peer_state_available} = true ]]; then
-    node_key="${ip};$2;${3:--}"
-    peerConnUse="${nodeConnUse[${node_key}]:-}"
-    # Only a side that uses the connection has a state.
-    node_key="${ip};$2"
-    case ${peerConnUse} in
-      out|dup) peerConnOut="${nodePeerTemp[${node_key}]:-}" ;;
-      *)       peerConnOut="" ;;
-    esac
-    case ${peerConnUse} in
-      in|dup) [[ ${openblockperf_peers_available} = true && ${peerConnIn} = [HW] ]] || peerConnIn="" ;;
-      *)      peerConnIn="" ;;
-    esac
-  fi
+  local ip="${1#::ffff:}" conn_key
+  conn_key="${ip};$2;${3:--}"
+  peerConnUse="${nodeConnUse[${conn_key}]:-}"
+  peerConnIn=""
+  case ${peerConnUse} in
+    in|dup) peerConnIn="${nodeRemoteTemp[${conn_key}]:-}"
+            [[ ${peerConnIn} = [HW] ]] || peerConnIn="" ;;
+  esac
+  conn_key="${ip};$2"
+  peerConnOut=""
+  case ${peerConnUse} in
+    out|dup) peerConnOut="${nodePeerTemp[${conn_key}]:-}" ;;
+  esac
   case ${peerConnUse} in
     dup) [[ -n ${peerConnIn} ]] && peerConnFmt="dup ${peerConnOut:--}/${peerConnIn}" || peerConnFmt="dup ${peerConnOut}" ;;
     out) peerConnFmt="out ${peerConnOut}" ;;
@@ -1754,25 +1736,18 @@ peerConnection() {
 }
 
 # Command    : peerConnAvailable
-# Description: Whether peer analysis has connection data, from the node or
-#              from openBlockPerf, for the CONN and SCORE columns and the
-#              Direction and State filters.
+# Description: Whether peer analysis has the node's connection data, for the
+#              CONN and SCORE columns and the Direction and State filters.
 peerConnAvailable() {
-  [[ ${node_peer_state_available} = true || ${openblockperf_peers_available} = true ]]
+  [[ ${node_peer_state_available} = true ]]
 }
 
 # Command    : peerScoreFor [ip] [remote port]
-# Description: Set peerScoreFmt for the SCORE column: openBlockPerf's points
-#              for the address when it runs, else the node's count for the
-#              peer's address and port. Empty when the peer has no score.
+# Description: Set peerScoreFmt for the SCORE column: the node's count for
+#              the peer's address and port, empty when the peer has none.
 peerScoreFor() {
-  local ip="${1#::ffff:}" score_key
-  if [[ ${openblockperf_peers_available} = true ]]; then
-    peerScoreFmt="${openBlockPerfScore[${ip}]:-0}"
-  else
-    score_key="${ip};$2"
-    peerScoreFmt="${nodePeerScore[${score_key}]:-0}"
-  fi
+  local score_key="${1#::ffff:};$2"
+  peerScoreFmt="${nodePeerScore[${score_key}]:-0}"
   [[ ${peerScoreFmt} = 0 ]] && peerScoreFmt=""
   return 0
 }
@@ -1961,12 +1936,16 @@ computePeerStats() {
 #              headers the peer delivered first plus the blocks the node
 #              fetched from it first, the counts the node ranks its hot
 #              peers by. IPv4-mapped IPv6 addresses are stored as plain IPv4.
+#              The peer side's state is not in the dump; readNodeRemoteStates
+#              follows it in the node's log first, so that the dump decides
+#              which connections still exist.
 getNodePeerState() {
   local cgroup_path unit since attempt dump="" record_type peer_key peer_value
   local -a journal_match=()
   nodeConnUse=()
   nodePeerTemp=()
   nodePeerScore=()
+  nodeRemoteTemp=()
   node_peer_state_available=false
   [[ ${ENABLE_NODE_STATE_DUMP} = 'Y' && ${NODE_IMPLEMENTATION} = "cnode" ]] || return 0
   [[ ${CNODE_PID} =~ ^[1-9][0-9]*$ ]] && command -v journalctl >/dev/null || return 0
@@ -1981,6 +1960,7 @@ getNodePeerState() {
     journal_match=("_PID=${CNODE_PID}")
   fi
   [[ -n $(journalctl -q -n 1 -o cat --no-pager "${journal_match[@]}" 2>/dev/null) ]] || return 0
+  readNodeRemoteStates "${journal_match[@]}"
   printf -v since '%(%s)T' -1
   kill -USR1 "${CNODE_PID}" 2>/dev/null || return 0
   for attempt in 1 2 3 4 5 6; do
@@ -2024,72 +2004,123 @@ getNodePeerState() {
       | @tsv
     ' <<< "${dump}" 2>/dev/null)
   node_peer_state_available=true
+  saveNodeRemoteStates
 }
 
-# Command    : getOpenBlockPerfPeers
-# Description: Read connection use and peer scores from openBlockPerf's local
-#              endpoint, which is off unless local_metrics_enabled is set in
-#              its config. With the node's own state, only the peer side's
-#              state and the scores are taken from it.
-#              openBlockPerfConn, keyed by "ip;remote port;local port", holds
-#              "use;out;in": how the node uses each connection, as its
-#              connection manager counts it, out (our outbound governor uses
-#              it), in (the peer's side uses it) or dup (duplex, both), then
-#              the hot (H), warm (W), cold (C) or no (-) state on our outbound
-#              side and on the inbound side. The local port keeps apart two
-#              connections to the same remote port, one in each direction.
-#              openBlockPerf records ephemeral remote ports as 0, and an
-#              unknown local port is stored as "-". IPv4-mapped IPv6
-#              addresses are stored as plain IPv4.
-#              The data is used only when openBlockPerf has seen peers.
-#              openBlockPerfScore, keyed by IP, holds points from the last 30
-#              minutes:
-#              10, 5 or 3 for being the 1st, 2nd or 3rd to announce a block
-#              header, and 10 for each block body served.
-getOpenBlockPerfPeers() {
-  local peers_json peer_key peer_value
-  openBlockPerfConn=()
-  openBlockPerfScore=()
-  openblockperf_peers_available=false
-  [[ ${ENABLE_OPENBLOCKPERF} = 'Y' ]] || return 0
-  peers_json="$(curl -s -f -m 2 "${OPENBLOCKPERF_METRICS_URL%/}/peers?all=1" 2>/dev/null)" || return 0
-  # relevance_window_seconds is only set when the scores are included.
-  jq -e '
-      (.peers | type) == "array" and (.relevance_window_seconds | type) == "number" and
-      ((.peers | length) + (.relevance_orphans // [] | length)) > 0
-    ' <<< "${peers_json}" >/dev/null 2>&1 || return 0
-  while IFS=$'\t' read -r peer_key peer_value; do
-    [[ -n ${peer_key} ]] && openBlockPerfConn[${peer_key}]=${peer_value}
-  done < <(jq -r '
-      def rank: {"Hot": 3, "Warm": 2, "Cold": 1}[.] // 0;
-      def letter: {"Hot": "H", "Warm": "W", "Cold": "C"}[.] // "-";
-      def key: "\(.remote_addr | sub("^::ffff:"; ""));\(.remote_port // 0);\(.local_port // "-")";
-      [(.peers // [])[] | select((.remote_addr | type) == "string")] |
-      group_by(key)[] |
-      (max_by(.outbound_temperature | rank) | .outbound_temperature) as $out |
-      (max_by(.ig_temperature | rank) | .ig_temperature) as $in |
-      [
-        (.[0] | key),
-        (
-          if ($out | rank) >= 2 and ($in | rank) >= 2 then "dup"
-          elif ($out | rank) >= 2 then "out"
-          elif ($in | rank) >= 2 then "in"
-          elif any(.[]; .we_dialed == true) then "out"
-          else "in"
-          end
-        ) + ";\($out | letter);\($in | letter)"
-      ] | @tsv
-    ' <<< "${peers_json}" 2>/dev/null)
-  while IFS=$'\t' read -r peer_key peer_value; do
-    [[ -n ${peer_key} ]] && openBlockPerfScore[${peer_key}]=${peer_value}
-  done < <(jq -r '
-      [(.peers // [])[], (.relevance_orphans // [])[]] |
-      map(select((.remote_addr | type) == "string" and (.relevance | type) == "object")) |
-      map(.remote_addr |= sub("^::ffff:"; "")) |
-      unique_by(.remote_addr)[] |
-      [.remote_addr, ((.relevance.header_points // 0) + (.relevance.body_points // 0))] | @tsv
-    ' <<< "${peers_json}" 2>/dev/null)
-  openblockperf_peers_available=true
+# Command    : readNodeRemoteStates [journalctl match...]
+# Description: Follow the peer side's state of each connection in the node's
+#              log. The node's inbound governor logs a line whenever a peer
+#              promotes or demotes the node (Net.InboundGovernor.Remote.
+#              PromotedToHotRemote and the like), but never the current
+#              state, so the latest line of each connection since the node
+#              started is needed. PEER_STATE_FILE keeps those states with the
+#              journal cursor they were read up to, and each analysis reads
+#              on from there. The whole log since the node started is read
+#              only for a new node process, or when the cursor no longer
+#              works. Sets nodeRemoteTemp, keyed by "ip;remote port;local
+#              port", to H, W or C, and node_remote_run and
+#              node_remote_cursor for saveNodeRemoteStates.
+readNodeRemoteStates() {
+  local kind key value state_run="" cursor="" new_cursor status now elapsed pass
+  local -a read_from=()
+  node_remote_run="${CNODE_PID}:$(ps -o lstart= -p "${CNODE_PID}" 2>/dev/null)"
+  node_remote_cursor=""
+  if [[ -r ${PEER_STATE_FILE} ]]; then
+    while IFS=$'\t' read -r kind key value; do
+      case ${kind} in
+        run)    state_run=${key} ;;
+        cursor) cursor=${key} ;;
+        peer)   nodeRemoteTemp[${key}]=${value} ;;
+      esac
+    done < "${PEER_STATE_FILE}"
+  fi
+  if [[ ${state_run} = "${node_remote_run}" && -n ${cursor} ]]; then
+    read_from=(--after-cursor "${cursor}")
+  else
+    nodeRemoteTemp=()
+  fi
+  for pass in 1 2; do
+    if [[ ${#read_from[@]} -eq 0 ]]; then
+      nodeRemoteTemp=()
+      printf -v now '%(%s)T' -1
+      elapsed="$(ps -o etimes= -p "${CNODE_PID}" 2>/dev/null)"
+      elapsed="${elapsed//[^0-9]/}"
+      read_from=(--since "@$(( now - ${elapsed:-0} - 1 ))")
+      peerAnalysisStatus "Reading the node's log since it started..."
+    fi
+    new_cursor=""
+    status=""
+    # The cursor and journalctl's exit status pass through as their own lines.
+    while IFS=$'\t' read -r kind key value; do
+      case ${kind} in
+        peer)   nodeRemoteTemp[${key}]=${value} ;;
+        cursor) new_cursor=${key} ;;
+        status) status=${key} ;;
+      esac
+    done < <(
+      { journalctl -q -o cat --no-pager --show-cursor "$@" "${read_from[@]}" 2>/dev/null
+        printf -- '-- status: %s\n' "$?"
+      } |
+        grep -F -e '"ns":"Net.InboundGovernor.Remote.PromotedTo' -e '"ns":"Net.InboundGovernor.Remote.DemotedTo' \
+          -e '-- cursor: ' -e '-- status: ' |
+        jq -Rrn '
+          def addr: .address | tostring | sub("^::ffff:"; "");
+          def temp:
+            {"PromotedToHotRemote": "H", "PromotedToWarmRemote": "W",
+             "DemotedToWarmRemote": "W", "DemotedToColdRemote": "C"}[.];
+          reduce inputs as $line ({peers: {}, cursor: "", status: ""};
+            if ($line | startswith("-- cursor: ")) then .cursor = ($line | ltrimstr("-- cursor: "))
+            elif ($line | startswith("-- status: ")) then .status = ($line | ltrimstr("-- status: "))
+            else
+              (($line | fromjson?) // null) as $record |
+              if ($record | type) == "object" and ($record.data | type) == "object" and
+                 ($record.data.connectionId | type) == "object" then
+                ($record.ns | tostring | split(".") | last | temp) as $temp |
+                $record.data.connectionId as $conn |
+                if $temp == null then .
+                else .peers["\($conn.remoteAddress | addr);\($conn.remoteAddress.port);\($conn.localAddress.port)"] = $temp
+                end
+              else . end
+            end) |
+          (.peers | to_entries[] | ["peer", .key, .value]), ["cursor", .cursor], ["status", .status] | @tsv
+        ' 2>/dev/null
+    )
+    # A saved cursor that fails gets a second pass, from the start.
+    [[ ${status} = 0 || ${read_from[0]} = --since ]] && break
+    read_from=()
+  done
+  [[ ${read_from[0]} = --since ]] && peerAnalysisStatus "Peer analysis started... please wait!"
+  [[ ${status} = 0 ]] || return 0
+  # Without new lines, journalctl may print no cursor.
+  node_remote_cursor="${new_cursor:-${cursor}}"
+}
+
+# Command    : saveNodeRemoteStates
+# Description: Write the peer side's states to PEER_STATE_FILE for the next
+#              analysis: the node process, the journal cursor and one line
+#              for each connection the node still has. A file that cannot be
+#              written only means that the next analysis reads the whole log
+#              again.
+saveNodeRemoteStates() {
+  local state_tmp key
+  [[ -n ${node_remote_cursor} ]] || return 0
+  state_tmp="$(mktemp "${PEER_STATE_FILE}.XXXXXX" 2>/dev/null)" || return 0
+  {
+    printf '%s\n' "# gLiveView peer analysis: the peer side's state of each connection, from the node's log"
+    printf 'run\t%s\n' "${node_remote_run}"
+    printf 'cursor\t%s\n' "${node_remote_cursor}"
+    for key in "${!nodeRemoteTemp[@]}"; do
+      [[ -n ${nodeConnUse[${key}]+set} ]] || continue
+      printf 'peer\t%s\t%s\n' "${key}" "${nodeRemoteTemp[${key}]}"
+    done
+  } > "${state_tmp}" && mv -f -- "${state_tmp}" "${PEER_STATE_FILE}" || rm -f -- "${state_tmp}"
+}
+
+# Command    : peerAnalysisStatus [text]
+# Description: Show what peer analysis is doing on its status row.
+peerAnalysisStatus() {
+  mvPos ${line} 1
+  printf "${VL} ${style_info}%-46s${NC}" "$1"
 }
 
 checkNodeVersion() {
@@ -2454,16 +2485,13 @@ while true; do
     printf "${VL} ${style_values_2}[/]${NC} search - part of an IP address or port; empty clears it." && closeRow
     printf "${VL} The view is a snapshot: press [h] and [p] again to refresh it." && closeRow
     printf "${blank_line}\n" && ((line++))
-    printf "${VL} The node's own state, which it logs on SIGUSR1, adds two columns" && closeRow
-    printf "${VL} and two filters. openBlockPerf's local endpoint, when it runs," && closeRow
-    printf "${VL} adds the peer's side and its own scores:" && closeRow
+    printf "${VL} The node's own state, which it logs on SIGUSR1, and its log of" && closeRow
+    printf "${VL} peers promoting or demoting it add two columns and two filters:" && closeRow
     printf "${VL} ${style_values_2}CONN${NC} - out (node fetches from peer), in (peer fetches from" && closeRow
-    printf "${VL}    node), dup (duplex, both) or idle, with the node's hot (H) or" && closeRow
-    printf "${VL}    warm (W) state; dup shows the node's side, then the peer's." && closeRow
+    printf "${VL}    node), dup (duplex, both) or idle, with the hot (H) or warm (W)" && closeRow
+    printf "${VL}    state; dup shows the node's side, then the peer's." && closeRow
     printf "${VL} ${style_values_2}SCORE${NC} - headers the peer delivered first plus blocks fetched" && closeRow
-    printf "${VL}    from it first, as the node counts them. With openBlockPerf," && closeRow
-    printf "${VL}    points from 30 minutes: 10/5/3 for the 1st/2nd/3rd header and" && closeRow
-    printf "${VL}    10 per block body." && closeRow
+    printf "${VL}    from it first, as the node counts them." && closeRow
     printf "${VL} ${style_values_2}[d]${NC} direction - all, out or in (both include duplex), duplex." && closeRow
     printf "${VL} ${style_values_2}[s]${NC} state - any, hot or warm, on the chosen direction's side." && closeRow
   elif [[ ${show_peers} = "true" ]]; then

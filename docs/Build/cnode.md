@@ -47,10 +47,7 @@ The openBlockPerf installer mode follows the state of
 reinstalled. A host without either gets a fresh install. The installer gets
 the instance's `files/config.json` as the node config. If the node runs with
 a config elsewhere, set `NODE_CONFIG_PATH=/path/to/config.json` when running
-`guild-deploy.sh`. The profile also enables openBlockPerf's local endpoint on
-`127.0.0.1:14041`, unless `local_metrics_enabled` is already set in its
-config. gLiveView's peer analysis reads it for the peer side's hot or warm state
-and for openBlockPerf's peer scores.
+`guild-deploy.sh`.
 
 The profile refreshes `submitapi.json` on every deployment run. Without `f`,
 it preserves existing node, topology, db-sync, and genesis files when the

@@ -463,8 +463,8 @@ highlighted:
 | --- | --- | --- |
 | `t` | Peers | All, Static. Static peers are the `localRoots` access points in the topology file. |
 | `/` | Search | Part of an IP address or port, such as `203.0.113` or `:6000`. An empty search clears it. |
-| `d` | Direction | With connection data, see below. |
-| `s` | State | With connection data, see below. |
+| `d` | Direction | With the node's data, see below. |
+| `s` | State | With the node's data, see below. |
 
 Static peers are read from the topology file the running node was started
 with (`--topology`), or from `TOPOLOGY` otherwise. DNS names are resolved, and
@@ -489,71 +489,60 @@ script in `gLiveView.sh.geodb`.
 
 ### Connection use, peer states and scores
 
-Peer analysis asks cardano-node for its own view of its connections. It sends
-the node `SIGUSR1`, which makes the node write its connection manager and peer
-selection state to its log, and reads both back from the node's journal. The
-peer list then shows two more columns:
+Peer analysis reads two more columns from the node itself:
 
-- `CONN` says who uses the connection, as the node's connection manager
-  tracks it: `out` when the node fetches from the peer, `in` when the peer
-  fetches from the node, `dup` when both happen over the same duplex
-  connection, and `idle` when neither does and the connection is about to
-  close. The letter after it is the node's hot (`H`) or warm (`W`) state for
-  the peer. The node refreshes those states for the dump at most every 83
-  seconds, so a peer that changed state in that time can show the previous
-  one, and a node started a minute or two ago shows none. Connections are told
-  apart by the ports on both ends, so two
-  connections to the same peer each show their own use. The cell is empty for
-  a connection that was still being set up or closed, or one opened after the
-  dump.
+- `CONN` says who uses the connection: `out` when the node fetches from the
+  peer, `in` when the peer fetches from the node, `dup` when both happen over
+  the same duplex connection, and `idle` when neither does and the connection
+  is about to close. The letter after it is the hot (`H`) or warm (`W`) state:
+  the node's view of the peer for `out`, the peer's view of the node for `in`,
+  and both for `dup`, the node's side first, as in `dup H/W`. Connections are
+  told apart by the ports on both ends, so two connections to the same peer
+  each show their own use. The cell is empty for a connection that was still
+  being set up or closed, or one opened during the analysis.
 - `SCORE` is the number of block headers the peer delivered first plus the
   number of blocks the node fetched from it first, over the node's recent
   history. The node ranks its hot peers by these counts. Only peers the node
   fetches from can score, so most cells are empty.
 
-This covers every connection, however long it has been open. It needs:
+Both come from the node's journal, in two ways:
+
+- **Connections, the node's side and the score.** gLiveView sends the node `SIGUSR1`,
+  which makes it write its connection manager and peer selection state to its
+  log. The node refreshes its hot and warm sets for this dump at most every
+  83 seconds, so a peer that changed state in that time can show its previous
+  state, and a node started a minute or two ago shows none.
+- **The peer's side.** The node logs a line each time a peer promotes or
+  demotes it, but never the current state, so gLiveView needs the latest line
+  of each connection since the node started. The first analysis after the
+  node starts reads the whole log since then, which takes a few seconds for a
+  day of a busy relay's log. gLiveView then saves what it found, with the
+  position it read up to, in `gLiveView.sh.peerstate` next to the script, and
+  later analyses read only the log written since. If the journal no longer
+  holds the start of the node's run, connections from before that show no
+  peer letter.
+
+This needs:
 
 - cardano-node running as a systemd service that logs JSON to the journal
-  (`Stdout MachineFormat`), with `Net.ConnectionManager.Remote` and
-  `Net.PeerSelection` traced at `Info`, as in the Guild configuration.
+  (`Stdout MachineFormat`), with `Net.ConnectionManager.Remote`,
+  `Net.InboundGovernor.Remote` and `Net.PeerSelection` traced at `Info`, as
+  in the Guild configuration.
 - gLiveView running as the node's user, so that it can signal the node, with
   read access to the node's journal, as described under [Chain](#chain).
 
 Each analysis adds the dump to the node's log, about 100 KB for a relay with
-400 connections. journald splits lines longer than 48 KiB and gLiveView joins
-them again, but openBlockPerf, which reads the same log, prints a parse warning
-for each part. `ENABLE_NODE_STATE_DUMP=N` turns the dump off.
+400 connections. journald splits lines longer than 48 KiB, and gLiveView joins
+them again. Other tools that read the node's log, such as openBlockPerf, may
+log a parse warning for each part. `ENABLE_NODE_STATE_DUMP=N` turns the
+columns off.
 
-When [openBlockPerf](https://github.com/cardano-foundation/openblockperf)
-runs with its local endpoint enabled and has seen peers, it adds what the node
-does not report:
-
-- The peer's side of `CONN`. The node knows whether a peer uses a connection,
-  not whether the peer holds it as hot or warm. openBlockPerf adds that letter:
-  `in W`, or `dup H/W` with the node's side first. It knows a connection only
-  if the node logged a change to it after openBlockPerf started.
-- Its own `SCORE`, which replaces the node's: points over the last 30 minutes.
-  A peer earns 10, 5 or 3 points for being the first, second or third to
-  announce a block header, and 10 points for each block body it serves. The
-  scores reset when openBlockPerf restarts.
-
-When the node's state cannot be read, openBlockPerf provides both columns on
-its own, from the connections it has seen. It records temporary remote ports as
-0, so several inbound connections from one address share a value.
-
-With connection data, a second filter row adds:
+With the node's data, a second filter row adds:
 
 | Key | Filter | Choices |
 | --- | --- | --- |
 | `d` | Direction | All, Out, In, Duplex. Out and In include duplex connections, as the node's connection counters do. |
-| `s` | State | Any, Hot, Warm. The state on the chosen direction's side, or the hotter side for All and Duplex. The peer's side of In is known only with openBlockPerf. |
-
-`guild-deploy.sh -s r` enables openBlockPerf's endpoint by adding
-`"local_metrics_enabled": true` to `/opt/cardano/openblockperf/config.json`,
-unless that key is already set. It listens on `127.0.0.1:14041`; if you
-change `local_metrics_bind` or `local_metrics_port`, set
-`OPENBLOCKPERF_METRICS_URL` to match. `ENABLE_OPENBLOCKPERF=N` stops gLiveView
-from using it.
+| `s` | State | Any, Hot, Warm. The state on the chosen direction's side, or the hotter side for All and Duplex. |
 
 ## Refresh behavior
 
@@ -624,8 +613,6 @@ tracker](https://github.com/cardano-community/guild-operators/issues).
 #CNCLI_CONNECT_ONLY=false                 # false performs full handshake
 #HIDE_DUPLICATE_IPS=N                     # Filter duplicate/local peer IPs
 #ENABLE_NODE_STATE_DUMP=Y                 # Read peer data from the node (SIGUSR1)
-#ENABLE_OPENBLOCKPERF=Y                   # Add openBlockPerf peer data
-#OPENBLOCKPERF_METRICS_URL="http://127.0.0.1:14041"
 #VERBOSE=N                                # Y starts in verbose mode
 #GLV_LOG="${LOG_DIR}/gLiveView.log"       # Empty disables the error log
 ```

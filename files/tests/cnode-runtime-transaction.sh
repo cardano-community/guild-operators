@@ -785,11 +785,6 @@ run_managed_installer_policy_test() (
   log_progress() { :; }
   log_info() { :; }
   log_ok() { :; }
-  log_warn() { :; }
-  local systemctl_log="${node_root}/systemctl.log"
-  systemctl() {
-    printf '%s\n' "$*" >> "${systemctl_log}"
-  }
 
   local paths="INSTALL_DIR=${BLOCKPERF_INSTALL_DIR}|SERVICE_FILE=${BLOCKPERF_SERVICE_FILE}"
 
@@ -837,23 +832,6 @@ run_managed_installer_policy_test() (
   tail -n 1 "${invocation_log}" |
     grep -qF "PACKAGE_VERSION=0.0.35|${paths}|--update --yes " ||
     fail "pinned openBlockPerf policy did not update the complete installation"
-
-  # gLiveView's openBlockPerf peer columns need its local endpoint.
-  assert_eq "$(jq -c . "${BLOCKPERF_INSTALL_DIR}/config.json")" \
-    '{"local_metrics_enabled":true}' "openBlockPerf local metrics setting"
-  assert_eq "$(cat "${systemctl_log}")" "try-restart openblockperf.service" \
-    "openBlockPerf restart after enabling local metrics"
-  download_blockperf
-  assert_eq "$(wc -l < "${systemctl_log}" | tr -d ' ')" "1" \
-    "openBlockPerf restarts without a config change"
-
-  # An operator's own setting is kept.
-  printf '{"local_metrics_enabled": false}\n' > "${BLOCKPERF_INSTALL_DIR}/config.json"
-  download_blockperf
-  assert_eq "$(jq -c . "${BLOCKPERF_INSTALL_DIR}/config.json")" \
-    '{"local_metrics_enabled":false}' "operator openBlockPerf local metrics setting"
-  assert_eq "$(wc -l < "${systemctl_log}" | tr -d ' ')" "1" \
-    "openBlockPerf restarts for an operator setting"
 )
 
 run_source_checkout_test() (
