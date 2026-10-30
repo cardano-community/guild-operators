@@ -310,6 +310,7 @@ declare -gA peerScore=()
 openblockperf_peers_available=false
 peer_filter_dir="all"     # all | out | in | dup, cycled with [d] in peer analysis
 peer_filter_state="any"   # any | hot | warm, cycled with [s] in peer analysis
+peer_search=""            # IP or port substring, entered with [/] in peer analysis
 
 [[ -z ${VERBOSE} ]] && VERBOSE=N
 
@@ -417,11 +418,47 @@ fi
 # Helper functions                  #
 #####################################
 
+# Command     : waitForKeyOrResize
+# Description : Wait for a keypress (in key1) on a view that shows static data,
+#               without redrawing it. Returns 1 after clearing the screen when
+#               the terminal is resized, so the main loop draws it again.
+waitForKeyOrResize() {
+  local wait_lines wait_cols read_status
+  wait_lines=$(tput lines)
+  wait_cols=$(tput cols)
+  while :; do
+    read -rsn1 -t 1 key1 && return 0
+    read_status=$?
+    (( read_status > 128 )) || return 0 # end of input rather than a timeout
+    if [[ $(tput lines) != "${wait_lines}" || $(tput cols) != "${wait_cols}" ]]; then
+      clrScreen
+      return 1
+    fi
+  done
+}
+
+# Command     : readPeerSearch
+# Description : Prompt on the footer line for an IP address or port to search
+#               the peer analysis list for. An empty answer clears the search.
+readPeerSearch() {
+  local answer
+  printf "\r\033[K"
+  stty echo
+  tput cnorm
+  # readline prints the prompt itself so line editing keeps the cursor right.
+  read -r -e -p " Search IP or port (Enter applies, empty clears): " -i "${peer_search}" answer
+  stty -echo
+  tput civis
+  answer="${answer//[[:space:]]/}"
+  peer_search="${answer:0:45}"
+}
+
 # Command     : waitForInput [submenu]
 # Description : wait for user keypress to quit, else do nothing if timeout expire
 waitForInput() {
   ESC=$(printf "\033")
-  if [[ $1 = "homeInfo" || $1 = "networkInfo" || $1 = "peersInfo" ]]; then read -rsn1 key1
+  if [[ $1 = "homeInfo" || $1 = "networkInfo" || $1 = "peersInfo" || $1 = "peers" ]]; then
+    waitForKeyOrResize || return
   elif ! read -rsn1 -t ${REFRESH_RATE} key1; then return; fi
   [[ ${key1} = "${ESC}" ]] && read -rsn2 -t 0.3 key2 # read 2 more chars
   [[ ${key1} = "q" ]] && myExit 0 "Koios gLiveView stopped!"
@@ -450,6 +487,13 @@ waitForInput() {
   elif [[ $1 = "peers" ]]; then
     [[ ${key1} = "h" ]] && show_peers="false" && clrScreen && return
     [[ ${key1} = "i" ]] && show_peers_info="true" && clrScreen && return
+    if [[ ${key1} = "/" ]]; then
+      readPeerSearch
+      computePeerStats
+      peerNbr_start=1
+      clrScreen
+      return
+    fi
     if [[ ${openblockperf_peers_available} = true && ( ${key1} = "d" || ${key1} = "s" ) ]]; then
       if [[ ${key1} = "d" ]]; then
         case ${peer_filter_dir} in
@@ -1555,11 +1599,12 @@ printPeerFilterBar() {
 }
 
 # Command    : computePeerStats
-# Description: Select the analysed peers that match the peer filters and
-#              compute the RTT ranges, average and sorted list shown in peer
-#              analysis. Without openBlockPerf data every peer is selected.
+# Description: Select the analysed peers that match the IP search and the peer
+#              filters, and compute the RTT ranges, average and sorted list
+#              shown in peer analysis. Without openBlockPerf data only the
+#              search applies.
 computePeerStats() {
-  local result rtt
+  local result rtt search="${peer_search,,}"
   local -a result_arr selected=()
   if [[ ${openblockperf_peers_available} != true ]]; then
     peer_filter_dir="all"
@@ -1572,6 +1617,9 @@ computePeerStats() {
 
   for result in "${rttResults[@]}"; do
     IFS=";" read -r -a result_arr <<< "${result}"
+    if [[ -n ${search} ]]; then
+      [[ "${result_arr[1],,}:${result_arr[2]}" == *"${search}"* ]] || continue
+    fi
     peerMatchesFilter "${result_arr[1]}" "${result_arr[2]}" || continue
     selected+=("${result}")
     rtt=${result_arr[0]}
@@ -2002,6 +2050,9 @@ while true; do
     printf "${VL} 4. ${style_values_2}ping${NC} - fallback method using ICMP ping against IP." && closeRow
     printf "${VL}    Only work if the FW of remote peer accepts ICMP traffic." && closeRow
     printf "${blank_line}\n" && ((line++))
+    printf "${VL} ${style_values_2}[/]${NC} search - part of an IP address or port; empty clears it." && closeRow
+    printf "${VL} The view is a snapshot: press [h] and [p] again to refresh it." && closeRow
+    printf "${blank_line}\n" && ((line++))
     printf "${VL} With openBlockPerf's local endpoint, peers get two more columns" && closeRow
     printf "${VL} and can be filtered:" && closeRow
     printf "${VL} ${style_values_2}CONN${NC} - out (node fetches from peer), in (peer fetches from" && closeRow
@@ -2124,13 +2175,21 @@ while true; do
       [[ ${peerNbr_start} -gt 1 ]] && nav_str="< " || nav_str="  "
       nav_str+="[${peerNbr_start}-${peerNbr}] of ${peerCNT}"
       [[ ${peerCNT} -gt ${peerNbr} ]] && nav_str+=" >" || nav_str+="  "
-      printf "${VL}"
+      printf "${VL} Search ${style_info}[/]${NC}"
+      if [[ -n ${peer_search} ]]; then
+        [[ ${#peer_search} -gt 22 ]] && peerSearchFmt="${peer_search:0:20}.." || peerSearchFmt="${peer_search}"
+        printf " ${style_values_3} %s ${NC}" "${peerSearchFmt}"
+      fi
       mvPos ${line} $((width-${#nav_str}-2))
       printf "${style_values_3} %s ${NC}" "${nav_str}"
       closeRow
-    elif [[ ${openblockperf_peers_available} = true ]]; then
+    elif [[ ${openblockperf_peers_available} = true || -n ${peer_search} ]]; then
       echo "${m3divider}" && ((line++))
-      printf "${VL} ${style_info}No peers match this filter. Press [d] or [s] to change it.${NC}" && closeRow
+      if [[ -n ${peer_search} ]]; then
+        printf "${VL} ${style_info}No peers match '%s'. Press [/] to change the search.${NC}" "${peer_search:0:15}" && closeRow
+      else
+        printf "${VL} ${style_info}No peers match this filter. Press [d] or [s] to change it.${NC}" && closeRow
+      fi
     fi
   elif [[ ${show_home_info} = "true" ]]; then
     printf "${VL}${STANDOUT} INFO ${NC} Monitoring ${style_values_2}%s${NC} through the Guild metrics adapter" \
@@ -2616,7 +2675,9 @@ while true; do
     waitForInput
   fi
 
-  if (( SECONDS - legacy_last_full_repaint >= REPAINT_RATE )); then
+  # Peer analysis is a snapshot, redrawn only after a key or a resize.
+  if [[ ${show_peers} != "true" ]] &&
+     (( SECONDS - legacy_last_full_repaint >= REPAINT_RATE )); then
     legacy_last_full_repaint=${SECONDS}
     clrScreen
   fi

@@ -455,6 +455,14 @@ The result groups round-trip times into 0-50, 50-100, 100-200, and over 200 ms.
 An RTT below one millisecond, typical for a peer in the same data centre, shows
 as `<1`. Left/Right changes pages.
 
+Press `/` to search for part of an IP address or port, such as `203.0.113` or
+`:6000`; an empty search clears it. The search narrows the list, the RTT
+ranges and the average, together with any filters below.
+
+The analysis is a snapshot: the view is drawn again only after a key press or
+a terminal resize, not on a timer. Return home with `h` and press `p` to run it
+again.
+
 With `ENABLE_IP_GEOLOCATION=Y`, every public peer address is looked up at
 ip-api.com, 100 addresses per request, and the results are cached next to the
 script in `gLiveView.sh.geodb`.
@@ -504,6 +512,11 @@ all rows through the same row-update mechanism without clearing the terminal.
 This reduces blinking while removing stale text when values shrink or sections
 appear or disappear. Changing views or resizing the terminal can require a
 complete layout redraw.
+
+The cnode block producer dashboard still uses the older renderer, which clears
+the terminal every `REPAINT_RATE`. Peer analysis and the info pages show
+static data, so they wait for a key and are drawn again only after one, or
+after a terminal resize.
 
 ## Troubleshooting
 

@@ -25,7 +25,7 @@ assert_eq() {
 }
 
 GLIVEVIEW="${REPO_ROOT}/scripts/common-helper-scripts/gLiveView.sh"
-for glv_function in getOpenBlockPerfPeers peerConnection peerMatchesFilter computePeerStats; do
+for glv_function in getOpenBlockPerfPeers peerConnection peerMatchesFilter computePeerStats waitForKeyOrResize; do
   glv_definition="$(sed -n "/^${glv_function}() {/,/^}/p" "${GLIVEVIEW}")"
   [[ -n "${glv_definition}" ]] || fail "gLiveView no longer defines ${glv_function}"
   eval "${glv_definition}"
@@ -76,6 +76,7 @@ ENABLE_OPENBLOCKPERF=Y
 OPENBLOCKPERF_METRICS_URL="http://127.0.0.1:14041/"
 peer_filter_dir="all"
 peer_filter_state="any"
+peer_search=""
 granularity_small=10
 declare -A peerConn=()
 declare -A peerScore=()
@@ -140,6 +141,20 @@ assert_filter in hot "203.0.113.10;43122"
 assert_filter dup warm ""
 assert_eq "${peerCNT}/${peerRTTAVG}" "0/0" "empty filter result"
 
+# The IP search matches part of address:port, ignores case and combines with
+# the filters.
+peer_search="203.0.113"
+assert_filter all any "203.0.113.10;43122 203.0.113.10;3001"
+peer_search=":6000"
+assert_filter all any "198.51.100.4;6000 192.0.2.99;6000"
+peer_search="2001:DB8"
+assert_filter all any "2001:db8::7;3001"
+peer_search="203.0.113"
+assert_filter out any "203.0.113.10;3001"
+peer_search="no-such-peer"
+assert_filter all any ""
+peer_search=""
+
 # Without openBlockPerf data the filters fall back to every peer.
 PEERS_FIXTURE='{"peers": [], "relevance_orphans": [], "relevance_window_seconds": 1800}'
 getOpenBlockPerfPeers
@@ -149,6 +164,10 @@ peer_filter_dir="out"
 peer_filter_state="hot"
 computePeerStats
 assert_eq "${peer_filter_dir}/${peer_filter_state}/${peerCNT}" "all/any/5" "filters reset without data"
+peer_search="198.51"
+computePeerStats
+assert_eq "$(selected_peers)" "198.51.100.4;6000" "search without openBlockPerf data"
+peer_search=""
 
 # Without the relevance window the endpoint carries no scores.
 PEERS_FIXTURE='{"peers": [{"remote_addr": "203.0.113.10"}], "relevance_window_seconds": null}'
@@ -169,5 +188,27 @@ ENABLE_OPENBLOCKPERF=N
 getOpenBlockPerfPeers
 assert_eq "${openblockperf_peers_available}" "false" "disabled openBlockPerf peers"
 [[ ! -s "${CURL_CALLS}" ]] || fail "disabled openBlockPerf peers still queried the endpoint"
+
+# Static views wait for a key, and redraw only when the terminal is resized.
+TERM_SIZE_CALLS="${TEST_ROOT}/tput.calls"
+CLEARED="${TEST_ROOT}/cleared"
+tput() {
+  printf '%s\n' "$1" >> "${TERM_SIZE_CALLS}"
+  # The size reported changes after the first lookup of each dimension.
+  if [[ $(grep -c "^$1\$" "${TERM_SIZE_CALLS}") -le 1 ]]; then printf '40\n'; else printf '41\n'; fi
+}
+clrScreen() {
+  : > "${CLEARED}"
+}
+key1=""
+{ waitForKeyOrResize; printf '%s|%s' "$?" "${key1}" > "${TEST_ROOT}/key"; } <<< "d"
+assert_eq "$(cat "${TEST_ROOT}/key")" "0|d" "key pressed on a static view"
+[[ ! -e "${CLEARED}" ]] || fail "a key press cleared the screen"
+
+: > "${TERM_SIZE_CALLS}"
+if sleep 2 | waitForKeyOrResize; then
+  fail "a resized terminal did not ask for a redraw"
+fi
+[[ -e "${CLEARED}" ]] || fail "a resized terminal was not cleared before redrawing"
 
 printf 'gliveview-openblockperf: ok\n'
