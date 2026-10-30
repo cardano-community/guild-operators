@@ -26,7 +26,7 @@ assert_eq() {
 
 GLIVEVIEW="${REPO_ROOT}/scripts/common-helper-scripts/gLiveView.sh"
 for glv_function in getOpenBlockPerfPeers peerConnection peerMatchesFilter computePeerStats \
-  waitForKeyOrResize resolvePeerAddress getStaticPeers; do
+  waitForKeyOrResize resolvePeerAddress getStaticPeers staticPeerLabelFor; do
   glv_definition="$(sed -n "/^${glv_function}() {/,/^}/p" "${GLIVEVIEW}")"
   [[ -n "${glv_definition}" ]] || fail "gLiveView no longer defines ${glv_function}"
   eval "${glv_definition}"
@@ -83,6 +83,8 @@ granularity_small=10
 declare -A peerConn=()
 declare -A peerScore=()
 declare -A staticPeer=()
+declare -A staticPeerPort=()
+declare -A staticPeerEntries=()
 staticPeerList=()
 
 getOpenBlockPerfPeers
@@ -188,7 +190,8 @@ cat > "${TOPOLOGY}" <<'EOF'
       "accessPoints": [
         {"address": "203.0.113.10", "port": 3001, "description": "Relay 1"},
         {"address": "relay.example.com", "port": 6000},
-        {"address": "192.0.2.200", "port": 3001, "pool": "ABC"}
+        {"address": "192.0.2.200", "port": 3001, "pool": "ABC"},
+        {"address": "203.0.113.10", "port": 3002, "name": "Relay 2"}
       ],
       "advertise": false,
       "trustable": true,
@@ -209,24 +212,39 @@ assert_eq "$(printf '%s\n' "${staticPeerList[@]}")" "$(printf '%s\n' \
   "203.0.113.10;3001;Relay 1;203.0.113.10" \
   "relay.example.com;6000;relay.example.com;198.51.100.4,2001:db8::7" \
   "192.0.2.200;3001;ABC;192.0.2.200" \
+  "203.0.113.10;3002;Relay 2;203.0.113.10" \
   "missing.example.com;3001;missing.example.com;" \
   "dig-only.example.com;3001;dig-only.example.com;192.0.2.201")" \
   "localRoots access points with their labels and addresses"
 assert_eq "${staticPeer[203.0.113.10]:-}|${staticPeer[198.51.100.4]:-}|${staticPeer[2001:db8::7]:-}" \
-  "Relay 1|relay.example.com|relay.example.com" "static peer labels by address"
+  "Relay 1 / Relay 2|relay.example.com|relay.example.com" "static peer labels by address"
+
+# Access points that share an address are told apart by port; a connection on
+# another port shows them all.
+static_label() {
+  staticPeerLabelFor "$1" "$2"
+  printf '%s' "${peerStaticLabel}"
+}
+assert_eq "$(static_label 203.0.113.10 3001)" "Relay 1" "label by address and port"
+assert_eq "$(static_label 203.0.113.10 3002)" "Relay 2" "label of the second access point"
+assert_eq "$(static_label 203.0.113.10 43122)" "Relay 1 / Relay 2" "label on another port"
+assert_eq "$(static_label 198.51.100.4 41000)" "relay.example.com" "single access point on another port"
+assert_eq "$(static_label ::ffff:198.51.100.4 6000)" "relay.example.com" "IPv4-mapped address"
+assert_eq "$(static_label 192.0.2.77 3001)" "" "peer that is not static"
 [[ -z ${staticPeer[192.0.2.250]+set} ]] || fail "a publicRoots entry was taken as a static peer"
 
 # Connected static peers match by address; the others follow, x when not
-# connected and u when the name did not resolve.
+# connected and u when the name did not resolve. 203.0.113.10:3002 shares its
+# address, so only a connection on its own port would count.
 peer_filter_static="static"
 computePeerStats
 # relay.example.com also resolves to the IPv6 peer.
 assert_eq "$(selected_peers)" \
-  "203.0.113.10;43122 203.0.113.10;3001 198.51.100.4;6000 2001:db8::7;3001 192.0.2.200;3001 missing.example.com;3001 dig-only.example.com;3001" \
+  "203.0.113.10;43122 203.0.113.10;3001 198.51.100.4;6000 2001:db8::7;3001 192.0.2.200;3001 203.0.113.10;3002 missing.example.com;3001 dig-only.example.com;3001" \
   "static peers"
-assert_eq "$(printf '%s\n' "${rttResultsSorted}" | tail -n 3 | cut -d';' -f4 | paste -sd' ' -)" "x u x" \
+assert_eq "$(printf '%s\n' "${rttResultsSorted}" | tail -n 4 | cut -d';' -f4 | paste -sd' ' -)" "x x u x" \
   "static peers without a connection"
-assert_eq "${peerCNT}/${peerListCNT}/${peerRTTAVG}" "4/7/33" \
+assert_eq "${peerCNT}/${peerListCNT}/${peerRTTAVG}" "4/8/33" \
   "unconnected static peers are listed but not counted"
 peer_filter_dir="out"
 computePeerStats

@@ -312,7 +312,9 @@ peer_filter_dir="all"     # all | out | in | dup, cycled with [d] in peer analys
 peer_filter_state="any"   # any | hot | warm, cycled with [s] in peer analysis
 peer_search=""            # IP or port substring, entered with [/] in peer analysis
 peer_filter_static="all"  # all | static (topology localRoots), toggled with [t]
-declare -gA staticPeer=() # resolved IP of a localRoots access point -> its label
+declare -gA staticPeer=() # resolved IP of a localRoots access point -> its label(s)
+declare -gA staticPeerPort=()    # "ip;port" of a localRoots access point -> its label
+declare -gA staticPeerEntries=() # resolved IP -> number of access points using it
 staticPeerList=()         # "address;port;label;ip,ip" per localRoots access point
 
 [[ -z ${VERBOSE} ]] && VERBOSE=N
@@ -1633,13 +1635,18 @@ resolvePeerAddress() {
 # Description: Read the node's static peers, the localRoots access points in
 #              its topology file, and resolve DNS names, for the Static peer
 #              filter. The topology the running node was started with is
-#              preferred over TOPOLOGY. Sets staticPeer, keyed by resolved IP,
-#              to the access point's description, pool or DNS name, and
-#              staticPeerList to one "address;port;label;ip,ip" entry each.
+#              preferred over TOPOLOGY. Each access point is labelled with its
+#              description, pool, name or DNS name. Sets staticPeerList to one
+#              "address;port;label;ip,ip" entry each, staticPeerPort to the
+#              label by "ip;port", staticPeer to the label by IP, the labels
+#              joined when several access points share an address, and
+#              staticPeerEntries to the number of access points per address.
 getStaticPeers() {
-  local topology_file="${TOPOLOGY}" prev_arg="" cmdline_arg address port label ips ip
+  local topology_file="${TOPOLOGY}" prev_arg="" cmdline_arg address port label ips ip port_key
   local -a cmdline_args=()
   staticPeer=()
+  staticPeerPort=()
+  staticPeerEntries=()
   staticPeerList=()
   if [[ -n ${CNODE_PID} && -r /proc/${CNODE_PID}/cmdline ]]; then
     mapfile -d '' -t cmdline_args < "/proc/${CNODE_PID}/cmdline"
@@ -1658,12 +1665,34 @@ getStaticPeers() {
     ips="$(resolvePeerAddress "${address}")"
     staticPeerList+=("${address};${port};${label};${ips}")
     for ip in ${ips//,/ }; do
-      staticPeer[${ip}]="${label}"
+      port_key="${ip};${port}"
+      staticPeerPort[${port_key}]="${label}"
+      staticPeerEntries[${ip}]=$(( ${staticPeerEntries[${ip}]:-0} + 1 ))
+      if [[ -z ${staticPeer[${ip}]:-} ]]; then
+        staticPeer[${ip}]="${label}"
+      elif [[ -n ${label} && " / ${staticPeer[${ip}]} / " != *" / ${label} / "* ]]; then
+        staticPeer[${ip}]+=" / ${label}"
+      fi
     done
   done < <(jq -r '
       .localRoots[]?.accessPoints[]? | select(.address != null and .port != null) |
       [.address, (.port | tostring), (.description // .pool // .name // "")] | @tsv
     ' "${topology_file}" 2>/dev/null)
+}
+
+# Command    : staticPeerLabelFor [ip] [port]
+# Description: Set peerStaticLabel to the label of the static peer behind a
+#              connection: the access point with that address and port, else
+#              the one or more access points with that address. Empty for a
+#              peer that is not static, or an access point without a label.
+staticPeerLabelFor() {
+  local ip="${1#::ffff:}"
+  local port_key="${ip};$2"
+  if [[ -n ${staticPeerPort[${port_key}]+set} ]]; then
+    peerStaticLabel="${staticPeerPort[${port_key}]}"
+  else
+    peerStaticLabel="${staticPeer[${ip}]:-}"
+  fi
 }
 
 # Command    : peerConnection [ip] [port]
@@ -1764,7 +1793,7 @@ printPeerFilterBar() {
 #              but not counted in the RTT figures; peerListCNT counts both.
 computePeerStats() {
   local result rtt search="${peer_search,,}"
-  local entry entry_ip entry_ips entry_connected missing_note
+  local entry entry_ip entry_ips entry_connected missing_note connected_key
   local -a result_arr entry_arr selected=() missing=()
   local -A connected_ip=()
   if [[ ${openblockperf_peers_available} != true ]]; then
@@ -1778,7 +1807,10 @@ computePeerStats() {
 
   for result in "${rttResults[@]}"; do
     IFS=";" read -r -a result_arr <<< "${result}"
-    connected_ip[${result_arr[1]#::ffff:}]=1
+    connected_key="${result_arr[1]#::ffff:}"
+    connected_ip[${connected_key}]=1
+    connected_key+=";${result_arr[2]}"
+    connected_ip[${connected_key}]=1
     if [[ -n ${search} ]]; then
       [[ "${result_arr[1],,}:${result_arr[2]}" == *"${search}"* ]] || continue
     fi
@@ -1809,7 +1841,13 @@ computePeerStats() {
       entry_ips="${entry_arr[3]:-}"
       entry_connected=N
       for entry_ip in ${entry_ips//,/ }; do
-        [[ -n ${connected_ip[${entry_ip}]+set} ]] && entry_connected=Y
+        # On an address that several access points share, only a connection
+        # on the entry's own port counts; otherwise any port does.
+        connected_key="${entry_ip};${entry_arr[1]}"
+        if [[ -n ${connected_ip[${connected_key}]+set} ]] ||
+           [[ ${staticPeerEntries[${entry_ip}]:-0} -le 1 && -n ${connected_ip[${entry_ip}]+set} ]]; then
+          entry_connected=Y
+        fi
       done
       [[ ${entry_connected} = Y ]] && continue
       if [[ -n ${search} ]]; then
@@ -2348,7 +2386,7 @@ while true; do
         [[ ${#peerIP} -gt 19 ]] && peerIP="${peerIP:0:17}.."
         IFS=',' read -ra peerLocation <<< "${geoIP[${peerData[1]}]}"; unset IFS
         peerLocationStyle="${style_values_4}"
-        peerStaticLabel="${staticPeer[${peerData[1]#::ffff:}]:-}"
+        staticPeerLabelFor "${peerData[1]}" "${peerData[2]}"
         if [[ ${peerDIR} = "x" || ${peerDIR} = "u" ]]; then
           [[ ${peerDIR} = "x" ]] && peerLocationFmt="Not connected" || peerLocationFmt="DNS failed"
           peerLocationStyle="${style_status_3}"

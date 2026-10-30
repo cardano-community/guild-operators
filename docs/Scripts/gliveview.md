@@ -470,10 +470,14 @@ Static peers are read from the topology file the running node was started
 with (`--topology`), or from `TOPOLOGY` otherwise. DNS names are resolved, and
 connections match by address, because a peer that connects to the node may use
 another port than its topology entry. A static peer shows the entry's
-`description`, `pool` or DNS name in place of its geolocation. With the Static
-filter, configured peers without a connection are listed after the others as
-`Not connected`, or `DNS failed` when the name did not resolve; they are not
-counted in the RTT figures.
+`description`, `pool`, `name` or DNS name in place of its geolocation. When
+several entries share an address, such as two nodes behind one public IP, a
+connection on an entry's own port shows that entry's name, and a connection on
+any other port shows all of their names. With the Static filter, configured
+peers without a connection are listed after the others as `Not connected`, or
+`DNS failed` when the name did not resolve; they are not counted in the RTT
+figures. On a shared address, only a connection on the entry's own port counts
+as connected.
 
 The analysis is a snapshot: the view is drawn again only after a key press or
 a terminal resize, not on a timer. Return home with `h` and press `p` to run it
