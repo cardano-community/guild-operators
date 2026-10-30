@@ -712,6 +712,16 @@ dingo_adapter_custom_metrics() {
   dingo_set_optional_custom_metric dingo_mempool_fill "${value}" "Mempool" "%"
   value="$(dingo_histogram_mean "${metrics}" dingo_ledger_block_adoption_delay_seconds 2>/dev/null || true)"
   dingo_set_optional_custom_metric dingo_adopt_delay "${value}" "Adopt avg" "s"
+  # The peers that connected to Dingo, by Dingo's own state of them: warm once
+  # connected, hot once it fetches from them. They are not the inbound
+  # governor's In warm and In hot, the peers that hold the node warm or hot,
+  # which Dingo does not export.
+  value=""
+  prometheus_first_metric_value value dingo_metrics_peerSelection_InboundWarmHeld || value=""
+  dingo_set_optional_custom_metric dingo_inbound_warm "${value}" "Inb warm"
+  value=""
+  prometheus_first_metric_value value dingo_metrics_peerSelection_InboundHotHeld || value=""
+  dingo_set_optional_custom_metric dingo_inbound_hot "${value}" "Inb hot"
 
   if [[ "${forging}" == "Y" ]]; then
     value=""
@@ -824,17 +834,6 @@ node_adapter_collect_metrics() {
   # contract used by cnode and gLiveView is a 0-1 ratio.
   dingo_normalize_propagation_ratios
   dingo_adapter_outbound_peer_states "${normalized_metrics}"
-
-  # Dingo names its inbound peer-temperature gauges in its native namespace,
-  # but their semantics match the normalized inbound-governor fields.
-  if prometheus_first_metric_value value \
-    dingo_metrics_peerSelection_InboundWarmHeld; then
-    node_metric_set inbound_governor_warm "${value}"
-  fi
-  if prometheus_first_metric_value value \
-    dingo_metrics_peerSelection_InboundHotHeld; then
-    node_metric_set inbound_governor_hot "${value}"
-  fi
 
   # Go has no minor/major collections; Dingo reports forced collections as
   # "major", so the total cycle count is shown as a Dingo metric instead.

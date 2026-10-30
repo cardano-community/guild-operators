@@ -149,10 +149,16 @@ assert_eq "${peer_known}" "20" "Dingo known-peer normalization"
 assert_eq "${peer_established}" "7" "Dingo established-peer normalization"
 assert_eq "${peer_active}" "3" "Dingo active-peer normalization"
 assert_eq "${conn_incoming}" "8" "Dingo inbound connection normalization"
-assert_eq "${inbound_governor_warm}" "6" \
-  "Dingo inbound warm-peer normalization"
-assert_eq "${inbound_governor_hot}" "2" \
-  "Dingo inbound hot-peer normalization"
+# Dingo's inbound gauges are its own state of the peers that connected to it,
+# not the inbound governor's count of the peers that hold the node.
+node_metric_has inbound_governor_warm &&
+  fail "Dingo's inbound warm peers were reported as the inbound governor's"
+node_metric_has inbound_governor_hot &&
+  fail "Dingo's inbound hot peers were reported as the inbound governor's"
+assert_eq "${dingo_inbound_warm}" "6" "Dingo inbound warm peers"
+assert_eq "${dingo_inbound_hot}" "2" "Dingo inbound hot peers"
+assert_eq "${NODE_METRIC_LABEL[dingo_inbound_warm]}|${NODE_METRIC_LABEL[dingo_inbound_hot]}" \
+  "Inb warm|Inb hot" "Dingo inbound peer display labels"
 assert_eq "${mem_live}" "268435456" "Dingo live-memory normalization"
 node_metric_has gc_minor &&
   fail "Go collections were reported as GHC minor collections"
@@ -192,7 +198,7 @@ assert_eq "${dingo_rollback_errors}" "1" \
   "Dingo nonzero rollback error collection"
 assert_eq "${uptimes}" "100" "Dingo node-start uptime calculation"
 assert_eq "${NODE_CUSTOM_METRICS[*]}" \
-  "dingo_goroutines dingo_gc_cycles dingo_database_bytes dingo_utxo_cache_hits dingo_block_cache_hits dingo_mempool_fill dingo_adopt_delay dingo_slot_clock_errors dingo_rollback_errors" \
+  "dingo_goroutines dingo_gc_cycles dingo_database_bytes dingo_utxo_cache_hits dingo_block_cache_hits dingo_mempool_fill dingo_adopt_delay dingo_inbound_warm dingo_inbound_hot dingo_slot_clock_errors dingo_rollback_errors" \
   "Dingo live custom-metric registration order"
 assert_eq "${NODE_INFO_METRICS[*]}" \
   "dingo_go_version dingo_epoch_length_slots dingo_shelley_start_time dingo_gomaxprocs dingo_mempool_impl dingo_mempool_capacity" \
@@ -227,8 +233,8 @@ assert_eq "${NODE_METRIC_UNIT[dingo_block_cache_hits]}" "" \
 
 for available_metric in \
   blocknum epochnum slot_in_epoch slotnum mempool_tx mempool_bytes \
-  peer_selection_hot conn_incoming inbound_governor_warm \
-  inbound_governor_hot mem_live forging_enabled \
+  peer_selection_hot conn_incoming dingo_inbound_warm \
+  dingo_inbound_hot mem_live forging_enabled \
   running_node_version running_node_rev dingo_go_version \
   tip_gap dingo_epoch_length_slots \
   dingo_shelley_start_time blocks_w1s blocks_w3s blocks_w5s \

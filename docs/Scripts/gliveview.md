@@ -281,8 +281,11 @@ rules treat as the primary operational signals.
 
 Dingo's outbound peer-temperature gauges also count peers that connected
 inbound. gLiveView subtracts those inbound peers so that `Out cold`, `Out
-warm`, and `Out hot` describe only outbound selection; the inbound peers remain
-visible as `In warm` and `In hot`.
+warm`, and `Out hot` describe only outbound selection, as Dingo's own targets
+do. Dingo keeps the peers that connected to it in a budget of their own, shown
+as `Inb warm` and `Inb hot` in `DINGO METRICS`. Dingo does not export how its
+peers hold it, so the Connections section has no `In warm` or `In hot` for
+Dingo.
 
 `Live memory` is Go's `runtime.MemStats.HeapAlloc` and `Heap` is `HeapSys`.
 Go's collector is not generational, so the Haskell `GC minor` and `GC major`
@@ -299,6 +302,8 @@ values as if the runtimes were identical.
 | Block hits | Cumulative block-LRU cache hits divided by hits plus misses. `n/a` means no cache observations exist yet. |
 | Mempool | Current mempool size as a share of its configured capacity. |
 | Adopt avg | Mean time from a block's slot to its adoption as the local tip, since the process started. Unlike `Last block`, it includes validation and commit. |
+| Inb warm | Peers that connected to Dingo and that it holds warm, which it does once they connect, counted against its `InboundWarmTarget` after their first 3 seconds. Not how peers hold Dingo. |
+| Inb hot | Peers that connected to Dingo and that it fetches from, against its `InboundHotQuota`. |
 | Slot batls | Producer only. Competing blocks detected at the same slot. |
 | Sync skips | Producer only. Leader slots skipped because an upstream tip was ahead of the local tip. |
 | Tip skips | Producer only. Leader slots skipped because the local chain was stale or unsafe to extend. |
