@@ -513,10 +513,16 @@ This reduces blinking while removing stale text when values shrink or sections
 appear or disappear. Changing views or resizing the terminal can require a
 complete layout redraw.
 
-The cnode block producer dashboard still uses the older renderer, which clears
-the terminal every `REPAINT_RATE`. Peer analysis and the info pages show
-static data, so they wait for a key and are drawn again only after one, or
-after a terminal resize.
+The cnode block producer dashboard, peer analysis and the info pages use an
+older renderer, whose frames are buffered and then compared with the previous
+one in the same way: only rows that changed are erased and rewritten, and the
+terminal is not cleared on a timer. Both renderers wrap each update in
+synchronized output (DEC mode 2026) where they write it, so terminals that
+support it, such as iTerm2, kitty, WezTerm, Windows Terminal and recent tmux,
+show it in one step.
+
+Peer analysis and the info pages show static data, so they wait for a key and
+are drawn again only after one, or after a terminal resize.
 
 ## Troubleshooting
 

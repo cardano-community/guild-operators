@@ -42,6 +42,8 @@ jobs:
       run: bash files/tests/cnode-metrics.sh
     - name: Test gLiveView openBlockPerf peers
       run: bash files/tests/gliveview-openblockperf.sh
+    - name: Test gLiveView legacy frames
+      run: bash files/tests/gliveview-legacy-frame.sh
     - name: Test Dingo metrics adapter
       run: bash files/tests/dingo-metrics.sh
     - name: Test Amaru metrics adapter

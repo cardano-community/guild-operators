@@ -107,7 +107,7 @@ cleanup() {
   exit $err
 }
 trap cleanup HUP INT TERM
-trap 'stty echo' EXIT
+trap 'stty echo; [[ -z ${GLV_LEGACY_FRAME_FILE:-} ]] || rm -f -- "${GLV_LEGACY_FRAME_FILE}"' EXIT
 
 # Command     : myExit [exit code] [message]
 # Description : gracefully handle an exit and restore terminal to original state
@@ -1206,7 +1206,8 @@ glvCommitFrame() {
     force=Y
   fi
   glv_frame_build_patch "${force}" "${SECONDS}" "${REPAINT_RATE}"
-  printf '%s\033[%d;1H' "${GLV_FRAME_PATCH}" "${cursor_row}"
+  # Synchronized output (DEC mode 2026) shows the update in one step.
+  printf '\033[?2026h%s\033[%d;1H\033[?2026l' "${GLV_FRAME_PATCH}" "${cursor_row}"
   GLV_FRAME_LAST_LINES="${tlines:-}"
   GLV_FRAME_LAST_COLS="${tcols:-}"
   line="${frame_height}"
@@ -1232,9 +1233,73 @@ clrLine () {
 # Command    : clrScreen
 # Description: clear the screen, move to (0,0), and invalidate frame state
 clrScreen () {
-  clear
+  if [[ ${glv_legacy_buffered:-N} = Y ]]; then clear >&5; else clear; fi
   unset GLV_FRAME_PREV GLV_FRAME_LAST_FULL_REPAINT
   unset GLV_FRAME_LAST_LINES GLV_FRAME_LAST_COLS
+  GLV_LEGACY_PREV=()
+  unset GLV_LEGACY_LAST_FULL
+}
+
+# The cnode block producer dashboard, peer analysis and the info pages use the
+# older renderer, which prints rows straight to the terminal and only moves
+# the cursor within the current row. Their output is buffered per frame
+# instead, so that only changed rows are written, each erased first, and the
+# screen never has to be cleared.
+
+# Command    : glvBeginLegacyFrame
+# Description: Send the older renderer's output for this frame to the buffer.
+glvBeginLegacyFrame() {
+  [[ -n ${GLV_LEGACY_FRAME_FILE:-} && ${glv_legacy_buffered:-N} != Y ]] || return 0
+  exec 5>&1 1>"${GLV_LEGACY_FRAME_FILE}"
+  glv_legacy_buffered=Y
+}
+
+# Command    : glvEndLegacyFrame
+# Description: Send output to the terminal again, without drawing the buffer.
+glvEndLegacyFrame() {
+  [[ ${glv_legacy_buffered:-N} = Y ]] || return 0
+  exec 1>&5 5>&-
+  glv_legacy_buffered=N
+}
+
+# Command    : glvFlushLegacyFrame
+# Description: Draw the buffered frame: rows that changed since the last frame
+#              are erased and rewritten, rows below a shorter frame are
+#              cleared, and every REPAINT_RATE all rows are rewritten. The
+#              update is wrapped in synchronized output (DEC mode 2026), which
+#              supporting terminals show at once; others ignore it. The cursor
+#              ends on the last row, where the footer is.
+glvFlushLegacyFrame() {
+  local -a rows=()
+  local row_nr last_row seq update="" rewrite_all=N clear_below=N
+  [[ ${glv_legacy_buffered:-N} = Y ]] || return 0
+  glvEndLegacyFrame
+  mapfile -t rows < "${GLV_LEGACY_FRAME_FILE}"
+  (( ${#rows[@]} > 0 )) || return 0
+  last_row=$(( ${#rows[@]} - 1 ))
+  if [[ -z ${GLV_LEGACY_LAST_FULL:-} ]] ||
+     (( SECONDS - GLV_LEGACY_LAST_FULL >= REPAINT_RATE )); then
+    rewrite_all=Y
+    GLV_LEGACY_LAST_FULL=${SECONDS}
+  fi
+  (( ${#rows[@]} < ${#GLV_LEGACY_PREV[@]} )) && clear_below=Y
+  for row_nr in "${!rows[@]}"; do
+    if [[ ${rewrite_all} = N && ${row_nr} -lt ${#GLV_LEGACY_PREV[@]} &&
+          "${rows[row_nr]}" == "${GLV_LEGACY_PREV[row_nr]}" ]] &&
+       ! [[ ${clear_below} = Y && ${row_nr} -eq ${last_row} ]]; then
+      continue
+    fi
+    printf -v seq '\033[%d;1H\033[2K' $(( row_nr + 1 ))
+    update+="${seq}${rows[row_nr]}"
+  done
+  if [[ ${rewrite_all} = Y || ${clear_below} = Y ]]; then
+    update+=$'\033[J' # the last row was written last, so the cursor ends on it
+  else
+    printf -v seq '\033[%d;1H' $(( last_row + 1 ))
+    update+="${seq}"
+  fi
+  printf '\033[?2026h%s\033[?2026l' "${update}"
+  GLV_LEGACY_PREV=("${rows[@]}")
 }
 
 # Description: latency helper functions
@@ -1803,7 +1868,11 @@ checkNodeVersion
 
 fail_count=0
 epoch_items_last=0
-legacy_last_full_repaint=${SECONDS}
+# Frame buffer for the older renderer; without one, rows are drawn directly.
+GLV_LEGACY_FRAME_FILE="$(mktemp "${XDG_RUNTIME_DIR:-${TMPDIR:-/tmp}}/gLiveView.frame.XXXXXX" 2>/dev/null)" ||
+  GLV_LEGACY_FRAME_FILE=""
+glv_legacy_buffered=N
+GLV_LEGACY_PREV=()
 
 if [[ "${NODE_IMPLEMENTATION}" == "cnode" ]]; then
   test_koios # KOIOS_API variable unset if check fails. Only tested once on startup.
@@ -1876,6 +1945,7 @@ while true; do
     tcols=$(tput cols)   # update terminal columns
   done
 
+  glvEndLegacyFrame # in case a frame was abandoned
   [[ "${oldLine}" != "${line}" ]] && oldLine=$line && clrScreen # redraw everything, total height changed
 
   line=1; mvPos 1 1 # reset position
@@ -1938,7 +2008,6 @@ while true; do
         nodemode="Core" &&
         node_has opcert &&
         getOpCert &&
-        legacy_last_full_repaint=${SECONDS} &&
         clrScreen
     else
       [[ ${nodemode} != "Relay" ]] && clrScreen && nodemode="Relay"
@@ -1996,6 +2065,9 @@ while true; do
     waitForInput
     continue
   fi
+
+  # Peer analysis draws its progress live; everything else is buffered.
+  [[ ${check_peers} = "true" ]] || glvBeginLegacyFrame
 
   header_length=$(( ${#NODE_NAME} + ${#NODE_IMPLEMENTATION_NAME} + ${#nodemode} + ${#running_node_version} + ${#NETWORK_NAME} + 18 ))
   [[ ${header_length} -gt ${width} ]] && header_padding=0 || header_padding=$(( (width - header_length) / 2 ))
@@ -2221,6 +2293,7 @@ while true; do
     if [[ "${NODE_IMPLEMENTATION}" != "cnode" ]]; then
       # Defensive fallback; alternate-node home views normally take the shared
       # frame path before the legacy producer renderer is reached.
+      glvEndLegacyFrame
       glvRenderCommonDashboard
       glvFrameFitsTerminal || continue
       glvCommitFrame Y
@@ -2655,14 +2728,17 @@ while true; do
   if [[ ${show_peers} = "true" && ${show_peers_info} = "true" ]]; then
     printf " ${style_info}[esc/q] Quit${NC} | ${style_info}[b] Back to Peer Analysis${NC}"
     clrLine
+    glvFlushLegacyFrame
     waitForInput "peersInfo"
   elif [[ ${show_peers} = "true" ]]; then
     printf " ${style_info}[esc/q] Quit${NC} | ${style_info}[h] Home${NC} | ${style_info}[i] Info${NC} | Left/Right : Navigate List"
     clrLine
+    glvFlushLegacyFrame
     waitForInput "peers"
   elif [[ ${show_home_info} = "true" ]]; then
     printf " ${style_info}[esc/q] Quit${NC} | ${style_info}[h] Home${NC}"
     clrLine
+    glvFlushLegacyFrame
     waitForInput "homeInfo"
   else
     [[ ${VERBOSE} = "Y" ]] && verbose_label="Compact" || verbose_label="Verbose"
@@ -2672,13 +2748,7 @@ while true; do
     fi
     printf " | ${style_info}[v] ${verbose_label}${NC}"
     clrLine
+    glvFlushLegacyFrame
     waitForInput
-  fi
-
-  # Peer analysis is a snapshot, redrawn only after a key or a resize.
-  if [[ ${show_peers} != "true" ]] &&
-     (( SECONDS - legacy_last_full_repaint >= REPAINT_RATE )); then
-    legacy_last_full_repaint=${SECONDS}
-    clrScreen
   fi
 done
