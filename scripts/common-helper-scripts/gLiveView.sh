@@ -311,6 +311,9 @@ openblockperf_peers_available=false
 peer_filter_dir="all"     # all | out | in | dup, cycled with [d] in peer analysis
 peer_filter_state="any"   # any | hot | warm, cycled with [s] in peer analysis
 peer_search=""            # IP or port substring, entered with [/] in peer analysis
+peer_filter_static="all"  # all | static (topology localRoots), toggled with [t]
+declare -gA staticPeer=() # resolved IP of a localRoots access point -> its label
+staticPeerList=()         # "address;port;label;ip,ip" per localRoots access point
 
 [[ -z ${VERBOSE} ]] && VERBOSE=N
 
@@ -487,11 +490,20 @@ waitForInput() {
   elif [[ $1 = "peers" ]]; then
     [[ ${key1} = "h" ]] && show_peers="false" && clrScreen && return
     [[ ${key1} = "i" ]] && show_peers_info="true" && clrScreen && return
+    # The peer view is buffered and rewrites only the rows that change, so
+    # filters and paging need no clear. The search prompt writes over the
+    # footer, so the view is cleared after it.
     if [[ ${key1} = "/" ]]; then
       readPeerSearch
       computePeerStats
       peerNbr_start=1
       clrScreen
+      return
+    fi
+    if [[ ${key1} = "t" ]]; then
+      [[ ${peer_filter_static} = "all" ]] && peer_filter_static="static" || peer_filter_static="all"
+      computePeerStats
+      peerNbr_start=1
       return
     fi
     if [[ ${openblockperf_peers_available} = true && ( ${key1} = "d" || ${key1} = "s" ) ]]; then
@@ -508,14 +520,13 @@ waitForInput() {
       fi
       computePeerStats
       peerNbr_start=1
-      clrScreen
       return
     fi
     if [[ ${key2} = "[C" && ${show_peers} = "true" ]]; then # Right arrow
-      [[ ${peerCNT} -gt ${peerNbr} ]] && peerNbr_start=$((peerNbr_start+PEER_LIST_CNT)) && clrScreen && return
+      [[ ${peerListCNT} -gt ${peerNbr} ]] && peerNbr_start=$((peerNbr_start+PEER_LIST_CNT)) && return
     fi
     if [[ ${key2} = "[D" && ${show_peers} = "true" ]]; then # Left arrow
-      [[ ${peerNbr_start} -gt ${PEER_LIST_CNT} ]] && peerNbr_start=$((peerNbr_start-PEER_LIST_CNT)) && clrScreen && return
+      [[ ${peerNbr_start} -gt ${PEER_LIST_CNT} ]] && peerNbr_start=$((peerNbr_start-PEER_LIST_CNT)) && return
     fi
   fi
 }
@@ -1589,7 +1600,70 @@ checkPeers() {
   done
 
   getOpenBlockPerfPeers
+  getStaticPeers
   computePeerStats
+}
+
+# Command    : resolvePeerAddress [address]
+# Description: Print the IP addresses of a topology address, comma separated:
+#              the address itself when it is an IP, else its DNS records.
+#              Prints nothing when a name does not resolve.
+resolvePeerAddress() {
+  local address="$1" resolved=""
+  local -a time_limit=()
+  if [[ ${address} =~ ^[0-9.]+$ || ${address} == *:* ]]; then
+    printf '%s' "${address}"
+    return
+  fi
+  command -v timeout >/dev/null && time_limit=(timeout 3)
+  if command -v getent >/dev/null; then
+    resolved="$("${time_limit[@]}" getent ahosts "${address}" 2>/dev/null |
+      awk '{print $1}' | sort -u | paste -sd, -)"
+  fi
+  if [[ -z ${resolved} ]] && command -v dig >/dev/null; then
+    resolved="$({
+        dig +short +time=2 +tries=1 A "${address}"
+        dig +short +time=2 +tries=1 AAAA "${address}"
+      } 2>/dev/null | grep -E '^[0-9.]+$|^[0-9a-fA-F:]+:[0-9a-fA-F:.]*$' | sort -u | paste -sd, -)"
+  fi
+  printf '%s' "${resolved}"
+}
+
+# Command    : getStaticPeers
+# Description: Read the node's static peers, the localRoots access points in
+#              its topology file, and resolve DNS names, for the Static peer
+#              filter. The topology the running node was started with is
+#              preferred over TOPOLOGY. Sets staticPeer, keyed by resolved IP,
+#              to the access point's description, pool or DNS name, and
+#              staticPeerList to one "address;port;label;ip,ip" entry each.
+getStaticPeers() {
+  local topology_file="${TOPOLOGY}" prev_arg="" cmdline_arg address port label ips ip
+  local -a cmdline_args=()
+  staticPeer=()
+  staticPeerList=()
+  if [[ -n ${CNODE_PID} && -r /proc/${CNODE_PID}/cmdline ]]; then
+    mapfile -d '' -t cmdline_args < "/proc/${CNODE_PID}/cmdline"
+    for cmdline_arg in "${cmdline_args[@]}"; do
+      [[ ${prev_arg} = "--topology" ]] && topology_file="${cmdline_arg}"
+      prev_arg="${cmdline_arg}"
+    done
+    [[ ${topology_file} = /* ]] || topology_file="/proc/${CNODE_PID}/cwd/${topology_file}"
+  fi
+  [[ -r ${topology_file} ]] || return 0
+  while IFS=$'\t' read -r address port label; do
+    [[ -n ${address} && -n ${port} ]] || continue
+    # A DNS name is a useful label when the entry has no description.
+    [[ -z ${label} && ! ${address} =~ ^[0-9.]+$ && ${address} != *:* ]] && label="${address}"
+    label="${label//;/,}"
+    ips="$(resolvePeerAddress "${address}")"
+    staticPeerList+=("${address};${port};${label};${ips}")
+    for ip in ${ips//,/ }; do
+      staticPeer[${ip}]="${label}"
+    done
+  done < <(jq -r '
+      .localRoots[]?.accessPoints[]? | select(.address != null and .port != null) |
+      [.address, (.port | tostring), (.description // .pool // .name // "")] | @tsv
+    ' "${topology_file}" 2>/dev/null)
 }
 
 # Command    : peerConnection [ip] [port]
@@ -1642,18 +1716,36 @@ peerMatchesFilter() {
 }
 
 # Command    : printPeerFilterBar
-# Description: Print the peer analysis filter row, every choice listed and the
-#              active ones highlighted. [d] and [s] cycle through them.
+# Description: Print the peer analysis filter rows, every choice listed and the
+#              active ones highlighted: Peers [t] and Search [/] always, and
+#              Direction [d] and State [s] when openBlockPerf has data.
 printPeerFilterBar() {
-  local option label
-  printf "${VL} Direction ${style_info}[d]${NC}"
+  local option label search_fmt
+  local second_col=41
+  printf "${VL} %-9s ${style_info}[t]${NC}" "Peers"
+  for option in all static; do
+    case ${option} in
+      all) label="All" ;; static) label="Static" ;;
+    esac
+    [[ ${option} = "${peer_filter_static}" ]] && printf "${style_values_3} %s ${NC}" "${label}" || printf " %s " "${label}"
+  done
+  mvPos ${line} ${second_col}
+  printf "%-6s ${style_info}[/]${NC}" "Search"
+  if [[ -n ${peer_search} ]]; then
+    [[ ${#peer_search} -gt 16 ]] && search_fmt="${peer_search:0:14}.." || search_fmt="${peer_search}"
+    printf "${style_values_3} %s ${NC}" "${search_fmt}"
+  fi
+  closeRow
+  [[ ${openblockperf_peers_available} = true ]] || return 0
+  printf "${VL} %-9s ${style_info}[d]${NC}" "Direction"
   for option in all out in dup; do
     case ${option} in
       all) label="All" ;; out) label="Out" ;; in) label="In" ;; dup) label="Duplex" ;;
     esac
     [[ ${option} = "${peer_filter_dir}" ]] && printf "${style_values_3} %s ${NC}" "${label}" || printf " %s " "${label}"
   done
-  printf "   State ${style_info}[s]${NC}"
+  mvPos ${line} ${second_col}
+  printf "%-6s ${style_info}[s]${NC}" "State"
   for option in any hot warm; do
     case ${option} in
       any) label="Any" ;; hot) label="Hot" ;; warm) label="Warm" ;;
@@ -1667,10 +1759,14 @@ printPeerFilterBar() {
 # Description: Select the analysed peers that match the IP search and the peer
 #              filters, and compute the RTT ranges, average and sorted list
 #              shown in peer analysis. Without openBlockPerf data only the
-#              search applies.
+#              search and the Static filter apply. With the Static filter,
+#              static peers without a connection are listed after the others
+#              but not counted in the RTT figures; peerListCNT counts both.
 computePeerStats() {
   local result rtt search="${peer_search,,}"
-  local -a result_arr selected=()
+  local entry entry_ip entry_ips entry_connected missing_note
+  local -a result_arr entry_arr selected=() missing=()
+  local -A connected_ip=()
   if [[ ${openblockperf_peers_available} != true ]]; then
     peer_filter_dir="all"
     peer_filter_state="any"
@@ -1682,8 +1778,14 @@ computePeerStats() {
 
   for result in "${rttResults[@]}"; do
     IFS=";" read -r -a result_arr <<< "${result}"
+    connected_ip[${result_arr[1]#::ffff:}]=1
     if [[ -n ${search} ]]; then
       [[ "${result_arr[1],,}:${result_arr[2]}" == *"${search}"* ]] || continue
+    fi
+    # Static peers match by address: a peer that connects to the node can use
+    # another port than the one in the topology.
+    if [[ ${peer_filter_static} = "static" ]]; then
+      [[ -n ${staticPeer[${result_arr[1]#::ffff:}]+set} ]] || continue
     fi
     peerMatchesFilter "${result_arr[1]}" "${result_arr[2]}" || continue
     selected+=("${result}")
@@ -1698,6 +1800,32 @@ computePeerStats() {
 
   peerCNT=${#selected[@]}
   [[ ${peerCNT} -gt 0 ]] && rttResultsSorted=$(printf '%s\n' "${selected[@]}" | sort -n)
+
+  # Static peers without a connection have no direction or state to filter on.
+  if [[ ${peer_filter_static} = "static" && ${peer_filter_dir} = "all" &&
+        ${peer_filter_state} = "any" ]]; then
+    for entry in "${staticPeerList[@]}"; do
+      IFS=";" read -r -a entry_arr <<< "${entry}" # address port label ips
+      entry_ips="${entry_arr[3]:-}"
+      entry_connected=N
+      for entry_ip in ${entry_ips//,/ }; do
+        [[ -n ${connected_ip[${entry_ip}]+set} ]] && entry_connected=Y
+      done
+      [[ ${entry_connected} = Y ]] && continue
+      if [[ -n ${search} ]]; then
+        [[ "${entry_arr[0],,}:${entry_arr[1]} ${entry_ips,,}" == *"${search}"* ]] || continue
+      fi
+      # x: not connected, u: the name did not resolve. The list is split on
+      # whitespace, so the text is added when it is drawn.
+      [[ -n ${entry_ips} ]] && missing_note="x" || missing_note="u"
+      missing+=("99999;${entry_arr[0]};${entry_arr[1]};${missing_note}")
+    done
+  fi
+  peerListCNT=$((peerCNT + ${#missing[@]}))
+  if [[ ${#missing[@]} -gt 0 ]]; then
+    [[ -n ${rttResultsSorted} ]] && rttResultsSorted+=$'\n'
+    rttResultsSorted+="$(printf '%s\n' "${missing[@]}")"
+  fi
 
   peerCNTreachable=$((peerCNT-peerCNT0))
   if [[ ${peerCNTreachable} -gt 0 ]]; then
@@ -1946,7 +2074,12 @@ while true; do
   done
 
   glvEndLegacyFrame # in case a frame was abandoned
-  [[ "${oldLine}" != "${line}" ]] && oldLine=$line && clrScreen # redraw everything, total height changed
+  # Redraw everything when the total height changed, unless frames are
+  # buffered: those clear the rows below a shorter frame themselves.
+  if [[ "${oldLine}" != "${line}" ]]; then
+    oldLine=$line
+    [[ -n ${GLV_LEGACY_FRAME_FILE} ]] || clrScreen
+  fi
 
   line=1; mvPos 1 1 # reset position
 
@@ -2122,6 +2255,9 @@ while true; do
     printf "${VL} 4. ${style_values_2}ping${NC} - fallback method using ICMP ping against IP." && closeRow
     printf "${VL}    Only work if the FW of remote peer accepts ICMP traffic." && closeRow
     printf "${blank_line}\n" && ((line++))
+    printf "${VL} ${style_values_2}[t]${NC} peers - all, or static: the localRoots in topology.json," && closeRow
+    printf "${VL}    matched by address, DNS names resolved. Static peers show their" && closeRow
+    printf "${VL}    description, pool or name; unconnected ones are listed last." && closeRow
     printf "${VL} ${style_values_2}[/]${NC} search - part of an IP address or port; empty clears it." && closeRow
     printf "${VL} The view is a snapshot: press [h] and [p] again to refresh it." && closeRow
     printf "${blank_line}\n" && ((line++))
@@ -2135,10 +2271,8 @@ while true; do
     printf "${VL} ${style_values_2}[d]${NC} direction - all, out or in (both include duplex), duplex." && closeRow
     printf "${VL} ${style_values_2}[s]${NC} state - any, hot or warm, on the chosen direction's side." && closeRow
   elif [[ ${show_peers} = "true" ]]; then
-    if [[ ${openblockperf_peers_available} = true ]]; then
-      printPeerFilterBar
-      echo "${m3divider}" && ((line++))
-    fi
+    printPeerFilterBar
+    echo "${m3divider}" && ((line++))
     printf "${VL}       RTT : Peers / Percent" && closeRow
 
     printf "${VL}    0-50ms : ${style_values_1}%5s${NC}   ${style_values_1}%.f${NC}%% ${style_status_1}" "${peerCNT1}" "${peerPCT1}"
@@ -2210,8 +2344,21 @@ while true; do
         else
           peerIP="${peerData[1]}"
         fi
+        # A static peer without a connection shows its topology address.
+        [[ ${#peerIP} -gt 19 ]] && peerIP="${peerIP:0:17}.."
         IFS=',' read -ra peerLocation <<< "${geoIP[${peerData[1]}]}"; unset IFS
-        if isPrivateIP ${peerData[1]}; then
+        peerLocationStyle="${style_values_4}"
+        peerStaticLabel="${staticPeer[${peerData[1]#::ffff:}]:-}"
+        if [[ ${peerDIR} = "x" || ${peerDIR} = "u" ]]; then
+          [[ ${peerDIR} = "x" ]] && peerLocationFmt="Not connected" || peerLocationFmt="DNS failed"
+          peerLocationStyle="${style_status_3}"
+        elif [[ -n ${peerStaticLabel} ]]; then
+          # The topology's description, pool or DNS name of a static peer.
+          [[ ${#peerStaticLabel} -gt ${peerLocationWidth} ]] &&
+            peerStaticLabel="${peerStaticLabel:0:$((peerLocationWidth-2))}.."
+          peerLocationFmt="${peerStaticLabel}"
+          peerLocationStyle="${style_values_2}"
+        elif isPrivateIP ${peerData[1]}; then
           peerLocationFmt="(Private IP)"
         elif [[ ${#peerLocation[@]} -eq 2 ]]; then
           peerLocationCity="${peerLocation[0]}"
@@ -2239,28 +2386,26 @@ while true; do
           [[ ${peerScoreFmt} = 0 ]] && peerScoreFmt=""
           printf "${peerConnStyle}%-7s${NC} ${style_values_1}%5s${NC} " "${peerConnFmt}" "${peerScoreFmt}"
         fi
-        printf "${style_values_4}%s" "$(alignLeft ${peerLocationWidth} "${peerLocationFmt}")"
+        printf "${peerLocationStyle}%s" "$(alignLeft ${peerLocationWidth} "${peerLocationFmt}")"
         closeRow
         [[ ${peerNbr} -eq $((peerNbr_start+PEER_LIST_CNT-1)) ]] && break
       done
 
       [[ ${peerNbr_start} -gt 1 ]] && nav_str="< " || nav_str="  "
-      nav_str+="[${peerNbr_start}-${peerNbr}] of ${peerCNT}"
-      [[ ${peerCNT} -gt ${peerNbr} ]] && nav_str+=" >" || nav_str+="  "
-      printf "${VL} Search ${style_info}[/]${NC}"
-      if [[ -n ${peer_search} ]]; then
-        [[ ${#peer_search} -gt 22 ]] && peerSearchFmt="${peer_search:0:20}.." || peerSearchFmt="${peer_search}"
-        printf " ${style_values_3} %s ${NC}" "${peerSearchFmt}"
-      fi
+      nav_str+="[${peerNbr_start}-${peerNbr}] of ${peerListCNT}"
+      [[ ${peerListCNT} -gt ${peerNbr} ]] && nav_str+=" >" || nav_str+="  "
+      printf "${VL}"
       mvPos ${line} $((width-${#nav_str}-2))
       printf "${style_values_3} %s ${NC}" "${nav_str}"
       closeRow
-    elif [[ ${openblockperf_peers_available} = true || -n ${peer_search} ]]; then
+    else
       echo "${m3divider}" && ((line++))
-      if [[ -n ${peer_search} ]]; then
-        printf "${VL} ${style_info}No peers match '%s'. Press [/] to change the search.${NC}" "${peer_search:0:15}" && closeRow
+      if [[ ${peer_filter_static} = "static" && ${#staticPeerList[@]} -eq 0 ]]; then
+        printf "${VL} ${style_info}No localRoots found in the node's topology file.${NC}" && closeRow
+      elif [[ ${#rttResults[@]} -eq 0 ]]; then
+        printf "${VL} ${style_info}The node had no connections to analyse.${NC}" && closeRow
       else
-        printf "${VL} ${style_info}No peers match this filter. Press [d] or [s] to change it.${NC}" && closeRow
+        printf "${VL} ${style_info}No peers match the filters or the search.${NC}" && closeRow
       fi
     fi
   elif [[ ${show_home_info} = "true" ]]; then

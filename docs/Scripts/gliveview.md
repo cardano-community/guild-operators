@@ -455,9 +455,25 @@ The result groups round-trip times into 0-50, 50-100, 100-200, and over 200 ms.
 An RTT below one millisecond, typical for a peer in the same data centre, shows
 as `<1`. Left/Right changes pages.
 
-Press `/` to search for part of an IP address or port, such as `203.0.113` or
-`:6000`; an empty search clears it. The search narrows the list, the RTT
-ranges and the average, together with any filters below.
+Filter rows at the top of the view narrow the list, the RTT ranges and the
+average. Each key cycles through its choices, and the active ones are
+highlighted:
+
+| Key | Filter | Choices |
+| --- | --- | --- |
+| `t` | Peers | All, Static. Static peers are the `localRoots` access points in the topology file. |
+| `/` | Search | Part of an IP address or port, such as `203.0.113` or `:6000`. An empty search clears it. |
+| `d` | Direction | With openBlockPerf data, see below. |
+| `s` | State | With openBlockPerf data, see below. |
+
+Static peers are read from the topology file the running node was started
+with (`--topology`), or from `TOPOLOGY` otherwise. DNS names are resolved, and
+connections match by address, because a peer that connects to the node may use
+another port than its topology entry. A static peer shows the entry's
+`description`, `pool` or DNS name in place of its geolocation. With the Static
+filter, configured peers without a connection are listed after the others as
+`Not connected`, or `DNS failed` when the name did not resolve; they are not
+counted in the RTT figures.
 
 The analysis is a snapshot: the view is drawn again only after a key press or
 a terminal resize, not on a timer. Return home with `h` and press `p` to run it
@@ -487,15 +503,12 @@ two more columns:
 
 Both reset when openBlockPerf restarts.
 
-A filter row at the top of the view then narrows the list, the RTT ranges and
-the average:
+A second filter row then adds:
 
 | Key | Filter | Choices |
 | --- | --- | --- |
 | `d` | Direction | All, Out, In, Duplex. Out and In include duplex connections, as the node's connection counters do. |
 | `s` | State | Any, Hot, Warm. The state on the chosen direction's side, or the hotter side for All and Duplex. |
-
-Each key cycles through its choices, and the active ones are highlighted.
 
 `guild-deploy.sh -s r` enables the endpoint by adding
 `"local_metrics_enabled": true` to `/opt/cardano/openblockperf/config.json`,

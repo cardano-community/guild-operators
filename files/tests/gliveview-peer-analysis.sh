@@ -3,7 +3,7 @@
 set -euo pipefail
 
 if (( BASH_VERSINFO[0] < 4 )); then
-  printf 'gliveview-openblockperf skipped: Bash 4+ required\n'
+  printf 'gliveview-peer-analysis skipped: Bash 4+ required\n'
   exit 0
 fi
 
@@ -25,7 +25,8 @@ assert_eq() {
 }
 
 GLIVEVIEW="${REPO_ROOT}/scripts/common-helper-scripts/gLiveView.sh"
-for glv_function in getOpenBlockPerfPeers peerConnection peerMatchesFilter computePeerStats waitForKeyOrResize; do
+for glv_function in getOpenBlockPerfPeers peerConnection peerMatchesFilter computePeerStats \
+  waitForKeyOrResize resolvePeerAddress getStaticPeers; do
   glv_definition="$(sed -n "/^${glv_function}() {/,/^}/p" "${GLIVEVIEW}")"
   [[ -n "${glv_definition}" ]] || fail "gLiveView no longer defines ${glv_function}"
   eval "${glv_definition}"
@@ -77,9 +78,12 @@ OPENBLOCKPERF_METRICS_URL="http://127.0.0.1:14041/"
 peer_filter_dir="all"
 peer_filter_state="any"
 peer_search=""
+peer_filter_static="all"
 granularity_small=10
 declare -A peerConn=()
 declare -A peerScore=()
+declare -A staticPeer=()
+staticPeerList=()
 
 getOpenBlockPerfPeers
 assert_eq "${openblockperf_peers_available}" "true" "openBlockPerf peers available"
@@ -155,6 +159,90 @@ peer_search="no-such-peer"
 assert_filter all any ""
 peer_search=""
 
+# Static peers are the localRoots access points in the topology. Names are
+# resolved without the network: getent first, dig when getent finds nothing.
+timeout() {
+  shift
+  "$@"
+}
+getent() {
+  [[ $1 = "ahosts" ]] || return 2
+  case $2 in
+    relay.example.com)
+      printf '198.51.100.4    STREAM relay.example.com\n198.51.100.4    DGRAM\n2001:db8::7     STREAM\n' ;;
+    *) return 2 ;;
+  esac
+}
+dig() {
+  [[ "${*: -1}" = "dig-only.example.com" ]] || return 0
+  case "${*: -2:1}" in
+    A) printf 'alias.example.com.\n192.0.2.201\n' ;;
+  esac
+}
+CNODE_PID=""
+TOPOLOGY="${TEST_ROOT}/topology.json"
+cat > "${TOPOLOGY}" <<'EOF'
+{
+  "localRoots": [
+    {
+      "accessPoints": [
+        {"address": "203.0.113.10", "port": 3001, "description": "Relay 1"},
+        {"address": "relay.example.com", "port": 6000},
+        {"address": "192.0.2.200", "port": 3001, "pool": "ABC"}
+      ],
+      "advertise": false,
+      "trustable": true,
+      "hotValency": 3
+    },
+    {
+      "accessPoints": [
+        {"address": "missing.example.com", "port": 3001},
+        {"address": "dig-only.example.com", "port": 3001}
+      ]
+    }
+  ],
+  "publicRoots": [{"accessPoints": [{"address": "192.0.2.250", "port": 3001}]}]
+}
+EOF
+getStaticPeers
+assert_eq "$(printf '%s\n' "${staticPeerList[@]}")" "$(printf '%s\n' \
+  "203.0.113.10;3001;Relay 1;203.0.113.10" \
+  "relay.example.com;6000;relay.example.com;198.51.100.4,2001:db8::7" \
+  "192.0.2.200;3001;ABC;192.0.2.200" \
+  "missing.example.com;3001;missing.example.com;" \
+  "dig-only.example.com;3001;dig-only.example.com;192.0.2.201")" \
+  "localRoots access points with their labels and addresses"
+assert_eq "${staticPeer[203.0.113.10]:-}|${staticPeer[198.51.100.4]:-}|${staticPeer[2001:db8::7]:-}" \
+  "Relay 1|relay.example.com|relay.example.com" "static peer labels by address"
+[[ -z ${staticPeer[192.0.2.250]+set} ]] || fail "a publicRoots entry was taken as a static peer"
+
+# Connected static peers match by address; the others follow, x when not
+# connected and u when the name did not resolve.
+peer_filter_static="static"
+computePeerStats
+# relay.example.com also resolves to the IPv6 peer.
+assert_eq "$(selected_peers)" \
+  "203.0.113.10;43122 203.0.113.10;3001 198.51.100.4;6000 2001:db8::7;3001 192.0.2.200;3001 missing.example.com;3001 dig-only.example.com;3001" \
+  "static peers"
+assert_eq "$(printf '%s\n' "${rttResultsSorted}" | tail -n 3 | cut -d';' -f4 | paste -sd' ' -)" "x u x" \
+  "static peers without a connection"
+assert_eq "${peerCNT}/${peerListCNT}/${peerRTTAVG}" "4/7/33" \
+  "unconnected static peers are listed but not counted"
+peer_filter_dir="out"
+computePeerStats
+assert_eq "$(selected_peers)" "203.0.113.10;3001 2001:db8::7;3001" "static peers with a direction filter"
+peer_filter_dir="all"
+peer_search="192.0.2.20"
+computePeerStats
+assert_eq "$(selected_peers)" "192.0.2.200;3001 dig-only.example.com;3001" \
+  "search on unconnected static peers"
+peer_search=""
+TOPOLOGY="${TEST_ROOT}/missing-topology.json"
+getStaticPeers
+computePeerStats
+assert_eq "${#staticPeerList[@]}/${peerListCNT}" "0/0" "no topology file"
+peer_filter_static="all"
+
 # Without openBlockPerf data the filters fall back to every peer.
 PEERS_FIXTURE='{"peers": [], "relevance_orphans": [], "relevance_window_seconds": 1800}'
 getOpenBlockPerfPeers
@@ -211,4 +299,4 @@ if sleep 2 | waitForKeyOrResize; then
 fi
 [[ -e "${CLEARED}" ]] || fail "a resized terminal was not cleared before redrawing"
 
-printf 'gliveview-openblockperf: ok\n'
+printf 'gliveview-peer-analysis: ok\n'
