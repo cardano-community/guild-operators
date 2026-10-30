@@ -25,7 +25,7 @@ assert_eq() {
 }
 
 GLIVEVIEW="${REPO_ROOT}/scripts/common-helper-scripts/gLiveView.sh"
-for glv_function in getNodePeerState readNodeRemoteStates saveNodeRemoteStates peerConnection \
+for glv_function in getNodePeerState getCnodePeerState getAmaruPeerState readNodePeerLog saveNodePeerLog peerConnection \
   peerConnAvailable peerScoreFor peerMatchesFilter computePeerStats waitForKeyOrResize \
   resolvePeerAddress getStaticPeers staticPeerLabelFor; do
   glv_definition="$(sed -n "/^${glv_function}() {/,/^}/p" "${GLIVEVIEW}")"
@@ -54,7 +54,7 @@ node_peer_state_available=false
 # log. The process cannot exist, so no unit is found and the journal is
 # matched by PID.
 NODE_IMPLEMENTATION="cnode"
-ENABLE_NODE_STATE_DUMP=Y
+ENABLE_NODE_PEER_STATE=Y
 CNODE_PID=99999999
 PS_COMM="cardano-node"
 PS_LSTART="Thu Oct 29 23:28:17 2026"
@@ -173,9 +173,9 @@ node_state_skipped() {
   assert_eq "${node_peer_state_available}" "false" "$1: no node state"
   [[ ! -s "${KILL_CALLS}" ]] || fail "$1: the node was signalled"
 }
-ENABLE_NODE_STATE_DUMP=N
+ENABLE_NODE_PEER_STATE=N
 node_state_skipped "node state disabled"
-ENABLE_NODE_STATE_DUMP=Y
+ENABLE_NODE_PEER_STATE=Y
 NODE_IMPLEMENTATION="dingo"
 node_state_skipped "another implementation"
 NODE_IMPLEMENTATION="cnode"
@@ -468,7 +468,7 @@ assert_eq "${#staticPeerList[@]}/${peerListCNT}" "0/0" "no topology file"
 peer_filter_static="all"
 
 # Without the node's data only the search and the Static filter apply.
-ENABLE_NODE_STATE_DUMP=N
+ENABLE_NODE_PEER_STATE=N
 getNodePeerState
 assert_eq "${node_peer_state_available}/${#nodeConnUse[@]}/${#nodeRemoteTemp[@]}" "false/0/0" "node data cleared"
 peer_filter_dir="out"
@@ -479,6 +479,157 @@ peer_search="198.51"
 computePeerStats
 assert_eq "$(selected_peers)" "198.51.100.4;6000" "search without the node's data"
 peer_search=""
+
+# Amaru logs its connections and the peers that delivered headers and blocks
+# first as text at INFO. It dials from its listen port, 3000, unless told to
+# use ephemeral ports, so connections are matched by the peer's address. It
+# handles no SIGUSR1, so it is never signalled.
+amaru_line() {
+  printf '2026-10-31T08:%02d:00.000000Z  INFO amaru::%s: %s %s' "$(( ${#LOG_LINES[@]} % 60 ))" "$1" "$2" "$3"
+}
+handshake() {
+  amaru_line protocols manager.peer.handshake_completed "peer=\"$1\" conn_id=$2 role=\"$3\" full_duplex=true advertisable=false"
+}
+local_use() {
+  amaru_line protocols manager.peer.local_use_applied "peer=\"$1\" conn_id=$2 local_use=\"$3\""
+}
+remote_use() {
+  amaru_line protocols peer_selection.peer.remote_use "peer=\"$1\" conn_id=$2 remote_use=\"$3\""
+}
+announced() {
+  amaru_line blockperf header.announced "peer=\"$1\" header_hash=\"$2\" rank=$3 slot_latency_ms=300"
+}
+received() {
+  amaru_line blockperf block.received "peer=\"$1\" header_hash=\"$2\" rank=$3 slot_latency_ms=302 fetch_latency_ms=63"
+}
+NODE_IMPLEMENTATION="amaru"
+ENABLE_NODE_PEER_STATE=Y
+CNODE_PID=99999999
+PS_COMM="cardano-node"
+node_state_skipped "Amaru adapter on a cardano-node process"
+PS_COMM="amaru"
+PS_LSTART="Sat Oct 31 08:00:00 2026"
+PEER_STATE_FILE="${TEST_ROOT}/amaru.peerstate"
+# 54.194.143.142 reconnected, and a late line of its old connection follows.
+# 192.0.2.99 has disconnected since.
+LOG_LINES=()
+LOG_LINES+=("$(handshake 3.126.235.206:30000 0 initiator)")
+LOG_LINES+=("$(local_use 3.126.235.206:30000 0 diffusion)")
+LOG_LINES+=("$(handshake 3.248.56.78:3001 1 initiator)")
+LOG_LINES+=("$(local_use 3.248.56.78:3001 1 diffusion)")
+LOG_LINES+=("$(remote_use 3.248.56.78:3001 1 maintenance)")
+LOG_LINES+=("$(handshake 54.194.143.142:30000 2 initiator)")
+LOG_LINES+=("$(local_use 54.194.143.142:30000 2 diffusion)")
+LOG_LINES+=("$(handshake 54.194.143.142:30000 7 initiator)")
+LOG_LINES+=("$(remote_use 54.194.143.142:30000 2 diffusion)")
+LOG_LINES+=("$(local_use 54.194.143.142:30000 7 maintenance)")
+LOG_LINES+=("$(handshake 198.51.100.4:41000 3 responder)")
+LOG_LINES+=("$(remote_use 198.51.100.4:41000 3 maintenance)")
+LOG_LINES+=("$(remote_use 198.51.100.4:41000 3 diffusion)")
+LOG_LINES+=("$(handshake 198.51.100.5:41001 4 responder)")
+LOG_LINES+=("$(handshake '[2001:db8::7]:3001' 5 initiator)")
+LOG_LINES+=("$(local_use '[2001:db8::7]:3001' 5 maintenance)")
+LOG_LINES+=("$(handshake '[::ffff:192.0.2.80]:43000' 6 responder)")
+LOG_LINES+=("$(remote_use '[::ffff:192.0.2.80]:43000' 6 diffusion)")
+LOG_LINES+=("$(handshake 203.0.113.20:3001 8 initiator)")
+LOG_LINES+=("$(local_use 203.0.113.20:3001 8 diffusion)")
+LOG_LINES+=("$(handshake 192.0.2.99:3001 9 initiator)")
+LOG_LINES+=("$(local_use 192.0.2.99:3001 9 diffusion)")
+LOG_LINES+=("$(announced 3.126.235.206:30000 aa01 1)")
+LOG_LINES+=("$(announced 3.248.56.78:3001 aa01 2)")
+LOG_LINES+=("$(announced 54.194.143.142:30000 aa01 1)")
+LOG_LINES+=("$(received 3.126.235.206:30000 aa01 1)")
+LOG_LINES+=("$(announced 3.248.56.78:3001 aa02 1)")
+LOG_LINES+=("$(received 3.248.56.78:3001 aa02 1)")
+LOG_LINES+=("$(announced 3.248.56.78:3001 aa03 1)")
+LOG_LINES+=("$(received 3.126.235.206:30000 aa03 1)")
+LOG_LINES+=("$(announced 192.0.2.99:3001 aa04 1)")
+LOG_LINES+=("$(received 3.126.235.206:30000 aa04 1)")
+LOG_LINES+=("$(amaru_line consensus tip.adopt 'slot=137717247 header_hash="aa04" block_height=5354836')")
+# The node's TCP connections as checkPeers lists them, "remote|local". The
+# loopback one is Amaru's OTLP export, which its log does not know.
+peers_in="3.126.235.206:30000|192.168.0.201:3000
+3.248.56.78:3001|192.168.0.201:3000
+54.194.143.142:30000|192.168.0.201:3000
+198.51.100.4:41000|192.168.0.201:3000
+198.51.100.5:41001|192.168.0.201:3000
+[2001:db8::7]:3001|[2001:db8::1]:3000
+[::ffff:192.0.2.80]:43000|[::ffff:192.168.0.201]:3000"
+peers_out="203.0.113.20:3001|192.168.0.201:45678
+127.0.0.1:4317|127.0.0.1:58612"
+: > "${KILL_CALLS}"
+: > "${JOURNAL_CALLS}"
+: > "${STATUS_CALLS}"
+getNodePeerState
+assert_eq "${node_peer_state_available}" "true" "Amaru state available"
+[[ ! -s "${KILL_CALLS}" ]] || fail "Amaru was signalled: $(cat "${KILL_CALLS}")"
+grep -q -- "--show-cursor _PID=99999999 --since @" "${JOURNAL_CALLS}" ||
+  fail "Amaru's log was not read since it started: $(cat "${JOURNAL_CALLS}")"
+assert_eq "$(paste -sd'|' - < "${STATUS_CALLS}")" \
+  "Reading the node's log since it started...|Peer analysis started... please wait!" \
+  "Amaru status while the whole log is read"
+assert_eq "$(conn_cell 3.126.235.206 30000 3000)" "out H" "Amaru outbound hot"
+assert_eq "$(conn_cell 3.248.56.78 3001 3000)" "dup H/W" "Amaru duplex: the node's side, then the peer's"
+assert_eq "$(conn_cell 54.194.143.142 30000 3000)" "out W" "Amaru reconnection ignores the old connection's lines"
+assert_eq "$(conn_cell 198.51.100.4 41000 3000)" "in H" "Amaru inbound hot"
+assert_eq "$(conn_cell 198.51.100.5 41001 3000)" "idle" "Amaru connection neither side uses"
+assert_eq "$(conn_cell 2001:db8::7 3001 3000)" "out W" "Amaru IPv6 connection"
+assert_eq "$(conn_cell ::ffff:192.0.2.80 43000 3000)" "in H" "Amaru IPv4-mapped address"
+assert_eq "$(conn_cell 203.0.113.20 3001 45678)" "out H" "Amaru outbound connection from an ephemeral port"
+assert_eq "$(conn_cell 127.0.0.1 4317 58612)" "" "connection Amaru's log does not know"
+assert_eq "${#nodeConnUse[@]}" "8" "Amaru connections"
+assert_eq "$(score_cell 3.126.235.206 30000)|$(score_cell 3.248.56.78 3001)|$(score_cell 54.194.143.142 30000)|$(score_cell 203.0.113.20 3001)" \
+  "4|3||" "Amaru first headers plus first blocks"
+assert_eq "$(grep -v '^#' "${PEER_STATE_FILE}" | LC_ALL=C sort)" "$(printf '%s\n' \
+  "conn	192.0.2.80;43000	6	none	diffusion" \
+  "conn	198.51.100.4;41000	3	none	diffusion" \
+  "conn	198.51.100.5;41001	4	none	none" \
+  "conn	2001:db8::7;3001	5	maintenance	none" \
+  "conn	203.0.113.20;3001	8	diffusion	none" \
+  "conn	3.126.235.206;30000	0	diffusion	none" \
+  "conn	3.248.56.78;3001	1	diffusion	maintenance" \
+  "conn	54.194.143.142;30000	7	maintenance	none" \
+  "cursor	c33" \
+  "first	block	aa01	3.126.235.206;30000" \
+  "first	block	aa02	3.248.56.78;3001" \
+  "first	block	aa03	3.126.235.206;30000" \
+  "first	block	aa04	3.126.235.206;30000" \
+  "first	header	aa01	3.126.235.206;30000" \
+  "first	header	aa02	3.248.56.78;3001" \
+  "first	header	aa03	3.248.56.78;3001" \
+  "first	header	aa04	192.0.2.99;3001" \
+  "run	99999999:Sat Oct 31 08:00:00 2026")" "Amaru peer state file"
+
+# The next analysis reads on from the cursor. SCORE counts the last 180
+# headers and the last 180 blocks.
+LOG_LINES+=("$(remote_use 3.126.235.206:30000 0 maintenance)")
+LOG_LINES+=("$(local_use 3.248.56.78:3001 1 none)")
+for header in $(seq 1 185); do
+  LOG_LINES+=("$(announced 203.0.113.20:3001 "bb${header}" 1)")
+done
+: > "${JOURNAL_CALLS}"
+: > "${STATUS_CALLS}"
+getNodePeerState
+grep -q -- "--after-cursor c33" "${JOURNAL_CALLS}" ||
+  fail "Amaru's log was not read on from the saved cursor: $(cat "${JOURNAL_CALLS}")"
+[[ ! -s "${STATUS_CALLS}" ]] || fail "reading Amaru's log on from the cursor showed a status"
+assert_eq "$(conn_cell 3.126.235.206 30000 3000)|$(conn_cell 3.248.56.78 3001 3000)|$(conn_cell 198.51.100.4 41000 3000)" \
+  "dup H/W|in W|in H" "new Amaru lines update saved states"
+assert_eq "$(score_cell 203.0.113.20 3001)|$(score_cell 3.126.235.206 30000)|$(score_cell 3.248.56.78 3001)" \
+  "180|3|1" "Amaru scores over the last 180 headers and blocks"
+assert_eq "$(grep -c '^first	header	' "${PEER_STATE_FILE}")|$(grep '^first	header	' "${PEER_STATE_FILE}" | head -n 1 | cut -f3)" \
+  "180|bb6" "Amaru keeps the last 180 headers, oldest first"
+
+# A restarted Amaru reads its whole log again.
+PS_LSTART="Sat Oct 31 09:00:00 2026"
+LOG_LINES=("$(handshake 3.126.235.206:30000 0 initiator)")
+: > "${JOURNAL_CALLS}"
+getNodePeerState
+grep -q -- "--show-cursor _PID=99999999 --since @" "${JOURNAL_CALLS}" || fail "restarted Amaru: no full read"
+assert_eq "$(conn_cell 3.126.235.206 30000 3000)|$(conn_cell 3.248.56.78 3001 3000)|${#nodePeerScore[@]}" \
+  "idle||0" "restarted Amaru drops the saved state"
+NODE_IMPLEMENTATION="cnode"
+PS_COMM="cardano-node"
 
 # Static views wait for a key, and redraw only when the terminal is resized.
 TERM_SIZE_CALLS="${TEST_ROOT}/tput.calls"

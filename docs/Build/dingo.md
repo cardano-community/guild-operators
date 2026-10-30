@@ -309,8 +309,9 @@ KES periods, calculated KES expiry, credential validity, scheduled and won
 leader slots, forged/adopted outcomes, and lost leader slots are shown when
 exported. Verbose mode adds the operational-certificate counters on disk and
 on chain, leadership checks, non-leader and failed-forge counters,
-operational-certificate KES bounds, and Dingo-specific forge diagnostics. CNCLI blocklog, Koios pool data, Mithril signer, and
-interactive peer analysis remain cnode-only.
+operational-certificate KES bounds, and Dingo-specific forge diagnostics. CNCLI blocklog, Koios pool data and Mithril signer
+remain cnode-only, and interactive peer analysis is not available for Dingo,
+which exports no per-peer connection data.
 
 The Dingo adapter exposes `cardano-cli-dingo` and
 `$NODE_HOME/sockets/dingo.socket` for future CNTools local-mode actions. To use

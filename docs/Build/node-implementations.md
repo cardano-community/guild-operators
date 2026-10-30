@@ -283,8 +283,9 @@ For Dingo, `capabilities.forging: true` records that the implementation profile
 can forge; it does not claim that every deployed process is a producer. The
 launcher selects the live role from the complete operational hot-key set and
 gLiveView confirms it from Dingo's `forging_enabled` metric. A Dingo producer
-uses the common KES and block-production display. CNCLI blocklog, Koios pool,
-Mithril signer, and interactive peer-analysis sections remain cnode-only. See the
+uses the common KES and block-production display. CNCLI blocklog, Koios pool
+and Mithril signer sections remain cnode-only, and interactive peer analysis is
+available for cnode and Amaru. See the
 [gLiveView guide](../Scripts/gliveview.md) for the displayed metric groups.
 
 ## Current helper compatibility

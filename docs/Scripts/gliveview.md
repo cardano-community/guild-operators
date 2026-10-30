@@ -64,7 +64,7 @@ Usage: gLiveView.sh [-l] [-u] [-b <branch name>] [-v]
 | `v` | Toggle compact and verbose metrics | All implementations |
 | `n` | Open static node, network, and deployment information | All implementations |
 | `i` | Open the concise built-in field guide | All implementations |
-| `p` | Run one-shot peer analysis | cnode only |
+| `p` | Run one-shot peer analysis | cnode and Amaru |
 | `h` | Return to the main dashboard | Information, Network, and peer views |
 | `q` or `Esc` | Exit | All views |
 
@@ -141,7 +141,7 @@ user on a host that keeps the journal only in memory, needs to be in the
 Connection counts and peer-set counts are related but not interchangeable. A
 peer can own more than one protocol connection, and direction counters do not
 grant gLiveView permission to inspect peer addresses. Detailed peer analysis
-is a separate cnode-only capability.
+is a separate capability, available for cnode and Amaru.
 
 ### Block propagation
 
@@ -372,8 +372,9 @@ only available when `amaru.sh run` is started from an interactive terminal.
 Under systemd, gLiveView shows the same node, chain, mempool, resource, and
 block-timing data that Amaru exports as metrics. Its per-peer table, peer-set
 sizes, round-trip times, protocol version, and stake and governance views are
-produced from in-process traces and are not exported, so gLiveView cannot show
-them.
+produced from in-process traces and are not exported as metrics. gLiveView's
+[peer analysis](#peer-analysis) rebuilds the connections and first deliveries
+of the per-peer table from Amaru's log.
 
 Amaru exports no connection-manager counters. gLiveView counts the node
 process's established TCP sessions as `Total` in the Connections section.
@@ -432,11 +433,11 @@ Long values are clipped to the fixed terminal cell and end in `~`. Large
 integer values are compacted where appropriate. These display limits do not
 alter the underlying metric.
 
-## Peer analysis: cnode only
+## Peer analysis
 
-Press `p` when using cnode to run a one-shot latency analysis. This view is not
-live and is not available to Dingo or Amaru, even when their dashboards show
-aggregate connection metrics.
+Press `p` when using cnode or Amaru to run a one-shot latency analysis. This
+view is not live. It is not available to Dingo, which exports no per-peer
+connection data, even though its dashboard shows aggregate connection metrics.
 
 Latency methods are attempted in `LATENCY_TOOLS` order:
 
@@ -466,7 +467,7 @@ highlighted:
 
 | Key | Filter | Choices |
 | --- | --- | --- |
-| `t` | Peers | All, Static. Static peers are the `localRoots` access points in the topology file. |
+| `t` | Peers | All, Static. Static peers are the `localRoots` access points in the topology file. cnode only. |
 | `/` | Search | Part of an IP address or port, such as `203.0.113` or `:6000`. An empty search clears it. |
 | `d` | Direction | With the node's data, see below. |
 | `s` | State | With the node's data, see below. |
@@ -494,53 +495,74 @@ script in `gLiveView.sh.geodb`.
 
 ### Connection use, peer states and scores
 
-Peer analysis reads two more columns from the node itself:
+On cnode and Amaru, peer analysis reads two more columns from the node itself:
 
 - `CONN` says who uses the connection: `out` when the node fetches from the
   peer, `in` when the peer fetches from the node, `dup` when both happen over
-  the same duplex connection, and `idle` when neither does and the connection
-  is about to close. The letter after it is the hot (`H`) or warm (`W`) state:
-  the node's view of the peer for `out`, the peer's view of the node for `in`,
-  and both for `dup`, the node's side first, as in `dup H/W`. Connections are
-  told apart by the ports on both ends, so two connections to the same peer
-  each show their own use. The cell is empty for a connection that was still
-  being set up or closed, or one opened during the analysis.
+  the same duplex connection, and `idle` when neither does. The letter after
+  it is the hot (`H`) or warm (`W`) state: the node's view of the peer for
+  `out`, the peer's view of the node for `in`, and both for `dup`, the node's
+  side first, as in `dup H/W`. The cell is empty for a connection that was
+  still being set up or closed, or one opened during the analysis.
 - `SCORE` is the number of block headers the peer delivered first plus the
-  number of blocks the node fetched from it first, over the node's recent
-  history. The node ranks its hot peers by these counts. Only peers the node
-  fetches from can score, so most cells are empty.
+  number of blocks the node fetched from it first, among the last 180 headers
+  and the last 180 blocks. cardano-node ranks its hot peers by these counts.
+  Only peers the node fetches from can score, so most cells are empty.
 
-Both come from the node's journal, in two ways:
+Both come from the node's journal. The node logs only changes to its
+connections, never their current state, so gLiveView needs every line since
+the node started. The first analysis after the node starts reads the whole log
+since then, which takes a few seconds for a day of a busy cardano-node relay's
+log. gLiveView then saves what it found, with the position it read up to, in
+`gLiveView.sh.peerstate` next to the script, and later analyses read only the
+log written since. If the journal no longer holds the start of the node's run,
+connections opened before that lack what their log lines said: the peer's
+letter on cardano-node, the whole cell on Amaru.
 
-- **Connections, the node's side and the score.** gLiveView sends the node `SIGUSR1`,
-  which makes it write its connection manager and peer selection state to its
-  log. The node refreshes its hot and warm sets for this dump at most every
-  83 seconds, so a peer that changed state in that time can show its previous
-  state, and a node started a minute or two ago shows none.
+`ENABLE_NODE_PEER_STATE=N` turns the columns off. Both need the node running
+as a systemd service that logs to the journal, and gLiveView able to read the
+node's journal, as described under [Chain](#chain).
+
+#### cardano-node
+
+- **Connections, the node's side and the score.** gLiveView sends the node
+  `SIGUSR1`, which makes it write its connection manager and peer selection
+  state to its log. The node refreshes its hot and warm sets for this dump at
+  most every 83 seconds, so a peer that changed state in that time can show
+  its previous state, and a node started a minute or two ago shows none.
 - **The peer's side.** The node logs a line each time a peer promotes or
-  demotes it, but never the current state, so gLiveView needs the latest line
-  of each connection since the node started. The first analysis after the
-  node starts reads the whole log since then, which takes a few seconds for a
-  day of a busy relay's log. gLiveView then saves what it found, with the
-  position it read up to, in `gLiveView.sh.peerstate` next to the script, and
-  later analyses read only the log written since. If the journal no longer
-  holds the start of the node's run, connections from before that show no
-  peer letter.
+  demotes it, which gLiveView follows in the log.
 
-This needs:
-
-- cardano-node running as a systemd service that logs JSON to the journal
-  (`Stdout MachineFormat`), with `Net.ConnectionManager.Remote`,
-  `Net.InboundGovernor.Remote` and `Net.PeerSelection` traced at `Info`, as
-  in the Guild configuration.
-- gLiveView running as the node's user, so that it can signal the node, with
-  read access to the node's journal, as described under [Chain](#chain).
+Connections are told apart by the ports on both ends, so two connections to
+the same peer each show their own use. This needs cardano-node to log JSON
+(`Stdout MachineFormat`), with `Net.ConnectionManager.Remote`,
+`Net.InboundGovernor.Remote` and `Net.PeerSelection` traced at `Info`, as in
+the Guild configuration, and gLiveView to run as the node's user, so that it
+can signal the node.
 
 Each analysis adds the dump to the node's log, about 100 KB for a relay with
 400 connections. journald splits lines longer than 48 KiB, and gLiveView joins
 them again. Other tools that read the node's log, such as openBlockPerf, may
-log a parse warning for each part. `ENABLE_NODE_STATE_DUMP=N` turns the
-columns off.
+log a parse warning for each part.
+
+#### Amaru
+
+Amaru logs, at `Info`, each connection's handshake, its own use of the
+connection and the peer's: `none`, `maintenance` (warm) or `diffusion` (hot).
+Once it follows the tip, it also logs which peer announced each header and
+delivered each block first, so `SCORE` stays empty while it catches up.
+gLiveView counts those first deliveries itself, in the same window
+cardano-node keeps. Amaru is never signalled: it does not handle `SIGUSR1`.
+
+Amaru knows a connection by the peer's address and, by default, dials out from
+its listen port, so connections are matched by the peer's address and port.
+Its connection to the local OpenTelemetry collector is left out of the list.
+Amaru has no topology file, so the Static filter is not offered.
+
+This needs Amaru's default text log, as the Guild profile sets it:
+`AMARU_LOG` with `amaru=info` and `AMARU_WITH_JSON_TRACES=false`.
+
+#### Filters
 
 With the node's data, a second filter row adds:
 
@@ -611,13 +633,13 @@ tracker](https://github.com/cardano-community/guild-operators/issues).
 #REPAINT_RATE=10                          # Seconds between row reconciliations
 #LEGACY_MODE=false                        # true uses ASCII borders
 #RETRIES=3                                # Attempts; 0 retries continuously
-#PEER_LIST_CNT=10                         # Peers per cnode analysis page
+#PEER_LIST_CNT=10                         # Peers per analysis page
 #THEME="dark"                             # dark | light
 #ENABLE_IP_GEOLOCATION=Y                  # Geolocate peer addresses
 #LATENCY_TOOLS="ss|cncli|tcptraceroute|ping"
 #CNCLI_CONNECT_ONLY=false                 # false performs full handshake
 #HIDE_DUPLICATE_IPS=N                     # Filter duplicate/local peer IPs
-#ENABLE_NODE_STATE_DUMP=Y                 # Read peer data from the node (SIGUSR1)
+#ENABLE_NODE_PEER_STATE=Y                 # Read peer data from the node's journal
 #VERBOSE=N                                # Y starts in verbose mode
 #GLV_LOG="${LOG_DIR}/gLiveView.log"       # Empty disables the error log
 ```

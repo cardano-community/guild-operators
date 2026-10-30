@@ -20,7 +20,7 @@
 #LATENCY_TOOLS="ss|cncli|tcptraceroute|ping" # Preferred latency check tool order, valid entries: ss|cncli|tcptraceroute|ping (must be separated by |)
 #CNCLI_CONNECT_ONLY=false                 # By default cncli measure full connect handshake duration. If set to false, only connect is measured similar to other tools
 #HIDE_DUPLICATE_IPS=N                     # If set to 'Y', duplicate and local IP's will be filtered out in peer analysis, else all connected peers are shown (default: N)
-#ENABLE_NODE_STATE_DUMP=Y                 # Read connection use, peer states and scores in peer analysis from cardano-node's state dump (SIGUSR1) and log in its journal (default: Y)
+#ENABLE_NODE_PEER_STATE=Y                 # Read connection use, peer states and scores in peer analysis from the node's journal: cardano-node's log and state dump (SIGUSR1), or Amaru's log (default: Y)
 #VERBOSE=N                               # Start in verbose mode showing additional metrics (default: N)
 #GLV_LOG="${LOG_DIR}/gLiveView.log"       # Log gLiveView errors, set empty to disable. LOG_DIR set in env file.
 
@@ -302,17 +302,17 @@ declare -gA geoIP=()
 
 [[ -z ${HIDE_DUPLICATE_IPS} ]] && HIDE_DUPLICATE_IPS=N
 
-[[ -z ${ENABLE_NODE_STATE_DUMP} ]] && ENABLE_NODE_STATE_DUMP=Y
+[[ -z ${ENABLE_NODE_PEER_STATE} ]] && ENABLE_NODE_PEER_STATE=Y
 declare -gA nodeConnUse=()   # "ip;remote port;local port" -> dup, out, in or idle
 declare -gA nodePeerTemp=()  # "ip;port" -> H or W on the node's outbound side
 declare -gA nodePeerScore=() # "ip;port" -> headers first plus blocks fetched first
 declare -gA nodeRemoteTemp=() # "ip;remote port;local port" -> H, W or C on the peer's side
 node_peer_state_available=false
-PEER_STATE_FILE="$0.peerstate" # the peer side's states and how far the node's log was read
+PEER_STATE_FILE="$0.peerstate" # what was read from the node's log of its connections, and how far
 peer_filter_dir="all"     # all | out | in | dup, cycled with [d] in peer analysis
 peer_filter_state="any"   # any | hot | warm, cycled with [s] in peer analysis
 peer_search=""            # IP or port substring, entered with [/] in peer analysis
-peer_filter_static="all"  # all | static (topology localRoots), toggled with [t]
+peer_filter_static="all"  # all | static (topology localRoots), toggled with [t] on nodes with a topology file
 declare -gA staticPeer=() # resolved IP of a localRoots access point -> its label(s)
 declare -gA staticPeerPort=()    # "ip;port" of a localRoots access point -> its label
 declare -gA staticPeerEntries=() # resolved IP -> number of access points using it
@@ -503,7 +503,7 @@ waitForInput() {
       clrScreen
       return
     fi
-    if [[ ${key1} = "t" ]]; then
+    if [[ ${key1} = "t" ]] && node_has topology_file; then
       [[ ${peer_filter_static} = "all" ]] && peer_filter_static="static" || peer_filter_static="all"
       computePeerStats
       peerNbr_start=1
@@ -1499,6 +1499,8 @@ checkPeers() {
     if [[ -z ${peerIP} || -z ${peerPORT} || (${HIDE_DUPLICATE_IPS} = 'Y' && ${peerIP} = 127.0.0.1) || (${HIDE_DUPLICATE_IPS} = 'Y' && ${peerIP} = "${ext_ip_resolve}" && ${peerPORT} = "${CNODE_PORT}") ]]; then
       continue
     fi
+    # The node's own telemetry export, such as Amaru's OTLP connection, is not a peer.
+    [[ ${peerPORT} = "${NODE_TELEMETRY_PORT:-}" && ${peerIP} =~ ^(127\.|::1$|::ffff:127\.) ]] && continue
 
     [[ ${HIDE_DUPLICATE_IPS} = 'Y' && $(getArrayIndex "${peerIP};" "${peersFiltered[@]}") -ge 0 ]] && continue # IP already added and duplicates not wanted
 
@@ -1523,6 +1525,8 @@ checkPeers() {
     if [[ -z ${peerIP} || -z ${peerPORT} || (${HIDE_DUPLICATE_IPS} = 'Y' && ${peerIP} = 127.0.0.1) || (${HIDE_DUPLICATE_IPS} = 'Y' && ${peerIP} = "${ext_ip_resolve}" && ${peerPORT} = "${CNODE_PORT}") ]]; then
       continue
     fi
+    # The node's own telemetry export, such as Amaru's OTLP connection, is not a peer.
+    [[ ${peerPORT} = "${NODE_TELEMETRY_PORT:-}" && ${peerIP} =~ ^(127\.|::1$|::ffff:127\.) ]] && continue
 
     if [[ ${HIDE_DUPLICATE_IPS} = 'Y' ]]; then
       local peerIndex;peerIndex=$(getArrayIndex "${peerIP};" "${peersFiltered[@]}")
@@ -1613,7 +1617,7 @@ checkPeers() {
       ' <<< "${geoIPdata}" 2>/dev/null)
   done
 
-  getStaticPeers
+  node_has topology_file && getStaticPeers
   computePeerStats
 }
 
@@ -1783,20 +1787,25 @@ peerMatchesFilter() {
 
 # Command    : printPeerFilterBar
 # Description: Print the peer analysis filter rows, every choice listed and the
-#              active ones highlighted: Peers [t] and Search [/] always, and
-#              Direction [d] and State [s] with connection data.
+#              active ones highlighted: Search [/] always, Peers [t] for a
+#              node with a topology file, and Direction [d] and State [s]
+#              with connection data.
 printPeerFilterBar() {
   local option label search_fmt
   local second_col=41
-  printf "${VL} %-9s ${style_info}[t]${NC}" "Peers"
-  for option in all static; do
-    case ${option} in
-      all) label="All" ;; static) label="Static" ;;
-    esac
-    [[ ${option} = "${peer_filter_static}" ]] && printf "${style_values_3} %s ${NC}" "${label}" || printf " %s " "${label}"
-  done
-  mvPos ${line} ${second_col}
-  printf "%-6s ${style_info}[/]${NC}" "Search"
+  if node_has topology_file; then
+    printf "${VL} %-9s ${style_info}[t]${NC}" "Peers"
+    for option in all static; do
+      case ${option} in
+        all) label="All" ;; static) label="Static" ;;
+      esac
+      [[ ${option} = "${peer_filter_static}" ]] && printf "${style_values_3} %s ${NC}" "${label}" || printf " %s " "${label}"
+    done
+    mvPos ${line} ${second_col}
+    printf "%-6s ${style_info}[/]${NC}" "Search"
+  else
+    printf "${VL} %-9s ${style_info}[/]${NC}" "Search"
+  fi
   if [[ -n ${peer_search} ]]; then
     [[ ${#peer_search} -gt 16 ]] && search_fmt="${peer_search:0:14}.." || search_fmt="${peer_search}"
     printf "${style_values_3} %s ${NC}" "${search_fmt}"
@@ -1917,39 +1926,33 @@ computePeerStats() {
 }
 
 # Command    : getNodePeerState
-# Description: Read the node's own view of its connections. On SIGUSR1,
-#              cardano-node writes its connection manager state
-#              (Net.ConnectionManager.Remote.State) and its peer selection
-#              state (Net.PeerSelection.Selection.DebugState) to its log, and
-#              both are read back from its journal. journald splits a line
-#              longer than its LineMax, 48 KiB by default, so a record runs
-#              until the next line that starts a trace. The signal stops a
-#              process that does not handle it, so it is sent only to a
-#              cardano-node process, and only when its journal can be read.
-#              nodeConnUse, keyed by "ip;remote port;local port", holds who
-#              uses the connection: dup (both sides), out (the node's
-#              outbound side), in (the peer's side) or idle (neither).
-#              Connections still negotiating or closing are left out.
-#              nodePeerTemp, keyed by the peer's "ip;port", holds H for the
-#              node's active (hot) peers and W for its other established
-#              (warm) ones. nodePeerScore, keyed the same way, holds the
-#              headers the peer delivered first plus the blocks the node
-#              fetched from it first, the counts the node ranks its hot
-#              peers by. IPv4-mapped IPv6 addresses are stored as plain IPv4.
-#              The peer side's state is not in the dump; readNodeRemoteStates
-#              follows it in the node's log first, so that the dump decides
-#              which connections still exist.
+# Description: Read the node's own view of its connections from its journal:
+#              cardano-node's state dump and log (getCnodePeerState), or
+#              Amaru's log (getAmaruPeerState). nodeConnUse, keyed by
+#              "ip;remote port;local port", holds who uses the connection:
+#              dup (both sides), out (the node's side), in (the peer's side)
+#              or idle (neither). Connections still negotiating or closing
+#              are left out. nodePeerTemp, keyed by the peer's "ip;port",
+#              holds H for the node's hot peers and W for its warm ones, and
+#              nodeRemoteTemp, keyed like nodeConnUse, the peer side's H, W or
+#              C. nodePeerScore, keyed by "ip;port", holds the headers the
+#              peer delivered first plus the blocks the node fetched from it
+#              first, the counts cardano-node ranks its hot peers by.
+#              IPv4-mapped IPv6 addresses are stored as plain IPv4.
 getNodePeerState() {
-  local cgroup_path unit since attempt dump="" record_type peer_key peer_value
+  local cgroup_path unit
   local -a journal_match=()
   nodeConnUse=()
   nodePeerTemp=()
   nodePeerScore=()
   nodeRemoteTemp=()
   node_peer_state_available=false
-  [[ ${ENABLE_NODE_STATE_DUMP} = 'Y' && ${NODE_IMPLEMENTATION} = "cnode" ]] || return 0
+  [[ ${ENABLE_NODE_PEER_STATE} = 'Y' ]] || return 0
   [[ ${CNODE_PID} =~ ^[1-9][0-9]*$ ]] && command -v journalctl >/dev/null || return 0
-  [[ $(ps -o comm= -p "${CNODE_PID}" 2>/dev/null) = cardano-node* ]] || return 0
+  case "${NODE_IMPLEMENTATION}:$(ps -o comm= -p "${CNODE_PID}" 2>/dev/null)" in
+    cnode:cardano-node*|amaru:amaru) ;;
+    *) return 0 ;;
+  esac
   # A system service's journal by its unit, else the process's own entries.
   cgroup_path="$(awk -F: '$1 == "0" || $2 == "name=systemd" {print $3; exit}' "/proc/${CNODE_PID}/cgroup" 2>/dev/null)" ||
     cgroup_path=""
@@ -1960,12 +1963,55 @@ getNodePeerState() {
     journal_match=("_PID=${CNODE_PID}")
   fi
   [[ -n $(journalctl -q -n 1 -o cat --no-pager "${journal_match[@]}" 2>/dev/null) ]] || return 0
-  readNodeRemoteStates "${journal_match[@]}"
+  case ${NODE_IMPLEMENTATION} in
+    cnode) getCnodePeerState "${journal_match[@]}" ;;
+    amaru) getAmaruPeerState "${journal_match[@]}" ;;
+  esac
+}
+
+# Command    : getCnodePeerState [journalctl match...]
+# Description: On SIGUSR1, cardano-node writes its connection manager state
+#              (Net.ConnectionManager.Remote.State) and its peer selection
+#              state (Net.PeerSelection.Selection.DebugState) to its log. A
+#              signal stops a process that does not handle it, so
+#              getNodePeerState checks that the process is cardano-node.
+#              journald splits a line longer than its LineMax, 48 KiB by
+#              default, so a record runs until the next line that starts a
+#              trace. The peer side's state is not in the dump: the node's
+#              inbound governor logs a line whenever a peer promotes or
+#              demotes it (Net.InboundGovernor.Remote.PromotedToHotRemote and
+#              the like). readNodePeerLog follows those first, so that the
+#              dump decides which connections still exist.
+getCnodePeerState() {
+  local since attempt dump="" record_type peer_key peer_value record key
+  local -a kept=()
+  readNodePeerLog '
+      def addr: .address | tostring | sub("^::ffff:"; "");
+      def log_init: {};
+      def log_restore($f): if $f[0] == "peer" and ($f | length) == 3 then .[$f[1]] = $f[2] else . end;
+      def log_step($line):
+        (($line | fromjson?) // null) as $record |
+        if ($record | type) == "object" and ($record.data | type) == "object" and
+           ($record.data.connectionId | type) == "object" then
+          ({"PromotedToHotRemote": "H", "PromotedToWarmRemote": "W",
+            "DemotedToWarmRemote": "W", "DemotedToColdRemote": "C"}[$record.ns | tostring | split(".") | last]) as $temp |
+          $record.data.connectionId as $conn |
+          if $temp == null then .
+          else .["\($conn.remoteAddress | addr);\($conn.remoteAddress.port);\($conn.localAddress.port)"] = $temp
+          end
+        else . end;
+      def log_records: to_entries[] | ["peer", .key, .value];
+    ' '"ns":"Net.InboundGovernor.Remote.PromotedTo
+"ns":"Net.InboundGovernor.Remote.DemotedTo' "$@"
+  for record in "${node_log_records[@]}"; do
+    IFS=$'\t' read -r record_type peer_key peer_value <<< "${record}"
+    [[ ${record_type} = peer ]] && nodeRemoteTemp[${peer_key}]=${peer_value}
+  done
   printf -v since '%(%s)T' -1
   kill -USR1 "${CNODE_PID}" 2>/dev/null || return 0
   for attempt in 1 2 3 4 5 6; do
     sleep 0.5
-    dump="$(journalctl -q -o cat --no-pager "${journal_match[@]}" --since "@$((since - 1))" 2>/dev/null |
+    dump="$(journalctl -q -o cat --no-pager "$@" --since "@$((since - 1))" 2>/dev/null |
       awk '/^\{"at":/ {if (record != "") print record; record = $0; next} {record = record $0} END {if (record != "") print record}' |
       grep -F -e '"ns":"Net.ConnectionManager.Remote.State"' -e '"ns":"Net.PeerSelection.Selection.DebugState"')" ||
       dump=""
@@ -2004,85 +2050,179 @@ getNodePeerState() {
       | @tsv
     ' <<< "${dump}" 2>/dev/null)
   node_peer_state_available=true
-  saveNodeRemoteStates
+  # Only connections the node still has are kept for the next analysis.
+  for key in "${!nodeRemoteTemp[@]}"; do
+    [[ -n ${nodeConnUse[${key}]+set} ]] || continue
+    kept+=("peer"$'\t'"${key}"$'\t'"${nodeRemoteTemp[${key}]}")
+  done
+  saveNodePeerLog "${kept[@]}"
 }
 
-# Command    : readNodeRemoteStates [journalctl match...]
-# Description: Follow the peer side's state of each connection in the node's
-#              log. The node's inbound governor logs a line whenever a peer
-#              promotes or demotes the node (Net.InboundGovernor.Remote.
-#              PromotedToHotRemote and the like), but never the current
-#              state, so the latest line of each connection since the node
-#              started is needed. PEER_STATE_FILE keeps those states with the
-#              journal cursor they were read up to, and each analysis reads
-#              on from there. The whole log since the node started is read
-#              only for a new node process, or when the cursor no longer
-#              works. Sets nodeRemoteTemp, keyed by "ip;remote port;local
-#              port", to H, W or C, and node_remote_run and
-#              node_remote_cursor for saveNodeRemoteStates.
-readNodeRemoteStates() {
-  local kind key value state_run="" cursor="" new_cursor status now elapsed pass
-  local -a read_from=()
-  node_remote_run="${CNODE_PID}:$(ps -o lstart= -p "${CNODE_PID}" 2>/dev/null)"
-  node_remote_cursor=""
+# Command    : getAmaruPeerState [journalctl match...]
+# Description: Amaru logs, at INFO, each connection's handshake
+#              (manager.peer.handshake_completed), its own use of the
+#              connection (manager.peer.local_use_applied) and the peer's
+#              (peer_selection.peer.remote_use): none, maintenance (warm) or
+#              diffusion (hot). Once at the tip it also logs the rank at
+#              which each peer announced each header and delivered each block
+#              (amaru::blockperf). Only changes are logged, so
+#              readNodePeerLog follows them. Amaru knows a connection by the
+#              peer's address, and dials from its listen port by default, so
+#              the node's established connections in peers_in and peers_out
+#              from checkPeers are matched by remote address. SCORE counts
+#              the first deliveries among the last 180 headers and the last
+#              180 blocks, the window cardano-node keeps.
+getAmaruPeerState() {
+  local record conn remote_addr ip port local_port peer_key local_temp remote_temp
+  local -a fields=() kept=()
+  local -A conn_local=() conn_remote=() conn_record=() live=()
+  readNodePeerLog '
+      def peer_key:
+        capture("^\\[?(?<ip>.*?)\\]?:(?<port>[0-9]+)$") | "\(.ip | sub("^::ffff:"; ""));\(.port)";
+      def first_delivery($list; $hash; $peer):
+        if any(.[$list][]; .[0] == $hash) then . else .[$list] = (.[$list] + [[$hash, $peer]])[-180:] end;
+      def log_init: {conns: {}, headers: [], blocks: []};
+      def log_restore($f):
+        if $f[0] == "conn" and ($f | length) == 5 then .conns[$f[1]] = {id: $f[2], local: $f[3], remote: $f[4]}
+        elif $f[0] == "first" and ($f | length) == 4 and ($f[1] == "header" or $f[1] == "block") then
+          .["\($f[1])s"] += [[$f[2], $f[3]]]
+        else . end;
+      def log_step($line):
+        (($line | capture(" amaru::[a-z_]+: (?<event>[a-z_.]+) (?<fields>.*)$")) // null) as $m |
+        if $m == null then .
+        else
+          ([$m.fields | match("([a-z_]+)=(?:\"([^\"]*)\"|([^ ]*))"; "g") |
+            {(.captures[0].string): (.captures[1].string // .captures[2].string)}] | add // {}) as $v |
+          (((($v.peer // "") | peer_key)) // null) as $peer |
+          if $peer == null then .
+          elif $m.event == "manager.peer.handshake_completed" then
+            .conns[$peer] = {id: $v.conn_id, local: "none", remote: "none"}
+          elif $m.event == "manager.peer.local_use_applied" and (.conns[$peer].id // $v.conn_id) == $v.conn_id then
+            .conns[$peer] = (.conns[$peer] // {id: $v.conn_id, remote: "none"}) + {local: $v.local_use}
+          elif $m.event == "peer_selection.peer.remote_use" and (.conns[$peer].id // $v.conn_id) == $v.conn_id then
+            .conns[$peer] = (.conns[$peer] // {id: $v.conn_id, local: "none"}) + {remote: $v.remote_use}
+          elif $m.event == "header.announced" and $v.rank == "1" then first_delivery("headers"; $v.header_hash; $peer)
+          elif $m.event == "block.received" and $v.rank == "1" then first_delivery("blocks"; $v.header_hash; $peer)
+          else . end
+        end;
+      def log_records:
+        (.conns | to_entries[] |
+          ["conn", .key, (.value.id // "-" | tostring), (.value.local // "none"), (.value.remote // "none")]),
+        (.headers[] | ["first", "header", (.[0] // "-"), .[1]]),
+        (.blocks[] | ["first", "block", (.[0] // "-"), .[1]]);
+    ' ' manager.peer.handshake_completed
+ manager.peer.local_use_applied
+ peer_selection.peer.remote_use
+ amaru::blockperf: header.announced
+ amaru::blockperf: block.received ' "$@"
+  [[ -n ${node_log_cursor} ]] || return 0
+  for record in "${node_log_records[@]}"; do
+    IFS=$'\t' read -r -a fields <<< "${record}"
+    case ${fields[0]} in
+      conn) # peer, connection id, the node's use, the peer's use
+        conn_local[${fields[1]}]=${fields[3]}
+        conn_remote[${fields[1]}]=${fields[4]}
+        conn_record[${fields[1]}]=${record} ;;
+      first) # header or block, its hash, the peer that delivered it first
+        nodePeerScore[${fields[3]}]=$(( ${nodePeerScore[${fields[3]}]:-0} + 1 ))
+        kept+=("${record}") ;;
+    esac
+  done
+  for conn in ${peers_in} ${peers_out}; do
+    remote_addr="${conn%%|*}"
+    local_port="${conn##*:}"
+    port="${remote_addr##*:}"
+    ip="${remote_addr%:*}"
+    ip="${ip#[}"
+    ip="${ip%]}"
+    peer_key="${ip#::ffff:};${port}"
+    [[ -n ${conn_record[${peer_key}]+set} ]] || continue
+    case ${conn_local[${peer_key}]} in diffusion) local_temp=H ;; maintenance) local_temp=W ;; *) local_temp="" ;; esac
+    case ${conn_remote[${peer_key}]} in diffusion) remote_temp=H ;; maintenance) remote_temp=W ;; *) remote_temp="" ;; esac
+    if [[ -n ${local_temp} && -n ${remote_temp} ]]; then nodeConnUse["${peer_key};${local_port}"]=dup
+    elif [[ -n ${local_temp} ]]; then nodeConnUse["${peer_key};${local_port}"]=out
+    elif [[ -n ${remote_temp} ]]; then nodeConnUse["${peer_key};${local_port}"]=in
+    else nodeConnUse["${peer_key};${local_port}"]=idle; fi
+    [[ -n ${local_temp} ]] && nodePeerTemp[${peer_key}]=${local_temp}
+    [[ -n ${remote_temp} ]] && nodeRemoteTemp["${peer_key};${local_port}"]=${remote_temp}
+    live[${peer_key}]=1
+  done
+  # Only connections the node still has are kept for the next analysis.
+  for peer_key in "${!live[@]}"; do
+    kept+=("${conn_record[${peer_key}]}")
+  done
+  node_peer_state_available=true
+  saveNodePeerLog "${kept[@]}"
+}
+
+# Command    : readNodePeerLog [jq definitions] [grep patterns] [journalctl match...]
+# Description: Follow the node's log of its connections. The node logs only
+#              changes, so the current state needs every line since the node
+#              started. PEER_STATE_FILE keeps the state with the journal
+#              cursor it was read up to, and each analysis reads on from
+#              there. The whole log since the node started is read only for a
+#              new node process, or when the cursor no longer works. The
+#              patterns, one per line, select the log lines, and the jq
+#              definitions turn them into records: log_init is the empty
+#              state, log_restore($fields) adds a saved record, log_step($line)
+#              adds a log line and log_records lists the state as records,
+#              arrays whose first element is the record's kind. Sets
+#              node_log_records to the records as tab-separated lines, and
+#              node_log_run and node_log_cursor for saveNodePeerLog. A read
+#              that fails leaves the cursor empty and no records.
+readNodePeerLog() {
+  local definitions="$1" patterns="$2" kind rest state_run="" cursor="" saved="" new_cursor status now elapsed pass line
+  local -a read_from=() records=()
+  shift 2
+  node_log_run="${CNODE_PID}:$(ps -o lstart= -p "${CNODE_PID}" 2>/dev/null)"
+  node_log_cursor=""
+  node_log_records=()
   if [[ -r ${PEER_STATE_FILE} ]]; then
-    while IFS=$'\t' read -r kind key value; do
+    while IFS=$'\t' read -r kind rest; do
       case ${kind} in
-        run)    state_run=${key} ;;
-        cursor) cursor=${key} ;;
-        peer)   nodeRemoteTemp[${key}]=${value} ;;
+        run)       state_run=${rest} ;;
+        cursor)    cursor=${rest} ;;
+        ''|'#'*)   ;;
+        *)         saved+="-- saved: ${kind}"$'\t'"${rest}"$'\n' ;;
       esac
     done < "${PEER_STATE_FILE}"
   fi
-  if [[ ${state_run} = "${node_remote_run}" && -n ${cursor} ]]; then
-    read_from=(--after-cursor "${cursor}")
-  else
-    nodeRemoteTemp=()
-  fi
+  [[ ${state_run} = "${node_log_run}" && -n ${cursor} ]] && read_from=(--after-cursor "${cursor}")
   for pass in 1 2; do
     if [[ ${#read_from[@]} -eq 0 ]]; then
-      nodeRemoteTemp=()
+      saved=""
       printf -v now '%(%s)T' -1
       elapsed="$(ps -o etimes= -p "${CNODE_PID}" 2>/dev/null)"
       elapsed="${elapsed//[^0-9]/}"
       read_from=(--since "@$(( now - ${elapsed:-0} - 1 ))")
       peerAnalysisStatus "Reading the node's log since it started..."
     fi
+    records=()
     new_cursor=""
     status=""
-    # The cursor and journalctl's exit status pass through as their own lines.
-    while IFS=$'\t' read -r kind key value; do
-      case ${kind} in
-        peer)   nodeRemoteTemp[${key}]=${value} ;;
-        cursor) new_cursor=${key} ;;
-        status) status=${key} ;;
+    # The saved records come first, and the cursor and journalctl's exit
+    # status pass through as the last lines.
+    while IFS= read -r line; do
+      case ${line} in
+        cursor$'\t'*) new_cursor=${line#*$'\t'} ;;
+        status$'\t'*) status=${line#*$'\t'} ;;
+        *)            records+=("${line}") ;;
       esac
     done < <(
-      { journalctl -q -o cat --no-pager --show-cursor "$@" "${read_from[@]}" 2>/dev/null
+      { printf '%s' "${saved}"
+        journalctl -q -o cat --no-pager --show-cursor "$@" "${read_from[@]}" 2>/dev/null
         printf -- '-- status: %s\n' "$?"
       } |
-        grep -F -e '"ns":"Net.InboundGovernor.Remote.PromotedTo' -e '"ns":"Net.InboundGovernor.Remote.DemotedTo' \
-          -e '-- cursor: ' -e '-- status: ' |
-        jq -Rrn '
-          def addr: .address | tostring | sub("^::ffff:"; "");
-          def temp:
-            {"PromotedToHotRemote": "H", "PromotedToWarmRemote": "W",
-             "DemotedToWarmRemote": "W", "DemotedToColdRemote": "C"}[.];
-          reduce inputs as $line ({peers: {}, cursor: "", status: ""};
-            if ($line | startswith("-- cursor: ")) then .cursor = ($line | ltrimstr("-- cursor: "))
-            elif ($line | startswith("-- status: ")) then .status = ($line | ltrimstr("-- status: "))
-            else
-              (($line | fromjson?) // null) as $record |
-              if ($record | type) == "object" and ($record.data | type) == "object" and
-                 ($record.data.connectionId | type) == "object" then
-                ($record.ns | tostring | split(".") | last | temp) as $temp |
-                $record.data.connectionId as $conn |
-                if $temp == null then .
-                else .peers["\($conn.remoteAddress | addr);\($conn.remoteAddress.port);\($conn.localAddress.port)"] = $temp
-                end
-              else . end
-            end) |
-          (.peers | to_entries[] | ["peer", .key, .value]), ["cursor", .cursor], ["status", .status] | @tsv
+        grep -F -e "${patterns}" -e '-- saved: ' -e '-- cursor: ' -e '-- status: ' |
+        jq -Rrn "${definitions}"'
+          def last_line($prefix): map(select(startswith($prefix)) | ltrimstr($prefix)) | last // "";
+          [inputs] as $lines |
+          reduce ($lines[] | select(startswith("-- saved: ")) | ltrimstr("-- saved: ") | split("\t")) as $fields
+            (log_init; log_restore($fields)) |
+          reduce ($lines[] | select(startswith("-- ") | not)) as $line (.; log_step($line)) |
+          (log_records | @tsv),
+          (["cursor", ($lines | last_line("-- cursor: "))] | @tsv),
+          (["status", ($lines | last_line("-- status: "))] | @tsv)
         ' 2>/dev/null
     )
     # A saved cursor that fails gets a second pass, from the start.
@@ -2092,27 +2232,24 @@ readNodeRemoteStates() {
   [[ ${read_from[0]} = --since ]] && peerAnalysisStatus "Peer analysis started... please wait!"
   [[ ${status} = 0 ]] || return 0
   # Without new lines, journalctl may print no cursor.
-  node_remote_cursor="${new_cursor:-${cursor}}"
+  node_log_cursor="${new_cursor:-${cursor}}"
+  node_log_records=("${records[@]}")
 }
 
-# Command    : saveNodeRemoteStates
-# Description: Write the peer side's states to PEER_STATE_FILE for the next
-#              analysis: the node process, the journal cursor and one line
-#              for each connection the node still has. A file that cannot be
-#              written only means that the next analysis reads the whole log
-#              again.
-saveNodeRemoteStates() {
-  local state_tmp key
-  [[ -n ${node_remote_cursor} ]] || return 0
+# Command    : saveNodePeerLog [record...]
+# Description: Write what readNodePeerLog read to PEER_STATE_FILE for the
+#              next analysis: the node process, the journal cursor and the
+#              records to keep. A file that cannot be written only means that
+#              the next analysis reads the whole log again.
+saveNodePeerLog() {
+  local state_tmp
+  [[ -n ${node_log_cursor} ]] || return 0
   state_tmp="$(mktemp "${PEER_STATE_FILE}.XXXXXX" 2>/dev/null)" || return 0
   {
-    printf '%s\n' "# gLiveView peer analysis: the peer side's state of each connection, from the node's log"
-    printf 'run\t%s\n' "${node_remote_run}"
-    printf 'cursor\t%s\n' "${node_remote_cursor}"
-    for key in "${!nodeRemoteTemp[@]}"; do
-      [[ -n ${nodeConnUse[${key}]+set} ]] || continue
-      printf 'peer\t%s\t%s\n' "${key}" "${nodeRemoteTemp[${key}]}"
-    done
+    printf '%s\n' "# gLiveView peer analysis: the node's connections, from its log"
+    printf 'run\t%s\n' "${node_log_run}"
+    printf 'cursor\t%s\n' "${node_log_cursor}"
+    [[ $# -eq 0 ]] || printf '%s\n' "$@"
   } > "${state_tmp}" && mv -f -- "${state_tmp}" "${PEER_STATE_FILE}" || rm -f -- "${state_tmp}"
 }
 
@@ -2479,19 +2616,26 @@ while true; do
     printf "${VL} 4. ${style_values_2}ping${NC} - fallback method using ICMP ping against IP." && closeRow
     printf "${VL}    Only work if the FW of remote peer accepts ICMP traffic." && closeRow
     printf "${blank_line}\n" && ((line++))
-    printf "${VL} ${style_values_2}[t]${NC} peers - all, or static: the localRoots in topology.json," && closeRow
-    printf "${VL}    matched by address, DNS names resolved. Static peers show their" && closeRow
-    printf "${VL}    description, pool or name; unconnected ones are listed last." && closeRow
+    if node_has topology_file; then
+      printf "${VL} ${style_values_2}[t]${NC} peers - all, or static: the localRoots in topology.json," && closeRow
+      printf "${VL}    matched by address, DNS names resolved. Static peers show their" && closeRow
+      printf "${VL}    description, pool or name; unconnected ones are listed last." && closeRow
+    fi
     printf "${VL} ${style_values_2}[/]${NC} search - part of an IP address or port; empty clears it." && closeRow
     printf "${VL} The view is a snapshot: press [h] and [p] again to refresh it." && closeRow
     printf "${blank_line}\n" && ((line++))
-    printf "${VL} The node's own state, which it logs on SIGUSR1, and its log of" && closeRow
-    printf "${VL} peers promoting or demoting it add two columns and two filters:" && closeRow
+    if [[ ${NODE_IMPLEMENTATION} = "cnode" ]]; then
+      printf "${VL} The node's own state, which it logs on SIGUSR1, and its log of" && closeRow
+      printf "${VL} peers promoting or demoting it add two columns and two filters:" && closeRow
+    else
+      printf "${VL} The node's log of its connections and of the peers that delivered" && closeRow
+      printf "${VL} headers and blocks first adds two columns and two filters:" && closeRow
+    fi
     printf "${VL} ${style_values_2}CONN${NC} - out (node fetches from peer), in (peer fetches from" && closeRow
     printf "${VL}    node), dup (duplex, both) or idle, with the hot (H) or warm (W)" && closeRow
     printf "${VL}    state; dup shows the node's side, then the peer's." && closeRow
     printf "${VL} ${style_values_2}SCORE${NC} - headers the peer delivered first plus blocks fetched" && closeRow
-    printf "${VL}    from it first, as the node counts them." && closeRow
+    printf "${VL}    from it first, of the last 180 headers and 180 blocks." && closeRow
     printf "${VL} ${style_values_2}[d]${NC} direction - all, out or in (both include duplex), duplex." && closeRow
     printf "${VL} ${style_values_2}[s]${NC} state - any, hot or warm, on the chosen direction's side." && closeRow
   elif [[ ${show_peers} = "true" ]]; then
@@ -2650,7 +2794,7 @@ while true; do
     printf "${VL} [v] toggles runtime, detailed propagation and node-specific data." && closeRow
     printf "${VL} [n] shows static network, implementation and deployment details." && closeRow
     if node_has peer_inspection; then
-      printf "${VL} [p] runs the cnode-only one-shot peer analysis." && closeRow
+      printf "${VL} [p] runs the one-shot peer analysis." && closeRow
     fi
     printf "${VL} Missing metrics and empty sections are hidden, not shown as zero." && closeRow
     printf "${VL} ALERT and SYNC rows appear only while the node reports them." && closeRow

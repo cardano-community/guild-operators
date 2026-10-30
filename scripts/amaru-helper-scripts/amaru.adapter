@@ -5,7 +5,7 @@
 NODE_ADAPTER_API_VERSION=1
 NODE_ADAPTER_IMPLEMENTATION="amaru"
 NODE_IMPLEMENTATION_DISPLAY_NAME="Amaru"
-NODE_CAPABILITIES="process process_pid metrics prometheus_bridge"
+NODE_CAPABILITIES="process process_pid metrics prometheus_bridge peer_inspection"
 
 # Histogram state kept between gLiveView refreshes. node_adapter_collect_metrics
 # runs in gLiveView's own shell, so per-interval means survive across scrapes.
@@ -32,7 +32,8 @@ amaru_adapter_load_deployment_config() {
   [[ -z "${AMARU_ADAPTER_CONFIG_LOADED:-}" ]] || return 0
   AMARU_ADAPTER_CONFIG_LOADED=Y
   env_file="${NODE_HOME}/scripts/amaru.env"
-  for key in AMARU_PEERS_LISTEN_ON AMARU_SUBMIT_API_LISTEN_ON AMARU_PROMETHEUS_URL; do
+  for key in AMARU_PEERS_LISTEN_ON AMARU_SUBMIT_API_LISTEN_ON AMARU_PROMETHEUS_URL \
+    OTEL_EXPORTER_OTLP_ENDPOINT; do
     [[ -z "${!key:-}" ]] || continue
     value="$(amaru_adapter_env_value "${key}" "${env_file}" 2>/dev/null || true)"
     [[ -n "${value}" ]] && printf -v "${key}" '%s' "${value}"
@@ -69,6 +70,12 @@ node_adapter_defaults() {
   : "${PROM_HOST:=${NODE_METRICS_HOST}}"
   : "${PROM_PORT:=${NODE_METRICS_PORT}}"
   NODE_METRICS_URL="${AMARU_PROMETHEUS_URL:-http://${NODE_METRICS_HOST}:${NODE_METRICS_PORT}${NODE_METRICS_PATH}}"
+  # Amaru exports its metrics to the local collector over OTLP. Peer analysis
+  # leaves out that connection.
+  if [[ -z "${NODE_TELEMETRY_PORT:-}" &&
+        "${OTEL_EXPORTER_OTLP_ENDPOINT:-http://127.0.0.1:4317}" =~ :([0-9]+)/*$ ]]; then
+    NODE_TELEMETRY_PORT="${BASH_REMATCH[1]}"
+  fi
 }
 
 node_adapter_init() {
