@@ -7,10 +7,21 @@
   ],
   "localRoots": [
     {
-      "accessPoints": [],
+      "accessPoints": [
+        {
+          "address": "127.0.0.1",
+          "description": "replace-this-with-BP",
+          "port": 6000
+        },
+        {
+          "address": "127.0.0.1",
+          "description": "replace-this-with-relay",
+          "port": 6001
+        }
+      ],
       "advertise": false,
-      "trustable": false,
-      "valency": 1
+      "hotValency": 2,
+      "trustable": true
     }
   ],
   "peerSnapshotFile": "peer-snapshot.json",

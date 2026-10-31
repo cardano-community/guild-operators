@@ -58,6 +58,15 @@ check_config_sanity() {
     jq --arg BYGENHASH ${BYGENHASH} --arg SHGENHASH ${SHGENHASH} --arg ALGENHASH ${ALGENHASH} --arg CWGENHASH ${CWGENHASH} '(if has("Configuration") then .Configuration.Protocol else . end) |= (.ByronGenesisHash = $BYGENHASH | .ShelleyGenesisHash = $SHGENHASH | .AlonzoGenesisHash = $ALGENHASH | .ConwayGenesisHash = $CWGENHASH)' <"${CONFIG}" >"${CONFIG}".tmp
     [[ -s "${CONFIG}".tmp ]] && mv -f "${CONFIG}".tmp "${CONFIG}"
   fi
+  # Dijkstra genesis is optional, its hash lives at the top level (legacy config format) or under .Configuration.Testing (new nested format)
+  if [[ ${DIJKSTRA_GENESIS_JSON} != "null" && -f "${DIJKSTRA_GENESIS_JSON}" ]]; then
+    DJGENHASH=$("${CCLI}" hash genesis-file --genesis "${DIJKSTRA_GENESIS_JSON}" 2>/dev/null)
+    DJGENHASHCFG=$(jq -r '(.Configuration.Testing // .).DijkstraGenesisHash' <"${CONFIG}" 2>/dev/null)
+    if [[ -n "${DJGENHASH}" && "${DJGENHASH}" != "${DJGENHASHCFG}" ]]; then
+      jq --arg DJGENHASH ${DJGENHASH} '(if has("Configuration") then .Configuration.Testing else . end) |= (.DijkstraGenesisHash = $DJGENHASH)' <"${CONFIG}" >"${CONFIG}".tmp
+      [[ -s "${CONFIG}".tmp ]] && mv -f "${CONFIG}".tmp "${CONFIG}"
+    fi
+  fi
 }
 
 pre_startup_sanity() {

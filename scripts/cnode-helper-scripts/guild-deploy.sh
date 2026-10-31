@@ -209,6 +209,12 @@ set_defaults() {
   [[ -z "${BRANCH}" ]] && BRANCH="master"
   [[ "${SUDO}" = 'Y' ]] && sudo="sudo" || sudo=""
   [[ "${SUDO}" = 'Y' && $(id -u) -eq 0 ]] && err_exit "Please run as non-root user."
+  if [[ "${NETWORK}" == "dijkstra" ]]; then
+    # Dijkstra testnet requires the 11.2 node series, a cli that builds Dijkstra era transactions, and a db-sync build that indexes Dijkstra era data
+    [[ -z "${CARDANO_NODE_VERSION}" ]] && CARDANO_NODE_VERSION="11.2.0"
+    [[ -z "${CARDANO_CLI_VERSION}" ]] && CARDANO_CLI_VERSION="11.6.0.0"
+    [[ -z "${DBSYNC_VERSION}" ]] && DBSYNC_VERSION="dijkstra-0-0"
+  fi
   [[ -z "${CARDANO_NODE_VERSION}" ]] && CARDANO_NODE_VERSION="$(curl -sfk "https://raw.githubusercontent.com/${G_ACCOUNT}/guild-operators/${BRANCH}/files/docker/node/release-versions/cardano-node-latest.txt" || echo "11.2.0")"
   [[ -z "${CARDANO_CLI_VERSION}" ]] && CARDANO_CLI_VERSION="$(curl -sfk "https://raw.githubusercontent.com/${G_ACCOUNT}/guild-operators/${BRANCH}/files/docker/node/release-versions/cardano-cli-latest.txt" || echo "11.4.0.0")"
   [[ -z "${DBSYNC_VERSION}" ]] && DBSYNC_VERSION="13.7.2.1"
@@ -870,7 +876,7 @@ populate_cnode() {
     log_info "Backed up existing topology/config/dbsync files before overwrite."
   fi
   log_progress "Applying network configuration" "${NETWORK}"
-  if [[ ${FORCE_OVERWRITE} = 'Y' || ! -f byron-genesis.json || ! -f shelley-genesis.json || ! -f alonzo-genesis.json || ! -f topology.json || ! -f config.json || ! -f dbsync.json ]]; then
+  if [[ ${FORCE_OVERWRITE} = 'Y' || ! -f byron-genesis.json || ! -f shelley-genesis.json || ! -f alonzo-genesis.json || ! -f topology.json || ! -f config.json || ! -f dbsync.json || ( ${NETWORK} = "dijkstra" && ( ! -f dijkstra-genesis.json || ! -f peer-snapshot.json ) ) ]]; then
     mv -f byron-genesis.json.tmp byron-genesis.json
     mv -f shelley-genesis.json.tmp shelley-genesis.json
     mv -f alonzo-genesis.json.tmp alonzo-genesis.json
