@@ -580,8 +580,20 @@ download_cnodebins() {
   [[ -f cardano-address ]] || err_exit "cardano-address archive downloaded, but binary 'cardano-address' was not found after extraction."
   if [[ "${SKIP_DBSYNC_DOWNLOAD}" == "N" ]]; then
     log_progress "Downloading cardano-db-sync" "${DBSYNC_VERSION}"
-    curl -m 200 -sfL "https://share.koios.rest/api/public/dl/xFdZDfM4/bin/cardano-db-sync-${DBSYNC_VERSION}-$(uname -m).tar.gz" -o cnodedbsync.tar.gz || err_exit "Could not download cardano-db-sync release ${DBSYNC_VERSION}."
-    tar zxf cnodedbsync.tar.gz --strip-components 1 ./cardano-db-sync ./cardano-db-tool &>/dev/null
+    if [[ "${DBSYNC_VERSION}" == "dijkstra-0-0" ]]; then
+      # No release binaries for this tag yet, use IOG CI (Hydra jobset IntersectMBO-cardano-db-sync/dijkstra-0-0) builds instead
+      [[ -z ${ARCH##*aarch64*} ]] && dbsync_build="15409212" || dbsync_build="15409266"
+      dbsync_url="https://ci.iog.io/build/${dbsync_build}/download/1/cardano-db-sync-13.8.0.0-linux.tar.gz"
+    else
+      dbsync_url="https://share.koios.rest/api/public/dl/xFdZDfM4/bin/cardano-db-sync-${DBSYNC_VERSION}-$(uname -m).tar.gz"
+    fi
+    curl -m 200 -sfL "${dbsync_url}" -o cnodedbsync.tar.gz || err_exit "Could not download cardano-db-sync release ${DBSYNC_VERSION}."
+    # CI builds keep binaries under ./bin/, koios share archives have them at the top level
+    if tar tzf cnodedbsync.tar.gz ./bin/cardano-db-sync &>/dev/null; then
+      tar zxf cnodedbsync.tar.gz --strip-components 2 ./bin/cardano-db-sync ./bin/cardano-db-tool &>/dev/null
+    else
+      tar zxf cnodedbsync.tar.gz --strip-components 1 ./cardano-db-sync ./cardano-db-tool &>/dev/null
+    fi
     [[ -f cardano-db-sync ]] || err_exit "cardano-db-sync archive downloaded, but binary 'cardano-db-sync' was not found after extraction."
     rm -f cnodedbsync.tar.gz
     mv -f -t "${HOME}"/.local/bin cardano-db-sync
