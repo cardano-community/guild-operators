@@ -1,0 +1,35 @@
+{
+  "ekgRequestFreq": null,
+  "ekgRequestFull": null,
+  "hasEKG": {
+    "epHost": "127.0.0.1",
+    "epPort": 12788
+  },
+  "hasPrometheus": {
+    "epHost": "127.0.0.1",
+    "epPort": 12808
+  },
+  "loRequestNum": null,
+  "logging": [
+    {
+      "logFormat": "ForHuman",
+      "logMode": "FileMode",
+      "logRoot": "/tmp/cardano-tracer"
+    }
+  ],
+  "metricsHelp": null,
+  "metricsNoSuffix": null,
+  "network": {
+    "contents": "/tmp/tracer.socket",
+    "tag": "AcceptAt"
+  },
+  "networkMagic": 6,
+  "resourceFreq": null,
+  "rotation": {
+    "rpFrequencySecs": 60,
+    "rpKeepFilesNum": 14,
+    "rpLogLimitBytes": 10000000,
+    "rpMaxAgeHours": 24
+  },
+  "verbosity": null
+}

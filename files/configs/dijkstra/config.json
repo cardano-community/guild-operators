@@ -1,0 +1,138 @@
+{
+  "$schema": "https://raw.githubusercontent.com/IntersectMBO/cardano-config/v2/schemas/config.schema.json",
+  "Configuration": {
+    "Consensus": {
+      "ConsensusMode": "GenesisMode"
+    },
+    "HermodTracing": {
+      "TraceOptionForwarder": {
+        "maxReconnectDelay": 30,
+        "queueSize": 128
+      },
+      "TraceOptionMetricsPrefix": "cardano.node.metrics.",
+      "TraceOptionResourceFrequency": 1000,
+      "TraceOptions": {
+        "": {
+          "backends": [
+            "EKGBackend",
+            "Forwarder",
+            "PrometheusSimple suffix 127.0.0.1 12798",
+            "Stdout HumanFormatColoured"
+          ],
+          "detail": "DNormal",
+          "severity": "Notice"
+        },
+        "BlockFetch.Client.CompletedBlockFetch": {
+          "maxFrequency": 2.0
+        },
+        "BlockFetch.Decision": {
+          "severity": "Info"
+        },
+        "ChainDB": {
+          "severity": "Info"
+        },
+        "ChainDB.AddBlockEvent.AddBlockValidation": {
+          "severity": "Silence"
+        },
+        "ChainDB.AddBlockEvent.AddBlockValidation.ValidCandidate": {
+          "maxFrequency": 2.0
+        },
+        "ChainDB.AddBlockEvent.AddedBlockToQueue": {
+          "maxFrequency": 2.0
+        },
+        "ChainDB.AddBlockEvent.AddedBlockToVolatileDB": {
+          "maxFrequency": 2.0
+        },
+        "ChainDB.CopyToImmutableDBEvent.CopiedBlockToImmutableDB": {
+          "maxFrequency": 2.0
+        },
+        "ChainDB.LedgerEvent.Forker": {
+          "severity": "Silence"
+        },
+        "ChainSync.Client": {
+          "severity": "Warning"
+        },
+        "Forge.Loop": {
+          "severity": "Info"
+        },
+        "Forge.StateInfo": {
+          "severity": "Info"
+        },
+        "Mempool": {
+          "severity": "Info"
+        },
+        "Mempool.AttemptAdd": {
+          "severity": "Silence"
+        },
+        "Mempool.SyncNotNeeded": {
+          "severity": "Silence"
+        },
+        "Net.ConnectionManager.Remote": {
+          "severity": "Info"
+        },
+        "Net.InboundGovernor": {
+          "severity": "Warning"
+        },
+        "Net.InboundGovernor.Remote": {
+          "severity": "Info"
+        },
+        "Net.Mux.Remote": {
+          "severity": "Info"
+        },
+        "Net.Mux.Remote.Bearer": {
+          "severity": "Silence"
+        },
+        "Net.PeerSelection": {
+          "severity": "Info"
+        },
+        "Resources": {
+          "severity": "Silence"
+        },
+        "Startup.DiffusionInit": {
+          "severity": "Info"
+        }
+      }
+    },
+    "Network": {
+      "ExperimentalProtocolsEnabled": true,
+      "MinBigLedgerPeersForTrustedState": 3
+    },
+    "Protocol": {
+      "AlonzoGenesisFile": "/opt/cardano/cnode/files/alonzo-genesis.json",
+      "AlonzoGenesisHash": "387a7c4880477ce7b128566fa7f9f9ed99ee04476084e9f6332b6d42d907faab",
+      "ByronGenesisFile": "/opt/cardano/cnode/files/byron-genesis.json",
+      "ByronGenesisHash": "245e5b28a31c6bc3e8b78f1223294ae09e57b6d2543b51aba7cf9dadff161238",
+      "ConwayGenesisFile": "/opt/cardano/cnode/files/conway-genesis.json",
+      "ConwayGenesisHash": "e18ab8efc363ad170142706723568f1520a57f0dc05354e1d458041da18a3704",
+      "RequiresNetworkMagic": "RequiresMagic",
+      "ShelleyGenesisFile": "/opt/cardano/cnode/files/shelley-genesis.json",
+      "ShelleyGenesisHash": "b47eb627b52bf9cfe5ffd865658b47b5747a088d150a9c27216de374e836c385"
+    },
+    "Storage": {
+      "LedgerDB": {
+        "Backend": "V2InMemory",
+        "QueryBatchSize": 100000,
+        "Snapshots": {
+          "Interval": 17280,
+          "MaxDelay": 4320,
+          "MinDelay": 300,
+          "NumOfDiskSnapshots": 2,
+          "Offset": 0
+        }
+      }
+    },
+    "Testing": {
+      "DijkstraGenesisFile": "/opt/cardano/cnode/files/dijkstra-genesis.json",
+      "DijkstraGenesisHash": "ad58e282eff1f48c241faf6319f88ed54843821627a6be69470f05d7904e4601",
+      "ExperimentalHardForksEnabled": true,
+      "TestAllegraHardForkAtEpoch": 0,
+      "TestAlonzoHardForkAtEpoch": 0,
+      "TestBabbageHardForkAtEpoch": 0,
+      "TestConwayHardForkAtEpoch": 0,
+      "TestMaryHardForkAtEpoch": 0,
+      "TestShelleyHardForkAtEpoch": 0
+    }
+  },
+  "MinNodeVersion": "11.2.0",
+  "Version": 2
+}

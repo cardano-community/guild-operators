@@ -159,7 +159,7 @@ err_exit() {
 usage() {
   cat <<-EOF >&2
 
-		Usage: $(basename "$0") [-n <mainnet|guild|preprod|preview>] [-p path] [-t <name>] [-b <branch>] [-u] [-s [p][b][l][m][d][c][o][w][x][f][s]]
+		Usage: $(basename "$0") [-n <mainnet|guild|preprod|preview|dijkstra>] [-p path] [-t <name>] [-b <branch>] [-u] [-s [p][b][l][m][d][c][o][w][x][f][s]]
 		Set up dependencies for building/using common tools across cardano ecosystem.
 		The script will always update dynamic content from existing scripts retaining existing user variables
 
@@ -209,7 +209,7 @@ set_defaults() {
   [[ -z "${BRANCH}" ]] && BRANCH="master"
   [[ "${SUDO}" = 'Y' ]] && sudo="sudo" || sudo=""
   [[ "${SUDO}" = 'Y' && $(id -u) -eq 0 ]] && err_exit "Please run as non-root user."
-  [[ -z "${CARDANO_NODE_VERSION}" ]] && CARDANO_NODE_VERSION="$(curl -sfk "https://raw.githubusercontent.com/${G_ACCOUNT}/guild-operators/${BRANCH}/files/docker/node/release-versions/cardano-node-latest.txt" || echo "11.1.3")"
+  [[ -z "${CARDANO_NODE_VERSION}" ]] && CARDANO_NODE_VERSION="$(curl -sfk "https://raw.githubusercontent.com/${G_ACCOUNT}/guild-operators/${BRANCH}/files/docker/node/release-versions/cardano-node-latest.txt" || echo "11.2.0")"
   [[ -z "${CARDANO_CLI_VERSION}" ]] && CARDANO_CLI_VERSION="$(curl -sfk "https://raw.githubusercontent.com/${G_ACCOUNT}/guild-operators/${BRANCH}/files/docker/node/release-versions/cardano-cli-latest.txt" || echo "11.4.0.0")"
   [[ -z "${DBSYNC_VERSION}" ]] && DBSYNC_VERSION="13.7.2.1"
   [[ -z "${CADDR_VERSION}" ]] && CADDR_VERSION="4.0.7"
@@ -843,7 +843,7 @@ populate_cnode() {
   #NWCONFURL="https://raw.githubusercontent.com/input-output-hk/cardano-playground/main/static/book.play.dev.cardano.org/environments"
   NWCONFURL="${URL_RAW}/files/configs/${NETWORK}/"
   #CHKPTURL="https://book.play.dev.cardano.org/environments/${NETWORK}/checkpoints.json"
-  if [[ ${NETWORK} =~ ^(mainnet|preprod|preview|guild)$ ]]; then
+  if [[ ${NETWORK} =~ ^(mainnet|preprod|preview|guild|dijkstra)$ ]]; then
     curl -sL -f -m ${CURL_TIMEOUT} -o alonzo-genesis.json.tmp "${NWCONFURL}/alonzo-genesis.json" || err_exit "${err_msg} alonzo-genesis.json"
     curl -sL -f -m ${CURL_TIMEOUT} -o byron-genesis.json.tmp "${NWCONFURL}/byron-genesis.json" || err_exit "${err_msg} byron-genesis.json"
     curl -sL -f -m ${CURL_TIMEOUT} -o conway-genesis.json.tmp "${NWCONFURL}/conway-genesis.json" || err_exit "${err_msg} conway-genesis.json"
@@ -853,8 +853,12 @@ populate_cnode() {
     curl -sL -f -m ${CURL_TIMEOUT} -o dbsync.json.tmp "${NWCONFURL}/db-sync-config.json" || err_exit "${err_msg} dbsync-sync-config.json"
     curl -sL -f -m ${CURL_TIMEOUT} -o submitapi.json "${NWCONFURL}/submitapi.json" || err_exit "${err_msg} submitapi.json"
     #curl -sL -m ${CURL_TIMEOUT} -o checkpoints.json "${CHKPTURL}" || err_exit "${err_msg} checkpoints.json"
+    if [[ ${NETWORK} = "dijkstra" ]]; then
+      curl -sL -f -m ${CURL_TIMEOUT} -o dijkstra-genesis.json.tmp "${NWCONFURL}/dijkstra-genesis.json" || err_exit "${err_msg} dijkstra-genesis.json"
+      curl -sL -f -m ${CURL_TIMEOUT} -o peer-snapshot.json.tmp "${NWCONFURL}/peer-snapshot.json" || err_exit "${err_msg} peer-snapshot.json"
+    fi
   else
-    err_exit "Unknown network specified! Kindly re-check the network name, valid options are: mainnet, guild, preprod, or preview."
+    err_exit "Unknown network specified! Kindly re-check the network name, valid options are: mainnet, guild, preprod, preview, or dijkstra."
   fi
   log_ok "Network configuration downloaded" "${NETWORK}"
   sed -e "s@/opt/cardano/cnode@${CNODE_HOME}@g" -i ./*.json.tmp
@@ -874,6 +878,8 @@ populate_cnode() {
     mv -f topology.json.tmp topology.json
     mv -f config.json.tmp config.json
     mv -f dbsync.json.tmp dbsync.json
+    [[ -f dijkstra-genesis.json.tmp ]] && mv -f dijkstra-genesis.json.tmp dijkstra-genesis.json
+    [[ -f peer-snapshot.json.tmp ]] && mv -f peer-snapshot.json.tmp peer-snapshot.json
   else
     rm -f byron-genesis.json.tmp
     rm -f shelley-genesis.json.tmp
@@ -882,6 +888,8 @@ populate_cnode() {
     rm -f topology.json.tmp
     rm -f config.json.tmp
     rm -f dbsync.json.tmp
+    rm -f dijkstra-genesis.json.tmp
+    rm -f peer-snapshot.json.tmp
   fi
   log_ok "Network configuration ready" "${NETWORK}"
 

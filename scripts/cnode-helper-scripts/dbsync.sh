@@ -61,17 +61,18 @@ check_defaults() {
 
 check_config_sanity() {
   BYGENHASH=$("${CCLI}" byron genesis print-genesis-hash --genesis-json "${BYRON_GENESIS_JSON}" 2>/dev/null)
-  BYGENHASHCFG=$(jq '.ByronGenesisHash' <"${CONFIG}" 2>/dev/null)
+  BYGENHASHCFG=$(jq '(.Configuration.Protocol // .).ByronGenesisHash' <"${CONFIG}" 2>/dev/null)
   SHGENHASH=$("${CCLI}" hash genesis-file --genesis "${GENESIS_JSON}" 2>/dev/null)
-  SHGENHASHCFG=$(jq '.ShelleyGenesisHash' <"${CONFIG}" 2>/dev/null)
+  SHGENHASHCFG=$(jq '(.Configuration.Protocol // .).ShelleyGenesisHash' <"${CONFIG}" 2>/dev/null)
   ALGENHASH=$("${CCLI}" hash genesis-file --genesis "${ALONZO_GENESIS_JSON}" 2>/dev/null)
-  ALGENHASHCFG=$(jq '.AlonzoGenesisHash' <"${CONFIG}" 2>/dev/null)
+  ALGENHASHCFG=$(jq '(.Configuration.Protocol // .).AlonzoGenesisHash' <"${CONFIG}" 2>/dev/null)
   CWGENHASH=$("${CCLI}" hash genesis-file --genesis "${CONWAY_GENESIS_JSON}" 2>/dev/null)
-  CWGENHASHCFG=$(jq '.ConwayGenesisHash' <"${CONFIG}" 2>/dev/null)
+  CWGENHASHCFG=$(jq '(.Configuration.Protocol // .).ConwayGenesisHash' <"${CONFIG}" 2>/dev/null)
+  # Genesis hashes live at the top level (legacy config format) or under .Configuration.Protocol (new nested format)
   # If hash are missing/do not match, add that to the end of config. We could have sorted it based on logic, but that would mess up sdiff comparison outputs
   if [[ "${BYGENHASH}" != "${BYGENHASHCFG}" ]] || [[ "${SHGENHASH}" != "${SHGENHASHCFG}" ]] || [[ "${ALGENHASH}" != "${ALGENHASHCFG}" ]] || [[ "${CWGENHASH}" != "${CWGENHASHCFG}" ]]; then
     cp "${CONFIG}" "${CONFIG}".tmp
-    jq --arg BYGENHASH ${BYGENHASH} --arg SHGENHASH ${SHGENHASH} --arg ALGENHASH ${ALGENHASH} --arg CWGENHASH ${CWGENHASH} '.ByronGenesisHash = $BYGENHASH | .ShelleyGenesisHash = $SHGENHASH | .AlonzoGenesisHash = $ALGENHASH | .ConwayGenesisHash = $CWGENHASH' <"${CONFIG}" >"${CONFIG}".tmp
+    jq --arg BYGENHASH ${BYGENHASH} --arg SHGENHASH ${SHGENHASH} --arg ALGENHASH ${ALGENHASH} --arg CWGENHASH ${CWGENHASH} '(if has("Configuration") then .Configuration.Protocol else . end) |= (.ByronGenesisHash = $BYGENHASH | .ShelleyGenesisHash = $SHGENHASH | .AlonzoGenesisHash = $ALGENHASH | .ConwayGenesisHash = $CWGENHASH)' <"${CONFIG}" >"${CONFIG}".tmp
     [[ -s "${CONFIG}".tmp ]] && mv -f "${CONFIG}".tmp "${CONFIG}"
   fi
 }
