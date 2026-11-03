@@ -716,6 +716,8 @@ update_mithril_environment_for_signer() {
   # Generate the full set of environment variables required by Mithril signer use case
   export ERA_READER_ADDRESS=https://raw.githubusercontent.com/IntersectMBO/mithril/main/mithril-infra/configuration/${RELEASE}-${NETWORK_NAME,,}/era.addr
   export ERA_READER_VKEY=https://raw.githubusercontent.com/IntersectMBO/mithril/main/mithril-infra/configuration/${RELEASE}-${NETWORK_NAME,,}/era.vkey
+  export PROTOCOL_CONFIGURATION_READER_ADDRESS=https://raw.githubusercontent.com/IntersectMBO/mithril/main/mithril-infra/configuration/${RELEASE}-${NETWORK_NAME,,}/protocol-config.addr
+  export PROTOCOL_CONFIGURATION_READER_VKEY=https://raw.githubusercontent.com/IntersectMBO/mithril/main/mithril-infra/configuration/${RELEASE}-${NETWORK_NAME,,}/protocol-config.vkey
   ${sudo} bash -c "cat <<-'EOF' > ${MITHRIL_HOME}/mithril.env
 		KES_SECRET_KEY_PATH=${POOL_DIR}/${POOL_HOTKEY_SK_FILENAME}
 		OPERATIONAL_CERTIFICATE_PATH=${POOL_DIR}/${POOL_OPCERT_FILENAME}
@@ -730,6 +732,7 @@ update_mithril_environment_for_signer() {
 		STORE_RETENTION_LIMITS=5
 		ERA_READER_ADAPTER_TYPE=cardano-chain
 		ERA_READER_ADAPTER_PARAMS=$(jq -nc --arg address "$(wget -q -O - "${ERA_READER_ADDRESS}")" --arg verification_key "$(wget -q -O - "${ERA_READER_VKEY}")" '{"address": $address, "verification_key": $verification_key}')
+		PROTOCOL_CONFIGURATION_READER_ADAPTER_CONFIG=$(jq -nc --arg address "$(wget -q -O - "${PROTOCOL_CONFIGURATION_READER_ADDRESS}")" --arg verification_key "$(wget -q -O - "${PROTOCOL_CONFIGURATION_READER_VKEY}")" '{"type": "cardano-chain", "address": $address, "verification_key": $verification_key}')
 		ANCILLARY_VERIFICATION_KEY=$(wget -q -O - https://raw.githubusercontent.com/IntersectMBO/mithril/main/mithril-infra/configuration/${RELEASE}-${NETWORK_NAME,,}/ancillary.vkey)
 		GENESIS_VERIFICATION_KEY=$(wget -q -O - https://raw.githubusercontent.com/IntersectMBO/mithril/main/mithril-infra/configuration/${RELEASE}-${NETWORK_NAME,,}/genesis.vkey)
 		PARTY_ID=$(cat ${POOL_DIR}/${POOL_ID_FILENAME}-bech32)
