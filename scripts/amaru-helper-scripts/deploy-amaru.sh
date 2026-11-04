@@ -211,6 +211,7 @@ amaru_deploy_preflight_snapshot() {
 
   shell_payloads=(
     scripts/amaru-helper-scripts/amaru.sh
+    scripts/amaru-helper-scripts/migrate-from-cnode.sh
     scripts/common-helper-scripts/lib/deployment.library
     scripts/common-helper-scripts/lib/env.library
     scripts/common-helper-scripts/lib/node-api.library
@@ -464,6 +465,9 @@ amaru_deploy_install_payloads() {
   amaru_deploy_install_code_payload \
     "scripts/amaru-helper-scripts/amaru.sh" \
     "${NODE_HOME}/scripts/amaru.sh" 0755 || return 1
+  amaru_deploy_install_code_payload \
+    "scripts/amaru-helper-scripts/migrate-from-cnode.sh" \
+    "${NODE_HOME}/scripts/migrate-from-cnode.sh" 0755 || return 1
   if ! declare -F dispatcher_install_common_runtime_bundle >/dev/null 2>&1; then
     amaru_deploy_fail "Common runtime transaction helper is unavailable; run this profile through guild-deploy.sh"
     return 1
