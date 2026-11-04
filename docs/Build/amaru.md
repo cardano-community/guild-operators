@@ -180,6 +180,22 @@ when the operating system allows it, so firewall rules that match on source
 port should allow the relay port in both directions. Set
 `AMARU_PEERS_EPHEMERAL_OUTBOUND_PORT=true` to use ephemeral ports instead.
 
+To keep your own relays or block producer connected, add them to `AMARU_PEER`
+as a comma-separated `host:port` list. Amaru's default peer mix reserves two
+upstream slots for these static peers, so discovered peers cannot displace
+them. With more than two, uncomment `AMARU_PEERS_MIX`, raise the static floor,
+and raise `AMARU_PEERS_MAX_UPSTREAM` by the same amount:
+
+```bash
+AMARU_PEER="preview-node.play.dev.cardano.org:3001,relay2.example.com:3000,10.0.0.5:3000"
+AMARU_PEERS_MIX="static!3@15m, inbound~6, shared~6, snapshot~3@1h, ledger~3@24h"
+AMARU_PEERS_MAX_UPSTREAM="4"
+```
+
+Restart the service afterwards. A deployment refresh keeps an existing
+`amaru.env` unless `-s f` is used, which archives the old file under
+`scripts/archive/` first.
+
 Amaru provides no cardano-node-compatible node-to-client socket, and this
 profile does not enable Amaru's testnet block production. Its optional HTTP
 transaction submission endpoint, `AMARU_SUBMIT_API_LISTEN_ON`, is disabled
