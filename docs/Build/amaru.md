@@ -185,6 +185,65 @@ profile does not enable Amaru's testnet block production. Its optional HTTP
 transaction submission endpoint, `AMARU_SUBMIT_API_LISTEN_ON`, is disabled
 because it has no built-in authentication or TLS.
 
+## Moving a cnode relay to Amaru
+
+An existing cnode relay on `preprod` or `preview` can move to Amaru without
+changing its block producer, other relays, or firewall. Amaru is deployed in its
+own top-level folder next to cnode, catches up while cnode keeps serving, and
+then takes over cnode's port. cnode's folder and database stay untouched, so
+going back only means swapping the services again. Keep block producers on
+cnode.
+
+Deploy Amaru next to the running relay. It uses `/opt/cardano/amaru`, its own
+services, and port 3000, so it does not clash with cnode:
+
+```bash
+./guild-deploy.sh -i amaru -n preview -s pd
+```
+
+Copy the relay's `localRoots`, such as its block producer and other relays,
+into `AMARU_PEER` in `/opt/cardano/amaru/scripts/amaru.env`, which takes a
+comma-separated `host:port` list. This prints them in that form; put IPv6
+addresses in brackets:
+
+```bash
+jq -r '[.localRoots[].accessPoints[] | "\(.address):\(.port)"] | join(",")' /opt/cardano/cnode/files/topology.json
+```
+
+Amaru's default peer mix reserves two upstream slots for static peers. With
+more, also set
+`AMARU_PEERS_MIX` with a matching static floor, such as `static!3`, and raise
+`AMARU_PEERS_MAX_UPSTREAM` by the same amount.
+
+Then bootstrap and start Amaru, and follow it with
+`/opt/cardano/amaru/scripts/gLiveView.sh` until it reaches the tip. Both nodes
+run at the same time until the switch, so allow memory for both. On a preview
+relay, Amaru reached the tip about 13 minutes after bootstrap. It used up to
+0.6 GiB next to cardano-node's 3.7 GiB.
+
+To switch, stop and disable cnode, give Amaru cnode's port (`CNODE_PORT` in
+cnode's `env`, 6000 by default), and restart it:
+
+```bash
+sudo systemctl disable --now cnode
+sed -i 's|^AMARU_PEERS_LISTEN_ON=.*|AMARU_PEERS_LISTEN_ON="0.0.0.0:6000"|' /opt/cardano/amaru/scripts/amaru.env
+/opt/cardano/amaru/scripts/amaru.sh restart
+```
+
+Peers that point at the relay reconnect on their own. Amaru listened on the port
+again about 10 seconds after cnode stopped.
+
+To go back, swap the services the other way. cnode starts from its own database
+and catches up from where it stopped:
+
+```bash
+sudo systemctl disable --now amaru amaru-metrics
+sudo systemctl enable --now cnode
+```
+
+Once you no longer need the rollback, remove cnode's database to free its disk
+space.
+
 ## Monitoring and helper compatibility
 
 The common `env`, libraries, Amaru adapter, and `gLiveView.sh` are deployed.
