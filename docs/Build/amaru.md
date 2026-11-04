@@ -205,11 +205,12 @@ as in the first step below, run:
 /opt/cardano/amaru/scripts/migrate-from-cnode.sh rollback  # back to cnode
 ```
 
-`switch` rolls back on its own if Amaru does not come up on cnode's port and
-follow the chain. Use `-c <path>` when cnode is not in `/opt/cardano/cnode`. The
-script refuses block producers and deployments without a Guild manifest. If you
-have customised the scripts or set the relay up another way, follow the manual
-steps instead.
+`prepare` sets the peer limits described below and raises
+`AMARU_PEERS_MAX_DOWNSTREAM` to at least 50. `switch` rolls back on its own if
+Amaru does not come up on cnode's port and follow the chain. Use `-c <path>` when
+cnode is not in `/opt/cardano/cnode`. The script refuses block producers and
+deployments without a Guild manifest. If you have customised the scripts or set
+the relay up another way, follow the manual steps instead.
 
 Deploy Amaru next to the running relay. It uses `/opt/cardano/amaru`, its own
 services, and port 3000, so it does not clash with cnode:
@@ -227,10 +228,12 @@ addresses in brackets:
 jq -r '[.localRoots[].accessPoints[] | "\(.address):\(.port)"] | join(",")' /opt/cardano/cnode/files/topology.json
 ```
 
-Amaru's default peer mix reserves two upstream slots for static peers. With
-more, also set
-`AMARU_PEERS_MIX` with a matching static floor, such as `static!3`, and raise
-`AMARU_PEERS_MAX_UPSTREAM` by the same amount.
+Count every peer in `AMARU_PEER`, the network's default peer included. Amaru's
+default peer mix reserves two upstream slots for static peers. With more, set
+`AMARU_PEERS_MIX` with a static floor of that count, such as `static!3` for three
+peers, and set `AMARU_PEERS_MAX_UPSTREAM` one higher. Static peers also take
+spare upstream slots first, so without that extra slot the relay would not keep
+a discovered peer.
 
 Then bootstrap and start Amaru, and follow it with
 `/opt/cardano/amaru/scripts/gLiveView.sh` until it reaches the tip. Both nodes
@@ -239,22 +242,27 @@ relay, Amaru reached the tip about 13 minutes after bootstrap. It used up to
 0.6 GiB next to cardano-node's 3.7 GiB.
 
 To switch, stop and disable cnode, give Amaru cnode's port (`CNODE_PORT` in
-cnode's `env`, 6000 by default), and restart it:
+cnode's `env`, 6000 by default), and restart it. `AMARU_PEERS_MAX_DOWNSTREAM` also
+caps accepted inbound connections, 10 by default, which a public relay quickly
+reaches, so raise it at the same time:
 
 ```bash
 sudo systemctl disable --now cnode
-sed -i 's|^AMARU_PEERS_LISTEN_ON=.*|AMARU_PEERS_LISTEN_ON="0.0.0.0:6000"|' /opt/cardano/amaru/scripts/amaru.env
+sed -i -e 's|^AMARU_PEERS_LISTEN_ON=.*|AMARU_PEERS_LISTEN_ON="0.0.0.0:6000"|' \
+  -e 's|^AMARU_PEERS_MAX_DOWNSTREAM=.*|AMARU_PEERS_MAX_DOWNSTREAM="50"|' /opt/cardano/amaru/scripts/amaru.env
 /opt/cardano/amaru/scripts/amaru.sh restart
 ```
 
 Peers that point at the relay reconnect on their own. Amaru listened on the port
 again about 10 seconds after cnode stopped.
 
-To go back, swap the services the other way. cnode starts from its own database
-and catches up from where it stopped:
+To go back, swap the services the other way and give Amaru its own port again,
+so that it does not clash with cnode when it is started later. cnode starts from
+its own database and catches up from where it stopped:
 
 ```bash
 sudo systemctl disable --now amaru amaru-metrics
+sed -i 's|^AMARU_PEERS_LISTEN_ON=.*|AMARU_PEERS_LISTEN_ON="0.0.0.0:3000"|' /opt/cardano/amaru/scripts/amaru.env
 sudo systemctl enable --now cnode
 ```
 

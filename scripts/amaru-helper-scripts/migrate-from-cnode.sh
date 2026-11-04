@@ -18,6 +18,8 @@ AMARU_MIGRATE_STATE="${AMARU_MIGRATE_HOME}/files/.migrate-from-cnode"
 : "${AMARU_MIGRATE_SYNC_TIMEOUT:=7200}"
 : "${AMARU_MIGRATE_VERIFY_TIMEOUT:=180}"
 : "${AMARU_MIGRATE_POLL:=10}"
+# Inbound connections Amaru accepts at least once it takes over cnode's public port.
+: "${AMARU_MIGRATE_MIN_DOWNSTREAM:=50}"
 
 amaru_migrate_usage() {
   cat <<EOF
@@ -150,23 +152,29 @@ amaru_migrate_backup_env() {
     "${AMARU_MIGRATE_DIR}/archive/amaru.env.$(date -u +%Y%m%dT%H%M%SZ)"
 }
 
-# Description : Write cnode's localRoots into amaru.env, with a static floor that keeps them all followed.
+# Description : Write cnode's localRoots into amaru.env next to the existing static peers. The static
+#             : floor covers every static peer and one upstream slot stays free for a discovered peer,
+#             : since static peers also take spare slots first. Raises the inbound limit for the public port.
 amaru_migrate_configure_peers() {
-  local local_roots peers count floor upstream mix
+  local local_roots peers count upstream downstream
   local_roots="$(amaru_migrate_local_roots "${CNODE_TOPOLOGY}")"
   [[ -n "${local_roots}" ]] ||
     amaru_migrate_fail "${CNODE_TOPOLOGY} has no localRoots to carry over" || return 1
   peers="$(amaru_migrate_merge_peers "${local_roots}" "${AMARU_PEER:-}")"
-  count="$(tr ',' '\n' <<< "${local_roots}" | wc -l)"
-  floor=$(( count > 2 ? count : 2 ))
+  count="$(tr ',' '\n' <<< "${peers}" | wc -l)"
   upstream="${AMARU_PEERS_MAX_UPSTREAM:-3}"
-  (( upstream > floor )) || upstream=$(( floor + 1 ))
-  mix="static!${floor}@15m, inbound~6, shared~6, snapshot~3@1h, ledger~3@24h"
+  (( upstream > count )) || upstream=$(( count + 1 ))
+  downstream="${AMARU_PEERS_MAX_DOWNSTREAM:-10}"
+  (( downstream >= AMARU_MIGRATE_MIN_DOWNSTREAM )) || downstream="${AMARU_MIGRATE_MIN_DOWNSTREAM}"
   amaru_migrate_backup_env
   amaru_migrate_set_env AMARU_PEER "${peers}"
   amaru_migrate_set_env AMARU_PEERS_MAX_UPSTREAM "${upstream}"
-  (( count > 2 )) && amaru_migrate_set_env AMARU_PEERS_MIX "${mix}"
-  amaru_migrate_info "Peers from ${CNODE_TOPOLOGY}: ${local_roots}"
+  amaru_migrate_set_env AMARU_PEERS_MAX_DOWNSTREAM "${downstream}"
+  if (( count > 2 )); then
+    amaru_migrate_set_env AMARU_PEERS_MIX "static!${count}@15m, inbound~6, shared~6, snapshot~3@1h, ledger~3@24h"
+  fi
+  amaru_migrate_info "Static peers (${count}, from ${CNODE_TOPOLOGY} and amaru.env): ${peers}"
+  amaru_migrate_info "Upstream peers: ${upstream}, inbound connections: up to ${downstream}"
   amaru_migrate_load_amaru_env
 }
 
@@ -200,13 +208,27 @@ amaru_migrate_service_active() {
   "${SYSTEMCTL_BIN}" is-active --quiet "$1.service"
 }
 
+# Amaru accepts empty state directories for bootstrap, so only content marks a bootstrapped database.
+amaru_migrate_state_populated() {
+  [[ -d "$1" ]] && [[ -n "$(ls -A "$1" 2>/dev/null)" ]]
+}
+
 amaru_migrate_prepare() {
   local own_port reference slot waited=0
   own_port="$(amaru_migrate_listen_port)"
-  [[ "${own_port}" != "${CNODE_PORT}" ]] ||
-    amaru_migrate_fail "Amaru already listens on cnode's port ${CNODE_PORT}; run status or rollback" || return 1
+  if [[ "${own_port}" == "${CNODE_PORT}" && -f "${AMARU_MIGRATE_STATE}" ]]; then
+    amaru_migrate_fail "already switched: Amaru listens on cnode's port ${CNODE_PORT}; run status or rollback" || return 1
+  elif [[ "${own_port}" == "${CNODE_PORT}" ]]; then
+    amaru_migrate_fail "cnode uses port ${CNODE_PORT}, the port AMARU_PEERS_LISTEN_ON gives Amaru; set another port there to run both side by side" || return 1
+  fi
+  amaru_migrate_cnode_slot >/dev/null ||
+    amaru_migrate_fail "cannot read cnode's tip with ${AMARU_MIGRATE_CLI} on ${CNODE_SOCKET}; set AMARU_MIGRATE_CLI to cnode's cardano-cli" || return 1
   amaru_migrate_configure_peers || return 1
-  if [[ ! -d "${AMARU_DB_CHAIN:-}" || -z "$(ls -A "${AMARU_DB_CHAIN}" 2>/dev/null)" ]]; then
+  if amaru_migrate_state_populated "${AMARU_DB_CHAIN:-}" && amaru_migrate_state_populated "${AMARU_DB_LEDGER:-}"; then
+    :
+  elif amaru_migrate_state_populated "${AMARU_DB_CHAIN:-}" || amaru_migrate_state_populated "${AMARU_DB_LEDGER:-}"; then
+    amaru_migrate_fail "Amaru's chain and ledger databases are only partly there, likely from an interrupted bootstrap; move or remove ${AMARU_DB_CHAIN} and ${AMARU_DB_LEDGER} and run prepare again" || return 1
+  else
     "${AMARU_MIGRATE_LAUNCHER}" bootstrap || return 1
   fi
   [[ -f "${SYSTEMD_UNIT_DIR:-/etc/systemd/system}/${GUILD_NODE_SERVICE}.service" ]] ||
@@ -232,8 +254,9 @@ amaru_migrate_rollback() {
   local own_port=""
   [[ -f "${AMARU_MIGRATE_STATE}" ]] && own_port="$(sed -n 's/^own_listen=//p' "${AMARU_MIGRATE_STATE}")"
   systemd_control disable --now "${GUILD_NODE_SERVICE}.service" "${GUILD_NODE_SERVICE}-metrics.service" || true
-  if [[ -n "${own_port}" ]]; then
-    amaru_migrate_set_env AMARU_PEERS_LISTEN_ON "${own_port}"
+  # Start cnode even when amaru.env cannot be restored: getting the relay back comes first.
+  if [[ -n "${own_port}" ]] && ! amaru_migrate_set_env AMARU_PEERS_LISTEN_ON "${own_port}"; then
+    printf 'WARNING: could not restore AMARU_PEERS_LISTEN_ON="%s" in %s\n' "${own_port}" "${AMARU_MIGRATE_ENV_FILE}" >&2
   fi
   systemd_control enable --now "${CNODE_SERVICE}.service" || return 1
   rm -f -- "${AMARU_MIGRATE_STATE}"
@@ -253,7 +276,7 @@ amaru_migrate_switch() {
   printf 'own_listen=%s\ncnode_service=%s\n' "${AMARU_PEERS_LISTEN_ON}" "${CNODE_SERVICE}" > "${AMARU_MIGRATE_STATE}"
   amaru_migrate_backup_env
   systemd_control disable --now "${CNODE_SERVICE}.service" || { amaru_migrate_rollback; return 1; }
-  amaru_migrate_set_env AMARU_PEERS_LISTEN_ON "${listen}"
+  amaru_migrate_set_env AMARU_PEERS_LISTEN_ON "${listen}" || { amaru_migrate_rollback; return 1; }
   systemd_control enable "${GUILD_NODE_SERVICE}-metrics.service" "${GUILD_NODE_SERVICE}.service" || true
   "${AMARU_MIGRATE_LAUNCHER}" restart || { amaru_migrate_rollback; return 1; }
 

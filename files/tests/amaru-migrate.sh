@@ -117,18 +117,58 @@ assert_eq "${CNODE_PORT}" "6000" "cnode port from the node's command line"
 assert_eq "${CNODE_SOCKET}" "${CNODE_HOME_DIR}/sockets/node.socket" "cnode socket from the node's command line"
 
 # --- prepare: peers and peer mix ---------------------------------------------
+# The floor covers every static peer, the template's included, with one upstream slot to spare:
+# static peers also take spare slots first, which would leave no room for a discovered peer.
 amaru_migrate_configure_peers >/dev/null
 assert_env AMARU_PEER "10.0.0.5:6000,[2001:db8::7]:6000,relay2.example.com:3001,preview-node.play.dev.cardano.org:3001"
+assert_env AMARU_PEERS_MIX "static!4@15m, inbound~6, shared~6, snapshot~3@1h, ledger~3@24h"
+assert_env AMARU_PEERS_MAX_UPSTREAM "5"
+assert_env AMARU_PEERS_MAX_DOWNSTREAM "50"
+compgen -G "${AMARU_HOME_DIR}/scripts/archive/amaru.env.*" >/dev/null || fail "amaru.env backup missing"
+
+reset_case
+printf '{"localRoots":[{"accessPoints":[{"address":"10.0.0.5","port":6000},{"address":"10.0.0.6","port":6000}]}]}\n' > "${TEMP_ROOT}/two.json"
+CNODE_TOPOLOGY="${TEMP_ROOT}/two.json"
+amaru_migrate_configure_peers >/dev/null
 assert_env AMARU_PEERS_MIX "static!3@15m, inbound~6, shared~6, snapshot~3@1h, ledger~3@24h"
 assert_env AMARU_PEERS_MAX_UPSTREAM "4"
-compgen -G "${AMARU_HOME_DIR}/scripts/archive/amaru.env.*" >/dev/null || fail "amaru.env backup missing"
 
 reset_case
 printf '{"localRoots":[{"accessPoints":[{"address":"10.0.0.5","port":6000}]}]}\n' > "${TEMP_ROOT}/one.json"
 CNODE_TOPOLOGY="${TEMP_ROOT}/one.json"
+amaru_migrate_set_env AMARU_PEERS_MAX_DOWNSTREAM "80"
+amaru_migrate_load_amaru_env
 amaru_migrate_configure_peers >/dev/null
-grep -q '^AMARU_PEERS_MIX=' "${AMARU_MIGRATE_ENV_FILE}" && fail "default peer mix should be kept for up to two peers"
+grep -q '^AMARU_PEERS_MIX=' "${AMARU_MIGRATE_ENV_FILE}" && fail "default peer mix should be kept for two static peers"
 assert_env AMARU_PEERS_MAX_UPSTREAM "3"
+assert_env AMARU_PEERS_MAX_DOWNSTREAM "80"
+
+# --- prepare: refusals before anything changes ---------------------------------
+reset_case
+amaru_migrate_read_cnode
+amaru_migrate_cnode_slot() { printf '1000\n'; }
+amaru_migrate_amaru_slot() { printf '1000\n'; }
+CNODE_PORT=3000
+out="$(amaru_migrate_prepare 2>&1 || true)"
+[[ "${out}" == *'cnode uses port 3000'* ]] || fail "a cnode on Amaru's port needs its own message"
+printf 'own_listen=0.0.0.0:3001\n' > "${AMARU_MIGRATE_STATE}"
+out="$(amaru_migrate_prepare 2>&1 || true)"
+[[ "${out}" == *'already switched'* ]] || fail "prepare after a switch should say so"
+rm -f -- "${AMARU_MIGRATE_STATE}"
+CNODE_PORT=6000
+
+amaru_migrate_cnode_slot() { return 1; }
+amaru_migrate_prepare >/dev/null 2>&1 && fail "prepare must fail at once when cnode's tip cannot be read"
+grep -q '^amaru.sh' "${CALLS}" && fail "prepare must not start Amaru when cnode's tip cannot be read"
+amaru_migrate_cnode_slot() { printf '1000\n'; }
+
+mkdir -p "${AMARU_DB_CHAIN}" && touch "${AMARU_DB_CHAIN}/partial"
+amaru_migrate_prepare >/dev/null 2>&1 && fail "prepare must refuse a half-bootstrapped database"
+grep -qx 'amaru.sh bootstrap' "${CALLS}" && fail "prepare must not bootstrap over a partial database"
+rm -rf -- "${AMARU_DB_CHAIN}"
+
+amaru_migrate_prepare >/dev/null
+grep -qx 'amaru.sh bootstrap' "${CALLS}" || fail "prepare should bootstrap an empty Amaru"
 
 # --- switch ------------------------------------------------------------------
 reset_case
@@ -165,5 +205,26 @@ amaru_migrate_amaru_slot() { printf '995\n'; }
 amaru_migrate_switch >/dev/null 2>&1 && fail "switch must fail when Amaru does not follow the chain"
 assert_env AMARU_PEERS_LISTEN_ON "0.0.0.0:3000"
 grep -qx 'systemctl enable --now cnode.service' "${CALLS}" || fail "failed switch should start cnode again"
+
+# A failing amaru.env write after cnode is stopped must still roll back. Run it in its own shell:
+# under `&& fail` or `||`, errexit would be off and hide the early exit the fix guards against.
+reset_case
+{
+  printf 'set -euo pipefail\n'
+  printf '. %q\n' "${AMARU_HOME_DIR}/scripts/migrate-from-cnode.sh"
+  printf 'amaru_migrate_load_libraries; amaru_migrate_load_amaru_env; amaru_migrate_check_cnode_deployment\n'
+  printf 'CNODE_PORT=6000 CNODE_SOCKET=/dev/null\n'
+  printf 'amaru_migrate_cnode_slot() { echo 1000; }\n'
+  printf 'amaru_migrate_amaru_slot() { echo 995; }\n'
+  printf 'eval "$(declare -f amaru_migrate_set_env | sed 1s/amaru_migrate_set_env/amaru_migrate_set_env_real/)"\n'
+  printf 'amaru_migrate_set_env() { [[ $1 != AMARU_PEERS_LISTEN_ON ]] || return 1; amaru_migrate_set_env_real "$@"; }\n'
+  printf 'amaru_migrate_switch\n'
+} > "${TEMP_ROOT}/switch-write-fails.sh"
+AMARU_MIGRATE_LAUNCHER="${AMARU_MIGRATE_LAUNCHER}" AMARU_MIGRATE_CNODE_HOME="${CNODE_HOME_DIR}" \
+  AMARU_MIGRATE_POLL=0 AMARU_MIGRATE_VERIFY_TIMEOUT=3 \
+  bash "${TEMP_ROOT}/switch-write-fails.sh" >/dev/null 2>&1 && fail "switch must fail when amaru.env cannot be written"
+grep -qx 'systemctl disable --now cnode.service' "${CALLS}" || fail "the write-failure case should get past stopping cnode"
+grep -qx 'systemctl enable --now cnode.service' "${CALLS}" ||
+  fail "a failed amaru.env write after stopping cnode must start cnode again"
 
 printf 'amaru migrate tests passed\n'
