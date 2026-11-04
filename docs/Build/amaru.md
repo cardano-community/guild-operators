@@ -194,6 +194,23 @@ then takes over cnode's port. cnode's folder and database stay untouched, so
 going back only means swapping the services again. Keep block producers on
 cnode.
 
+If the relay still uses the standard layout that `guild-deploy.sh` created,
+`migrate-from-cnode.sh` runs these steps for you. It reads the port, topology,
+and socket from the running cardano-node. Once Amaru is deployed next to cnode,
+as in the first step below, run:
+
+```bash
+/opt/cardano/amaru/scripts/migrate-from-cnode.sh prepare   # peers, bootstrap, catch up next to cnode
+/opt/cardano/amaru/scripts/migrate-from-cnode.sh switch    # take over cnode's port, verify
+/opt/cardano/amaru/scripts/migrate-from-cnode.sh rollback  # back to cnode
+```
+
+`switch` rolls back on its own if Amaru does not come up on cnode's port and
+follow the chain. Use `-c <path>` when cnode is not in `/opt/cardano/cnode`. The
+script refuses block producers and deployments without a Guild manifest. If you
+have customised the scripts or set the relay up another way, follow the manual
+steps instead.
+
 Deploy Amaru next to the running relay. It uses `/opt/cardano/amaru`, its own
 services, and port 3000, so it does not clash with cnode:
 
