@@ -5,6 +5,12 @@
 NODE_ADAPTER_API_VERSION=1
 NODE_ADAPTER_IMPLEMENTATION="dingo"
 NODE_IMPLEMENTATION_DISPLAY_NAME="Dingo"
+# Logo shown by gLiveView beside the node info: the dingo's head from
+# https://github.com/blinklabs-io/dingo/tree/main/.github/assets in quadrant blocks, in the logo's own colours,
+# darker for THEME=light.
+NODE_IMPLEMENTATION_LOGO=("▙▖  ▗▟" "█▀██▀█" "▝▀██▀▘")
+NODE_IMPLEMENTATION_LOGO_RGB=("190;124;65" "255;182;120" "255;182;120")
+NODE_IMPLEMENTATION_LOGO_RGB_LIGHT=("144;84;26" "190;124;65" "190;124;65")
 NODE_CAPABILITIES="process process_pid metrics native_prometheus n2c local_query local_submit forge kes"
 
 # Read a top-level scalar from the deployed Dingo YAML without a YAML parser.

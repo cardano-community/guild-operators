@@ -12,6 +12,7 @@
 #REFRESH_RATE=2                           # How often (in seconds) to refresh the view (additional time for processing and output may slow it down)
 #REPAINT_RATE=10                          # Seconds between full row reconciliation (changed rows still refresh every REFRESH_RATE)
 #LEGACY_MODE=false                        # (true|false) If enabled unicode box-drawing characters will be replaced by standard ASCII characters
+#SHOW_NODE_LOGO=true                      # (true|false) Show the node implementation's logo beside its name in the header
 #RETRIES=3                                # How many attempts to connect to running Cardano node before erroring out and quitting (0 for continuous retries)
 #PEER_LIST_CNT=10                         # Number of peers to show on each in/out page in peer analysis view
 #THEME="dark"                             # dark  = suited for terminals with a dark background
@@ -276,7 +277,8 @@ nodemode="Relay"
 # Can be overridden in 'User Variables' section above #
 #######################################################
 
-[[ -z ${NODE_NAME} ]] && NODE_NAME="Cardano Node"
+# The default name is left out beside an implementation's logo, which already names the node.
+[[ -z ${NODE_NAME} ]] && NODE_NAME="Cardano Node" && NODE_NAME_DEFAULT=Y
 [[ ${#NODE_NAME} -gt 19 ]] && myExit 1 "Please keep node name at or below 19 characters in length!"
 
 [[ -z ${REFRESH_RATE} ]] && REFRESH_RATE=2
@@ -287,6 +289,7 @@ nodemode="Relay"
   myExit 1 "Please set a positive repaint interval in seconds!"
 
 [[ -z ${LEGACY_MODE} ]] && LEGACY_MODE=false
+[[ -z ${SHOW_NODE_LOGO} ]] && SHOW_NODE_LOGO=true
 
 [[ -z "${RETRIES}" ]]  && RETRIES=3
 
@@ -976,9 +979,75 @@ glvFrameHeaderDivider() {
     "${segment_two}" "${junction}" "${segment_three}" "${right}"
 }
 
+# Description : Set GLV_LOGO_SGR to the colour for a logo row: 24-bit when COLORTERM says the terminal supports it,
+#             : otherwise the closest colour of the 256-colour palette, which also works through terminals and
+#             : multiplexers without 24-bit colour, and over SSH, which doesn't pass COLORTERM on by default.
+#             : $1 = red;green;blue
+glvLogoColor() {
+  local red green blue channel index=0
+  if [[ ${COLORTERM:-} == "truecolor" || ${COLORTERM:-} == "24bit" ]]; then
+    GLV_LOGO_SGR="38;2;${1}"
+    return
+  fi
+  IFS=';' read -r red green blue <<< "${1}"
+  for channel in "${red}" "${green}" "${blue}"; do
+    index=$(( index * 6 + (channel < 48 ? 0 : channel < 115 ? 1 : (channel - 35) / 40) ))
+  done
+  GLV_LOGO_SGR="38;5;$(( 16 + index ))"
+}
+
+# Description : Prepare the logo from the adapter once at startup, coloured for the theme and the terminal. Leaves
+#             : GLV_LOGO_ART empty when there is no logo to show: disabled, legacy ASCII mode, no logo in the adapter,
+#             : or not one colour per row.
+glvLogoInit() {
+  local index row
+  local -a colours=()
+  GLV_LOGO_ART=()
+  GLV_LOGO_WIDTH=0
+  [[ ${SHOW_NODE_LOGO} != "false" && ${LEGACY_MODE} != "true" ]] || return 0
+  declare -p NODE_IMPLEMENTATION_LOGO NODE_IMPLEMENTATION_LOGO_RGB &>/dev/null || return 0
+  colours=("${NODE_IMPLEMENTATION_LOGO_RGB[@]}")
+  if [[ ${THEME:-dark} == "light" ]] && declare -p NODE_IMPLEMENTATION_LOGO_RGB_LIGHT &>/dev/null; then
+    colours=("${NODE_IMPLEMENTATION_LOGO_RGB_LIGHT[@]}")
+  fi
+  (( ${#NODE_IMPLEMENTATION_LOGO[@]} > 0 && ${#NODE_IMPLEMENTATION_LOGO[@]} == ${#colours[@]} )) || return 0
+  for index in "${!NODE_IMPLEMENTATION_LOGO[@]}"; do
+    glvLogoColor "${colours[index]}"
+    printf -v row '\e[%sm%s%s' "${GLV_LOGO_SGR}" "${NODE_IMPLEMENTATION_LOGO[index]}" "${NC}"
+    GLV_LOGO_ART+=("${row}")
+  done
+  GLV_LOGO_WIDTH=${#NODE_IMPLEMENTATION_LOGO[0]}
+}
+
+# Description : Build the header rows with the logo, the node info beside its middle row, in GLV_LOGO_HEADER, and set
+#             : GLV_LOGO_ROWS to the rows the logo adds. Returns 1 when the text header is used instead: no logo to
+#             : show, the rows it adds would not fit the height of the last frame in the terminal (GLV_TEXT_LINES, see
+#             : glvFrameFitsTerminal and glvLegacyFrameFits), or the node info is too long to fit beside it.
+#             : $1 = node name, left out when NODE_NAME is the default, $2 = implementation, $3 = role, $4 = network,
+#             : $5 = version
+glvLogoHeaderRows() {
+  local name="${1}" logo_rows=$(( ${#GLV_LOGO_ART[@]} - 1 )) info padding middle index row
+  GLV_LOGO_HEADER=()
+  GLV_LOGO_ROWS=0
+  (( logo_rows >= 0 && ${GLV_TEXT_LINES:-0} + logo_rows < ${tlines:-0} - 1 )) || return 1
+  [[ ${NODE_NAME_DEFAULT:-N} == "Y" ]] && name=""
+  info="> ${name:+${name} - }${2} - ${3} - ${4} : ${5} <"
+  (( GLV_LOGO_WIDTH + 2 + ${#info} <= width )) || return 1
+  padding=$(( (width - GLV_LOGO_WIDTH - 2 - ${#info}) / 2 ))
+  middle=$(( logo_rows / 2 ))
+  for index in "${!GLV_LOGO_ART[@]}"; do
+    printf -v row '%*s%s' "${padding}" '' "${GLV_LOGO_ART[index]}"
+    if (( index == middle )); then
+      row+="  > ${name:+${style_values_2}${name}${NC} - }${style_info}${2}${NC} - ${style_info}${3}${NC} - ${4} : ${style_values_1}${5}${NC} <"
+    fi
+    GLV_LOGO_HEADER+=("${row}")
+  done
+  GLV_LOGO_ROWS=${logo_rows}
+}
+
 glvFrameHeader() {
   local node_label implementation_label role_label network_label version_label
-  local plain_header header_padding uptime_value uptime_segment port_segment title_segment
+  local plain_header header_padding uptime_value uptime_segment port_segment title_segment row
 
   node_label="$(glv_text_clip 16 "${NODE_NAME}")"
   implementation_label="$(glv_text_clip 12 "${NODE_IMPLEMENTATION_NAME}")"
@@ -986,12 +1055,18 @@ glvFrameHeader() {
   network_label="$(glv_text_clip 8 "${NETWORK_NAME}")"
   # Amaru's date-based versions such as 10.11.20261022 need 14 characters.
   version_label="$(glv_text_clip 14 "${running_node_version}")"
-  plain_header="> ${node_label} [${implementation_label}] - ${role_label} - ${network_label} : ${version_label} <"
-  (( ${#plain_header} < width )) &&
-    header_padding=$(( (width - ${#plain_header}) / 2 )) ||
-    header_padding=0
-  glv_frame_add \
-    "$(printf '%*s' "${header_padding}" '')> ${style_values_2}${node_label}${NC} [${style_info}${implementation_label}${NC}] - ${style_info}${role_label}${NC} - ${network_label} : ${style_values_1}${version_label}${NC} <"
+  if glvLogoHeaderRows "${node_label}" "${implementation_label}" "${role_label}" "${network_label}" "${version_label}"; then
+    for row in "${GLV_LOGO_HEADER[@]}"; do
+      glv_frame_add "${row}"
+    done
+  else
+    plain_header="> ${node_label} [${implementation_label}] - ${role_label} - ${network_label} : ${version_label} <"
+    (( ${#plain_header} < width )) &&
+      header_padding=$(( (width - ${#plain_header}) / 2 )) ||
+      header_padding=0
+    glv_frame_add \
+      "$(printf '%*s' "${header_padding}" '')> ${style_values_2}${node_label}${NC} [${style_info}${implementation_label}${NC}] - ${style_info}${role_label}${NC} - ${network_label} : ${style_values_1}${version_label}${NC} <"
+  fi
 
   glv_frame_add "$(glvFrameHeaderDivider top)"
   if node_metric_has uptimes; then
@@ -1230,10 +1305,18 @@ glvCommitFrame() {
 
 glvFrameFitsTerminal() {
   local frame_height=${#GLV_FRAME_NEXT[@]}
+  local text_height=$(( frame_height - ${GLV_LOGO_ROWS:-0} ))
+  GLV_TEXT_LINES=${text_height}
   if (( frame_height < ${tlines:-0} - 1 )); then
     return 0
   fi
-  line=$((frame_height + 2))
+  # Only the logo doesn't fit: GLV_TEXT_LINES makes the next pass draw the frame without it.
+  if (( text_height < ${tlines:-0} - 1 )); then
+    line=${text_height}
+    oldLine="${line}"
+    return 1
+  fi
+  line=$((text_height + 2))
   oldLine="${line}"
   clrScreen
   return 1
@@ -1314,6 +1397,22 @@ glvFlushLegacyFrame() {
   fi
   printf '\033[?2026h%s\033[?2026l' "${update}"
   GLV_LEGACY_PREV=("${rows[@]}")
+}
+
+# Command    : glvLegacyFrameFits
+# Description: Record the frame's height without the logo for the next header.
+#              Returns 1 if the logo makes the frame too tall for the terminal,
+#              after discarding it so that the next pass draws it without the
+#              logo. Its rows hold their own positions, so they can't be moved
+#              up here the way the logo could be left out of a frame of rows.
+glvLegacyFrameFits() {
+  GLV_TEXT_LINES=$(( line - ${GLV_LOGO_ROWS:-0} ))
+  (( ${GLV_LOGO_ROWS:-0} > 0 && line >= ${tlines:-0} - 1 )) || return 0
+  glvEndLegacyFrame
+  line=${GLV_TEXT_LINES}
+  oldLine="${line}"
+  [[ -n ${GLV_LEGACY_FRAME_FILE:-} ]] || clrScreen
+  return 1
 }
 
 # Description: latency helper functions
@@ -2373,6 +2472,8 @@ pool_info_file=/dev/shm/pool_info
 
 node_has opcert && getOpCert
 
+glvLogoInit
+
 tput civis # Disable cursor
 stty -echo # Disable user input
 
@@ -2563,12 +2664,17 @@ while true; do
   # Peer analysis draws its progress live; everything else is buffered.
   [[ ${check_peers} = "true" ]] || glvBeginLegacyFrame
 
-  header_length=$(( ${#NODE_NAME} + ${#NODE_IMPLEMENTATION_NAME} + ${#nodemode} + ${#running_node_version} + ${#NETWORK_NAME} + 18 ))
-  [[ ${header_length} -gt ${width} ]] && header_padding=0 || header_padding=$(( (width - header_length) / 2 ))
-  printf "%${header_padding}s > ${style_values_2}%s${NC} [${style_info}%s${NC}] - ${style_info}%s - %s${NC} : ${style_values_1}%s${NC} < \n" \
-    "" "${NODE_NAME}" "${NODE_IMPLEMENTATION_NAME}" "${nodemode}" \
-    "${NETWORK_NAME}" "${running_node_version}" &&
-    ((line++))
+  if glvLogoHeaderRows "${NODE_NAME}" "${NODE_IMPLEMENTATION_NAME}" "${nodemode}" "${NETWORK_NAME}" "${running_node_version}"; then
+    printf '%s\n' "${GLV_LOGO_HEADER[@]}"
+    line=$(( line + ${#GLV_LOGO_HEADER[@]} ))
+  else
+    header_length=$(( ${#NODE_NAME} + ${#NODE_IMPLEMENTATION_NAME} + ${#nodemode} + ${#running_node_version} + ${#NETWORK_NAME} + 18 ))
+    [[ ${header_length} -gt ${width} ]] && header_padding=0 || header_padding=$(( (width - header_length) / 2 ))
+    printf "%${header_padding}s > ${style_values_2}%s${NC} [${style_info}%s${NC}] - ${style_info}%s - %s${NC} : ${style_values_1}%s${NC} < \n" \
+      "" "${NODE_NAME}" "${NODE_IMPLEMENTATION_NAME}" "${nodemode}" \
+      "${NETWORK_NAME}" "${running_node_version}" &&
+      ((line++))
+  fi
 
   ## main section ##
   printf "${tdivider}\n" && ((line++))
@@ -3236,6 +3342,8 @@ while true; do
   printf " TG Announcement/Support channel: ${style_info}t.me/CardanoKoios/9759${NC}\n\n" && line=$((line+2))
 
   [[ -z ${oldLine} ]] && oldLine=$line
+
+  glvLegacyFrameFits || continue
 
   if [[ ${show_peers} = "true" && ${show_peers_info} = "true" ]]; then
     printf " ${style_info}[esc/q] Quit${NC} | ${style_info}[b] Back to Peer Analysis${NC}"

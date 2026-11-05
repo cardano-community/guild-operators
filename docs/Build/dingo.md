@@ -274,8 +274,9 @@ The adapter reads Dingo's native Prometheus endpoint, using the relay port,
 metrics address, and metrics port from the deployed `dingo.yaml`, and accepts
 the `network="<network>"` label that Dingo adds to its metric samples. Common
 chain, epoch, density, mempool, connection, propagation, process, and runtime
-measurements are mapped into the shared gLiveView interface. The header
-explicitly identifies `[Dingo]`.
+measurements are mapped into the shared gLiveView interface. The header shows
+Dingo's logo and name, or `[Dingo]` when it
+[falls back to text](../Scripts/gliveview.md).
 
 Dingo uses the same availability-driven dashboard as the other
 implementations. Its native tip-gap measurement is normalized into the common

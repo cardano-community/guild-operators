@@ -9,9 +9,22 @@ historical dashboards.
 
 The same `gLiveView.sh` is installed for every node implementation. It reads
 `${NODE_HOME}/.deployment.json`, loads the selected adapter, and displays the
-implementation explicitly in the header as `[cardano-node]`, `[Dingo]`, or
-`[Amaru]`. The adapter translates native telemetry into a common metric
-contract and may add implementation-specific fields.
+implementation explicitly in the header. On every page the header shows the
+implementation's name beside its logo: the Cardano mark for `cardano-node`, and
+the Dingo and Amaru logos for those nodes. `NODE_NAME` is shown too when you set
+it, while its default is left out. The adapter supplies the logo rows and one
+colour per row, with a separate set for `THEME=light`. Colours are 24-bit when
+`COLORTERM` says the terminal supports that, and otherwise the closest colour
+of the 256-colour palette.
+
+The header is a single text row instead, such as
+`> Cardano Node [cardano-node] - Relay - Mainnet : 10.6.2 <`, with
+`SHOW_NODE_LOGO=false`, in legacy mode, when the logo's two extra rows don't fit
+the terminal's height, and when the node info is too long to fit beside the
+logo. The logo comes back as soon as the frame fits again.
+
+The adapter translates native telemetry into a common metric contract and may
+add implementation-specific fields.
 
 This guide deliberately uses field-reference tables instead of dashboard
 screenshots. A screenshot becomes inaccurate whenever a field, upstream
@@ -632,6 +645,7 @@ tracker](https://github.com/cardano-community/guild-operators/issues).
 #REFRESH_RATE=2                           # Seconds between metric refreshes
 #REPAINT_RATE=10                          # Seconds between row reconciliations
 #LEGACY_MODE=false                        # true uses ASCII borders
+#SHOW_NODE_LOGO=true                      # false uses a text header
 #RETRIES=3                                # Attempts; 0 retries continuously
 #PEER_LIST_CNT=10                         # Peers per analysis page
 #THEME="dark"                             # dark | light
