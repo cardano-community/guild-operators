@@ -12,6 +12,7 @@
 #REFRESH_RATE=2                           # How often (in seconds) to refresh the view (additional time for processing and output may slow it down)
 #REPAINT_RATE=10                          # Seconds between full row reconciliation (changed rows still refresh every REFRESH_RATE)
 #LEGACY_MODE=false                        # (true|false) If enabled unicode box-drawing characters will be replaced by standard ASCII characters
+#SHOW_NODE_LOGO=true                      # (true|false) Show the node implementation's logo instead of its name in the header, when its adapter provides one
 #RETRIES=3                                # How many attempts to connect to running Cardano node before erroring out and quitting (0 for continuous retries)
 #PEER_LIST_CNT=10                         # Number of peers to show on each in/out page in peer analysis view
 #THEME="dark"                             # dark  = suited for terminals with a dark background
@@ -287,6 +288,7 @@ nodemode="Relay"
   myExit 1 "Please set a positive repaint interval in seconds!"
 
 [[ -z ${LEGACY_MODE} ]] && LEGACY_MODE=false
+[[ -z ${SHOW_NODE_LOGO} ]] && SHOW_NODE_LOGO=true
 
 [[ -z "${RETRIES}" ]]  && RETRIES=3
 
@@ -976,6 +978,33 @@ glvFrameHeaderDivider() {
     "${segment_two}" "${junction}" "${segment_three}" "${right}"
 }
 
+# Description : Add the header rows with the implementation's logo from its adapter, the node info beside its middle
+#             : row in place of the implementation name. Returns 1, adding nothing, when there is no logo to show:
+#             : disabled, legacy ASCII mode, a logo without one colour per row, or a terminal too narrow for it,
+#             : or too short: see glvFrameFitsTerminal. Sets GLV_LOGO_ROWS to the rows the logo adds.
+#             : $1 = node label, $2 = role, $3 = network, $4 = version
+glvFrameLogoHeader() {
+  local info="> ${1} - ${2} - ${3} : ${4} <" logo_width padding middle index row
+  GLV_LOGO_ROWS=0
+  [[ ${SHOW_NODE_LOGO} != "false" && ${LEGACY_MODE} != "true" ]] || return 1
+  (( ${tlines:-0} > ${GLV_LOGO_SKIP_LINES:-0} )) || return 1
+  declare -p NODE_IMPLEMENTATION_LOGO NODE_IMPLEMENTATION_LOGO_RGB &>/dev/null || return 1
+  (( ${#NODE_IMPLEMENTATION_LOGO[@]} > 0 &&
+     ${#NODE_IMPLEMENTATION_LOGO[@]} == ${#NODE_IMPLEMENTATION_LOGO_RGB[@]} )) || return 1
+  logo_width=${#NODE_IMPLEMENTATION_LOGO[0]}
+  (( logo_width + 2 + ${#info} <= width )) || return 1
+  padding=$(( (width - logo_width - 2 - ${#info}) / 2 ))
+  middle=$(( ${#NODE_IMPLEMENTATION_LOGO[@]} / 2 ))
+  for index in "${!NODE_IMPLEMENTATION_LOGO[@]}"; do
+    printf -v row '%*s\e[38;2;%sm%s%s' "${padding}" '' \
+      "${NODE_IMPLEMENTATION_LOGO_RGB[index]}" "${NODE_IMPLEMENTATION_LOGO[index]}" "${NC}"
+    (( index == middle )) &&
+      row+="  > ${style_values_2}${1}${NC} - ${style_info}${2}${NC} - ${3} : ${style_values_1}${4}${NC} <"
+    glv_frame_add "${row}"
+  done
+  GLV_LOGO_ROWS=$(( ${#NODE_IMPLEMENTATION_LOGO[@]} - 1 ))
+}
+
 glvFrameHeader() {
   local node_label implementation_label role_label network_label version_label
   local plain_header header_padding uptime_value uptime_segment port_segment title_segment
@@ -986,12 +1015,14 @@ glvFrameHeader() {
   network_label="$(glv_text_clip 8 "${NETWORK_NAME}")"
   # Amaru's date-based versions such as 10.11.20261022 need 14 characters.
   version_label="$(glv_text_clip 14 "${running_node_version}")"
-  plain_header="> ${node_label} [${implementation_label}] - ${role_label} - ${network_label} : ${version_label} <"
-  (( ${#plain_header} < width )) &&
-    header_padding=$(( (width - ${#plain_header}) / 2 )) ||
-    header_padding=0
-  glv_frame_add \
-    "$(printf '%*s' "${header_padding}" '')> ${style_values_2}${node_label}${NC} [${style_info}${implementation_label}${NC}] - ${style_info}${role_label}${NC} - ${network_label} : ${style_values_1}${version_label}${NC} <"
+  if ! glvFrameLogoHeader "${node_label}" "${role_label}" "${network_label}" "${version_label}"; then
+    plain_header="> ${node_label} [${implementation_label}] - ${role_label} - ${network_label} : ${version_label} <"
+    (( ${#plain_header} < width )) &&
+      header_padding=$(( (width - ${#plain_header}) / 2 )) ||
+      header_padding=0
+    glv_frame_add \
+      "$(printf '%*s' "${header_padding}" '')> ${style_values_2}${node_label}${NC} [${style_info}${implementation_label}${NC}] - ${style_info}${role_label}${NC} - ${network_label} : ${style_values_1}${version_label}${NC} <"
+  fi
 
   glv_frame_add "$(glvFrameHeaderDivider top)"
   if node_metric_has uptimes; then
@@ -1234,6 +1265,12 @@ glvFrameFitsTerminal() {
     return 0
   fi
   line=$((frame_height + 2))
+  # Drop the logo rather than the dashboard while the terminal is no taller than this: the next pass
+  # draws the frame without it instead of asking for a taller terminal.
+  if (( ${GLV_LOGO_ROWS:-0} > 0 && frame_height - GLV_LOGO_ROWS < ${tlines:-0} - 1 )); then
+    GLV_LOGO_SKIP_LINES=${tlines}
+    line=$((frame_height - GLV_LOGO_ROWS))
+  fi
   oldLine="${line}"
   clrScreen
   return 1

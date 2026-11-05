@@ -10,8 +10,11 @@ historical dashboards.
 The same `gLiveView.sh` is installed for every node implementation. It reads
 `${NODE_HOME}/.deployment.json`, loads the selected adapter, and displays the
 implementation explicitly in the header as `[cardano-node]`, `[Dingo]`, or
-`[Amaru]`. The adapter translates native telemetry into a common metric
-contract and may add implementation-specific fields.
+`[Amaru]`. An adapter can supply a logo that replaces the name, as Amaru's does;
+set `SHOW_NODE_LOGO=false` to keep the name. The logo is also left out in legacy
+mode and when the terminal is too narrow or too short for it. The adapter
+translates native telemetry into a common metric contract and may add
+implementation-specific fields.
 
 This guide deliberately uses field-reference tables instead of dashboard
 screenshots. A screenshot becomes inaccurate whenever a field, upstream
@@ -632,6 +635,7 @@ tracker](https://github.com/cardano-community/guild-operators/issues).
 #REFRESH_RATE=2                           # Seconds between metric refreshes
 #REPAINT_RATE=10                          # Seconds between row reconciliations
 #LEGACY_MODE=false                        # true uses ASCII borders
+#SHOW_NODE_LOGO=true                      # false shows the name, not the logo
 #RETRIES=3                                # Attempts; 0 retries continuously
 #PEER_LIST_CNT=10                         # Peers per analysis page
 #THEME="dark"                             # dark | light

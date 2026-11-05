@@ -232,7 +232,8 @@ the local block and slot together with a timing-derived Tip gap; it does not
 display a separate reference tip.
 
 The adapter also handles scientific-notation values emitted through
-OpenTelemetry. The header explicitly identifies `[Amaru]`.
+OpenTelemetry. The header shows the Amaru logo, or `[Amaru]` in legacy mode,
+with `SHOW_NODE_LOGO=false`, or when the terminal is too small for the logo.
 
 Amaru uses the same availability-driven relay dashboard as the other
 implementations. Compact mode presents the primary operational metrics,

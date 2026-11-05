@@ -48,6 +48,8 @@ jobs:
       run: bash files/tests/dingo-metrics.sh
     - name: Test Amaru metrics adapter
       run: bash files/tests/amaru-metrics.sh
+    - name: Test gLiveView node logo
+      run: bash files/tests/glv-logo.sh
     - name: Validate deployment shell entrypoints
       run: |
         find scripts/common-helper-scripts scripts/cnode-helper-scripts scripts/dingo-helper-scripts scripts/amaru-helper-scripts \
