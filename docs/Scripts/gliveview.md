@@ -10,8 +10,9 @@ historical dashboards.
 The same `gLiveView.sh` is installed for every node implementation. It reads
 `${NODE_HOME}/.deployment.json`, loads the selected adapter, and displays the
 implementation explicitly in the header as `[cardano-node]`, `[Dingo]`, or
-`[Amaru]`. An adapter can supply a logo that replaces the name, as Amaru's does;
-set `SHOW_NODE_LOGO=false` to keep the name. The logo is also left out in legacy
+`[Amaru]`. An adapter can supply a logo that replaces the name, as Amaru's does,
+and the default `NODE_NAME` is then left out beside it; set
+`SHOW_NODE_LOGO=false` to keep the name. The logo is also left out in legacy
 mode and when the terminal is too narrow or too short for it. The adapter
 translates native telemetry into a common metric contract and may add
 implementation-specific fields.

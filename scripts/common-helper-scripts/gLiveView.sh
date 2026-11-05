@@ -277,7 +277,8 @@ nodemode="Relay"
 # Can be overridden in 'User Variables' section above #
 #######################################################
 
-[[ -z ${NODE_NAME} ]] && NODE_NAME="Cardano Node"
+# The default name is left out beside an implementation's logo, which already names the node.
+[[ -z ${NODE_NAME} ]] && NODE_NAME="Cardano Node" && NODE_NAME_DEFAULT=Y
 [[ ${#NODE_NAME} -gt 19 ]] && myExit 1 "Please keep node name at or below 19 characters in length!"
 
 [[ -z ${REFRESH_RATE} ]] && REFRESH_RATE=2
@@ -982,9 +983,11 @@ glvFrameHeaderDivider() {
 #             : row in place of the implementation name. Returns 1, adding nothing, when there is no logo to show:
 #             : disabled, legacy ASCII mode, a logo without one colour per row, or a terminal too narrow for it,
 #             : or too short: see glvFrameFitsTerminal. Sets GLV_LOGO_ROWS to the rows the logo adds.
-#             : $1 = node label, $2 = role, $3 = network, $4 = version
+#             : $1 = node label, left out when NODE_NAME is the default, $2 = role, $3 = network, $4 = version
 glvFrameLogoHeader() {
-  local info="> ${1} - ${2} - ${3} : ${4} <" logo_width padding middle index row
+  local name="${1}" info logo_width padding middle index row
+  [[ ${NODE_NAME_DEFAULT:-N} == "Y" ]] && name=""
+  info="> ${name:+${name} - }${2} - ${3} : ${4} <"
   GLV_LOGO_ROWS=0
   [[ ${SHOW_NODE_LOGO} != "false" && ${LEGACY_MODE} != "true" ]] || return 1
   (( ${tlines:-0} > ${GLV_LOGO_SKIP_LINES:-0} )) || return 1
@@ -999,7 +1002,7 @@ glvFrameLogoHeader() {
     printf -v row '%*s\e[38;2;%sm%s%s' "${padding}" '' \
       "${NODE_IMPLEMENTATION_LOGO_RGB[index]}" "${NODE_IMPLEMENTATION_LOGO[index]}" "${NC}"
     (( index == middle )) &&
-      row+="  > ${style_values_2}${1}${NC} - ${style_info}${2}${NC} - ${3} : ${style_values_1}${4}${NC} <"
+      row+="  > ${name:+${style_values_2}${name}${NC} - }${style_info}${2}${NC} - ${3} : ${style_values_1}${4}${NC} <"
     glv_frame_add "${row}"
   done
   GLV_LOGO_ROWS=$(( ${#NODE_IMPLEMENTATION_LOGO[@]} - 1 ))

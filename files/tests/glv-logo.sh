@@ -51,6 +51,14 @@ middle="$(plain "${GLV_FRAME_NEXT[1]}")"
 [[ "${middle}" == *"${NODE_IMPLEMENTATION_LOGO[1]}  > Cardano Node - Relay - Preview : 10.11.0 <" ]] ||
   fail "node info beside the middle logo row: got '${middle}'"
 [[ "${GLV_FRAME_NEXT[*]}" != *"[Amaru]"* ]] || fail "the logo header still shows the name"
+
+# The default node name would read as "cardano-node" beside another implementation's logo.
+( NODE_NAME_DEFAULT=Y
+  glv_frame_reset
+  glvFrameLogoHeader "Cardano Node" "Relay" "Preview" "10.11.0" || fail "logo header not shown"
+  middle="$(plain "${GLV_FRAME_NEXT[1]}")"
+  [[ "${middle}" == *"${NODE_IMPLEMENTATION_LOGO[1]}  > Relay - Preview : 10.11.0 <" ]] ||
+    fail "the default node name should be left out beside the logo: got '${middle}'" )
 [[ "${GLV_FRAME_NEXT[0]}" == *$'\e[38;2;48;228;161m'* ]] || fail "logo rows are not coloured"
 (( ${#middle} <= width )) || fail "logo header is wider than the dashboard"
 
