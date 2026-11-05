@@ -5,6 +5,11 @@
 NODE_ADAPTER_API_VERSION=1
 NODE_ADAPTER_IMPLEMENTATION="cnode"
 NODE_IMPLEMENTATION_DISPLAY_NAME="cardano-node"
+# Logo shown by gLiveView beside the node info: cardano-node has no logo of its own, so this is the Cardano starburst
+# from https://cardano.org/brand-assets/ in quadrant blocks, in its white, and its blue for THEME=light.
+NODE_IMPLEMENTATION_LOGO=("▘▗▗▀▖▖▝" "▐ █ █ ▌" "▖▝▝▄▘▘▗")
+NODE_IMPLEMENTATION_LOGO_RGB=("255;255;255" "255;255;255" "255;255;255")
+NODE_IMPLEMENTATION_LOGO_RGB_LIGHT=("0;51;173" "0;51;173" "0;51;173")
 NODE_CAPABILITIES="process process_pid metrics native_prometheus n2c local_query local_submit forge opcert kes haskell_rts peer_inspection topology_file block_replay_log"
 
 node_adapter_defaults() {

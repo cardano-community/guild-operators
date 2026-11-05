@@ -5,10 +5,11 @@
 NODE_ADAPTER_API_VERSION=1
 NODE_ADAPTER_IMPLEMENTATION="amaru"
 NODE_IMPLEMENTATION_DISPLAY_NAME="Amaru"
-# Logo shown by gLiveView in place of the name: the mark of https://amaru.global/layout/logo-icon.svg in
-# quadrant blocks, with one 24-bit colour per row along its gradient.
+# Logo shown by gLiveView beside the node info: the mark of https://amaru.global/layout/logo-icon.svg in
+# quadrant blocks, with one colour per row along its gradient, darker for THEME=light.
 NODE_IMPLEMENTATION_LOGO=("  ▗█▗ " " ▟█▛▟▐" "▝▀▜▘▘▝")
 NODE_IMPLEMENTATION_LOGO_RGB=("48;228;161" "48;209;177" "49;130;243")
+NODE_IMPLEMENTATION_LOGO_RGB_LIGHT=("14;128;90" "16;122;110" "49;130;243")
 NODE_CAPABILITIES="process process_pid metrics prometheus_bridge peer_inspection"
 
 # Histogram state kept between gLiveView refreshes. node_adapter_collect_metrics
