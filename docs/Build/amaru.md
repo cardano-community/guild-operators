@@ -180,10 +180,110 @@ when the operating system allows it, so firewall rules that match on source
 port should allow the relay port in both directions. Set
 `AMARU_PEERS_EPHEMERAL_OUTBOUND_PORT=true` to use ephemeral ports instead.
 
+To keep your own relays or block producer connected, add them to `AMARU_PEER`
+as a comma-separated `host:port` list. Amaru's default peer mix reserves two
+upstream slots for these static peers, so discovered peers cannot displace
+them. With more than two, uncomment `AMARU_PEERS_MIX`, raise the static floor,
+and raise `AMARU_PEERS_MAX_UPSTREAM` by the same amount:
+
+```bash
+AMARU_PEER="preview-node.play.dev.cardano.org:3001,relay2.example.com:3000,10.0.0.5:3000"
+AMARU_PEERS_MIX="static!3@15m, inbound~6, shared~6, snapshot~3@1h, ledger~3@24h"
+AMARU_PEERS_MAX_UPSTREAM="4"
+```
+
+Restart the service afterwards. A deployment refresh keeps an existing
+`amaru.env` unless `-s f` is used, which archives the old file under
+`scripts/archive/` first.
+
 Amaru provides no cardano-node-compatible node-to-client socket, and this
 profile does not enable Amaru's testnet block production. Its optional HTTP
 transaction submission endpoint, `AMARU_SUBMIT_API_LISTEN_ON`, is disabled
 because it has no built-in authentication or TLS.
+
+## Moving a cnode relay to Amaru
+
+An existing cnode relay on `preprod` or `preview` can move to Amaru without
+changing its block producer, other relays, or firewall. Amaru is deployed in its
+own top-level folder next to cnode, catches up while cnode keeps serving, and
+then takes over cnode's port. cnode's folder and database stay untouched, so
+going back only means swapping the services again. Keep block producers on
+cnode.
+
+If the relay still uses the standard layout that `guild-deploy.sh` created,
+`migrate-from-cnode.sh` runs these steps for you. It reads the port, topology,
+and socket from the running cardano-node. Once Amaru is deployed next to cnode,
+as in the first step below, run:
+
+```bash
+/opt/cardano/amaru/scripts/migrate-from-cnode.sh prepare   # peers, bootstrap, catch up next to cnode
+/opt/cardano/amaru/scripts/migrate-from-cnode.sh switch    # take over cnode's port, verify
+/opt/cardano/amaru/scripts/migrate-from-cnode.sh rollback  # back to cnode
+```
+
+`prepare` sets the peer limits described below and raises
+`AMARU_PEERS_MAX_DOWNSTREAM` to at least 50. `switch` rolls back on its own if
+Amaru does not come up on cnode's port and follow the chain. Use `-c <path>` when
+cnode is not in `/opt/cardano/cnode`. The script refuses block producers and
+deployments without a Guild manifest. If you have customised the scripts or set
+the relay up another way, follow the manual steps instead.
+
+Deploy Amaru next to the running relay. It uses `/opt/cardano/amaru`, its own
+services, and port 3000, so it does not clash with cnode:
+
+```bash
+./guild-deploy.sh -i amaru -n preview -s pd
+```
+
+Copy the relay's `localRoots`, such as its block producer and other relays,
+into `AMARU_PEER` in `/opt/cardano/amaru/scripts/amaru.env`, which takes a
+comma-separated `host:port` list. This prints them in that form; put IPv6
+addresses in brackets:
+
+```bash
+jq -r '[.localRoots[].accessPoints[] | "\(.address):\(.port)"] | join(",")' /opt/cardano/cnode/files/topology.json
+```
+
+Count every peer in `AMARU_PEER`, the network's default peer included. Amaru's
+default peer mix reserves two upstream slots for static peers. With more, set
+`AMARU_PEERS_MIX` with a static floor of that count, such as `static!3` for three
+peers, and set `AMARU_PEERS_MAX_UPSTREAM` one higher. Static peers also take
+spare upstream slots first, so without that extra slot the relay would not keep
+a discovered peer.
+
+Then bootstrap and start Amaru, and follow it with
+`/opt/cardano/amaru/scripts/gLiveView.sh` until it reaches the tip. Both nodes
+run at the same time until the switch, so allow memory for both. On a preview
+relay, Amaru reached the tip about 13 minutes after bootstrap. It used up to
+0.6 GiB next to cardano-node's 3.7 GiB.
+
+To switch, stop and disable cnode, give Amaru cnode's port (`CNODE_PORT` in
+cnode's `env`, 6000 by default), and restart it. `AMARU_PEERS_MAX_DOWNSTREAM` also
+caps accepted inbound connections, 10 by default, which a public relay quickly
+reaches, so raise it at the same time:
+
+```bash
+sudo systemctl disable --now cnode
+sed -i -e 's|^AMARU_PEERS_LISTEN_ON=.*|AMARU_PEERS_LISTEN_ON="0.0.0.0:6000"|' \
+  -e 's|^AMARU_PEERS_MAX_DOWNSTREAM=.*|AMARU_PEERS_MAX_DOWNSTREAM="50"|' /opt/cardano/amaru/scripts/amaru.env
+/opt/cardano/amaru/scripts/amaru.sh restart
+```
+
+Peers that point at the relay reconnect on their own. Amaru listened on the port
+again about 10 seconds after cnode stopped.
+
+To go back, swap the services the other way and give Amaru its own port again,
+so that it does not clash with cnode when it is started later. cnode starts from
+its own database and catches up from where it stopped:
+
+```bash
+sudo systemctl disable --now amaru amaru-metrics
+sed -i 's|^AMARU_PEERS_LISTEN_ON=.*|AMARU_PEERS_LISTEN_ON="0.0.0.0:3000"|' /opt/cardano/amaru/scripts/amaru.env
+sudo systemctl enable --now cnode
+```
+
+Once you no longer need the rollback, remove cnode's database to free its disk
+space.
 
 ## Monitoring and helper compatibility
 
