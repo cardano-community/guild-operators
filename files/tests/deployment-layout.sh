@@ -203,7 +203,12 @@ expected_config_names="$(
     LC_ALL=C sort
 )"
 
-for network in guild mainnet preprod preview; do
+prerelease_config_names="$(
+  printf '%s\n' ${expected_config_names} dijkstra-genesis.json peer-snapshot.json |
+    LC_ALL=C sort
+)"
+
+for network in guild mainnet preprod preview dijkstra musashi; do
   canonical_dir="${ROOT_DIR}/files/configs/cnode/${network}"
   [[ -d "${canonical_dir}" ]] ||
     fail "missing canonical cnode configuration for ${network}"
@@ -211,7 +216,11 @@ for network in guild mainnet preprod preview; do
     fail "legacy cnode configuration path still exists for ${network}"
 
   canonical_names="$(find "${canonical_dir}" -maxdepth 1 -type f -exec basename {} \; | LC_ALL=C sort)"
-  [[ "${canonical_names}" == "${expected_config_names}" ]] ||
+  case "${network}" in
+    dijkstra|musashi) network_config_names="${prerelease_config_names}" ;;
+    *) network_config_names="${expected_config_names}" ;;
+  esac
+  [[ "${canonical_names}" == "${network_config_names}" ]] ||
     fail "canonical cnode configuration file set is incomplete for ${network}"
 done
 

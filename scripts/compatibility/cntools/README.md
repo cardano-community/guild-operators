@@ -95,7 +95,8 @@ redacted from saved output. Copyable API requests are saved as `request.txt`, wi
 the token replaced by a placeholder. Do not use secrets in lookup identities or
 endpoint URLs. Reports can reveal public wallet activity; treat them accordingly.
 
-Network names supported: `mainnet`, `preview`, `preprod`, `guild`. Use
+Network names supported: `mainnet`, `preview`, `preprod`, `guild`, `dijkstra`,
+`musashi`. Use
 `--testnet-magic N` to override the testnet magic. The checker does not silently
 fall back to another node or API.
 

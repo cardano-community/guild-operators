@@ -252,7 +252,7 @@ cntools_wallet_address_hrp() {
         *) return 2 ;;
       esac
       ;;
-    guild|preprod|preview)
+    guild|preprod|preview|dijkstra|musashi)
       case "${address_kind}" in
         base|payment) printf 'addr_test\n' ;;
         reward) printf 'stake_test\n' ;;

@@ -74,6 +74,10 @@ ln -s "$HOME/git/cardano-db-sync/schema" "$CNODE_HOME/guild-db/schema"
 If the destination already exists, inspect it before replacing it; do not
 silently point a running deployment at schema files from a different release.
 
+The `dijkstra` network needs the schema from the `dijkstra-0-0` tag, not from a
+numbered release, because it adds what Dijkstra-era data needs. That schema is
+provisional, so expect a resync when moving to a later tag.
+
 #### Restore using Snapshot
 
 If you're running a mainnet, preview, or preprod instance, consider using a

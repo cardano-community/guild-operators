@@ -2188,6 +2188,8 @@ detect_legacy_network() {
     141) printf 'guild' ;;
     1) printf 'preprod' ;;
     2) printf 'preview' ;;
+    6) printf 'dijkstra' ;;
+    164) printf 'musashi' ;;
     *) return 1 ;;
   esac
 }
@@ -2444,7 +2446,7 @@ dispatcher_set_defaults() {
       err_exit "Deployment manifest is missing authoritative target metadata: ${DEPLOYMENT_FILE}"
     [[ "${stored_implementation}" = "${NODE_IMPLEMENTATION}" ]] || err_exit "Target ${NODE_HOME} belongs to '${stored_implementation}', not '${NODE_IMPLEMENTATION}'. Choose another -t value."
     case "${stored_implementation}:${stored_network}" in
-      cnode:mainnet|cnode:guild|cnode:preprod|cnode:preview|dingo:preprod|dingo:preview|amaru:preprod|amaru:preview) ;;
+      cnode:mainnet|cnode:guild|cnode:preprod|cnode:preview|cnode:dijkstra|cnode:musashi|dingo:preprod|dingo:preview|amaru:preprod|amaru:preview) ;;
       *) err_exit "Unsupported network '${stored_network}' for '${stored_implementation}' in ${DEPLOYMENT_FILE}." ;;
     esac
     [[ -n "${stored_service}" && "${stored_service}" = "${NODE_SERVICE}" ]] ||

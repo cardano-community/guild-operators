@@ -112,6 +112,8 @@ cntools_wallet_query_network_arguments() {
     guild) CNTOOLS_WALLET_NETWORK_ARGS=(--testnet-magic 141) ;;
     preprod) CNTOOLS_WALLET_NETWORK_ARGS=(--testnet-magic 1) ;;
     preview) CNTOOLS_WALLET_NETWORK_ARGS=(--testnet-magic 2) ;;
+    dijkstra) CNTOOLS_WALLET_NETWORK_ARGS=(--testnet-magic 6) ;;
+    musashi) CNTOOLS_WALLET_NETWORK_ARGS=(--testnet-magic 164) ;;
     *) return 1 ;;
   esac
 }

@@ -473,7 +473,11 @@ cntools_transaction_local_backend_ready() {
 
 cntools_transaction_cli_version_supported() {
   # Exact pin downloaded by the cnode, dingo and amaru profiles, or the release
-  # a cnode source build includes.
+  # a cnode source build includes. The pre-release networks pin their own, see
+  # files/node-implementations/cnode/networks/.
+  case "${CNTOOLS_NETWORK:-}:${1:-}" in
+    dijkstra:11.6.0.0|musashi:11.3.1.0) return 0 ;;
+  esac
   [[ "${1:-}" == "${CNTOOLS_TRANSACTION_CARDANO_CLI_VERSION}" ||
      "${1:-}" == "${CNTOOLS_TRANSACTION_SOURCE_BUILD_CLI_VERSION}" ]]
 }
@@ -789,6 +793,8 @@ cntools_transaction_network_arguments_into() {
     guild) _cntools_output_ref=(--testnet-magic 141) ;;
     preprod) _cntools_output_ref=(--testnet-magic 1) ;;
     preview) _cntools_output_ref=(--testnet-magic 2) ;;
+    dijkstra) _cntools_output_ref=(--testnet-magic 6) ;;
+    musashi) _cntools_output_ref=(--testnet-magic 164) ;;
     *) return 1 ;;
   esac
 }
@@ -799,6 +805,8 @@ cntools_transaction_network_magic() {
     guild) printf '141\n' ;;
     preprod) printf '1\n' ;;
     preview) printf '2\n' ;;
+    dijkstra) printf '6\n' ;;
+    musashi) printf '164\n' ;;
     *) return 1 ;;
   esac
 }

@@ -5,7 +5,7 @@ the same `guild-deploy.sh` entrypoint:
 
 | Implementation | Selector | Default folder | Networks | Deployment status |
 | --- | --- | --- | --- | --- |
-| cardano-node | `cnode` | `/opt/cardano/cnode` | mainnet, preprod, preview, guild | Default, supported deployment |
+| cardano-node | `cnode` | `/opt/cardano/cnode` | mainnet, preprod, preview, guild, dijkstra, musashi | Default, supported deployment |
 | Dingo | `dingo` | `/opt/cardano/dingo` | preprod, preview | Experimental relay and block-producer deployment |
 | Amaru | `amaru` | `/opt/cardano/amaru` | preprod, preview | Experimental rolling-release, relay-only deployment |
 

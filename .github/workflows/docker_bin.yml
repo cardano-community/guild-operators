@@ -31,6 +31,8 @@ on:
           - preprod
           - preview
           - guild
+          - dijkstra
+          - musashi
   push:
     paths:
       - 'scripts/common-helper-scripts/**'
@@ -83,7 +85,7 @@ jobs:
         node_implementation="${{ (github.event_name == 'push' && 'cnode') || github.event.inputs.node_implementation }}"
         node_network="${{ (github.event_name == 'push' && 'mainnet') || github.event.inputs.node_network }}"
         case "${node_implementation}:${node_network}" in
-          cnode:mainnet|cnode:guild|cnode:preprod|cnode:preview|dingo:preprod|dingo:preview|amaru:preprod|amaru:preview) ;;
+          cnode:mainnet|cnode:guild|cnode:preprod|cnode:preview|cnode:dijkstra|cnode:musashi|dingo:preprod|dingo:preview|amaru:preprod|amaru:preview) ;;
           *)
             echo "Unsupported Docker deployment: ${node_implementation}:${node_network}" >&2
             exit 1
@@ -102,7 +104,11 @@ jobs:
       id: set_node_version
       run: |
         implementation="${{ steps.set_node_identity.outputs.node_implementation }}"
-        version="$(jq -er '.version' "files/node-implementations/${implementation}/release.json")"
+        network="${{ steps.set_node_identity.outputs.node_network }}"
+        manifest="files/node-implementations/${implementation}/release.json"
+        [[ -f "files/node-implementations/${implementation}/networks/${network}.json" ]] &&
+          manifest="files/node-implementations/${implementation}/networks/${network}.json"
+        version="$(jq -er '.version' "${manifest}")"
         echo "node_version=${version}" >> "$GITHUB_OUTPUT"
   build_production:
     needs: set_environment_vars

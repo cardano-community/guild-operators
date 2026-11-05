@@ -59,6 +59,12 @@ cntools_health_reference_slot() {
       byron_epoch_length=4320
       byron_slot_ms=20000
       ;;
+    dijkstra|musashi)
+      byron_start=1792281600
+      transition_epoch=0
+      byron_epoch_length=4320
+      byron_slot_ms=20000
+      ;;
     *) return 1 ;;
   esac
 
@@ -93,8 +99,8 @@ cntools_slot_datetime_into() {
   local output_name="${1:-}" slot="${2:-}" reference="" timestamp=0
   [[ "${output_name}" =~ ^[A-Za-z_][A-Za-z0-9_]*$ &&
      "${slot}" =~ ^(0|[1-9][0-9]{0,12})$ ]] || return 2
-  reference="$(cntools_health_reference_slot "${CNTOOLS_NETWORK:-}" 1700000000)" || return 1
-  timestamp=$((1700000000 + slot - reference))
+  reference="$(cntools_health_reference_slot "${CNTOOLS_NETWORK:-}" 1800000000)" || return 1
+  timestamp=$((1800000000 + slot - reference))
   cntools_timestamp_datetime_into "${output_name}" "${timestamp}"
 }
 
@@ -111,6 +117,8 @@ cntools_epoch_start_slot_into() {
     preprod) _epoch_transition=4; _epoch_byron=21600; _epoch_shelley=432000 ;;
     preview) _epoch_transition=0; _epoch_byron=4320; _epoch_shelley=86400 ;;
     guild) _epoch_transition=2; _epoch_byron=360; _epoch_shelley=3600 ;;
+    dijkstra) _epoch_transition=0; _epoch_byron=4320; _epoch_shelley=86400 ;;
+    musashi) _epoch_transition=0; _epoch_byron=4320; _epoch_shelley=21600 ;;
     *) return 1 ;;
   esac
   if [[ -n "${CNTOOLS_SHELLEY_GENESIS:-}" && -f "${CNTOOLS_SHELLEY_GENESIS}" && ! -L "${CNTOOLS_SHELLEY_GENESIS}" ]]; then
@@ -191,7 +199,7 @@ cntools_health_cnode_metrics_url() {
   [[ -f "${config}" && ! -L "${config}" ]] || return 1
   endpoint="$(jq -er '
     first(
-      (.TraceOptions."".backends // [])[]
+      ((.Configuration.HermodTracing // .) | .TraceOptions."".backends // [])[]
       | select(test("(?i)PrometheusSimple"))
       | split(" ")
     )

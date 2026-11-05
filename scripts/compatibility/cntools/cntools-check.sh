@@ -31,7 +31,7 @@ usage() {
     '  --source-root PATH                  CNTools source tree to check' \
     '  --socket PATH                       Existing node socket (read-only queries)' \
     '  --node PATH                         Optional node executable for version reporting' \
-    '  --network mainnet|preview|preprod|guild' \
+    '  --network mainnet|preview|preprod|guild|dijkstra|musashi' \
     '  --testnet-magic N                    Override testnet magic' \
     '  --koios HTTPS_URL                   Koios API base, including /api/v1' \
     '  --metrics URL                       Explicit node metrics URL' \
@@ -64,7 +64,9 @@ done
 [[ "$CK_TIMEOUT" =~ ^[1-9][0-9]{0,2}$ && "$CK_DELAY" =~ ^[0-9]{1,2}$ ]] || die 'Invalid timeout/delay'
 case "$CK_NETWORK" in mainnet) ;; preview) [[ "${CK_MAGIC_OVERRIDE:-}" == Y ]] || CK_MAGIC=2 ;;
   preprod) [[ "${CK_MAGIC_OVERRIDE:-}" == Y ]] || CK_MAGIC=1 ;;
-  guild) [[ "${CK_MAGIC_OVERRIDE:-}" == Y ]] || CK_MAGIC=141 ;; *) die 'Unknown network' ;; esac
+  guild) [[ "${CK_MAGIC_OVERRIDE:-}" == Y ]] || CK_MAGIC=141 ;;
+  dijkstra) [[ "${CK_MAGIC_OVERRIDE:-}" == Y ]] || CK_MAGIC=6 ;;
+  musashi) [[ "${CK_MAGIC_OVERRIDE:-}" == Y ]] || CK_MAGIC=164 ;; *) die 'Unknown network' ;; esac
 if [[ ! "$CK_MAGIC" =~ ^[0-9]{1,10}$ ]] || (( 10#$CK_MAGIC > 4294967295 )); then die 'Invalid testnet magic'; fi
 [[ -z "$CK_KOIOS" || "$CK_KOIOS" =~ ^https://[^[:space:]\?#@]+$ ]] || die 'Koios must be an HTTPS base URL without embedded credentials/query'
 [[ -z "$CK_METRICS" || "$CK_METRICS" =~ ^https?://[^[:space:]@]+$ ]] || die 'Invalid metrics URL'

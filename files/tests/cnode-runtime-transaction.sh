@@ -608,6 +608,7 @@ run_binary_staging_test() (
   CNODE_SKIP_DBSYNC_DOWNLOAD="N"
   CARDANO_NODE_VERSION="fixture-node"
   CARDANO_CLI_VERSION="fixture-cli"
+  CNODE_RELEASE_MANIFEST="${REPO_ROOT}/files/node-implementations/cnode/release.json"
   STUB_NODE_ARCHIVE_COMPLETE="N"
 
   cnode_deploy_load_release_metadata() { :; }
@@ -615,10 +616,14 @@ run_binary_staging_test() (
   cnode_deploy_resolve_primary() {
     CNODE_RESOLVED_COMPONENT="cardano-node"
     CNODE_RESOLVED_VERSION="fixture-node"
+    CNODE_RESOLVED_URL="https://fixture.invalid/cardano-node"
+    CNODE_RESOLVED_SHA256="fixture-node"
   }
   cnode_deploy_resolve_companion() {
     CNODE_RESOLVED_COMPONENT="$1"
     CNODE_RESOLVED_VERSION="fixture-${1}"
+    CNODE_RESOLVED_URL="https://fixture.invalid/$1"
+    CNODE_RESOLVED_SHA256="fixture-$1"
   }
   cnode_deploy_download_resolved_artifact() {
     printf 'fixture archive\n' > "$1"
@@ -628,27 +633,34 @@ run_binary_staging_test() (
   log_info() { :; }
   log_ok() { :; }
   tar() {
-    case "$2" in
-      cnode.tar.gz)
-        printf 'fresh-cardano-node\n' > cardano-node
-        if [[ "${STUB_NODE_ARCHIVE_COMPLETE}" == "Y" ]]; then
-          printf 'fresh-cardano-submit-api\n' > cardano-submit-api
-          printf 'fresh-bech32\n' > bech32
-        fi
-        ;;
-      ccli.tar.gz)
-        printf 'fresh-cardano-cli\n' > cardano-cli-x86_64-linux
-        ;;
-      caddress.tar.gz)
-        printf 'fresh-cardano-address\n' > cardano-address
-        ;;
-      cnodedbsync.tar.gz)
-        printf 'fresh-cardano-db-sync\n' > cardano-db-sync
-        ;;
-      *)
-        return 2
-        ;;
-    esac
+    if [[ "$1" == "tzf" ]]; then
+      case "$2" in
+        cnode.tar.gz)
+          printf './bin/cardano-node\n'
+          if [[ "${STUB_NODE_ARCHIVE_COMPLETE}" == "Y" ]]; then
+            printf './bin/cardano-submit-api\n./bin/bech32\n'
+          fi
+          ;;
+        ccli.tar.gz)
+          printf 'cardano-cli-x86_64-linux\n'
+          ;;
+        cnodedbsync.tar.gz)
+          printf './cardano-db-sync\n'
+          ;;
+        *)
+          return 2
+          ;;
+      esac
+      return 0
+    fi
+    if [[ "$2" == "caddress.tar.gz" ]]; then
+      printf 'fresh-cardano-address\n' > cardano-address
+      return 0
+    fi
+    # zxf <archive> --transform=s#.*#<output>#, the form extraction uses
+    local output="${3#--transform=s#.*#}"
+    output="${output%#}"
+    printf 'fresh-%s\n' "${output}" > "${output}"
   }
 
   if (download_cnodebins >/dev/null 2>&1); then

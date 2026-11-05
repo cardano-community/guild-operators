@@ -40,7 +40,8 @@ at another node's existing data directory.
 executable. It is the mature choice for an existing stake-pool deployment,
 mainnet, block production, or use of the broader Guild toolset such as CNTools,
 CNCLI, Mithril helpers, db-sync, and Ogmios. It supports
-`mainnet`, `preprod`, `preview`, and the Guild development network. Omitting
+`mainnet`, `preprod`, `preview`, the Guild development network, and the
+[`dijkstra` and `musashi` testnets](Build/cnode.md#dijkstra-and-musashi-testnets). Omitting
 `-i` selects `cnode`, preserving the familiar deployment path and behavior.
 
 ##### Dingo

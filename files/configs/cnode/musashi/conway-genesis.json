@@ -1,9 +1,9 @@
 {
   "committee": {
     "members": {
-      "keyHash-0104305319ac0db0b79488982e6f0529e97326606d9fe060fb3d7f48": 293,
-      "keyHash-82027345b779d2735d01034626ad60f493c198dc9d30e689c087f4d2": 293,
-      "keyHash-90ef1da09e08cf6660e833ca057b06a4f30cca5f972683f189a8b587": 293
+      "keyHash-05af229dbbca7476e58911b5d261c4a8893e278a3da4c113cf36d596": 293,
+      "keyHash-58104d23f4d80b24a6e0b90d365b1d118ce874e5a8cee71b1b7ceade": 293,
+      "keyHash-db06f928b6ab05a2195e92dbec341fe85a9414b87b7564b7127ba0df": 293
     },
     "threshold": {
       "denominator": 3,
@@ -17,7 +17,7 @@
       "dataHash": "2a61e2f4b63442978140c77a70daab3961b22b12b63b13949a390c097214d1c5",
       "url": "ipfs://bafkreiazhhawe7sjwuthcfgl3mmv2swec7sukvclu3oli7qdyz4uhhuvmy"
     },
-    "script": "fa24fb305126805cf2164c161d852a0e7330cf988f1fe558cf7d4a64"
+    "script": "e3172285605e502bde008a7efe2b2eec516958b7bae911947a5c9373"
   },
   "dRepActivity": 20,
   "dRepDeposit": 500000000,
@@ -33,8 +33,16 @@
     "treasuryWithdrawal": 0.67,
     "updateToConstitution": 0.75
   },
+  "extraConfig": {
+    "delegs": {
+      "data": {}
+    },
+    "initialDReps": {
+      "data": {}
+    }
+  },
   "govActionDeposit": 100000000000,
-  "govActionLifetime": 30,
+  "govActionLifetime": 120,
   "minFeeRefScriptCostPerByte": 15,
   "plutusV3CostModel": [
     100788,

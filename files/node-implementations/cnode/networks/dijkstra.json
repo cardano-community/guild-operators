@@ -1,0 +1,41 @@
+{
+  "version": "11.2.0",
+  "artifacts": {
+    "linux-x86_64": {
+      "url": "https://github.com/IntersectMBO/cardano-node/releases/download/11.2.0/cardano-node-11.2.0-linux-amd64.tar.gz",
+      "sha256": "8b287e300ffb2063522fc33d50da6ecee8fa10fc7445c906fae0ca9783db8e03"
+    },
+    "linux-aarch64": {
+      "url": "https://github.com/IntersectMBO/cardano-node/releases/download/11.2.0/cardano-node-11.2.0-linux-arm64.tar.gz",
+      "sha256": "bd95c789ffa141c8c0a2ec3090fbc78c224d83cad0b335ad0e526e6f4cc70216"
+    }
+  },
+  "companions": {
+    "cardano-cli": {
+      "version": "11.6.0.0",
+      "artifacts": {
+        "linux-x86_64": {
+          "url": "https://github.com/IntersectMBO/cardano-cli/releases/download/cardano-cli-11.6.0.0/cardano-cli-11.6.0.0-x86_64-linux.tar.gz",
+          "sha256": "f52bac3e32f92dd58dbd777d6abc37c0994ca9125ee2e00058f0cac32029f059"
+        },
+        "linux-aarch64": {
+          "url": "https://github.com/IntersectMBO/cardano-cli/releases/download/cardano-cli-11.6.0.0/cardano-cli-11.6.0.0-aarch64-linux.tar.gz",
+          "sha256": "ec6423f31d843a7e81b3a1f32f91d0ebf16958acc48ed7696c1714c676bbc39c"
+        }
+      }
+    },
+    "cardano-db-sync": {
+      "version": "13.8.0.0",
+      "artifacts": {
+        "linux-x86_64": {
+          "url": "https://ci.iog.io/build/15409266/download/1/cardano-db-sync-13.8.0.0-linux.tar.gz",
+          "sha256": "fd75cff6a1a9f3afb0d5a336ecbc00f05dd9c1340c3a75b5fb7e10c45be675f2"
+        },
+        "linux-aarch64": {
+          "url": "https://ci.iog.io/build/15409212/download/1/cardano-db-sync-13.8.0.0-linux.tar.gz",
+          "sha256": "0be36447b2ee65eadde254d0db7653e6e9b8f86648ab3af57ece7bd260a7f908"
+        }
+      }
+    }
+  }
+}

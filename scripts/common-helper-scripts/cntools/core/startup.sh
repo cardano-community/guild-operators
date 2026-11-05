@@ -198,6 +198,26 @@ cntools_startup_load_env() {
   CNTOOLS_ENV_SOURCED="Y"
 }
 
+# The pre-release networks have no public Koios endpoint, so unless an operator
+# configures one, CNTools runs from the local node as with ENABLE_KOIOS=N.
+cntools_startup_resolve_koios_api() {
+  if [[ -z "${CNTOOLS_KOIOS_API}" ]]; then
+    if [[ "${CNTOOLS_NETWORK}" =~ ^(dijkstra|musashi)$ ]]; then
+      CNTOOLS_KOIOS_ENABLED="N"
+      return 0
+    fi
+    CNTOOLS_KOIOS_API="$(cntools_startup_default_koios_api "${CNTOOLS_NETWORK}")" || {
+      cntools_startup_error \
+        "No default Koios endpoint is available for network ${CNTOOLS_NETWORK}."
+      return 1
+    }
+  fi
+  [[ "${CNTOOLS_KOIOS_API}" =~ ^https://[^[:space:]]+$ ]] || {
+    cntools_startup_error "KOIOS_API must be an HTTPS URL."
+    return 1
+  }
+}
+
 cntools_startup_default_koios_api() {
   case "${1:-}" in
     mainnet) printf 'https://api.koios.rest/api/v1\n' ;;
@@ -532,17 +552,7 @@ cntools_startup_normalize_session() {
     return 1
   }
 
-  if [[ -z "${CNTOOLS_KOIOS_API}" ]]; then
-    CNTOOLS_KOIOS_API="$(cntools_startup_default_koios_api "${CNTOOLS_NETWORK}")" || {
-      cntools_startup_error \
-        "No default Koios endpoint is available for network ${CNTOOLS_NETWORK}."
-      return 1
-    }
-  fi
-  [[ "${CNTOOLS_KOIOS_API}" =~ ^https://[^[:space:]]+$ ]] || {
-    cntools_startup_error "KOIOS_API must be an HTTPS URL."
-    return 1
-  }
+  cntools_startup_resolve_koios_api || return 1
   [[ "${CNTOOLS_KOIOS_TOKEN}" != *$'\n'* &&
      "${CNTOOLS_KOIOS_TOKEN}" != *$'\r'* ]] || {
     cntools_startup_error "KOIOS_API_TOKEN must not contain line breaks."

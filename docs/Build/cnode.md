@@ -285,5 +285,28 @@ openBlockPerf installer, and hardware-wallet support files were fully
 downloaded and hashed. Every latest direct-tool installation requires the
 digest published with its selected GitHub release asset.
 
+### Dijkstra and Musashi testnets
+
+`-n dijkstra` and `-n musashi` deploy software the other networks don't use, for
+testing the upcoming Dijkstra hard fork and the Ouroboros Leios prototype. Each
+pins its versions in `files/node-implementations/cnode/networks/<network>.json`,
+which only overrides entries in `release.json`.
+
+| Network | Magic | cardano-node | cardano-cli | cardano-db-sync |
+| --- | --- | --- | --- | --- |
+| [dijkstra](https://book.world.dev.cardano.org/adv-dijkstra.html) | 6 | 11.2.0 (pre-release) | 11.6.0.0 | `dijkstra-0-0` CI build, which reports 13.8.0.0 |
+| [musashi](https://book.world.dev.cardano.org/adv-musashi.html) | 164 | Leios `rc-2026w44`, which reports 11.2.0.164 | 11.3.1.0, from the same build | None published |
+
+The Leios archive holds only the node and its CLI, so on Musashi `bech32` and
+`cardano-submit-api` come from cardano-node 11.2.0. No Koios endpoint is configured
+for either network, so CNTools works from the local node unless you set
+`KOIOS_API`. The Mithril helpers and `blockPerf.sh` don't support these networks.
+
+!!! warning "One network's binaries per OS user"
+    Binaries install into the deploying user's `~/.local/bin`, which every
+    deployment of that user shares. Deploying one of these networks replaces the
+    binaries an existing deployment of that user runs, including a mainnet node.
+    Use a separate OS user for each of these networks.
+
 For building node binaries from source and operating the launcher, see
 [cardano-node and cardano-cli](node-cli.md).

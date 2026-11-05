@@ -229,23 +229,32 @@ node_adapter_init() {
     return 1
   }
 
-  read -ra CONFIG_CONTENTS <<<"$(jq -r '[
-    .AlonzoGenesisFile // "null",
-    .ByronGenesisFile // "null",
-    .ShelleyGenesisFile // "null",
-    .Protocol // "Cardano",
-    .ConwayGenesisFile // "null"
-  ] | @tsv' "${CONFIG}" 2>/dev/null)"
+  # The config is flat, or nested from node 11.2 with the genesis files under
+  # .Configuration.Protocol and the Dijkstra genesis under .Configuration.Testing.
+  read -ra CONFIG_CONTENTS <<<"$(jq -r '
+    (.Configuration.Protocol // .) as $protocol |
+    (.Configuration.Testing // .) as $testing |
+    [
+      $protocol.AlonzoGenesisFile // "null",
+      $protocol.ByronGenesisFile // "null",
+      $protocol.ShelleyGenesisFile // "null",
+      $protocol.Protocol // "Cardano",
+      $protocol.ConwayGenesisFile // "null",
+      $testing.DijkstraGenesisFile // "null"
+    ] | @tsv' "${CONFIG}" 2>/dev/null)"
 
+  DIJKSTRA_GENESIS_JSON="${CONFIG_CONTENTS[5]}"
   CONWAY_GENESIS_JSON="${CONFIG_CONTENTS[4]}"
   ALONZO_GENESIS_JSON="${CONFIG_CONTENTS[0]}"
   BYRON_GENESIS_JSON="${CONFIG_CONTENTS[1]}"
   GENESIS_JSON="${CONFIG_CONTENTS[2]}"
+  [[ ${DIJKSTRA_GENESIS_JSON} != "null" && ! ${DIJKSTRA_GENESIS_JSON} =~ ^/ ]] && DIJKSTRA_GENESIS_JSON="$(dirname "${CONFIG}")/${DIJKSTRA_GENESIS_JSON}"
   [[ ! ${CONWAY_GENESIS_JSON} =~ ^/ ]] && CONWAY_GENESIS_JSON="$(dirname "${CONFIG}")/${CONWAY_GENESIS_JSON}"
   [[ ! ${ALONZO_GENESIS_JSON} =~ ^/ ]] && ALONZO_GENESIS_JSON="$(dirname "${CONFIG}")/${ALONZO_GENESIS_JSON}"
   [[ ! ${BYRON_GENESIS_JSON} =~ ^/ ]] && BYRON_GENESIS_JSON="$(dirname "${CONFIG}")/${BYRON_GENESIS_JSON}"
   [[ ! ${GENESIS_JSON} =~ ^/ ]] && GENESIS_JSON="$(dirname "${CONFIG}")/${GENESIS_JSON}"
 
+  [[ ${DIJKSTRA_GENESIS_JSON} == "null" || -f "${DIJKSTRA_GENESIS_JSON}" ]] || { printf "Dijkstra genesis file not found: %s\n" "${DIJKSTRA_GENESIS_JSON}" >&2; return 1; }
   [[ -f "${CONWAY_GENESIS_JSON}" ]] || { printf "Conway genesis file not found: %s\n" "${CONWAY_GENESIS_JSON}" >&2; return 1; }
   [[ -f "${ALONZO_GENESIS_JSON}" ]] || { printf "Alonzo genesis file not found: %s\n" "${ALONZO_GENESIS_JSON}" >&2; return 1; }
   [[ -f "${BYRON_GENESIS_JSON}" ]] || { printf "Byron genesis file not found: %s\n" "${BYRON_GENESIS_JSON}" >&2; return 1; }
@@ -256,14 +265,14 @@ node_adapter_init() {
 
   if [[ -z "${PROM_HOST}" || -z "${PROM_PORT}" ]]; then
     PROM_PORT=$(jq -er '
-      (.TraceOptions."".backends // [])
+      ((.Configuration.HermodTracing // .) | .TraceOptions."".backends // [])
       | .[]
       | select(test("(?i)PrometheusSimple"))
       | split(" ")
       | (last // "")
     ' "${CONFIG}")
     PROM_HOST=$(jq -er '
-      (.TraceOptions."".backends // [])
+      ((.Configuration.HermodTracing // .) | .TraceOptions."".backends // [])
       | .[]
       | select(test("(?i)PrometheusSimple"))
       | split(" ")

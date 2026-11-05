@@ -830,6 +830,14 @@ common_select_network() {
       [[ -z ${SHELLEY_TRANS_EPOCH} ]] && SHELLEY_TRANS_EPOCH=0
       [[ -z ${KOIOS_API} ]] && KOIOS_API="https://preview.koios.rest/api/v1"
       ;;
+    6)
+      [[ -z ${NETWORK_NAME} ]] && NETWORK_NAME="Dijkstra"
+      [[ -z ${SHELLEY_TRANS_EPOCH} ]] && SHELLEY_TRANS_EPOCH=0
+      ;;
+    164)
+      [[ -z ${NETWORK_NAME} ]] && NETWORK_NAME="Musashi"
+      [[ -z ${SHELLEY_TRANS_EPOCH} ]] && SHELLEY_TRANS_EPOCH=0
+      ;;
     *)
       [[ -z ${NETWORK_NAME} ]] && NETWORK_NAME="Custom"
       [[ -z ${SHELLEY_TRANS_EPOCH} ]] && SHELLEY_TRANS_EPOCH=0

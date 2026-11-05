@@ -1,9 +1,14 @@
 {
   "AlonzoGenesisFile": "/opt/cardano/cnode/files/alonzo-genesis.json",
+  "AlonzoGenesisHash": "a0f11e3609a551b5f6cb8feeeea30cb5b70839ec9dffcd726a5323a1e3f3b12a",
   "ByronGenesisFile": "/opt/cardano/cnode/files/byron-genesis.json",
+  "ByronGenesisHash": "3cbc289e3855d93a54877d5106743e1a77cdee3aaed675e62f19c2a373d698a2",
   "ConsensusMode": "PraosMode",
   "ConwayGenesisFile": "/opt/cardano/cnode/files/conway-genesis.json",
+  "ConwayGenesisHash": "7e237f0c935539f5571297e3171946dd83929719496cbf51d0dab814a47ae0de",
   "DijkstraGenesisFile": "/opt/cardano/cnode/files/dijkstra-genesis.json",
+  "DijkstraGenesisHash": "868a465b7115ae653ec532f46eca1a31a89211a96e810d78f82d6e60e3cdca87",
+  "EgressBudgetMbps": 250,
   "ExperimentalHardForksEnabled": true,
   "ExperimentalProtocolsEnabled": true,
   "LastKnownBlockVersion-Alt": 0,
@@ -13,32 +18,35 @@
     "Backend": "V2InMemory",
     "QueryBatchSize": 100000,
     "Snapshots": {
-      "MaxDelay": 600,
+      "MaxDelay": 1080,
       "MinDelay": 300,
       "NumOfDiskSnapshots": 2,
-      "RateLimit": 600,
-      "SnapshotInterval": 864
+      "SlotOffset": 0,
+      "SnapshotInterval": 4320
     }
   },
-  "LeiosDbConfig": {
-    "Backend": "SQLite",
-    "Filepath": "/opt/cardano/cnode/guild-db/leios.db"
+  "LeiosAdaptiveEndorsements": {
+    "Enabled": true
   },
-  "MempoolCapacityBytesOverride": 67108864,
-  "MinNodeVersion": "11.1.0-prototype-2026w27",
+  "LeiosDbConfig": {
+    "Backend": "SQLite"
+  },
+  "LeiosMinOfferLead": 1200,
+  "MinNodeVersion": "11.2.0.164-rc-2026w44",
   "Protocol": "Cardano",
   "RequiresNetworkMagic": "RequiresMagic",
   "ShelleyGenesisFile": "/opt/cardano/cnode/files/shelley-genesis.json",
+  "ShelleyGenesisHash": "d1b19e006c1198fb7ac9d53073c1a9f77acb1a9474c92310006ae4418290cda3",
   "TestAllegraHardForkAtEpoch": 0,
   "TestAlonzoHardForkAtEpoch": 0,
   "TestBabbageHardForkAtEpoch": 0,
   "TestConwayHardForkAtEpoch": 0,
+  "TestDijkstraHardForkAtEpoch": 0,
   "TestMaryHardForkAtEpoch": 0,
   "TestShelleyHardForkAtEpoch": 0,
   "TraceOptionForwarder": {
-    "connQueueSize": 64,
-    "disconnQueueSize": 128,
-    "maxReconnectDelay": 30
+    "maxReconnectDelay": 30,
+    "queueSize": 128
   },
   "TraceOptionMetricsPrefix": "cardano.node.metrics.",
   "TraceOptionResourceFrequency": 1000,
@@ -55,17 +63,14 @@
       "severity": "Info",
       "maxFrequency": 4
     },
-    "BlockFetch.Decision": {
+    "BlockFetch.Client.SendFetchRequest": {
       "severity": "Info"
     },
-    "BlockFetch.Client.SendFetchRequest": {
+    "BlockFetch.Decision": {
       "severity": "Info"
     },
     "ChainDB": {
       "severity": "Info"
-    },
-    "ChainDB.ImmDbEvent": {
-      "severity": "Warning"
     },
     "ChainDB.AddBlockEvent.AddBlockValidation": {
       "severity": "Silence"
@@ -85,18 +90,21 @@
     "ChainDB.AddBlockEvent.SwitchedToAFork": {
       "severity": "Info"
     },
+    "ChainDB.CopyToImmutableDBEvent.CopiedBlockToImmutableDB": {
+      "maxFrequency": 2
+    },
+    "ChainDB.ImmDbEvent": {
+      "severity": "Warning"
+    },
     "ChainDB.ImmDbEvent.ChunkValidation.ValidatedChunk": {
       "severity": "Info"
     },
-    "ChainDB.CopyToImmutableDBEvent.CopiedBlockToImmutableDB": {
-      "maxFrequency": 2
+    "ChainDB.LedgerEvent.Forker": {
+      "severity": "Silence"
     },
     "ChainDB.LedgerEvent.Replay": {
       "severity": "Info",
       "maxFrequency": 0.0668
-    },
-    "ChainDB.LedgerEvent.Forker": {
-      "severity": "Silence"
     },
     "ChainSync.Client": {
       "severity": "Warning"
@@ -104,6 +112,14 @@
     "ChainSync.Client.DownloadedHeader": {
       "severity": "Info",
       "maxFrequency": 14
+    },
+    "Consensus.LeiosKernel": {
+      "maxFrequency": 0,
+      "severity": "Debug"
+    },
+    "Consensus.LeiosPeer": {
+      "maxFrequency": 0,
+      "severity": "Debug"
     },
     "Forge.Loop": {
       "severity": "Info"
@@ -118,14 +134,40 @@
       "severity": "Info",
       "maxFrequency": 0.0002783
     },
+    "LeiosFetch.Remote": {
+      "maxFrequency": 0,
+      "severity": "Debug"
+    },
+    "LeiosNotify.Remote": {
+      "maxFrequency": 0,
+      "severity": "Debug"
+    },
+    "LeiosNotify.Remote.Receive.RequestNext": {
+      "severity": "Silence"
+    },
+    "LeiosNotify.Remote.Receive.Votes": {
+      "severity": "Silence"
+    },
+    "LeiosNotify.Remote.Send.RequestNext": {
+      "severity": "Silence"
+    },
+    "LeiosNotify.Remote.Send.Votes": {
+      "severity": "Silence"
+    },
     "Mempool": {
       "severity": "Silence"
     },
-    "Net.AcceptPolicy.ConnectionRateLimiting": {
+    "Mempool.AttemptAdd": {
+      "severity": "Silence"
+    },
+    "Mempool.SyncNotNeeded": {
+      "severity": "Silence"
+    },
+    "Net.AcceptPolicy.ConnectionLimitResume": {
       "severity": "Info",
       "maxFrequency": 0.0167
     },
-    "Net.AcceptPolicy.ConnectionLimitResume": {
+    "Net.AcceptPolicy.ConnectionRateLimiting": {
       "severity": "Info",
       "maxFrequency": 0.0167
     },
@@ -138,15 +180,18 @@
     "Net.InboundGovernor": {
       "severity": "Warning"
     },
+    "Net.InboundGovernor.Remote": {
+      "severity": "Info"
+    },
     "Net.InboundGovernor.Remote.InboundGovernorCounters": {
       "severity": "Info",
       "maxFrequency": 0.0167
     },
-    "Net.InboundGovernor.Remote": {
-      "severity": "Info"
-    },
     "Net.Mux.Remote": {
       "severity": "Info"
+    },
+    "Net.Mux.Remote.Bearer": {
+      "severity": "Silence"
     },
     "Net.PeerSelection": {
       "severity": "Info"
@@ -161,34 +206,10 @@
     "Startup": {
       "severity": "Info"
     },
-    "Consensus.LeiosKernel": {
-      "maxFrequency": 0,
-      "severity": "Debug"
-    },
-    "Consensus.LeiosPeer": {
-      "maxFrequency": 0,
-      "severity": "Debug"
-    },
-    "LeiosFetch.Remote": {
-      "maxFrequency": 0,
-      "severity": "Debug"
-    },
-    "LeiosNotify.Remote": {
-      "maxFrequency": 0,
-      "severity": "Debug"
-    },
-    "Mempool.AttemptAdd": {
-      "severity": "Silence"
-    },
-    "Mempool.SyncNotNeeded": {
-      "severity": "Silence"
-    },
     "Startup.DiffusionInit": {
       "severity": "Info"
     }
   },
-  "TurnOnLogMetrics": true,
-  "TurnOnLogging": true,
-  "UseTraceDispatcher": true,
+  "TxSubmissionLogicVersion": "TxSubmissionLogicV2",
   "TraceOptionNodeName": "cnode"
 }

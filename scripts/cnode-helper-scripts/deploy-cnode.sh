@@ -178,6 +178,13 @@ cnode_deploy_preflight_snapshot() {
     "files/configs/cnode/${NETWORK}/db-sync-config.json"
     "files/configs/cnode/${NETWORK}/submitapi.json"
   )
+  if cnode_deploy_is_prerelease_network; then
+    json_payloads+=(
+      "$(cnode_deploy_release_overlay_path)"
+      "files/configs/cnode/${NETWORK}/dijkstra-genesis.json"
+      "files/configs/cnode/${NETWORK}/peer-snapshot.json"
+    )
+  fi
 
   declare -F dispatcher_preflight_shell_payloads >/dev/null 2>&1 ||
     err_exit "Guild shell payload preflight helper is unavailable."
@@ -199,6 +206,17 @@ cnode_deploy_preflight_snapshot() {
     err_exit "Could not resolve cnode release metadata during preflight."
   cnode_deploy_validate_release_metadata "${release_path}" ||
     err_exit "Guild cnode release metadata failed preflight validation."
+  if cnode_deploy_is_prerelease_network; then
+    local rendered_release
+    rendered_release="$(mktemp "${TMPDIR:-/tmp}/cnode-release.XXXXXX")" ||
+      err_exit "Could not stage cnode release metadata during preflight."
+    if ! cnode_deploy_render_release_metadata "${rendered_release}" ||
+       ! cnode_deploy_validate_release_metadata "${rendered_release}"; then
+      rm -f -- "${rendered_release}"
+      err_exit "Guild cnode release metadata for ${NETWORK} failed preflight validation."
+    fi
+    rm -f -- "${rendered_release}"
+  fi
 }
 
 cnode_deploy_init_context() {
@@ -979,11 +997,13 @@ cnode_deploy_validate_release_metadata() {
     (.version | concrete_version) and
     (.artifacts | keys == ["linux-aarch64", "linux-x86_64"]) and
     (.artifacts | artifact_map) and
-    (.companions | keys == [
+    (.companions | has("cardano-address") and has("cardano-cli")) and
+    ((.companions | keys) - [
       "cardano-address",
       "cardano-cli",
-      "cardano-db-sync"
-    ]) and
+      "cardano-db-sync",
+      "cardano-node-support"
+    ] | length == 0) and
     all(.companions[];
       pinned_component and
       (.artifacts | keys == ["linux-aarch64", "linux-x86_64"])
@@ -1290,14 +1310,49 @@ cnode_deploy_download_resolved_artifact() {
     err_exit "Checksum verification failed for ${CNODE_RESOLVED_FILENAME}."
 }
 
+# Dijkstra and Musashi run node builds the other networks don't, and their
+# configuration adds a Dijkstra genesis and a peer snapshot.
+cnode_deploy_is_prerelease_network() {
+  [[ "${NETWORK:-}" =~ ^(dijkstra|musashi)$ ]]
+}
+
+cnode_deploy_release_overlay_path() {
+  printf 'files/node-implementations/cnode/networks/%s.json' "${NETWORK}"
+}
+
+# Write the release metadata for this network: release.json, plus the entries a
+# pre-release network pins differently from its overlay. A null entry removes a
+# component the network has no build of.
+cnode_deploy_render_release_metadata() {
+  local destination="$1"
+  local overlay rendered
+
+  cnode_deploy_fetch \
+    "files/node-implementations/cnode/release.json" "${destination}" || return 1
+  cnode_deploy_is_prerelease_network || return 0
+  overlay="$(mktemp "${destination}.overlay.XXXXXX")" || return 1
+  rendered="$(mktemp "${destination}.rendered.XXXXXX")" || {
+    rm -f -- "${overlay}"
+    return 1
+  }
+  if cnode_deploy_fetch "$(cnode_deploy_release_overlay_path)" "${overlay}" &&
+     jq -s '(.[0] * .[1]) | .companions |= with_entries(select(.value != null))' \
+       "${destination}" "${overlay}" > "${rendered}" &&
+     mv -f -- "${rendered}" "${destination}"; then
+    rm -f -- "${overlay}"
+    return 0
+  fi
+  rm -f -- "${overlay}" "${rendered}"
+  return 1
+}
+
 cnode_deploy_install_release_metadata() {
   local destination="${NODE_HOME}/files/cnode-release.json"
   local temporary
 
   temporary="$(mktemp "${NODE_HOME}/files/.cnode-release.json.tmp.XXXXXX")" ||
     err_exit "Could not create cnode release metadata staging file."
-  if ! cnode_deploy_fetch \
-    "files/node-implementations/cnode/release.json" "${temporary}"; then
+  if ! cnode_deploy_render_release_metadata "${temporary}"; then
     rm -f -- "${temporary}"
     err_exit "Could not stage cnode release metadata from the Guild source snapshot."
   fi
@@ -1313,12 +1368,29 @@ cnode_deploy_install_release_metadata() {
   cnode_deploy_load_release_metadata
 }
 
+# Extract one binary from a release archive, at its top level or under bin/.
+# $1 = archive, $2 = name in the archive, $3 = name to write (default $2)
+cnode_deploy_extract_binary() {
+  local archive="$1"
+  local name="$2"
+  local output="${3:-$2}"
+  local member
+
+  member="$(tar tzf "${archive}" 2>/dev/null |
+    grep -E "^(\./)?(bin/)?${name}\$" | head -n 1)"
+  [[ -n "${member}" ]] || return 1
+  tar zxf "${archive}" --transform="s#.*#${output}#" "${member}" &>/dev/null
+}
+
 # Download cardano-node, cardano-cli, cardano-db-sync, bech32 and cardano-submit-api.
 # The node and CLI archives are selected from the same pinned, checksum-verified
 # release metadata format used by the Dingo and Amaru profiles.
 download_cnodebins() {
   local architecture staging_dir binary
-  local node_version cli_version address_version dbsync_version
+  local node_version cli_version address_version dbsync_version support_version
+  local node_artifact support_archive="cnode.tar.gz" cli_archive="ccli.tar.gz"
+  local install_dbsync="N"
+  local manifest=""
   local -a install_binaries=(
     cardano-node
     cardano-cli
@@ -1328,6 +1400,7 @@ download_cnodebins() {
   )
 
   cnode_deploy_load_release_metadata
+  manifest="${CNODE_RELEASE_MANIFEST:-${NODE_HOME}/files/cnode-release.json}"
   architecture="$(cnode_deploy_architecture)" ||
     err_exit "Unsupported cnode architecture: $(uname -m)"
   staging_dir="$(mktemp -d "${TMPDIR:-/tmp}/guild-cnode-binaries.XXXXXX")" ||
@@ -1337,15 +1410,24 @@ download_cnodebins() {
     err_exit "Could not enter cnode binary staging directory."
   cnode_deploy_resolve_primary "${architecture}"
   node_version="${CNODE_RESOLVED_VERSION}"
+  support_version="${node_version}"
+  node_artifact="${CNODE_RESOLVED_URL} ${CNODE_RESOLVED_SHA256}"
   log_progress "Downloading cardano-node" "${CARDANO_NODE_VERSION}"
   cnode_deploy_download_resolved_artifact "cnode.tar.gz"
-  if ! tar zxf cnode.tar.gz --strip-components 2 \
-    ./bin/cardano-node \
-    ./bin/cardano-submit-api \
-    ./bin/bech32 &>/dev/null; then
+  # Leios archives carry only the node and its CLI, so a pinned mainline release
+  # supplies bech32 and the submit API there.
+  if jq -e '.companions | has("cardano-node-support")' "${manifest}" >/dev/null; then
+    cnode_deploy_resolve_companion "cardano-node-support" "${architecture}"
+    support_version="${CNODE_RESOLVED_VERSION}"
+    support_archive="csupport.tar.gz"
+    log_progress "Downloading cardano-submit-api and bech32" "${support_version}"
+    cnode_deploy_download_resolved_artifact "${support_archive}"
+  fi
+  if ! cnode_deploy_extract_binary cnode.tar.gz cardano-node ||
+     ! cnode_deploy_extract_binary "${support_archive}" cardano-submit-api ||
+     ! cnode_deploy_extract_binary "${support_archive}" bech32; then
     err_exit "Could not extract the expected cardano-node binaries."
   fi
-  rm -f cnode.tar.gz
   [[ -f cardano-node ]] || err_exit "cardano-node archive downloaded, but binary 'cardano-node' was not found after extraction."
   [[ -f cardano-submit-api ]] || err_exit "cardano-node archive downloaded, but binary 'cardano-submit-api' was not found after extraction."
   [[ -f bech32 ]] || err_exit "cardano-node archive downloaded, but binary 'bech32' was not found after extraction."
@@ -1353,13 +1435,16 @@ download_cnodebins() {
   cnode_deploy_resolve_companion "cardano-cli" "${architecture}"
   cli_version="${CNODE_RESOLVED_VERSION}"
   log_progress "Downloading cardano-cli" "${CARDANO_CLI_VERSION}"
-  cnode_deploy_download_resolved_artifact "ccli.tar.gz"
-  if ! tar zxf ccli.tar.gz --strip-components 0 \
-    "cardano-cli-${architecture#linux-}-linux" &>/dev/null ||
-     ! mv "cardano-cli-${architecture#linux-}-linux" cardano-cli; then
+  if [[ "${CNODE_RESOLVED_URL} ${CNODE_RESOLVED_SHA256}" == "${node_artifact}" ]]; then
+    cli_archive="cnode.tar.gz"
+  else
+    cnode_deploy_download_resolved_artifact "${cli_archive}"
+  fi
+  if ! cnode_deploy_extract_binary "${cli_archive}" "cardano-cli-${architecture#linux-}-linux" cardano-cli &&
+     ! cnode_deploy_extract_binary "${cli_archive}" cardano-cli; then
     err_exit "Could not extract the expected cardano-cli binary."
   fi
-  rm -f ccli.tar.gz
+  rm -f cnode.tar.gz csupport.tar.gz ccli.tar.gz
   [[ -f cardano-cli ]] || err_exit "cardano-cli archive downloaded, but binary 'cardano-cli' was not found after extraction."
 
   cnode_deploy_resolve_companion "cardano-address" "${architecture}"
@@ -1374,18 +1459,24 @@ download_cnodebins() {
   [[ -f cardano-address ]] || err_exit "cardano-address archive downloaded, but binary 'cardano-address' was not found after extraction."
 
   if [[ "${CNODE_SKIP_DBSYNC_DOWNLOAD}" == "N" ]]; then
+    if jq -e '.companions | has("cardano-db-sync")' "${manifest}" >/dev/null; then
+      install_dbsync="Y"
+    else
+      log_info "No cardano-db-sync build is pinned for ${NETWORK}."
+    fi
+  fi
+  if [[ "${install_dbsync}" == "Y" ]]; then
     cnode_deploy_resolve_companion "cardano-db-sync" "${architecture}"
     dbsync_version="${CNODE_RESOLVED_VERSION}"
     log_progress "Downloading cardano-db-sync" "${dbsync_version}"
     cnode_deploy_download_resolved_artifact "cnodedbsync.tar.gz"
-    if ! tar zxf cnodedbsync.tar.gz \
-      --strip-components 1 ./cardano-db-sync &>/dev/null; then
+    if ! cnode_deploy_extract_binary cnodedbsync.tar.gz cardano-db-sync; then
       err_exit "Could not extract the expected cardano-db-sync binary."
     fi
     rm -f cnodedbsync.tar.gz
     [[ -f cardano-db-sync ]] || err_exit "cardano-db-sync archive downloaded, but binary 'cardano-db-sync' was not found after extraction."
     install_binaries+=(cardano-db-sync)
-  else
+  elif [[ "${CNODE_SKIP_DBSYNC_DOWNLOAD}" != "N" ]]; then
     log_info "Skipped cardano-db-sync binary download."
   fi
 
@@ -1406,7 +1497,7 @@ download_cnodebins() {
   cnode_deploy_verify_binary_version \
     "./cardano-address" "${address_version}" ||
     err_exit "Staged cardano-address does not report manifest version ${address_version}."
-  if [[ "${CNODE_SKIP_DBSYNC_DOWNLOAD}" == "N" ]]; then
+  if [[ "${install_dbsync}" == "Y" ]]; then
     cnode_deploy_verify_binary_version \
       "./cardano-db-sync" "${dbsync_version}" ||
       err_exit "Staged cardano-db-sync does not report manifest version ${dbsync_version}."
@@ -1420,10 +1511,10 @@ download_cnodebins() {
 
   log_ok "Deployed cardano-node" "${node_version}"
   log_ok "Deployed cardano-cli" "${cli_version}"
-  log_ok "Deployed cardano-submit-api" "${node_version}"
-  log_ok "Deployed bech32" "${node_version}"
+  log_ok "Deployed cardano-submit-api" "${support_version}"
+  log_ok "Deployed bech32" "${support_version}"
   log_ok "Deployed cardano-address" "${address_version}"
-  if [[ "${CNODE_SKIP_DBSYNC_DOWNLOAD}" == "N" ]]; then
+  if [[ "${install_dbsync}" == "Y" ]]; then
     log_ok "Deployed cardano-db-sync" "${dbsync_version}"
   fi
 }
@@ -1784,7 +1875,7 @@ populate_cnode() {
 
   local err_msg="Could not stage network configuration file:"
   # Stage node config, genesis and topology from the cnode namespace.
-  if [[ ${NETWORK} =~ ^(mainnet|preprod|preview|guild)$ ]]; then
+  if [[ ${NETWORK} =~ ^(mainnet|preprod|preview|guild|dijkstra|musashi)$ ]]; then
     cnode_deploy_fetch_network_config "alonzo-genesis.json" "alonzo-genesis.json.tmp" || err_exit "${err_msg} alonzo-genesis.json"
     cnode_deploy_fetch_network_config "byron-genesis.json" "byron-genesis.json.tmp" || err_exit "${err_msg} byron-genesis.json"
     cnode_deploy_fetch_network_config "conway-genesis.json" "conway-genesis.json.tmp" || err_exit "${err_msg} conway-genesis.json"
@@ -1793,8 +1884,12 @@ populate_cnode() {
     cnode_deploy_fetch_network_config "config.json" "config.json.tmp" || err_exit "${err_msg} config.json"
     cnode_deploy_fetch_network_config "db-sync-config.json" "dbsync.json.tmp" || err_exit "${err_msg} db-sync-config.json"
     cnode_deploy_fetch_network_config "submitapi.json" "submitapi.json.tmp" || err_exit "${err_msg} submitapi.json"
+    if cnode_deploy_is_prerelease_network; then
+      cnode_deploy_fetch_network_config "dijkstra-genesis.json" "dijkstra-genesis.json.tmp" || err_exit "${err_msg} dijkstra-genesis.json"
+      cnode_deploy_fetch_network_config "peer-snapshot.json" "peer-snapshot.json.tmp" || err_exit "${err_msg} peer-snapshot.json"
+    fi
   else
-    err_exit "Unknown network specified! Kindly re-check the network name, valid options are: mainnet, guild, preprod, or preview."
+    err_exit "Unknown network specified! Kindly re-check the network name, valid options are: mainnet, guild, preprod, preview, dijkstra, or musashi."
   fi
   log_ok "Network configuration staged" "${NETWORK}"
   sed -e "s@/opt/cardano/cnode@${NODE_HOME}@g" -i ./*.json.tmp
@@ -1812,7 +1907,12 @@ populate_cnode() {
     log_info "Backed up existing topology/config/dbsync files before overwrite."
   fi
   log_progress "Applying network configuration" "${NETWORK}"
-  if [[ ${CNODE_DEPLOY_FORCE_CONFIG} = 'Y' || ! -f byron-genesis.json || ! -f shelley-genesis.json || ! -f alonzo-genesis.json || ! -f topology.json || ! -f config.json || ! -f dbsync.json ]]; then
+  local missing_prerelease_config="N"
+  if cnode_deploy_is_prerelease_network &&
+     [[ ! -f dijkstra-genesis.json || ! -f peer-snapshot.json ]]; then
+    missing_prerelease_config="Y"
+  fi
+  if [[ ${CNODE_DEPLOY_FORCE_CONFIG} = 'Y' || ${missing_prerelease_config} = 'Y' || ! -f byron-genesis.json || ! -f shelley-genesis.json || ! -f alonzo-genesis.json || ! -f topology.json || ! -f config.json || ! -f dbsync.json ]]; then
     mv -f byron-genesis.json.tmp byron-genesis.json
     mv -f shelley-genesis.json.tmp shelley-genesis.json
     mv -f alonzo-genesis.json.tmp alonzo-genesis.json
@@ -1820,6 +1920,10 @@ populate_cnode() {
     mv -f topology.json.tmp topology.json
     mv -f config.json.tmp config.json
     mv -f dbsync.json.tmp dbsync.json
+    if cnode_deploy_is_prerelease_network; then
+      mv -f dijkstra-genesis.json.tmp dijkstra-genesis.json
+      mv -f peer-snapshot.json.tmp peer-snapshot.json
+    fi
   else
     rm -f byron-genesis.json.tmp
     rm -f shelley-genesis.json.tmp
@@ -1828,6 +1932,7 @@ populate_cnode() {
     rm -f topology.json.tmp
     rm -f config.json.tmp
     rm -f dbsync.json.tmp
+    rm -f dijkstra-genesis.json.tmp peer-snapshot.json.tmp
   fi
   log_ok "Network configuration ready" "${NETWORK}"
 
