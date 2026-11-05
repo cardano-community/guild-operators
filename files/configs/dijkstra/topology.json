@@ -1,0 +1,35 @@
+{
+  "bootstrapPeers": [
+    {
+      "address": "dijkstra-node.play.dev.cardano.org",
+      "port": 3001
+    }
+  ],
+  "localRoots": [
+    {
+      "accessPoints": [
+        {
+          "address": "127.0.0.1",
+          "description": "replace-this-with-BP",
+          "port": 6000
+        },
+        {
+          "address": "127.0.0.1",
+          "description": "replace-this-with-relay",
+          "port": 6001
+        }
+      ],
+      "advertise": false,
+      "hotValency": 2,
+      "trustable": true
+    }
+  ],
+  "peerSnapshotFile": "peer-snapshot.json",
+  "publicRoots": [
+    {
+      "accessPoints": [],
+      "advertise": false
+    }
+  ],
+  "useLedgerAfterSlot": 259200
+}
