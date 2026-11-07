@@ -4,6 +4,25 @@ set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd -P)"
 
+# These tests cover the rolling path Dingo and Amaru normally use. While one of
+# them is pinned, test a copy that follows the newest release again. The pinned
+# path itself is covered by files/tests/node-release-pin.sh.
+for implementation in dingo amaru; do
+  if [[ "$(jq -r '.version' "${REPO_ROOT}/files/node-implementations/${implementation}/release.json")" != "latest" ]]; then
+    rolling_copy="$(mktemp -d "${TMPDIR:-/tmp}/guild-rolling-copy.XXXXXX")"
+    cp -R "${REPO_ROOT}/." "${rolling_copy}/"
+    for pinned in dingo amaru; do
+      manifest="${rolling_copy}/files/node-implementations/${pinned}/release.json"
+      jq '.version = "latest" | del(.artifacts)' "${manifest}" > "${manifest}.next"
+      mv -f "${manifest}.next" "${manifest}"
+    done
+    status=0
+    bash "${rolling_copy}/files/tests/alternate-deployments.sh" || status=$?
+    rm -rf -- "${rolling_copy}"
+    exit "${status}"
+  fi
+done
+
 fail() {
   printf 'FAIL: %s\n' "$1" >&2
   exit 1

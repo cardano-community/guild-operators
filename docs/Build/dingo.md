@@ -43,6 +43,22 @@ companion in `${NODE_HOME}/bin/cardano-cli`. Existing copies are retained in
 binaries, so a Dingo deployment can't affect a cnode deployment of the same user. Both
 `linux-x86_64` and `linux-aarch64` release artifacts are supported.
 
+### Following the newest release
+
+Dingo follows its newest release. Each night, `node-release-check.yml` deploys it,
+starts it, and reads a rising slot through the same adapter gLiveView uses. If that
+fails, the job opens an issue and a pull request pinning the newest release that
+works, and later proposes returning to the newest release once one passes. You can
+also pin by hand, which records GitHub's published digests:
+
+```bash
+files/tools/pin-node-release.sh dingo v0.90.4
+```
+
+```bash
+files/tools/pin-node-release.sh dingo latest
+```
+
 ### Release contract
 
 `files/node-implementations/dingo/release.json` is the single Dingo release

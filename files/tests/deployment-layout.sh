@@ -35,7 +35,6 @@ for implementation in dingo amaru; do
   jq -e --arg implementation "${implementation}" '
     .schemaVersion == 1 and
     .implementation == $implementation and
-    .version == "latest" and
     (.github | type == "string" and
       test("^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")) and
     (.assets | keys == ["linux-aarch64", "linux-x86_64"]) and
@@ -44,7 +43,11 @@ for implementation in dingo amaru; do
       length > 0 and
       (test("[[:space:]]") | not)
     ) and
-    (has("artifacts") | not)
+    # Rolling, or pinned with artifacts after the newest release failed its check.
+    (if .version == "latest"
+     then (has("artifacts") | not)
+     else (.artifacts | keys == ["linux-aarch64", "linux-x86_64"])
+     end)
   ' "${release_file}" >/dev/null ||
     fail "invalid rolling ${implementation} release metadata"
 done

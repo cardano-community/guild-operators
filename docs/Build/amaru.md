@@ -46,6 +46,19 @@ lets CNTools build, inspect, and sign transactions without implying that Amaru
 has a node-to-client socket. Both `linux-x86_64` and `linux-aarch64` release
 artifacts are supported.
 
+Amaru follows its newest release. Each night, `node-release-check.yml` deploys and
+bootstraps it, starts it, and reads a rising slot through the same adapter gLiveView
+uses. If that fails, the job opens an issue and a pull request pinning the newest
+release that works. To pin by hand, or to follow the newest release again:
+
+```bash
+files/tools/pin-node-release.sh amaru v10.11.20261022
+```
+
+```bash
+files/tools/pin-node-release.sh amaru latest
+```
+
 ### Release contract
 
 `files/node-implementations/amaru/release.json` is the single Amaru release

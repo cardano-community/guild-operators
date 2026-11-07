@@ -1,0 +1,38 @@
+name: Node release check
+
+# Dingo and Amaru follow their newest release. Each night, make sure it still
+# works with Guild's scripts. If it doesn't, propose pinning the newest release
+# that does, and open an issue. GitHub runs schedules only from the default branch.
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '41 3 * * *'
+
+env:
+  # Keep in step with PINS_BRANCH in pins.yml.
+  PINS_BRANCH: cntools-rebuild
+
+jobs:
+  check:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        implementation: [dingo, amaru]
+    env:
+      # PRs opened with the default GITHUB_TOKEN don't start CI.
+      GH_TOKEN: ${{ secrets.REPO_SCOPED_TOKEN }}
+      NODE_CHECK_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.PINS_BRANCH }}
+          token: ${{ secrets.REPO_SCOPED_TOKEN }}
+          fetch-depth: 0
+      - name: Check the release and propose what's needed
+        run: |
+          git config user.name "${{ secrets.REPO_SCOPED_USER }}"
+          git config user.email "${{ secrets.REPO_SCOPED_EMAIL }}"
+          bash files/tools/check-node-release.sh "${{ matrix.implementation }}" "${PINS_BRANCH}"

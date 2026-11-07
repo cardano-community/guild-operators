@@ -434,7 +434,7 @@ amaru_deploy_validate_release_metadata() {
         (.url | https_url) and
         (.sha256 | type == "string" and test("\\A[0-9a-f]{64}\\z"));
       type == "object" and
-      keys == ["assets", "companions", "github", "implementation", "otelcol", "schemaVersion", "version"] and
+      ((keys - ["artifacts"]) == ["assets", "companions", "github", "implementation", "otelcol", "schemaVersion", "version"]) and
       .schemaVersion == 1 and
       .implementation == $implementation and
       (.companions | type == "object" and keys == ["cardano-cli"]) and
@@ -454,7 +454,16 @@ amaru_deploy_validate_release_metadata() {
         (.artifacts | type == "object" and
           keys == ["linux-aarch64", "linux-x86_64"]) and
         all(.artifacts[]; artifact)) and
-      .version == "latest" and
+      # Rolling by default. A pinned version also carries its artifacts, for when
+      # the newest release fails the nightly check.
+      (
+        (.version == "latest" and (has("artifacts") | not)) or
+        (.version != "latest" and
+          (.version | type == "string" and test("\\A[0-9][0-9A-Za-z.+-]*\\z")) and
+          (.artifacts | type == "object" and
+            keys == ["linux-aarch64", "linux-x86_64"]) and
+          all(.artifacts[]; artifact))
+      ) and
       (.github | repository) and
       (.assets | type == "object" and
         keys == ["linux-aarch64", "linux-x86_64"]) and
@@ -534,7 +543,17 @@ amaru_deploy_architecture() {
 amaru_deploy_resolve_binary() {
   local manifest="$1"
   local architecture="$2"
-  local repository selector
+  local repository selector pinned_version
+
+  pinned_version="$(jq -er '.version' "${manifest}")" || return 1
+  if [[ "${pinned_version}" != "latest" ]]; then
+    AMARU_RESOLVED_VERSION="${pinned_version}"
+    AMARU_RESOLVED_URL="$(jq -er --arg arch "${architecture}" '.artifacts[$arch].url' "${manifest}")" || return 1
+    AMARU_RESOLVED_SHA256="$(jq -er --arg arch "${architecture}" '.artifacts[$arch].sha256' "${manifest}")" || return 1
+    AMARU_RESOLVED_PRERELEASE="false"
+    amaru_deploy_progress "Using pinned Amaru release" "${pinned_version}"
+    return 0
+  fi
 
   declare -F dispatcher_resolve_github_release >/dev/null 2>&1 || {
     amaru_deploy_fail "The common GitHub release resolver is unavailable; refresh guild-deploy.sh"

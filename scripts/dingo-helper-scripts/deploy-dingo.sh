@@ -445,10 +445,19 @@ dingo_deploy_validate_release_metadata() {
         (.url | type == "string" and startswith("https://")) and
         (.sha256 | type == "string" and test("^[0-9a-f]{64}$"));
       type == "object" and
-      keys == ["assets", "companions", "github", "implementation", "schemaVersion", "version"] and
+      ((keys - ["artifacts"]) == ["assets", "companions", "github", "implementation", "schemaVersion", "version"]) and
       .schemaVersion == 1 and
       .implementation == $implementation and
-      .version == "latest" and
+      # Rolling by default. A pinned version also carries its artifacts, for when
+      # the newest release fails the nightly check.
+      (
+        (.version == "latest" and (has("artifacts") | not)) or
+        (.version != "latest" and
+          (.version | type == "string" and test("\\A[0-9][0-9A-Za-z.+-]*\\z")) and
+          (.artifacts | type == "object" and
+            keys == ["linux-aarch64", "linux-x86_64"]) and
+          all(.artifacts[]; artifact))
+      ) and
       (.github | repository) and
       (.assets | type == "object" and
         keys == ["linux-aarch64", "linux-x86_64"]) and
@@ -532,7 +541,17 @@ dingo_deploy_architecture() {
 dingo_deploy_resolve_binary() {
   local manifest="$1"
   local architecture="$2"
-  local repository selector
+  local repository selector pinned_version
+
+  pinned_version="$(jq -er '.version' "${manifest}")" || return 1
+  if [[ "${pinned_version}" != "latest" ]]; then
+    DINGO_RESOLVED_VERSION="${pinned_version}"
+    DINGO_RESOLVED_URL="$(jq -er --arg arch "${architecture}" '.artifacts[$arch].url' "${manifest}")" || return 1
+    DINGO_RESOLVED_SHA256="$(jq -er --arg arch "${architecture}" '.artifacts[$arch].sha256' "${manifest}")" || return 1
+    DINGO_RESOLVED_PRERELEASE="false"
+    dingo_deploy_progress "Using pinned Dingo release" "${pinned_version}"
+    return 0
+  fi
 
   declare -F dispatcher_resolve_github_release >/dev/null 2>&1 || {
     dingo_deploy_fail "The common GitHub release resolver is unavailable; refresh guild-deploy.sh"
