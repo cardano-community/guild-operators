@@ -23,6 +23,10 @@ gRest is an open source implementation of a `query layer built over dbsync using
 2. [HAProxy](https://docs.haproxy.org/3.2/configuration.html):
     An easy gateway proxy that automatically provides failover/basic DDoS protection, specify rules management for load balancing, setup multiple frontend/backends, provide easy means to have TLS enabled for public facing instances, etc. You may alter the settings for proxy layer as per your SecOps preferences. This component is optional (eg: if you prefer to expose your PostgREST server itself, you can do so using similar steps below).
 
+When the local PostgREST instance is down, HAProxy fails over to the public Koios
+instance for the same network: mainnet, preprod, preview or guild. Other networks,
+such as Dijkstra, have none, so requests fail until the local instance is back.
+
 ### Setup gRest services {: id="setup"}
 
 To start with you'd want to ensure your current shell session has access to Postgres credentials, continuing from examples from the above mentioned [Sample Postgres deployment guide](../Appendix/postgres.md).

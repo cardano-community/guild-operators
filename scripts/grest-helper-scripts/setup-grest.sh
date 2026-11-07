@@ -217,13 +217,18 @@ SGVERSION=v1.4.2
     [[ -z "${DB_SCRIPTS_URL}" ]] && DB_SCRIPTS_URL="https://raw.githubusercontent.com/${G_ACCOUNT}/koios-artifacts/${SGVERSION}/files/grest/rpc/db-scripts"
     DOCS_URL="https://cardano-community.github.io/guild-operators"
     [[ -z "${PGPASSFILE}" ]] && export PGPASSFILE="${CNODE_HOME}"/priv/.pgpass
+    # Fail over only to a public Koios instance on the same network. Others, such
+    # as dijkstra, have none, so they get an error instead of another network's data.
     case ${NWMAGIC} in
       764824073)  KOIOS_SRV="api.koios.rest" ;;
       1) KOIOS_SRV="preprod.koios.rest" ;;
       2) KOIOS_SRV="preview.koios.rest" ;;
-      *) KOIOS_SRV="guild.koios.rest" ;;
+      141) KOIOS_SRV="guild.koios.rest" ;;
+      *) KOIOS_SRV="" ;;
     esac
-    API_DOCS_URL="https://${KOIOS_SRV}"
+    # The API definition is the same on every network.
+    KOIOS_SPEC_SRV="${KOIOS_SRV:-api.koios.rest}"
+    API_DOCS_URL="https://${KOIOS_SPEC_SRV}"
   }
 
   parse_args() {
@@ -258,11 +263,11 @@ SGVERSION=v1.4.2
 
   common_update() {
     # Create skeleton whitelist URL file if one does not already exist using most common option
-    curl -sfkL "https://${KOIOS_SRV}/koiosapi.yaml" -o "${CNODE_HOME}"/files/koiosapi.yaml 2>/dev/null
+    curl -sfkL "https://${KOIOS_SPEC_SRV}/koiosapi.yaml" -o "${CNODE_HOME}"/files/koiosapi.yaml 2>/dev/null
     grep "^  /" "${CNODE_HOME}"/files/koiosapi.yaml | grep -v -e submittx -e "#RPC" | sed -e 's#^  /#/#' | cut -d: -f1 | sort > "${CNODE_HOME}"/files/grestrpcs 2>/dev/null
     echo "/control_table" >> "${CNODE_HOME}"/files/grestrpcs 2>/dev/null
     checkUpdate grest-poll.sh Y N N grest-helper-scripts >/dev/null
-    sed -i "s|^#API_STRUCT_DEFINITION=\"https://api.koios.rest/koiosapi.yaml\"|API_STRUCT_DEFINITION=\"https://${KOIOS_SRV}/koiosapi.yaml\"|g" grest-poll.sh
+    sed -i "s|^#API_STRUCT_DEFINITION=\"https://api.koios.rest/koiosapi.yaml\"|API_STRUCT_DEFINITION=\"https://${KOIOS_SPEC_SRV}/koiosapi.yaml\"|g" grest-poll.sh
     checkUpdate checkstatus.sh Y N N grest-helper-scripts >/dev/null
     checkUpdate getmetrics.sh Y N N grest-helper-scripts >/dev/null
   }
@@ -416,6 +421,14 @@ SGVERSION=v1.4.2
     sudo chown authenticator:${USER} "${CNODE_HOME}"/priv/grest.conf
     # Create HAProxy config template
     [[ -f "${HAPROXY_CFG}" ]] && cp "${HAPROXY_CFG}" "${HAPROXY_CFG}"_bkp$(date +%s)
+    local failover_server failover_host
+    if [[ -n "${KOIOS_SRV}" ]]; then
+      failover_server="server koios-ssl ${KOIOS_SRV}:443 ssl verify none"
+      failover_host="http-request set-header X-HAProxy-Hostname \"${KOIOS_SRV}\""
+    else
+      failover_server="# No public Koios instance runs on this network, so there is nothing to fail over to."
+      failover_host=""
+    fi
 
     bash -c "cat <<-EOF > ${HAPROXY_CFG}
 			global
@@ -473,8 +486,8 @@ SGVERSION=v1.4.2
 			  server local 127.0.0.1:8050 check inter 20000 fall 1 rise 2
 			
 			backend grest_failover
-			  server koios-ssl ${KOIOS_SRV}:443 ssl verify none
-			  http-request set-header X-HAProxy-Hostname \"${KOIOS_SRV}\"
+			  ${failover_server}
+			  ${failover_host}
 			  http-response set-header X-Failover true
 			
 			backend ogmios
