@@ -137,7 +137,7 @@ user on a host that keeps the journal only in memory, needs to be in the
 | Label | Mode | Meaning |
 | --- | --- | --- |
 | Incoming | Compact | Current inbound connections reported by the connection manager. |
-| Total | Compact | Established node-to-node sessions owned by the node process, shown when an implementation exports no connection-manager counters (currently Amaru). Loopback telemetry sessions are excluded; inbound and outbound sessions cannot be told apart. |
+| Total | Compact | Established node-to-node sessions owned by the node process, shown when an implementation exports no connection-manager counters (Amaru before 10.11.20261105). Loopback telemetry sessions are excluded; inbound and outbound sessions cannot be told apart. |
 | Outgoing | Compact | Current outbound connections reported by the connection manager. |
 | Duplex | Compact | Connections actively used in both directions. |
 | Known | Compact | Peers known to the peer-selection subsystem. |
@@ -389,8 +389,10 @@ produced from in-process traces and are not exported as metrics. gLiveView's
 [peer analysis](#peer-analysis) rebuilds the connections and first deliveries
 of the per-peer table from Amaru's log.
 
-Amaru exports no connection-manager counters. gLiveView counts the node
-process's established TCP sessions as `Total` in the Connections section.
+Amaru 10.11.20261105 and later export the connection-manager counters, which
+gLiveView shows as `Incoming`, `Outgoing`, and, in verbose mode, `Uni-dir`.
+With older releases, gLiveView counts the node process's established TCP
+sessions as `Total` in the Connections section.
 
 Block propagation is derived from Amaru's timing histograms. For each new
 block, `Last block` is the time from the start of its slot until the block was
