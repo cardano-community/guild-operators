@@ -1476,7 +1476,7 @@ logln() {
 
 getPoolInfo () {
   # runs in background to not stall rest of gLiveView while fetching data
-  if ! pool_info=$(curl -sSL -f -X POST -H "Content-Type: application/json" -d '{"_pool_bech32_ids":["'${pool_id_bech32}'"]}' "${KOIOS_API}/pool_info" 2>&1); then
+  if ! pool_info=$(curl -sSL -f -X POST "${KOIOS_API_HEADERS[@]}" -H "Content-Type: application/json" -d '{"_pool_bech32_ids":["'${pool_id_bech32}'"]}' "${KOIOS_API}/pool_info" 2>&1); then
     [[ -n ${GLV_LOG} ]] && logln "ERROR" "${pool_info}"
     return
   fi

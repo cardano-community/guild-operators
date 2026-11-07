@@ -78,9 +78,11 @@ exactly one uploaded artifact for the current architecture, and that artifact
 must publish a valid GitHub SHA-256 digest. Its repository, tag, filename,
 download URL, size, and digest are validated together before download.
 
-The Dingo CLI pin is 11.4.0.0, the same release pinned by the cnode and Amaru
-profiles and by Dingo's own container image. Current Dingo releases negotiate
-node-to-client V23 with it and answer `cardano-cli query tip`. Dingo does not
+The Dingo CLI pin is 11.5.0.0, the same release pinned by the cnode and Amaru
+profiles. Dingo's own container image ships 11.4.0.0, which writes pool relay
+IPv4 addresses with reversed bytes (see [Node CLI](node-cli.md)). Current Dingo
+releases negotiate node-to-client V23 with 11.4.0.0 and answer
+`cardano-cli query tip`. Dingo does not
 yet answer the stake-pool state query on preview or preprod. Dingo does not
 provide a separate operator CLI: its Unix socket implements Ouroboros
 node-to-client and is designed for `cardano-cli` and other standard Cardano
