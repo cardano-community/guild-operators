@@ -331,9 +331,11 @@ Run the dashboard after both services are active:
 
 The shared adapter normalizes Amaru's common chain, epoch, density, fork,
 mempool, served-block, version, uptime, and process measurements. Uptime is
-derived from local timing for the active node process. Amaru exports no
-connection or peer-set metrics, so gLiveView counts the node process's
-established TCP sessions instead. Press `p` for peer analysis: round-trip
+derived from local timing for the active node process. Amaru 10.11.20261105
+and later export the connection-manager gauges, shown as incoming, outgoing,
+and unidirectional connections. Amaru exports no peer-set metrics. With older
+releases, gLiveView counts the node process's established TCP sessions
+instead. Press `p` for peer analysis: round-trip
 times, and each connection's use and hot or warm state on both sides, with the
 peers that delivered headers and blocks first, read from Amaru's log in the
 journal. See the [gLiveView guide](../Scripts/gliveview.md#connection-use-peer-states-and-scores).

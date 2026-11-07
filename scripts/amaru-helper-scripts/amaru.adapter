@@ -421,9 +421,10 @@ amaru_adapter_update_block_delay() {
   node_metric_set blocks_w5s "${shares[2]}"
 }
 
-# Amaru does not export connection-manager gauges, so count the established
-# TCP sessions owned by the node process. Outbound sessions reuse the listen
-# port, so direction cannot be told apart; loopback telemetry is excluded.
+# Releases before 10.11.20261105 export no connection-manager gauges, so count
+# the established TCP sessions owned by the node process. Outbound sessions
+# reuse the listen port, so direction cannot be told apart; loopback telemetry
+# is excluded.
 amaru_adapter_tcp_peers() {
   local pid="${1:-}"
   [[ "${pid}" =~ ^[1-9][0-9]*$ ]] || return 1
@@ -603,8 +604,13 @@ node_adapter_collect_metrics() {
   pid="$(node_adapter_process_pid 2>/dev/null || true)"
   value="$(amaru_adapter_process_uptime "${pid}" 2>/dev/null || true)"
   amaru_adapter_set_optional_metric uptimes "${value}"
-  value="$(amaru_adapter_tcp_peers "${pid}" 2>/dev/null || true)"
-  amaru_adapter_set_optional_metric conn_total "${value}"
+  # The connection-manager gauges, when exported, replace the session total.
+  if node_metric_has conn_incoming || node_metric_has conn_outgoing; then
+    node_metric_unset conn_total
+  else
+    value="$(amaru_adapter_tcp_peers "${pid}" 2>/dev/null || true)"
+    amaru_adapter_set_optional_metric conn_total "${value}"
+  fi
   value="$(amaru_adapter_metric_value "${normalized_metrics}" "process_open_files")"
   amaru_adapter_set_optional_metric open_files "${value}"
   value="$(amaru_adapter_max_open_files "${pid}" 2>/dev/null || true)"
