@@ -77,11 +77,14 @@ cabal install cardano-cli --installdir "$CNODE_HOME/bin" \
 ```
 
 CNTools accepts this release as well as the downloaded companion
-(`companions["cardano-cli"]`). cardano-cli 11.2.1.0 through 11.2.3.1 write
+(`companions["cardano-cli"]`). cardano-cli 11.2.1.0 through 11.4.0.0 write
 pool relay IPv4 addresses with reversed bytes
 ([cardano-cli#1442](https://github.com/IntersectMBO/cardano-cli/issues/1442)),
 so CNTools refuses to build pool registrations with IPv4 relays while such a
 release is selected. Use DNS or IPv6 relays, or the downloaded companion.
+These releases also reverse the bytes back in `debug transaction view`, so
+their own output looks correct; a pool registered with one of them shows the
+reversed address in explorers and in the output of 11.5.0.0 or later.
 
 `cabal-build-all.sh` performs the same node and cardano-cli build. The
 pre-merge source-build test uses it and checks the installed cardano-cli
