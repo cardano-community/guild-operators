@@ -95,7 +95,7 @@ counter offline. A partial set fails startup; the bootstrap command always
 suppresses block production.
 
 The Dingo image installs gLiveView, the CNTools 14 interface skeleton, and the
-isolated `cardano-cli-dingo` companion. It does not install Mithril helper
+isolated `cardano-cli` companion. It does not install Mithril helper
 scripts, db-sync, Ogmios, or the remaining cnode-only suite. Its healthcheck
 verifies deployment identity, Dingo process liveness, and the native Prometheus
 endpoint on loopback port 12798; it does not determine whether chain sync is

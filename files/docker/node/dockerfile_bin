@@ -40,7 +40,7 @@ ENV \
     CNODE_HOME=${IMAGE_NODE_HOME} \
     AMARU_STATE_ROOT=/var/lib/amaru \
     HOME=${USER_HOME} \
-    PATH=${IMAGE_NODE_HOME}/scripts:/bin:/sbin:/usr/bin:/usr/sbin:/usr/local/bin:${USER_HOME}/.local/bin
+    PATH=${IMAGE_NODE_HOME}/bin:${IMAGE_NODE_HOME}/scripts:/bin:/sbin:/usr/bin:/usr/sbin:/usr/local/bin:${USER_HOME}/.local/bin
 ENV CARDANO_NODE_SOCKET_PATH=${IMAGE_NODE_HOME}/sockets/node.socket
 
 RUN case "${IMAGE_NODE_IMPLEMENTATION}:${IMAGE_NODE_NETWORK}" in \
@@ -148,7 +148,7 @@ RUN jq -er '.sourceRevision' "${IMAGE_NODE_HOME}/.deployment.json" \
     && echo "alias node=${IMAGE_NODE_HOME}/scripts/${IMAGE_NODE_IMPLEMENTATION}.sh" >> "${USER_HOME}/.bashrc" \
     && echo "alias gLiveView=${IMAGE_NODE_HOME}/scripts/gLiveView.sh" >> "${USER_HOME}/.bashrc" \
     && echo "alias cntools=${IMAGE_NODE_HOME}/scripts/cntools.sh" >> "${USER_HOME}/.bashrc" \
-    && echo "export PATH=${IMAGE_NODE_HOME}/scripts:/bin:/sbin:/usr/bin:/usr/sbin:/usr/local/bin:${USER_HOME}/.local/bin" >> "${USER_HOME}/.bashrc" \
+    && echo "export PATH=${IMAGE_NODE_HOME}/bin:${IMAGE_NODE_HOME}/scripts:/bin:/sbin:/usr/bin:/usr/sbin:/usr/local/bin:${USER_HOME}/.local/bin" >> "${USER_HOME}/.bashrc" \
     && echo "alias ll='ls -alhF'" >> "${USER_HOME}/.bashrc"
 
 HEALTHCHECK --start-period=5m --interval=120s --timeout=120s CMD ${IMAGE_NODE_HOME}/scripts/healthcheck.sh

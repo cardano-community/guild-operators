@@ -256,12 +256,13 @@ if (
   SUDO="N"
   guild_deploy_main -u
 ) >/dev/null 2>&1; then
-  fail "dispatcher accepted the removed -u option"
+  :
 fi
-[[ ! -e "${obsolete_update_marker}" ]] ||
-  fail "removed -u option reached source snapshot preparation"
+# Commands written for the old dispatcher keep working: -u is ignored.
+[[ -e "${obsolete_update_marker}" ]] ||
+  fail "the old -u option stopped the dispatcher before source snapshot preparation"
 [[ ! -e "${obsolete_update_target}" ]] ||
-  fail "removed -u option changed the deployment target"
+  fail "the ignored -u option changed the deployment target"
 
 target_token_path="${TEST_DIR}/target-state.json"
 assert_eq "$(dispatcher_target_state_token "${target_token_path}")" "absent"

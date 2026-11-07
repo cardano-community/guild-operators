@@ -315,7 +315,8 @@ deployment_set_branch() (
     (.implementation == "cnode" or .implementation == "dingo" or .implementation == "amaru") and
     (
       (.implementation == "cnode" and
-        (.network == "mainnet" or .network == "guild" or .network == "preprod" or .network == "preview")) or
+        (.network == "mainnet" or .network == "guild" or .network == "preprod" or .network == "preview" or
+         .network == "dijkstra" or .network == "musashi")) or
       ((.implementation == "dingo" or .implementation == "amaru") and
         (.network == "preprod" or .network == "preview"))
     ) and

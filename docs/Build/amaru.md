@@ -39,9 +39,9 @@ the release manifest, and missing configuration while preserving an existing
 Amaru environment file. Select `-s f` when the managed environment template
 should replace that file; the current file is archived first.
 
-The executables are installed as `~/.local/bin/amaru`,
-`~/.local/bin/cardano-cli-amaru`, and `~/.local/bin/otelcol-contrib`. Existing
-binaries are copied to `~/.local/bin/archive/` first. The isolated Cardano CLI
+The executables are installed as `${NODE_HOME}/bin/amaru`,
+`${NODE_HOME}/bin/cardano-cli`, and `${NODE_HOME}/bin/otelcol-contrib`. Existing
+binaries are copied to `${NODE_HOME}/bin/archive/` first. The Cardano CLI
 lets CNTools build, inspect, and sign transactions without implying that Amaru
 has a node-to-client socket. Both `linux-x86_64` and `linux-aarch64` release
 artifacts are supported.

@@ -89,8 +89,9 @@ released cnode software is grouped by how the deployment consumes it:
 | `build` | GHC, Cabal, libsodium, secp256k1, BLST | Toolchain version strings and immutable source commits |
 
 Cardano Hardware CLI and the Ledger/Trezor rules are node-independent CNTools
-dependencies and therefore live in the shared
-`files/node-implementations/common/release.json` manifest.
+dependencies, so their versions live in the common
+`files/node-implementations/common/release.json` manifest. The executable is still
+installed per deployment.
 
 ### Concrete and latest versions
 
@@ -302,11 +303,10 @@ The Leios archive holds only the node and its CLI, so on Musashi `bech32` and
 for either network, so CNTools works from the local node unless you set
 `KOIOS_API`. The Mithril helpers and `blockPerf.sh` don't support these networks.
 
-!!! warning "One network's binaries per OS user"
-    Binaries install into the deploying user's `~/.local/bin`, which every
-    deployment of that user shares. Deploying one of these networks replaces the
-    binaries an existing deployment of that user runs, including a mainnet node.
-    Use a separate OS user for each of these networks.
+Each deployment has its own binaries in `${NODE_HOME}/bin`, so one OS user can
+run these networks next to an existing deployment. Give each one its own `-t`
+name and ports. To use a network's binaries at a prompt, run
+`source ${NODE_HOME}/scripts/activate`.
 
 For building node binaries from source and operating the launcher, see
 [cardano-node and cardano-cli](node-cli.md).

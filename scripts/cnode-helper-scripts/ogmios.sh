@@ -9,7 +9,7 @@ PARENT="$(dirname "$0")"
 # Common variables set in env file   #
 ######################################
 
-#OGMIOSBIN="${HOME}"/.local/bin/ogmios        # Path for ogmios binary, if not in $PATH
+#OGMIOSBIN="${CNODE_HOME}"/bin/ogmios         # Path for ogmios binary, if not in $PATH
 #HOSTADDR=127.0.0.1                           # Default Listen IP/Hostname for Ogmios Server
 #HOSTPORT=1337                                # Default Listen port for Ogmios Server
 #LOG_LEVEL=Notice                             # Debug | Info | Notice | Warning | Error | Off
@@ -39,7 +39,7 @@ usage() {
 }
 
 set_defaults() {
-  [[ -z "${OGMIOSBIN}" ]] && OGMIOSBIN="${HOME}"/.local/bin/ogmios
+  [[ -z "${OGMIOSBIN}" ]] && OGMIOSBIN="${CNODE_HOME}"/bin/ogmios
   [[ -z "${HOSTADDR}" ]] && HOSTADDR=127.0.0.1
   [[ -z "${HOSTPORT}" ]] && HOSTPORT=1337
   [[ -z "${CLI_ARGS}" ]] && CLI_ARGS="--include-cbor"

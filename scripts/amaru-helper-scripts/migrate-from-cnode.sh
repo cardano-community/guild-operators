@@ -12,6 +12,10 @@ AMARU_MIGRATE_LAUNCHER="${AMARU_MIGRATE_LAUNCHER:-${AMARU_MIGRATE_DIR}/amaru.sh}
 AMARU_MIGRATE_ENV_FILE="${AMARU_MIGRATE_ENV_FILE:-${AMARU_MIGRATE_DIR}/amaru.env}"
 AMARU_MIGRATE_STATE="${AMARU_MIGRATE_HOME}/files/.migrate-from-cnode"
 : "${AMARU_MIGRATE_CNODE_HOME:=/opt/cardano/cnode}"
+# cnode's own CLI, or the user's shared copy when cnode predates per-deployment binaries.
+if [[ -x "${AMARU_MIGRATE_CNODE_HOME}/bin/cardano-cli" ]]; then
+  : "${AMARU_MIGRATE_CLI:=${AMARU_MIGRATE_CNODE_HOME}/bin/cardano-cli}"
+fi
 : "${AMARU_MIGRATE_CLI:=${HOME}/.local/bin/cardano-cli}"
 # Slots Amaru may trail cnode before a switch, and seconds to wait for it.
 : "${AMARU_MIGRATE_MAX_LAG:=120}"

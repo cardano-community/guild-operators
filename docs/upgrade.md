@@ -1,3 +1,98 @@
+### Moving to per-deployment binaries {: #per-deployment-binaries}
+
+Each deployment now keeps its binaries in its own `${NODE_HOME}/bin`, instead of
+sharing `~/.local/bin` with every other deployment of the OS user. Deploying one
+network can no longer change what another one runs, including `gum` and
+`cardano-hw-cli`.
+
+Moving an existing deployment takes one run of the current `guild-deploy.sh`, with
+your usual `-n`, `-t` and `-p` values. Download it first, because an older copy
+can't do this. Check what it would do. This changes nothing:
+
+``` bash
+./guild-deploy.sh -C -n mainnet -t cnode -p /opt/cardano
+```
+
+Then deploy, and restart the node when you choose to:
+
+``` bash
+./guild-deploy.sh -s d -n mainnet -t cnode -p /opt/cardano
+```
+
+``` bash
+sudo systemctl restart cnode
+```
+
+The running node isn't touched. The new version takes effect when you restart it,
+and a major upgrade can replay the ledger for several hours, so test on a relay
+first.
+
+**What the deployment does for you.** Tools you already have, such as `cncli`, are
+copied into `bin` unchanged. If you leave out `-s d` and your versions are already
+new enough, all your binaries are copied unchanged and no restart is needed.
+`~/.local/bin` is never changed. The run lists any old copies this deployment no
+longer uses, and when it's safe to remove them.
+
+It also removes group and other write access from the folders and files under
+`priv`, because CNTools now refuses to work with them otherwise. Read access is left
+as it is.
+
+**When it stops.** It checks first, and a stop leaves the deployment exactly as it
+was. It stops, and says what to do, when:
+
+- your node or CLI is older than the new scripts need and you left out `-s d`. New
+  scripts on an old node would work until the next restart, and then the node
+  wouldn't start
+- `CNODEBIN` or `CCLI` in `env` points at a binary that's too old
+- the deployment has a chain database, but this OS user has no `cardano-node`
+- the target isn't writable, is low on disk, or can't run programs (a `noexec` mount)
+- a Dingo or Amaru deployment still has its binaries in `~/.local/bin` and you left
+  out `-s d`
+
+**Commands typed by hand.** Guild scripts and services find their binaries without
+any change. For commands you type yourself, select the deployment in that shell.
+This also sets the socket and network, and sourcing another deployment's copy
+switches to it:
+
+``` bash
+source /opt/cardano/cnode/scripts/activate
+```
+
+Without it, a migrated user's plain `cardano-cli` still runs the old copy in
+`~/.local/bin` until you remove it. A new deployment has no copy there, so the
+command isn't found.
+
+**Units that still use the old path.** The run lists any that do. For example, an
+existing Mithril signer keeps running from `~/.local/bin` until you regenerate its
+unit and environment with `mithril-signer.sh -d`.
+
+**To undo a copy,** rename the folder and the deployment returns to the shared
+files. This doesn't apply after `-s d`, because the old binaries would be below the
+new minimum:
+
+``` bash
+mv /opt/cardano/cnode/bin /opt/cardano/cnode/bin.disabled
+```
+
+!!! danger "Older scripts stop working until you migrate"
+    Older helper scripts check for updates when they start, and exit when they
+    can't find the old file path. Once this release is on `master`, on a deployment
+    that hasn't migrated:
+
+    - gLiveView, CNTools, the Mithril helper scripts and older copies of
+      `blockPerf.sh` and `topologyUpdater.sh` exit at startup
+    - CNCLI services fail at their next restart, because their units don't skip the
+      check
+    - the node, db-sync, the submit API and Ogmios keep running and restarting, as
+      they have no update check
+
+    Migrate as above to fix this. To keep the old scripts working until you can, set
+    this in the deployment's `scripts/env`:
+
+    ``` bash
+    UPDATE_CHECK="N"
+    ```
+
 ### Steps for Upgrading
 
 !!! important "Deployment metadata and service migration"
@@ -28,7 +123,7 @@
     the previous paths for deliberately tagged deployments. The current
     profile verifies the pinned cardano-node and cardano-cli checksums before
     extracting `-s d` downloads. Dingo owns a separate cardano-cli pin and
-    installs it as `cardano-cli-dingo`; re-run the Dingo deployment with
+    installs it in its own `bin` folder; re-run the Dingo deployment with
     `-s d` when either its rolling node or pinned CLI companion should be
     refreshed.
 
@@ -116,18 +211,17 @@ upstream release notes before upgrading.
     a compatible snapshot is available, the
     [Mithril client](Scripts/mithril-client.md) can reduce replay time.
 
-- After running the deployment script, start a new shell or source
-  `"${HOME}/.bashrc"`, then confirm that `"${HOME}/.local/bin"` is in `$PATH`.
-  If the login shell does not read `.bashrc`, source it from `.profile`.
+- After running the deployment script, select the deployment in your shell to use
+  its binaries for commands you type yourself:
 
 ``` bash
-source "${HOME}"/.bashrc
-echo "${PATH}"
+source "${CNODE_HOME}"/scripts/activate
+cardano-cli version
 ```
 
 ### Troubleshooting {: #troubleshooting}
 
-- We've found users often confuse between `$PATH` variable resolution between multiple shell sessions, systemd, etc. While if you only used this guide, the binaries should be in `"${HOME}/.local/bin"`, you may have manually downloaded to another location before. To avoid this, you can edit the following files and uncomment and set the following variables to the appropriate paths as per your deployment (eg: `CCLI="${HOME}"/.local/bin/cardano-cli` if following above):
+- We've found users often confuse between `$PATH` variable resolution between multiple shell sessions, systemd, etc. While if you only used this guide, the binaries should be in `"${CNODE_HOME}/bin"`, you may have manually downloaded to another location before. To avoid this, you can edit the following files and uncomment and set the following variables to the appropriate paths as per your deployment (eg: `CCLI="${CNODE_HOME}"/bin/cardano-cli` if following above):
 
     - env : CCLI, CNCLI, CNODEBIN
     - [If applicable] dbsync.sh: DBSYNCBIN
@@ -137,7 +231,7 @@ echo "${PATH}"
 - The above should take care of tools and services. However, you might still have duplicate binaries in your `$PATH` (previous artifacts, re-build using old scripts, etc) - it is best that you remove any old binary files from alternate folders. You can do so by executing the below:
 
 ``` bash
-whereis bech32 cardano-address cardano-cli cardano-cli-dingo cardano-db-sync cardano-hw-cli cardano-node cardano-submit-api cncli ogmios
+whereis bech32 cardano-address cardano-cli cardano-db-sync cardano-hw-cli cardano-node cardano-submit-api cncli ogmios
 ```
 
 For some cases - you might have no values (eg: you may not use `cardano-db-sync`, `cncli`, `ogmios` and/or `cardano-hw-cli`. You need not take any actions for the binaries you do not use.

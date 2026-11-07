@@ -85,9 +85,9 @@ The current common User Variables section is:
 #USESYSVARS="N"                                         # Set Y to honor root overrides
 #NODE_HOME="/opt/cardano/cnode"                         # Effective only when USESYSVARS=Y
 #CNODE_HOME="${NODE_HOME}"                              # Legacy alias; effective only when USESYSVARS=Y
-#CNODEBIN="${HOME}/.local/bin/cardano-node"             # Legacy cnode binary override
-#CCLI="${HOME}/.local/bin/cardano-cli"                  # Override adapter-selected cardano-cli executable
-#CNCLI="${HOME}/.local/bin/cncli"                       # Optional CNCLI executable
+#CNODEBIN="${NODE_HOME}/bin/cardano-node"               # Legacy cnode binary override
+#CCLI="${NODE_HOME}/bin/cardano-cli"                    # Override adapter-selected cardano-cli executable
+#CNCLI="${NODE_HOME}/bin/cncli"                         # Optional CNCLI executable
 #CNODE_PORT=6000                                        # Legacy node-to-node port alias
 #CONFIG="${NODE_HOME}/files/config.json"                # Implementation configuration override
 #SOCKET="${NODE_HOME}/sockets/node.socket"              # Node-to-client socket override
@@ -123,11 +123,9 @@ The current common User Variables section is:
 #STRICT_VERSION_CHECK="Y"
 ```
 
-Leave `CCLI` commented to use the selected adapter's default. cnode resolves
-`cardano-cli`; Dingo selects the independently installed
-`$HOME/.local/bin/cardano-cli-dingo`; and Amaru selects
-`$HOME/.local/bin/cardano-cli-amaru` for key and transaction operations that do
-not require a node socket. Uncommenting `CCLI` is an explicit operator override
+Leave `CCLI` commented to use the selected adapter's default. Every
+implementation uses `${NODE_HOME}/bin/cardano-cli`; for Amaru that covers key and
+transaction operations that do not require a node socket. Uncommenting `CCLI` is an explicit operator override
 and is preserved by the adapters.
 
 For cnode, `STRICT_VERSION_CHECK=Y` requires the minimum node and CLI versions

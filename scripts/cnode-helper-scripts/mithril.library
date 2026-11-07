@@ -14,7 +14,6 @@
 
 U_ID=$(id -u)
 G_ID=$(id -g)
-MITHRILBIN="${HOME}"/.local/bin/$(basename "${0::-3}")
 
 # Make setup inside containers easier where SUDO may not exist
 [[ -z ${SUDO} ]] && SUDO='Y'
@@ -260,7 +259,11 @@ mithril_resolve_release_policy() {
 }
 
 set_defaults() {
-  [[ -z "${MITHRILBIN}" ]] && MITHRILBIN="${HOME}"/.local/bin/"$(basename "${0::-3}")"
+  if [[ -z "${MITHRILBIN}" ]]; then
+    MITHRILBIN="${CNODE_HOME}/bin/$(basename "${0::-3}")"
+    # Deployments that predate per-deployment binaries keep the user's copy.
+    [[ -x "${MITHRILBIN}" ]] || MITHRILBIN="${HOME}/.local/bin/$(basename "${0::-3}")"
+  fi
   if [[ $(basename "${0::-3}") == "mithril-signer" ]] && { [[ -z "${POOL_NAME}" ]] || [[ "${POOL_NAME}" == "CHANGE_ME" ]]; }; then
     echo "ERROR: The POOL_NAME must be set before deploying mithril-signer as a systemd service!!"
     exit 1
@@ -786,7 +789,7 @@ deploy_systemd() {
 		RestartSec=60
 		User=${USER}
 		EnvironmentFile=${MITHRIL_HOME}/mithril.env
-		ExecStart=/bin/bash -l -c "exec ${HOME}/.local/bin/${component_name} -vv"
+		ExecStart=/bin/bash -l -c "exec ${MITHRILBIN} -vv"
 		KillSignal=SIGINT
 		SuccessExitStatus=143
 		StandardOutput=syslog
@@ -899,7 +902,7 @@ update_mithril_environment_for_signer() {
 		RUN_INTERVAL=60000
 		DB_DIRECTORY=${DB_DIR}
 		CARDANO_NODE_SOCKET_PATH=${CARDANO_NODE_SOCKET_PATH}
-		CARDANO_CLI_PATH=${HOME}/.local/bin/cardano-cli
+		CARDANO_CLI_PATH=${CCLI:-${CNODE_HOME}/bin/cardano-cli}
 		DATA_STORES_DIRECTORY=${MITHRIL_HOME}/data-stores
 		STORE_RETENTION_LIMITS=5
 		ERA_READER_ADAPTER_TYPE=cardano-chain

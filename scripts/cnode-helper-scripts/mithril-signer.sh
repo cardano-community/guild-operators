@@ -7,7 +7,7 @@
 # Common variables set in env file   #
 ######################################
 
-#MITHRILBIN="${HOME}"/.local/bin/mithril-signer # Path for mithril-signer binary, if not in $PATH
+#MITHRILBIN="${CNODE_HOME}"/bin/mithril-signer # Path for mithril-signer binary, if not in $PATH
 #HOSTADDR=127.0.0.1                             # Default Listen IP/Hostname for Mithril Signer Server
 
 ######################################

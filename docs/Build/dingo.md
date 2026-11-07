@@ -37,10 +37,10 @@ rejected instead of silently installing incompatible components. With no
 `-s` value, the profile refreshes scripts, common libraries, the release
 manifest, and missing configuration while preserving existing Dingo config.
 
-The profile installs the selected node in `~/.local/bin/dingo` and its CLI
-companion in `~/.local/bin/cardano-cli-dingo`. Existing copies are retained in
-`~/.local/bin/archive/` before replacement. The distinct CLI name prevents a
-Dingo deployment from replacing cnode's `~/.local/bin/cardano-cli`. Both
+The profile installs the selected node in `${NODE_HOME}/bin/dingo` and its CLI
+companion in `${NODE_HOME}/bin/cardano-cli`. Existing copies are retained in
+`${NODE_HOME}/bin/archive/` before replacement. Each deployment has its own
+binaries, so a Dingo deployment can't affect a cnode deployment of the same user. Both
 `linux-x86_64` and `linux-aarch64` release artifacts are supported.
 
 ### Release contract
@@ -314,7 +314,7 @@ operational-certificate KES bounds, and Dingo-specific forge diagnostics. CNCLI 
 remain cnode-only, and interactive peer analysis is not available for Dingo,
 which exports no per-peer connection data.
 
-The Dingo adapter exposes `cardano-cli-dingo` and
+The Dingo adapter exposes `${NODE_HOME}/bin/cardano-cli` and
 `$NODE_HOME/sockets/dingo.socket` for future CNTools local-mode actions. To use
 a reviewed custom CLI instead, uncomment `CCLI` in `scripts/env`; an explicit
 value is never replaced by the adapter. The current menu actions remain
@@ -354,5 +354,5 @@ GitHub's digest for that exact release asset is enforced before extraction.
 The release workflow packages one executable named `dingo` at the archive
 root; the installer rejects an archive with a different layout. The separate
 Intersect cardano-cli archive is verified against the explicit checksum in the
-Dingo manifest, then its architecture-specific executable is installed under
-the collision-free `cardano-cli-dingo` name.
+Dingo manifest, then its architecture-specific executable is installed as
+`cardano-cli` in the deployment's `bin` folder.

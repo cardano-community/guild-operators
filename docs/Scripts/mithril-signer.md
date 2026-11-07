@@ -9,7 +9,7 @@ environment file to contain variables specific to the Mithril Signer.
 Install or refresh the Mithril signer and client binaries with
 `guild-deploy.sh -s m`. Their `latest` or pinned release policy is read from
 `${NODE_HOME}/files/cnode-release.json`, and the executables are installed in
-`$HOME/.local/bin`.
+`${NODE_HOME}/bin`.
 
 ## Usage
 

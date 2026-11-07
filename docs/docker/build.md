@@ -65,7 +65,7 @@ listener. The Amaru image additionally installs the checksummed
 supervises the node and collector as two processes, using the minimal
 host-safe form of Amaru's reference bridge. The alternate images do not
 install the other cnode-only helper suite. Dingo does install CNTools and its
-independently pinned `cardano-cli-dingo`; Amaru does not.
+independently pinned `cardano-cli`; Amaru does not.
 
 To build from a fork or non-default Guild Operators branch, add:
 

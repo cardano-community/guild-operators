@@ -130,7 +130,7 @@ fi
 # shellcheck source=/dev/null
 . "${DINGO_SYSTEMD_LIBRARY}"
 
-: "${DINGO_BIN:=${HOME}/.local/bin/dingo}"
+: "${DINGO_BIN:=${GUILD_NODE_HOME}/bin/dingo}"
 : "${DINGO_CONFIG:=${GUILD_NODE_HOME}/files/dingo.yaml}"
 : "${POOL_FOLDER:=${GUILD_NODE_HOME}/priv/pool}"
 : "${POOL_NAME:=CHANGE_ME}"

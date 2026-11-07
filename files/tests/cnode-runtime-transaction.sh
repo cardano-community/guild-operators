@@ -598,10 +598,11 @@ run_binary_staging_test() (
   )
 
   HOME="${node_root}/home"
+  NODE_HOME="${node_root}/node"
   TMPDIR="${node_root}/tmp"
-  mkdir -p "${HOME}/.local/bin" "${HOME}/tmp" "${TMPDIR}"
+  mkdir -p "${NODE_HOME}/bin" "${HOME}/tmp" "${TMPDIR}"
   for binary in "${expected_binaries[@]}"; do
-    printf 'installed-%s\n' "${binary}" > "${HOME}/.local/bin/${binary}"
+    printf 'installed-%s\n' "${binary}" > "${NODE_HOME}/bin/${binary}"
     printf 'stale-%s\n' "${binary}" > "${HOME}/tmp/${binary}"
   done
 
@@ -667,14 +668,14 @@ run_binary_staging_test() (
     fail "an incomplete node archive was completed with stale shared temporary files"
   fi
   for binary in "${expected_binaries[@]}"; do
-    grep -q "^installed-${binary}$" "${HOME}/.local/bin/${binary}" ||
+    grep -q "^installed-${binary}$" "${NODE_HOME}/bin/${binary}" ||
       fail "failed binary staging changed the installed ${binary}"
   done
 
   STUB_NODE_ARCHIVE_COMPLETE="Y"
   download_cnodebins
   for binary in "${expected_binaries[@]}"; do
-    grep -q "^fresh-${binary}$" "${HOME}/.local/bin/${binary}" ||
+    grep -q "^fresh-${binary}$" "${NODE_HOME}/bin/${binary}" ||
       fail "validated binary staging did not install fresh ${binary}"
   done
 )
@@ -686,8 +687,9 @@ run_common_hardware_wallet_install_test() (
   local expected_sha=""
 
   HOME="${node_root}/home"
+  NODE_HOME="${node_root}/node"
   TMPDIR="${node_root}/tmp"
-  mkdir -p "${HOME}/.local/bin" "${TMPDIR}"
+  mkdir -p "${NODE_HOME}/bin" "${TMPDIR}"
   GUILD_SKIP_HARDWARE_WALLET_RULES="Y"
   expected_sha="$(
     jq -er '.tools["cardano-hw-cli"].artifacts["linux-x86_64"].sha256' \
@@ -727,10 +729,10 @@ run_common_hardware_wallet_install_test() (
   }
 
   dispatcher_install_cardano_hw_cli
-  grep -q '^#!/usr/bin/env bash$' "${HOME}/.local/bin/cardano-hw-cli" ||
+  grep -q '^#!/usr/bin/env bash$' "${NODE_HOME}/bin/cardano-hw-cli" ||
     fail "common hardware-wallet installer did not install Cardano Hardware CLI"
-  [[ -f "${HOME}/.local/bin/HID.node" &&
-     -f "${HOME}/.local/bin/HID_hidraw.node" ]] ||
+  [[ -f "${NODE_HOME}/bin/HID.node" &&
+     -f "${NODE_HOME}/bin/HID_hidraw.node" ]] ||
     fail "common hardware-wallet installer omitted runtime companions"
   grep -q 'managed by the host' "${message_log}" ||
     fail "hardware-rule skip did not explain that device permissions are host-managed"

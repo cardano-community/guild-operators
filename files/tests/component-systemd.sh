@@ -80,6 +80,7 @@ export SYSTEMD_UNIT_DIR="${UNIT_ROOT}"
 # These management paths must work after node binaries, configs, genesis files,
 # sockets, and databases have already disappeared.
 [[ ! -e "${HOME}/.local/bin/cardano-node" ]]
+[[ ! -e "${NODE_ROOT}/bin/cardano-node" ]]
 [[ ! -e "${NODE_ROOT}/files/config.json" ]]
 
 "${BASH}" "${SCRIPT_ROOT}/cncli.sh" -d
@@ -236,8 +237,8 @@ wait "${RELOAD_PID}" 2>/dev/null || true
 AMARU_NODE_ROOT="${TEST_ROOT}/amaru-test"
 AMARU_SCRIPT_ROOT="${AMARU_NODE_ROOT}/scripts"
 AMARU_UNIT_ROOT="${TEST_ROOT}/amaru-units"
-AMARU_BIN="${HOME}/.local/bin/amaru"
-AMARU_OTELCOL_BIN="${HOME}/.local/bin/otelcol-contrib"
+AMARU_BIN="${AMARU_NODE_ROOT}/bin/amaru"
+AMARU_OTELCOL_BIN="${AMARU_NODE_ROOT}/bin/otelcol-contrib"
 AMARU_SERVICE="amaru-test"
 AMARU_MAIN_UNIT="${AMARU_SERVICE}.service"
 AMARU_METRICS_UNIT="${AMARU_SERVICE}-metrics.service"
@@ -245,7 +246,7 @@ mkdir -p \
   "${AMARU_SCRIPT_ROOT}/lib" \
   "${AMARU_NODE_ROOT}/files" \
   "${AMARU_UNIT_ROOT}" \
-  "${HOME}/.local/bin"
+  "${AMARU_NODE_ROOT}/bin"
 cp "${REPO_ROOT}/scripts/amaru-helper-scripts/amaru.sh" \
   "${AMARU_SCRIPT_ROOT}/amaru.sh"
 cp "${REPO_ROOT}/scripts/common-helper-scripts/lib/systemd.library" \

@@ -171,7 +171,7 @@ node_adapter_init() {
   fi
 
   [[ -z "${CNCLI}" ]] && CNCLI=$(command -v cncli) || true
-  [[ -z "${CNCLI}" ]] && CNCLI="${HOME}/.local/bin/cncli"
+  [[ -z "${CNCLI}" ]] && CNCLI="${NODE_HOME:-${CNODE_HOME}}/bin/cncli"
   if [[ -f /usr/local/lib/libsodium.so ]]; then
     export LD_LIBRARY_PATH="/usr/local/lib:${LD_LIBRARY_PATH:-}"
     export PKG_CONFIG_PATH="/usr/local/lib/pkgconfig:${PKG_CONFIG_PATH:-}"

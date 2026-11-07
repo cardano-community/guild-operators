@@ -96,8 +96,15 @@ cntools_gum_install_directory() {
   local install_directory="${CNTOOLS_GUM_INSTALL_DIR:-}"
 
   if [[ -z "${install_directory}" ]]; then
-    [[ "${HOME:-}" = /* ]] || return 1
-    install_directory="${HOME}/.local/bin"
+    # Gum belongs to the deployment, so one testnet can move to a new version
+    # while another stays on the old one. A deployment without a bin folder
+    # keeps using the user's shared folder until it is migrated.
+    if [[ -d "${CNTOOLS_NODE_HOME:-${NODE_HOME:-}}/bin" ]]; then
+      install_directory="${CNTOOLS_NODE_HOME:-${NODE_HOME}}/bin"
+    else
+      [[ "${HOME:-}" = /* ]] || return 1
+      install_directory="${HOME}/.local/bin"
+    fi
   fi
   [[ "${install_directory}" = /* &&
      "${install_directory}" != *$'\n'* &&
@@ -474,7 +481,7 @@ cntools_gum_require() {
       "Automatic Gum installation is unavailable in offline mode. Install Gum v${CNTOOLS_GUM_REQUIRED_VERSION} manually, then start CNTools again."
     return 1
   fi
-  printf 'Install the official release for this user in %s? [y/N]: ' \
+  printf 'Install the official release in %s? [y/N]: ' \
     "${install_directory}"
   IFS= read -r answer || answer=""
   case "${answer,,}" in

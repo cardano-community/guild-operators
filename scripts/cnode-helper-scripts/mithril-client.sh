@@ -7,7 +7,7 @@
 # Common variables set in env file   #
 ######################################
 
-#MITHRILBIN="${HOME}"/.local/bin/mithril-client # Path for mithril-client binary, if not in $PATH
+#MITHRILBIN="${CNODE_HOME}"/bin/mithril-client # Path for mithril-client binary, if not in $PATH
 
 ######################################
 # Do NOT modify code below           #

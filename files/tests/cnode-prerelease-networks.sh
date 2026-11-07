@@ -250,7 +250,7 @@ cnode_deploy_architecture() { printf 'linux-x86_64'; }
 install_network() { # $1 = network; leaves the result in HOME
   HOME="${TEST_ROOT}/$1-home"
   NODE_HOME="${TEST_ROOT}/$1-node"
-  mkdir -p "${HOME}" "${NODE_HOME}/files"
+  mkdir -p "${HOME}" "${NODE_HOME}/files" "${NODE_HOME}/bin"
   NETWORK="$1"
   TMPDIR="${TEST_ROOT}"
   CNODE_SKIP_DBSYNC_DOWNLOAD="N"
@@ -263,7 +263,7 @@ install_network() { # $1 = network; leaves the result in HOME
 }
 
 reports() { # $1 = binary, $2 = version
-  "${HOME}/.local/bin/$1" --version | grep -qF " $2 " || fail "$1 does not report $2"
+  "${NODE_HOME}/bin/$1" --version | grep -qF " $2 " || fail "$1 does not report $2"
 }
 
 install_network dijkstra
@@ -278,12 +278,32 @@ reports cardano-node 11.2.0.164
 reports cardano-cli 11.3.1.0
 reports cardano-submit-api 11.2.0
 reports bech32 11.2.0
-[[ ! -e "${HOME}/.local/bin/cardano-db-sync" ]] || fail "Musashi has no db-sync to install"
+[[ ! -e "${NODE_HOME}/bin/cardano-db-sync" ]] || fail "Musashi has no db-sync to install"
 assert_eq "${LEIOS_DOWNLOADS}" "1" "the Leios archive holds both the node and its CLI"
 
 install_network preview
 reports cardano-node "$(jq -er '.version' "${BASE_RELEASE}")"
 reports cardano-cli "$(jq -er '.companions["cardano-cli"].version' "${BASE_RELEASE}")"
 reports cardano-db-sync "$(jq -er '.companions["cardano-db-sync"].version' "${BASE_RELEASE}")"
+
+# Changing a deployment's branch works on these networks too.
+for network in dijkstra musashi; do
+  (
+    NODE_HOME="${TEST_ROOT}/branch-${network}"
+    mkdir -p "${NODE_HOME}"
+    jq -n --arg network "${network}" --arg service "$(basename "${NODE_HOME}")" '{
+      schemaVersion: 1, deploymentStatus: "deployed", implementation: "cnode",
+      network: $network, branch: "master", repository: "cardano-community/guild-operators",
+      serviceName: $service, nodeVersion: "", targetNodeVersion: "",
+      metricsProvider: "prometheus",
+      capabilities: {n2c: true, localCli: true, metrics: true, forging: true}
+    }' > "${NODE_HOME}/.deployment.json"
+    # shellcheck source=../../scripts/common-helper-scripts/lib/deployment.library
+    . "${ROOT_DIR}/scripts/common-helper-scripts/lib/deployment.library"
+    deployment_branch_exists() { return 0; }
+    deployment_set_branch feature >/dev/null || fail "${network} refused a branch change"
+    assert_eq "$(jq -r '.branch' "${NODE_HOME}/.deployment.json")" "feature" "${network} branch was not stored"
+  ) || exit 1
+done
 
 printf 'cnode pre-release network tests passed\n'

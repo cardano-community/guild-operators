@@ -1,0 +1,79 @@
+# shellcheck shell=bash
+# Use this deployment's binaries in the current shell:
+#
+#   source /opt/cardano/cnode/scripts/activate
+#
+# Guild scripts and services find their binaries without this; it is only for
+# commands typed by hand. Sourcing another deployment's copy switches the shell
+# to that deployment.
+
+if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
+  printf 'Source this file instead of running it: source %s\n' "$0" >&2
+  exit 1
+fi
+
+_guild_activate() {
+  local home="" manifest="" implementation="" network="" socket="" magic="" trimmed=""
+
+  home="$(cd -- "$(dirname -- "${BASH_SOURCE[1]}")/.." >/dev/null 2>&1 && pwd -P)" || return 1
+  if [[ ! -d "${home}/bin" ]]; then
+    printf '%s has no bin folder yet. Run its guild-deploy.sh first.\n' "${home}" >&2
+    return 1
+  fi
+
+  # Leave the deployment this shell activated earlier, if any.
+  if [[ -n "${GUILD_ACTIVE_HOME:-}" ]]; then
+    trimmed=":${PATH}:"
+    trimmed="${trimmed//:${GUILD_ACTIVE_HOME}\/bin:/:}"
+    trimmed="${trimmed#:}"
+    PATH="${trimmed%:}"
+  fi
+  export GUILD_ACTIVE_HOME="${home}"
+  export PATH="${home}/bin:${PATH}"
+
+  manifest="${home}/.deployment.json"
+  if [[ -f "${manifest}" ]] && command -v jq >/dev/null 2>&1; then
+    implementation="$(jq -r '.implementation // empty' "${manifest}" 2>/dev/null)"
+    network="$(jq -r '.network // empty' "${manifest}" 2>/dev/null)"
+  fi
+
+  # A SOCKET set in the deployment's env file wins over the default location.
+  # shellcheck disable=SC2034  # read by the evaluated SOCKET line
+  socket="$(
+    CNODE_HOME="${home}" NODE_HOME="${home}"
+    eval "$(grep -E '^SOCKET=' "${home}/scripts/env" 2>/dev/null)" 2>/dev/null
+    printf '%s' "${SOCKET:-}"
+  )"
+  if [[ -z "${socket}" ]]; then
+    case "${implementation:-cnode}" in
+      cnode) socket="${home}/sockets/node.socket" ;;
+      dingo) socket="${home}/sockets/dingo.socket" ;;
+    esac
+  fi
+  if [[ -n "${socket}" ]]; then
+    export CARDANO_NODE_SOCKET_PATH="${socket}"
+  else
+    unset CARDANO_NODE_SOCKET_PATH
+  fi
+
+  # cardano-cli reads this when a command has no --mainnet or --testnet-magic.
+  case "${network}" in
+    mainnet) magic="mainnet" ;;
+    preprod) magic="1" ;;
+    preview) magic="2" ;;
+    guild) magic="141" ;;
+    dijkstra) magic="6" ;;
+    musashi) magic="164" ;;
+  esac
+  if [[ -n "${magic}" ]]; then
+    export CARDANO_NODE_NETWORK_ID="${magic}"
+  else
+    unset CARDANO_NODE_NETWORK_ID
+  fi
+
+  printf 'This shell now uses %s%s: %s/bin\n' \
+    "${implementation:-cnode}" "${network:+ on ${network}}" "${home}"
+}
+
+_guild_activate
+unset -f _guild_activate

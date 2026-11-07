@@ -52,7 +52,7 @@ Dingo and Amaru images install their node binary, native configuration,
 common deployment runtime, launcher, gLiveView, and container healthcheck.
 Their image builds resolve the newest published non-draft node release,
 including prereleases, and enforce the selected GitHub asset digest. Dingo
-also installs CNTools and an independently pinned `cardano-cli-dingo`, and
+also installs CNTools and an independently pinned `cardano-cli`, and
 uses its native Prometheus endpoint. Amaru includes the pinned
 OpenTelemetry Collector and Amaru-derived bridge profile used to provide
 gLiveView metrics. Compatibility with the remaining cnode-oriented tools has

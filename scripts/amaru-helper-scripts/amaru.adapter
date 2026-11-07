@@ -51,10 +51,10 @@ node_adapter_defaults() {
   : "${NODE_HOME:=${GUILD_NODE_HOME:-/opt/cardano/amaru}}"
   : "${CNODE_HOME:=${NODE_HOME}}"
   : "${NODE_SERVICE:=${GUILD_NODE_SERVICE:-amaru}}"
-  : "${NODE_BINARY:=${AMARU_BIN:-${HOME}/.local/bin/amaru}}"
+  : "${NODE_BINARY:=${AMARU_BIN:-${NODE_HOME}/bin/amaru}}"
   # This isolated companion supports key and transaction operations. Amaru
   # still has no node-to-client socket, local query, or local submit capability.
-  : "${CCLI:=${HOME}/.local/bin/cardano-cli-amaru}"
+  : "${CCLI:=${NODE_HOME}/bin/cardano-cli}"
   : "${NODE_NETWORK:=${AMARU_NETWORK:-${NETWORK:-preview}}}"
   amaru_adapter_load_deployment_config
   : "${AMARU_PEERS_LISTEN_ON:=0.0.0.0:3000}"

@@ -57,11 +57,11 @@ git checkout --detach "$(
 cabal update
 cabal build exe:cardano-node exe:cardano-submit-api \
   --disable-tests --disable-profiling
-mkdir -p "$HOME/.local/bin"
+mkdir -p "$CNODE_HOME/bin"
 install -m 0755 "$(cabal list-bin exe:cardano-node)" \
-  "$HOME/.local/bin/cardano-node"
+  "$CNODE_HOME/bin/cardano-node"
 install -m 0755 "$(cabal list-bin exe:cardano-submit-api)" \
-  "$HOME/.local/bin/cardano-submit-api"
+  "$CNODE_HOME/bin/cardano-submit-api"
 ```
 
 #### Build Cardano CLI
@@ -72,7 +72,7 @@ plan selects its release, recorded as `build.cardanoCli` in the
 Install it from the same cardano-node checkout:
 
 ``` bash
-cabal install cardano-cli --installdir "$HOME/.local/bin" \
+cabal install cardano-cli --installdir "$CNODE_HOME/bin" \
   --install-method=copy --overwrite-policy=always
 ```
 
@@ -115,8 +115,8 @@ that should reach it. Normal deployments preserve script user variables;
 `-s s` archives and replaces the scripts and their user-variable sections.
 
 ```bash
-CNODEBIN="${HOME}/.local/bin/cardano-node"
-CCLI="${HOME}/.local/bin/cardano-cli"
+CNODEBIN="${CNODE_HOME}/bin/cardano-node"
+CCLI="${CNODE_HOME}/bin/cardano-cli"
 CNODE_PORT=6000
 POOL_NAME="GUILD"
 ```

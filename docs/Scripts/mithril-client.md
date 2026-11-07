@@ -12,7 +12,7 @@ Install or refresh the Mithril signer and client binaries with
 `guild-deploy.sh -s m`. The release selector comes from
 `${NODE_HOME}/files/cnode-release.json` and can be changed from `latest` to a
 pinned artifact without changing this deployment command. The executables are
-installed in `$HOME/.local/bin`; the generated environment defaults to
+installed in `${NODE_HOME}/bin`; the generated environment defaults to
 `${NODE_HOME}/mithril/mithril.env`.
 
 ## Usage

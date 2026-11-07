@@ -237,19 +237,20 @@ cntools_startup_resolve_command() {
      "${candidate}" != *$'\n'* &&
      "${candidate}" != *$'\r'* ]] || return 1
   if [[ "${candidate}" != */* ]]; then
-    # Guild Deploy installs user-scoped companion tools in ~/.local/bin. Use
-    # that managed copy even when the current shell has not reloaded PATH yet,
-    # then retain PATH lookup for system or explicitly user-installed tools.
-    if [[ "${HOME:-}" = /* ]]; then
-      managed_candidate="${HOME}/.local/bin/${candidate}"
-    fi
-    if [[ -n "${managed_candidate}" &&
-          -x "${managed_candidate}" &&
-          ! -d "${managed_candidate}" ]]; then
-      candidate="${managed_candidate}"
-    else
-      candidate="$(type -P "${candidate}" 2>/dev/null || true)"
-    fi
+    # Guild Deploy installs each deployment's tools in its own bin folder.
+    # Deployments that predate it keep their copy in ~/.local/bin. Then retain
+    # PATH lookup for system or explicitly user-installed tools.
+    for managed_candidate in \
+      "${CNTOOLS_NODE_HOME:-}/bin/${candidate}" \
+      "${HOME:-}/.local/bin/${candidate}"; do
+      if [[ "${managed_candidate}" = /* &&
+            -x "${managed_candidate}" &&
+            ! -d "${managed_candidate}" ]]; then
+        printf '%s\n' "${managed_candidate}"
+        return 0
+      fi
+    done
+    candidate="$(type -P "${candidate}" 2>/dev/null || true)"
   elif [[ "${candidate}" != /* ]]; then
     parent="$(cd -- "$(dirname "${candidate}")" 2>/dev/null && pwd -P)" ||
       return 1
@@ -389,8 +390,7 @@ cntools_startup_normalize_session() {
   fi
   if [[ -z "${cli_candidate}" ]]; then
     case "${CNTOOLS_IMPLEMENTATION}" in
-      cnode) cli_candidate="cardano-cli" ;;
-      dingo) cli_candidate="cardano-cli-dingo" ;;
+      cnode|dingo) cli_candidate="cardano-cli" ;;
     esac
   fi
   CNTOOLS_CLI="$(cntools_startup_resolve_command \

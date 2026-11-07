@@ -443,6 +443,7 @@ dispatcher_usage() {
 	      Without -p and -t, the copy installed as <target>/scripts/guild-deploy.sh
 	      defaults to its own <target> and implementation
 	-b    Guild Operators repository branch (Default: stored deployment branch, then master)
+	-C    Check only: report what this run would do, including any binary move, and change nothing
 	-s    Selective install flags. All implementations:
 	        p  runtime OS prerequisites
 	        d  selected node implementation binaries
@@ -893,10 +894,10 @@ dispatcher_install_cardano_hw_cli() (
   [[ "${installed_version}" == "${version}" ]] ||
     err_exit "Staged cardano-hw-cli reported '${installed_version:-unknown}', expected ${version}."
 
-  mkdir -p "${HOME}/.local/bin" ||
-    err_exit "Could not prepare ${HOME}/.local/bin."
-  install_stage="$(mktemp -d "${HOME}/.local/bin/.cardano-hw-cli.install.XXXXXX")" ||
-    err_exit "Could not stage cardano-hw-cli in ${HOME}/.local/bin."
+  mkdir -p "${NODE_HOME}/bin" ||
+    err_exit "Could not prepare ${NODE_HOME}/bin."
+  install_stage="$(mktemp -d "${NODE_HOME}/bin/.cardano-hw-cli.install.XXXXXX")" ||
+    err_exit "Could not stage cardano-hw-cli in ${NODE_HOME}/bin."
   for payload_name in "${payload_names[@]}"; do
     payload="${payload_root}/${payload_name}"
     install -m 0755 "${payload}" "${install_stage}/${payload_name}" ||
@@ -904,7 +905,7 @@ dispatcher_install_cardano_hw_cli() (
   done
   for payload_name in "${payload_names[@]}"; do
     mv -f -- "${install_stage}/${payload_name}" \
-      "${HOME}/.local/bin/${payload_name}" ||
+      "${NODE_HOME}/bin/${payload_name}" ||
       err_exit "Could not install ${payload_name}."
   done
   rmdir "${install_stage}"
@@ -2568,6 +2569,476 @@ dispatcher_load_profile() {
   PROFILE_ENTRYPOINT="${function_name}"
 }
 
+# Binary layout
+#
+# Every binary a deployment runs lives in ${NODE_HOME}/bin. Older deployments
+# keep theirs in ~/.local/bin, shared by all deployments of the OS user. The
+# preflight below changes nothing on the target. It either stops with
+# instructions, or records which tools to copy across so the deployment keeps
+# running the versions it has now.
+
+dispatcher_layout_primary_binary() {
+  case "${1:-${NODE_IMPLEMENTATION}}" in
+    dingo) printf 'dingo' ;;
+    amaru) printf 'amaru' ;;
+    *) printf 'cardano-node' ;;
+  esac
+}
+
+# What a shell of this user runs today, ignoring any deployment it has activated.
+dispatcher_layout_effective_tool() {
+  (
+    if [[ -n "${GUILD_ACTIVE_HOME:-}" ]]; then
+      PATH=":${PATH}:"
+      PATH="${PATH//:${GUILD_ACTIVE_HOME}\/bin:/:}"
+      PATH="${PATH#:}"
+      PATH="${PATH%:}"
+    fi
+    PATH="${PATH}:${HOME}/.local/bin"
+    command -v "$1" 2>/dev/null
+  )
+}
+
+dispatcher_layout_tool_version() {
+  timeout 30 "$1" version 2>/dev/null | head -n 1 | awk '{print $2}'
+}
+
+dispatcher_layout_version_at_least() {
+  [[ -n "${2:-}" ]] && printf '%s\n%s\n' "$1" "$2" | sort -C -V
+}
+
+# A variable the operator set in this deployment's env file. That file is
+# sourced by every Guild script, so reading it this way adds no new trust.
+dispatcher_layout_env_value() {
+  local env_file="${NODE_HOME}/scripts/env"
+
+  [[ -f "${env_file}" ]] || return 0
+  (
+    # shellcheck disable=SC2034  # read by the evaluated line
+    CNODE_HOME="${NODE_HOME}"
+    eval "$(grep -E "^${1}=" "${env_file}" | tail -n 1)" 2>/dev/null
+    printf '%s' "${!1:-}"
+  )
+}
+
+# The node and CLI versions the release for this network requires.
+dispatcher_layout_cnode_minimums() {
+  local manifest="" overlay=""
+
+  manifest="$(dispatcher_source_path "files/node-implementations/cnode/release.json" 2>/dev/null)" ||
+    return 1
+  overlay="$(dispatcher_source_path "files/node-implementations/cnode/networks/${NETWORK}.json" 2>/dev/null)" ||
+    overlay=""
+  if [[ -n "${overlay}" ]]; then
+    jq -ers '(.[0] * .[1]) | [.version, .companions["cardano-cli"].version] | @tsv' \
+      "${manifest}" "${overlay}" 2>/dev/null
+  else
+    jq -er '[.version, .companions["cardano-cli"].version] | @tsv' "${manifest}" 2>/dev/null
+  fi
+}
+
+dispatcher_layout_command() {
+  local flags="$1"
+  local command="./guild-deploy.sh"
+
+  [[ "${NODE_IMPLEMENTATION}" = "cnode" ]] || command+=" -i ${NODE_IMPLEMENTATION}"
+  [[ -z "${flags}" ]] || command+=" -s ${flags}"
+  command+=" -n ${NETWORK} -t ${NODE_NAME} -p ${NODE_PARENT}"
+  [[ "${BRANCH}" = "master" ]] || command+=" -b ${BRANCH}"
+  printf '%s' "${command}"
+}
+
+# Stop before anything changes. The caller's deployment is exactly as it was.
+dispatcher_layout_stop() {
+  printf "\n%sStopped before changing anything on %s.%s\n\n" \
+    "${STYLE_RED}" "${NODE_HOME}" "${STYLE_RESET}" >&2
+  printf '%s\n' "$@" >&2
+  printf '\n' >&2
+  exit 1
+}
+
+# Stop when the target cannot hold or run binaries, or lacks the room for them.
+dispatcher_layout_check_target() {
+  local want_download="$1"
+  local probe="" needed_kb=102400 free_kb="" tool=""
+
+  [[ -w "${NODE_HOME}" ]] ||
+    dispatcher_layout_stop \
+      "${NODE_HOME} is not writable by $(id -un), so binaries cannot be installed there." \
+      "Run this as the user that owns the deployment, or fix the folder's ownership."
+
+  probe="$(mktemp -d "${NODE_HOME}/.bin-check.XXXXXX" 2>/dev/null)" ||
+    dispatcher_layout_stop \
+      "Could not create files in ${NODE_HOME}. Check that the disk is not read-only or full."
+  printf '#!/bin/sh\nexit 0\n' > "${probe}/probe" 2>/dev/null
+  chmod 0755 "${probe}/probe" 2>/dev/null
+  if ! "${probe}/probe" >/dev/null 2>&1; then
+    rm -rf -- "${probe}"
+    dispatcher_layout_stop \
+      "Programs cannot run from ${NODE_HOME}, which is probably mounted with noexec." \
+      "Remount that disk without noexec, then run this again."
+  fi
+  rm -rf -- "${probe}"
+
+  [[ "${want_download}" = "Y" ]] && needed_kb=$(( needed_kb + 716800 ))
+  for tool in "${BINARY_LAYOUT_COPY[@]}"; do
+    needed_kb=$(( needed_kb + $(du -Lk "${HOME}/.local/bin/${tool}" | awk '{print $1}') ))
+  done
+  free_kb="$(df -Pk "${NODE_HOME}" | awk 'NR==2{print $4}')"
+  if [[ "${free_kb}" =~ ^[0-9]+$ ]] && (( free_kb < needed_kb )); then
+    dispatcher_layout_stop \
+      "${NODE_HOME} needs about $(( needed_kb / 1024 )) MB free for binaries, but has $(( free_kb / 1024 )) MB." \
+      "Free up some space, then run this again."
+  fi
+}
+
+# Decide what a cnode deployment needs. Sets BINARY_LAYOUT_NOTES as well.
+dispatcher_layout_check_cnode() {
+  local want_download="$1"
+  local node_override="" cli_override=""
+  local node_binary="" cli_binary="" node_version="" cli_version=""
+  local minimums="" minimum_node="" minimum_cli=""
+  local strict="Y"
+
+  node_override="$(dispatcher_layout_env_value CNODEBIN)"
+  cli_override="$(dispatcher_layout_env_value CCLI)"
+  [[ "$(dispatcher_layout_env_value STRICT_VERSION_CHECK)" != "N" ]] || strict="N"
+
+  if [[ -n "${node_override}" ]]; then
+    node_binary="${node_override}"
+  elif [[ -x "${NODE_HOME}/bin/cardano-node" ]]; then
+    node_binary="${NODE_HOME}/bin/cardano-node"
+  else
+    node_binary="$(dispatcher_layout_effective_tool cardano-node || true)"
+  fi
+  if [[ -n "${cli_override}" ]]; then
+    cli_binary="${cli_override}"
+  elif [[ -x "${NODE_HOME}/bin/cardano-cli" ]]; then
+    cli_binary="${NODE_HOME}/bin/cardano-cli"
+  else
+    cli_binary="$(dispatcher_layout_effective_tool cardano-cli || true)"
+  fi
+
+  if [[ -z "${node_binary}" || ! -x "${node_binary}" ]]; then
+    node_binary=""
+    if [[ "${want_download}" != "Y" ]] && dispatcher_directory_has_entries "${NODE_HOME}/db"; then
+      dispatcher_layout_stop \
+        "This deployment has a chain database, but $(id -un) has no cardano-node." \
+        "If it belongs to another OS user, run this as that user." \
+        "Otherwise install the binaries:" \
+        "  $(dispatcher_layout_command "d${S_ARGS:-}")"
+    fi
+    return 0
+  fi
+
+  minimums="$(dispatcher_layout_cnode_minimums || true)"
+  [[ -n "${minimums}" && "${strict}" = "Y" ]] || return 0
+  IFS=$'\t' read -r minimum_node minimum_cli <<< "${minimums}"
+  node_version="$(dispatcher_layout_tool_version "${node_binary}")"
+  [[ -n "${cli_binary}" && -x "${cli_binary}" ]] &&
+    cli_version="$(dispatcher_layout_tool_version "${cli_binary}")"
+
+  BINARY_LAYOUT_NOTES+=("cardano-node ${node_version:-unknown}, needs at least ${minimum_node}")
+  BINARY_LAYOUT_NOTES+=("cardano-cli ${cli_version:-not found}, needs at least ${minimum_cli}")
+
+  # An override keeps winning after a download, so it cannot be fixed with -s d.
+  if [[ -n "${node_override}" ]] &&
+     ! dispatcher_layout_version_at_least "${minimum_node}" "${node_version}"; then
+    dispatcher_layout_stop \
+      "CNODEBIN in ${NODE_HOME}/scripts/env points at cardano-node ${node_version:-unknown}, but these scripts need at least ${minimum_node}." \
+      "That setting would keep running the old binary, and the node would not start after its next restart." \
+      "Upgrade that binary, or remove the CNODEBIN line so the deployment uses its own copy."
+  fi
+  if [[ -n "${cli_override}" ]] &&
+     ! dispatcher_layout_version_at_least "${minimum_cli}" "${cli_version}"; then
+    dispatcher_layout_stop \
+      "CCLI in ${NODE_HOME}/scripts/env points at cardano-cli ${cli_version:-unknown}, but these scripts need at least ${minimum_cli}." \
+      "That setting would keep running the old binary, and the node would not start after its next restart." \
+      "Upgrade that binary, or remove the CCLI line so the deployment uses its own copy."
+  fi
+  [[ -z "${node_override}" ]] ||
+    BINARY_LAYOUT_NOTES+=("CNODEBIN in scripts/env is respected. Deployments will not update that file.")
+  [[ -z "${cli_override}" ]] ||
+    BINARY_LAYOUT_NOTES+=("CCLI in scripts/env is respected. Deployments will not update that file.")
+
+  [[ "${want_download}" != "Y" ]] || return 0
+  if ! dispatcher_layout_version_at_least "${minimum_node}" "${node_version}" ||
+     ! dispatcher_layout_version_at_least "${minimum_cli}" "${cli_version}"; then
+    dispatcher_layout_stop \
+      "These scripts need cardano-node ${minimum_node} and cardano-cli ${minimum_cli}." \
+      "This deployment has cardano-node ${node_version:-unknown} and cardano-cli ${cli_version:-not found}." \
+      "Refreshing only the scripts would stop the node from starting at its next restart." \
+      "" \
+      "Install the required versions as well:" \
+      "  $(dispatcher_layout_command "d${S_ARGS:-}")" \
+      "" \
+      "The running node is not touched. The new version takes effect when you restart it," \
+      "and a major upgrade can replay the ledger for several hours, so test on a relay first."
+  fi
+}
+
+# Which of the shared tools this deployment should get its own copy of.
+dispatcher_layout_select_copies() {
+  local want_download="$1"
+  local tool="" shared="${HOME}/.local/bin"
+  local -a tools=(cardano-hw-cli gum)
+
+  if [[ "${NODE_IMPLEMENTATION}" = "cnode" ]]; then
+    tools+=(cncli ogmios cardano-signer mithril-signer mithril-client)
+    # -s d installs these itself.
+    [[ "${want_download}" = "Y" ]] ||
+      tools+=(cardano-node cardano-cli cardano-submit-api bech32 cardano-address cardano-db-sync)
+  fi
+  for tool in "${tools[@]}"; do
+    [[ ! -e "${NODE_HOME}/bin/${tool}" && -x "${shared}/${tool}" && ! -d "${shared}/${tool}" ]] ||
+      continue
+    # A binary found earlier on PATH is what runs today, and still will.
+    [[ "$(dispatcher_layout_effective_tool "${tool}")" = "${shared}/${tool}" ]] || continue
+    BINARY_LAYOUT_COPY+=("${tool}")
+    if [[ "${tool}" = "cardano-hw-cli" ]]; then
+      local module=""
+      for module in HID.node HID_hidraw.node; do
+        [[ ! -f "${shared}/${module}" ]] || BINARY_LAYOUT_COPY+=("${module}")
+      done
+    fi
+  done
+}
+
+dispatcher_binary_layout_preflight() {
+  local primary="" want_download="N" layout="new"
+
+  BINARY_LAYOUT_COPY=()
+  BINARY_LAYOUT_NOTES=()
+  BINARY_LAYOUT_ACTION=""
+  primary="$(dispatcher_layout_primary_binary)"
+  [[ "${S_ARGS:-}" != *d* ]] || want_download="Y"
+
+  if [[ ! -f "${DEPLOYMENT_FILE:-}" && "${LEGACY_CNODE_TARGET:-N}" != "Y" &&
+        ! -f "${NODE_HOME}/scripts/env" ]]; then
+    BINARY_LAYOUT_ACTION="New deployment: binaries will go in ${NODE_HOME}/bin."
+    return 0
+  fi
+  if [[ -x "${NODE_HOME}/bin/${primary}" ]]; then
+    layout="current"
+  elif [[ -x "${HOME}/.local/bin/${primary}" ]] ||
+       { [[ "${NODE_IMPLEMENTATION}" = "cnode" ]] &&
+         [[ -n "$(dispatcher_layout_effective_tool "${primary}")" ]]; }; then
+    layout="shared"
+  fi
+
+  # Dingo and Amaru are not on master yet, so a fresh download replaces the old
+  # layout and its suffixed CLI names instead of a copy.
+  if [[ "${NODE_IMPLEMENTATION}" != "cnode" && "${layout}" = "shared" && "${want_download}" != "Y" ]]; then
+    dispatcher_layout_stop \
+      "This ${NODE_IMPLEMENTATION} deployment keeps its binaries in ${HOME}/.local/bin." \
+      "Install them into the deployment with:" \
+      "  $(dispatcher_layout_command "d${S_ARGS:-}")" \
+      "The new version takes effect when you restart the service."
+  fi
+  if [[ "${NODE_IMPLEMENTATION}" = "cnode" ]]; then
+    dispatcher_layout_check_cnode "${want_download}"
+  fi
+
+  case "${layout}" in
+    current)
+      BINARY_LAYOUT_ACTION="Binaries are already in ${NODE_HOME}/bin."
+      return 0
+      ;;
+    shared|new)
+      dispatcher_layout_select_copies "${want_download}"
+      ;;
+  esac
+  if [[ "${want_download}" = "Y" || ${#BINARY_LAYOUT_COPY[@]} -gt 0 ]]; then
+    dispatcher_layout_check_target "${want_download}"
+  fi
+  if [[ "${want_download}" = "Y" ]]; then
+    BINARY_LAYOUT_ACTION="Install the pinned versions into ${NODE_HOME}/bin. They take effect when the service restarts."
+  else
+    BINARY_LAYOUT_ACTION="Keep the current versions. No restart is needed."
+  fi
+  if [[ ${#BINARY_LAYOUT_COPY[@]} -gt 0 ]]; then
+    BINARY_LAYOUT_ACTION+=" Copy unchanged from ${HOME}/.local/bin: ${BINARY_LAYOUT_COPY[*]}."
+  fi
+}
+
+dispatcher_binary_layout_print() {
+  local note=""
+
+  printf "\n%sBinary layout check%s\n" "${STYLE_BOLD}" "${STYLE_RESET}"
+  printf "  Target : %s\n" "${NODE_HOME}"
+  for note in "${BINARY_LAYOUT_NOTES[@]}"; do
+    printf "  Found  : %s\n" "${note}"
+  done
+  printf "  Action : %s\n" "${BINARY_LAYOUT_ACTION}"
+}
+
+# The old CNTools left priv/wallet, pool and asset writable by the group under a
+# umask of 0002, the default for Ubuntu users. CNTools now refuses to work with
+# them, so a target coming from the old layout has this write access removed.
+# Read access is left as it is.
+dispatcher_layout_private_items() {
+  [[ "${LEGACY_CNODE_TARGET:-N}" = "Y" && -d "${NODE_HOME}/priv" ]] || return 0
+  find "${NODE_HOME}/priv" -mindepth 1 -user "$(id -un)" \
+    \( -type d -o -type f \) -perm /022 -print 2>/dev/null
+}
+
+dispatcher_layout_protect_private_folders() {
+  local item="" count=0
+
+  while IFS= read -r item; do
+    chmod go-w -- "${item}" ||
+      err_exit "Could not remove group and other write access from ${item}."
+    count=$(( count + 1 ))
+  done < <(dispatcher_layout_private_items)
+  (( count == 0 )) ||
+    log_ok "Removed group and other write access under ${NODE_HOME}/priv, which CNTools requires" "${count} items"
+}
+
+# Copy to a temporary folder first. When there is no bin folder yet, one rename
+# makes the whole set appear at once, so no script ever sees part of it.
+dispatcher_copy_shared_binaries() {
+  local stage="" tool="" source_file=""
+
+  find "${NODE_HOME}" -mindepth 1 -maxdepth 1 -type d \
+    \( -name '.bin-migrate.*' -o -name '.bin-check.*' \) -exec rm -rf {} + 2>/dev/null
+  [[ ${#BINARY_LAYOUT_COPY[@]} -gt 0 ]] || return 0
+
+  log_progress "Copying binaries into the deployment" "${NODE_HOME}/bin"
+  stage="$(mktemp -d "${NODE_HOME}/.bin-migrate.XXXXXX")" ||
+    err_exit "Could not create a temporary folder in ${NODE_HOME}."
+  for tool in "${BINARY_LAYOUT_COPY[@]}"; do
+    source_file="${HOME}/.local/bin/${tool}"
+    if ! cp -pL -- "${source_file}" "${stage}/${tool}" ||
+       ! cmp -s -- "${source_file}" "${stage}/${tool}"; then
+      rm -rf -- "${stage}"
+      err_exit "Could not copy ${source_file} to ${NODE_HOME}. Nothing was changed; run this again."
+    fi
+  done
+  for tool in cardano-node cardano-cli; do
+    [[ -f "${stage}/${tool}" ]] || continue
+    if [[ "$(dispatcher_layout_tool_version "${stage}/${tool}")" != \
+          "$(dispatcher_layout_tool_version "${HOME}/.local/bin/${tool}")" ]]; then
+      rm -rf -- "${stage}"
+      err_exit "The copy of ${tool} does not report the same version as ${HOME}/.local/bin/${tool}."
+    fi
+  done
+  chmod 0755 "${stage}" ||
+    err_exit "Could not set permissions on ${stage}."
+  if [[ ! -e "${NODE_HOME}/bin" ]]; then
+    mv -- "${stage}" "${NODE_HOME}/bin" ||
+      err_exit "Could not move the copied binaries into ${NODE_HOME}/bin."
+  else
+    for tool in "${BINARY_LAYOUT_COPY[@]}"; do
+      mv -n -- "${stage}/${tool}" "${NODE_HOME}/bin/${tool}" ||
+        err_exit "Could not move ${tool} into ${NODE_HOME}/bin."
+    done
+    rm -rf -- "${stage}"
+  fi
+  BINARY_LAYOUT_COPIED="Y"
+  log_ok "Binaries copied unchanged" "${#BINARY_LAYOUT_COPY[@]} files"
+}
+
+# Other deployments of this user that still run from ~/.local/bin.
+dispatcher_layout_shared_users() {
+  local candidate="" implementation="" primary=""
+  local -a candidates=("${NODE_PARENT}"/*)
+  local -A seen=()
+
+  while IFS= read -r candidate; do
+    candidates+=("${candidate}")
+  done < <(sed -nE 's/^export [A-Z0-9_]+_HOME="?([^"]+)"?$/\1/p' "${HOME}/.bashrc" 2>/dev/null)
+  for candidate in "${candidates[@]}"; do
+    [[ -n "${candidate}" && "${candidate}" != "${NODE_HOME}" && -z "${seen[${candidate}]:-}" ]] || continue
+    seen["${candidate}"]=1
+    [[ -O "${candidate}" && -f "${candidate}/scripts/env" ]] || continue
+    implementation="$(jq -r '.implementation // "cnode"' "${candidate}/.deployment.json" 2>/dev/null || true)"
+    primary="$(dispatcher_layout_primary_binary "${implementation:-cnode}")"
+    [[ -x "${candidate}/bin/${primary}" ]] || printf '%s\n' "${candidate}"
+  done
+}
+
+# What is left for the operator after a deployment. Nothing here changes files:
+# ~/.local/bin may be serving other deployments, custom units or hand-kept tools.
+dispatcher_binary_layout_report() {
+  local shared="${HOME}/.local/bin"
+  local tool="" unit="" other=""
+  local -a old_copies=() differs=() units=() others=()
+
+  [[ -d "${NODE_HOME}/bin" ]] || return 0
+  for tool in cardano-node cardano-cli cardano-submit-api bech32 cardano-address cardano-db-sync \
+    cncli ogmios cardano-signer mithril-signer mithril-client cardano-hw-cli HID.node HID_hidraw.node \
+    gum dingo amaru otelcol-contrib; do
+    [[ -f "${shared}/${tool}" && -f "${NODE_HOME}/bin/${tool}" ]] || continue
+    old_copies+=("${tool}")
+    cmp -s -- "${shared}/${tool}" "${NODE_HOME}/bin/${tool}" || differs+=("${tool}")
+  done
+  for unit in "${SYSTEMD_UNIT_DIR:-/etc/systemd/system}/${NODE_SERVICE}"*.service; do
+    [[ -f "${unit}" ]] && grep -qF -- "${HOME}/.local/bin" "${unit}" 2>/dev/null && units+=("$(basename "${unit}")")
+  done
+  if [[ -f "${NODE_HOME}/mithril/mithril.env" ]] &&
+     grep -qF -- "${HOME}/.local/bin" "${NODE_HOME}/mithril/mithril.env" 2>/dev/null; then
+    units+=("${NODE_HOME}/mithril/mithril.env")
+  fi
+
+  if [[ "${BINARY_LAYOUT_COPIED:-N}" = "Y" ]]; then
+    printf "\n  This deployment now runs from %s/bin.\n" "${NODE_HOME}"
+    # After -s d the shared files are older than these scripts allow.
+    if [[ "${S_ARGS:-}" != *d* ]]; then
+      printf "  To undo the copy, rename that folder and the deployment returns to the shared files:\n"
+      printf "    mv %s/bin %s/bin.disabled\n" "${NODE_HOME}" "${NODE_HOME}"
+    fi
+  fi
+  if [[ ${#units[@]} -gt 0 ]]; then
+    printf "\n  These still run binaries from %s:\n" "${shared}"
+    printf "    %s\n" "${units[@]}"
+    printf "  To move them over, regenerate them:\n"
+    case "${NODE_IMPLEMENTATION}" in
+      dingo|amaru)
+        printf "    %s/scripts/%s.sh install\n" "${NODE_HOME}" "${NODE_IMPLEMENTATION}"
+        ;;
+      *)
+        printf "    %s/scripts/mithril-signer.sh -d\n" "${NODE_HOME}"
+        ;;
+    esac
+  fi
+  [[ ${#old_copies[@]} -gt 0 ]] || return 0
+  printf "\n  Old copies in %s are no longer used by this deployment:\n" "${shared}"
+  printf "    %s\n" "${old_copies[*]}"
+  if [[ ${#differs[@]} -gt 0 ]]; then
+    printf "  At a prompt they run first unless you source activate, and these now differ: %s\n" "${differs[*]}"
+  fi
+  while IFS= read -r other; do
+    others+=("${other}")
+  done < <(dispatcher_layout_shared_users)
+  if [[ ${#others[@]} -gt 0 ]]; then
+    printf "  Keep them for now. These deployments still use them:\n"
+    printf "    %s\n" "${others[@]}"
+  elif [[ ${#units[@]} -eq 0 ]]; then
+    printf "  No other deployment of this user needs them, so you can remove them:\n"
+    printf "    cd %s && rm -f %s\n" "${shared}" "${old_copies[*]}"
+  fi
+}
+
+# Commands typed by hand use this to pick a deployment's binaries.
+dispatcher_install_activate() {
+  local source_file=""
+  local target="${NODE_HOME}/scripts/activate"
+  local staged=""
+
+  source_file="$(dispatcher_source_path "scripts/common-helper-scripts/activate")" || {
+    log_warn "The source snapshot has no activate script."
+    return 0
+  }
+  staged="$(mktemp "${target}.tmp.XXXXXX")" ||
+    err_exit "Could not stage ${target}."
+  if ! cp -- "${source_file}" "${staged}" ||
+     ! chmod 0644 "${staged}" ||
+     ! mv -f -- "${staged}" "${target}"; then
+    rm -f -- "${staged}"
+    err_exit "Could not install ${target}."
+  fi
+}
+
 dispatcher_extract_user_header() {
   local source_file="${1:-}"
 
@@ -2671,7 +3142,9 @@ dispatcher_detect_node_version() {
     dingo) binary="dingo" ;;
     amaru) binary="amaru" ;;
   esac
-  if [[ -x "${HOME}/.local/bin/${binary}" ]]; then
+  if [[ -x "${NODE_HOME}/bin/${binary}" ]]; then
+    binary_path="${NODE_HOME}/bin/${binary}"
+  elif [[ -x "${HOME}/.local/bin/${binary}" ]]; then
     binary_path="${HOME}/.local/bin/${binary}"
   elif command -v "${binary}" >/dev/null 2>&1; then
     binary_path="$(command -v "${binary}")"
@@ -2855,13 +3328,15 @@ guild_deploy_main() {
   G_ACCOUNT_PRESET="N"
   LEGACY_CNODE_TARGET="N"
   DISPATCHER_LOCK_TARGET="N"
+  DEPLOY_CHECK_ONLY="N"
+  BINARY_LAYOUT_COPIED="N"
   S_ARGS="${S_ARGS:-}"
   [[ -n "${BRANCH:-}" ]] && BRANCH_PRESET="Y"
   [[ -n "${NETWORK:-}" ]] && NETWORK_PRESET="Y"
   [[ -n "${G_ACCOUNT:-}" ]] && G_ACCOUNT_PRESET="Y"
   OPTIND=1
 
-  while getopts ":g:i:n:p:t:s:b:h" opt; do
+  while getopts ":g:i:n:p:t:s:b:hCu" opt; do
     case "${opt}" in
       g)
         G_ACCOUNT="${OPTARG}"
@@ -2888,6 +3363,11 @@ guild_deploy_main() {
       h)
         dispatcher_usage
         return 0
+        ;;
+      C) DEPLOY_CHECK_ONLY="Y" ;;
+      u)
+        [[ "${snapshot_stage}" != "bootstrap" ]] ||
+          log_info "-u is no longer needed and is ignored."
         ;;
       :)
         err_exit "Option -${OPTARG} requires an argument."
@@ -2955,6 +3435,19 @@ guild_deploy_main() {
   [[ "${GUILD_SOURCE_REVISION}" = "${expected_source_revision}" ]] ||
     err_exit "The prepared source snapshot revision changed before deployment."
 
+  # Nothing on the target has changed up to this point.
+  dispatcher_binary_layout_preflight
+  if [[ "${DEPLOY_CHECK_ONLY}" = "Y" ]]; then
+    if [[ -n "$(dispatcher_layout_private_items)" ]]; then
+      BINARY_LAYOUT_ACTION+=" Remove group and other write access under ${NODE_HOME}/priv, which CNTools requires."
+    fi
+    dispatcher_binary_layout_print
+    printf "\n  Check only: nothing was changed.\n\n"
+    return 0
+  fi
+  dispatcher_copy_shared_binaries
+  dispatcher_layout_protect_private_folders
+
   printf "\n%sGuild Operators deployment%s\n" "${STYLE_BOLD}" "${STYLE_RESET}"
   printf "  Implementation : %s\n" "${NODE_IMPLEMENTATION}"
   printf "  Target         : %s\n" "${NODE_HOME}"
@@ -2969,9 +3462,12 @@ guild_deploy_main() {
   "${PROFILE_ENTRYPOINT}" ||
     err_exit "${NODE_IMPLEMENTATION} deployment profile failed."
   dispatcher_install_self
+  dispatcher_install_activate
   dispatcher_write_manifest deployed
 
   printf "\n%sDeployment finished%s\n" "${STYLE_GREEN}${STYLE_BOLD}" "${STYLE_RESET}"
+  dispatcher_binary_layout_report
+  printf "\n  To use this deployment's binaries in a shell:\n    source %s/scripts/activate\n" "${NODE_HOME}"
 }
 
 if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then

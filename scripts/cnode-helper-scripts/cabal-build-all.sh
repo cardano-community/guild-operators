@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # shellcheck disable=SC1090
 # executes cabal build all
-# parses executables created from compiler output and copies it to ~/.local/bin folder.
+# parses executables created from compiler output and copies them to a binary folder:
+# the one given with -o <dir>, else ${CNODE_HOME}/bin when that deployment has one, else ~/.local/bin.
 
 set -o pipefail
 
@@ -16,6 +17,28 @@ run_logged() {
   local rc=${PIPESTATUS[0]}
   [[ ${rc} -eq 0 ]] || exit "${rc}"
 }
+
+INSTALL_DIR=""
+ARGS=()
+while [[ $# -gt 0 ]]; do
+  if [[ "$1" == "-o" ]]; then
+    [[ -n "${2:-}" ]] || { echo "ERROR: -o needs a binary folder" >&2; exit 1; }
+    INSTALL_DIR="$2"
+    shift 2
+  else
+    ARGS+=("$1")
+    shift
+  fi
+done
+set -- "${ARGS[@]}"
+if [[ -z "${INSTALL_DIR}" ]]; then
+  if [[ -n "${CNODE_HOME:-}" && -d "${CNODE_HOME}/bin" ]]; then
+    INSTALL_DIR="${CNODE_HOME}/bin"
+  else
+    INSTALL_DIR="${HOME}/.local/bin"
+  fi
+fi
+mkdir -p "${INSTALL_DIR}" || { echo "ERROR: could not create ${INSTALL_DIR}" >&2; exit 1; }
 
 echo "Deleting build config artifact to remove cached version, this prevents invalid Git Rev"
 find dist-newstyle/build/x86_64-linux/ghc-8.10.?/cardano-config-* >/dev/null 2>&1 && rm -rf "dist-newstyle/build/x86_64-linux/ghc-8.*/cardano-config-*"
@@ -87,6 +110,6 @@ fi
 grep "Linking /" /tmp/build.log | grep -Ev 'test|golden|demo|chairman|locli|ledger|topology' | sed -e 's#^.*.Linking#Linking#g' | while read -r line ; do
     act_bin_path=$(echo "$line" | awk '{print $2}')
     act_bin=$(echo "$act_bin_path" | awk -F "/" '{print $NF}')
-    echo "Copying $act_bin to ${HOME}/.local/bin/"
-    cp -f "$act_bin_path" "${HOME}/.local/bin/"
+    echo "Copying $act_bin to ${INSTALL_DIR}/"
+    cp -f "$act_bin_path" "${INSTALL_DIR}/"
 done

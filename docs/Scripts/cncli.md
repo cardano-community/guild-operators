@@ -29,7 +29,7 @@ but it is currently disabled because its parser has not been updated for the
 current node tracing format.
 
 1. Run `guild-deploy.sh -s c` to install the prebuilt CNCLI executable in
-   `$HOME/.local/bin/cncli`. The selected release comes from
+   `${NODE_HOME}/bin/cncli`. The selected release comes from
    `${NODE_HOME}/files/cnode-release.json`; that policy can resolve a rolling
    `latest` release or a pinned artifact without changing this command.
 2. Let `cncli.sh` install the operational systemd units it owns:

@@ -153,8 +153,8 @@ fi
 # shellcheck source=/dev/null
 . "${AMARU_SYSTEMD_LIBRARY}"
 
-: "${AMARU_BIN:=${HOME}/.local/bin/amaru}"
-: "${AMARU_OTELCOL_BIN:=${HOME}/.local/bin/otelcol-contrib}"
+: "${AMARU_BIN:=${GUILD_NODE_HOME}/bin/amaru}"
+: "${AMARU_OTELCOL_BIN:=${GUILD_NODE_HOME}/bin/otelcol-contrib}"
 : "${AMARU_OTELCOL_CONFIG:=${GUILD_NODE_HOME}/files/otelcol.yaml}"
 
 amaru_usage() {

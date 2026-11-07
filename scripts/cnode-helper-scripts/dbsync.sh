@@ -9,7 +9,7 @@
 ######################################
 
 #PGPASSFILE="${CNODE_HOME}/priv/.pgpass"                    # PGPass file containing connection information for the postgres instance
-#DBSYNCBIN="${HOME}/.local/bin/cardano-db-sync"             # Path for cardano-db-sync binary, assumed to be available in $PATH
+#DBSYNCBIN="${CNODE_HOME}/bin/cardano-db-sync"               # Path for cardano-db-sync binary, assumed to be available in $PATH
 #DBSYNC_STATE_DIR="${CNODE_HOME}/guild-db/ledger-state"     # Folder where DBSync instance will dump ledger-state files
 #DBSYNC_SCHEMA_DIR="${CNODE_HOME}/guild-db/schema"          # Path to DBSync repository's schema folder
 #DBSYNC_CONFIG="${CNODE_HOME}/files/dbsync.json"            # Config file for dbsync instance
@@ -40,7 +40,13 @@ usage() {
 
 set_defaults() {
   if [[ -z "${DBSYNCBIN}" ]]; then
-    [[ -f "${HOME}/.local/bin/cardano-db-sync" ]] && DBSYNCBIN="${HOME}/.local/bin/cardano-db-sync" || DBSYNCBIN="$(command -v cardano-db-sync)"
+    if [[ -f "${CNODE_HOME}/bin/cardano-db-sync" ]]; then
+      DBSYNCBIN="${CNODE_HOME}/bin/cardano-db-sync"
+    elif [[ -f "${HOME}/.local/bin/cardano-db-sync" ]]; then
+      DBSYNCBIN="${HOME}/.local/bin/cardano-db-sync"
+    else
+      DBSYNCBIN="$(command -v cardano-db-sync)"
+    fi
   fi
   [[ -z "${PGPASSFILE}" ]] && PGPASSFILE="${CNODE_HOME}/priv/.pgpass"
   [[ -z "${DBSYNC_CONFIG}" ]] && DBSYNC_CONFIG="${CNODE_HOME}/files/dbsync.json"

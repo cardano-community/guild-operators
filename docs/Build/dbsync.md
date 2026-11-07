@@ -48,7 +48,9 @@ git checkout --detach "$DBSYNC_VERSION"
 
 Pass `-l` to the helper only when the build is intentionally configured to use
 the system libsodium instead of the Guild-installed Intersect fork.
-The above would copy the `cardano-db-sync` binary into `~/.local/bin` folder.
+The above would copy the `cardano-db-sync` binary into `${CNODE_HOME}/bin` when
+`CNODE_HOME` is set and that folder exists, and otherwise into `~/.local/bin`.
+Use `-o <folder>` to choose the folder yourself.
 
 #### Prepare DB for sync
 

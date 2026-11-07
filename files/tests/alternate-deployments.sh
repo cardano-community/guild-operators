@@ -920,20 +920,20 @@ run_alternate_profile_test() (
     set -e
     [[ "${binary_status}" -ne 0 ]] ||
       fail "Dingo binary install ignored a checksum mismatch"
-    assert_not_exists "${HOME}/.local/bin/dingo"
-    assert_not_exists "${HOME}/.local/bin/cardano-cli-dingo"
+    assert_not_exists "${NODE_HOME}/bin/dingo"
+    assert_not_exists "${NODE_HOME}/bin/cardano-cli"
 
     jq --arg digest "sha256:${archive_sha}" \
       '.[0].assets[0].digest = $digest' \
       "${resolver_fixture}" > "${resolver_fixture}.valid"
     command mv -f -- "${resolver_fixture}.valid" "${resolver_fixture}"
     dingo_deploy_install_binary >/dev/null
-    [[ -x "${HOME}/.local/bin/dingo" ]] ||
+    [[ -x "${NODE_HOME}/bin/dingo" ]] ||
       fail "Dingo installer did not make its archive member executable"
-    [[ -x "${HOME}/.local/bin/cardano-cli-dingo" ]] ||
+    [[ -x "${NODE_HOME}/bin/cardano-cli" ]] ||
       fail "Dingo installer did not install its isolated cardano-cli companion"
-    "${HOME}/.local/bin/dingo" version | grep -F "${resolver_version}" >/dev/null
-    "${HOME}/.local/bin/cardano-cli-dingo" version |
+    "${NODE_HOME}/bin/dingo" version | grep -F "${resolver_version}" >/dev/null
+    "${NODE_HOME}/bin/cardano-cli" version |
       grep -F "${cli_version}" >/dev/null
     command mv -f -- "${release_backup}" "${release_path}"
     unset -f sha256sum
@@ -1085,9 +1085,9 @@ run_alternate_profile_test() (
     set -e
     [[ "${binary_status}" -ne 0 ]] ||
       fail "Amaru binary install ignored a checksum mismatch"
-    assert_not_exists "${HOME}/.local/bin/amaru"
-    assert_not_exists "${HOME}/.local/bin/cardano-cli-amaru"
-    assert_not_exists "${HOME}/.local/bin/otelcol-contrib"
+    assert_not_exists "${NODE_HOME}/bin/amaru"
+    assert_not_exists "${NODE_HOME}/bin/cardano-cli"
+    assert_not_exists "${NODE_HOME}/bin/otelcol-contrib"
 
     jq --arg digest "sha256:${archive_sha}" \
       '.[0].assets[0].digest = $digest' \
@@ -1103,25 +1103,25 @@ run_alternate_profile_test() (
     set -e
     [[ "${binary_status}" -ne 0 ]] ||
       fail "Amaru binary install ignored a cardano-cli checksum mismatch"
-    assert_not_exists "${HOME}/.local/bin/amaru"
-    assert_not_exists "${HOME}/.local/bin/cardano-cli-amaru"
-    assert_not_exists "${HOME}/.local/bin/otelcol-contrib"
+    assert_not_exists "${NODE_HOME}/bin/amaru"
+    assert_not_exists "${NODE_HOME}/bin/cardano-cli"
+    assert_not_exists "${NODE_HOME}/bin/otelcol-contrib"
     jq --arg sha "${cli_sha}" \
       '.companions["cardano-cli"].artifacts["linux-x86_64"].sha256 = $sha' \
       "${release_path}" > "${release_tmp}"
     command mv -f -- "${release_tmp}" "${release_path}"
 
     amaru_deploy_install_binary >/dev/null
-    [[ -x "${HOME}/.local/bin/amaru" ]] ||
+    [[ -x "${NODE_HOME}/bin/amaru" ]] ||
       fail "Amaru installer did not make the mode-0644 archive member executable"
-    [[ -x "${HOME}/.local/bin/cardano-cli-amaru" ]] ||
+    [[ -x "${NODE_HOME}/bin/cardano-cli" ]] ||
       fail "Amaru installer did not install its isolated cardano-cli companion"
-    [[ -x "${HOME}/.local/bin/otelcol-contrib" ]] ||
+    [[ -x "${NODE_HOME}/bin/otelcol-contrib" ]] ||
       fail "Amaru installer did not install its OpenTelemetry Collector companion"
-    "${HOME}/.local/bin/amaru" --version | grep -F "${resolver_version}" >/dev/null
-    "${HOME}/.local/bin/cardano-cli-amaru" version |
+    "${NODE_HOME}/bin/amaru" --version | grep -F "${resolver_version}" >/dev/null
+    "${NODE_HOME}/bin/cardano-cli" version |
       grep -F "${cli_version}" >/dev/null
-    "${HOME}/.local/bin/otelcol-contrib" --version |
+    "${NODE_HOME}/bin/otelcol-contrib" --version |
       grep -F "${collector_version}" >/dev/null
     command mv -f -- "${release_backup}" "${release_path}"
     unset -f sha256sum
@@ -1305,8 +1305,10 @@ run_alternate_profile_test() (
       set +u
       # shellcheck source=/dev/null
       . "${NODE_HOME}/scripts/env" offline
-      [[ "${CCLI}" == "${HOME}/.local/bin/cardano-cli-dingo" ]] ||
+      [[ "${CCLI}" == "${NODE_HOME}/bin/cardano-cli" ]] ||
         fail "Dingo env did not select its isolated cardano-cli by default"
+      [[ "${PATH%%:*}" == "${NODE_HOME}/bin" ]] ||
+        fail "env did not put the deployment's bin folder first on PATH"
       if ! node_has local_query || ! node_has local_submit; then
         fail "Dingo env did not expose local cardano-cli capabilities"
       fi
@@ -1335,7 +1337,7 @@ run_alternate_profile_test() (
       # CLI is a transaction companion, not an Amaru node-to-client backend.
       # shellcheck source=/dev/null
       . "${NODE_HOME}/scripts/env" definitions
-      [[ "${CCLI}" == "${HOME}/.local/bin/cardano-cli-amaru" ]] ||
+      [[ "${CCLI}" == "${NODE_HOME}/bin/cardano-cli" ]] ||
         fail "Amaru env did not select its isolated cardano-cli by default"
       if node_has local_query || node_has local_submit; then
         fail "Amaru env incorrectly exposed local node CLI capabilities"
@@ -1359,7 +1361,7 @@ run_alternate_profile_test() (
   fi
 
   write_fake_executable \
-    "${HOME}/.local/bin/${implementation}" \
+    "${NODE_HOME}/bin/${implementation}" \
     "${implementation} ${expected_version}"
   "${launcher}" --help >/dev/null
   "${launcher}" version | grep -F "${expected_version}" >/dev/null
@@ -1381,8 +1383,8 @@ run_alternate_profile_test() (
         "$*" \
         "${CARDANO_SHELLEY_KES_AGENT_SOCKET:-unset}" \
         "${SHELLEY_KES_KEY:-unset}" > "${DINGO_ROLE_CAPTURE:?}"' \
-      > "${HOME}/.local/bin/dingo"
-    chmod 0755 "${HOME}/.local/bin/dingo"
+      > "${NODE_HOME}/bin/dingo"
+    chmod 0755 "${NODE_HOME}/bin/dingo"
 
     DINGO_ROLE_CAPTURE="${dingo_capture}" "${launcher}" run
     [[ "$(sed -n '1p' "${dingo_capture}")" == "false" ]] ||
@@ -1486,8 +1488,8 @@ run_alternate_profile_test() (
       '    printf "%s\n" "${AMARU_WITH_OPEN_TELEMETRY:-unset}" > "${AMARU_TELEMETRY_CAPTURE}"' \
       '    ;;' \
       'esac' \
-      > "${HOME}/.local/bin/amaru"
-    chmod 0755 "${HOME}/.local/bin/amaru"
+      > "${NODE_HOME}/bin/amaru"
+    chmod 0755 "${NODE_HOME}/bin/amaru"
     AMARU_STATE_ROOT="${state_root}" \
       AMARU_STATE_CAPTURE="${state_capture}" \
       "${launcher}" bootstrap
@@ -1519,7 +1521,7 @@ run_alternate_profile_test() (
       fail "Amaru launcher accepted / as its state root"
     fi
     write_fake_executable \
-      "${HOME}/.local/bin/${implementation}" \
+      "${NODE_HOME}/bin/${implementation}" \
       "${implementation} ${expected_version}"
   fi
 
@@ -1679,7 +1681,7 @@ run_alternate_profile_test() (
       "${unit_file}" >/dev/null
     grep -F "After=network-online.target time-sync.target ${NODE_SERVICE}-metrics.service" \
       "${unit_file}" >/dev/null
-    grep -F "ExecStart=${HOME}/.local/bin/otelcol-contrib --config=${resolved_node_home}/files/otelcol.yaml" \
+    grep -F "ExecStart=${resolved_node_home}/bin/otelcol-contrib --config=${resolved_node_home}/files/otelcol.yaml" \
       "${metrics_unit_file}" >/dev/null
     grep -F "ReadOnlyPaths=${resolved_node_home}/files/otelcol.yaml" \
       "${metrics_unit_file}" >/dev/null
@@ -1742,7 +1744,7 @@ run_alternate_profile_test() (
     fail "${implementation} install accepted env identity conflicting with the manifest"
   fi
 
-  rm -f -- "${config_env}" "${HOME}/.local/bin/${implementation}"
+  rm -f -- "${config_env}" "${NODE_HOME}/bin/${implementation}"
   [[ "${implementation}" == "dingo" ]] &&
     rm -f -- "${NODE_HOME}/files/dingo.yaml"
 

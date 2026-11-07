@@ -7,7 +7,7 @@ ARG CNODE_HOME=/opt/cardano/cnode
 ENV \
   LANG=C.UTF-8 \
   USER=root \
-  PATH=$CNODE_HOME/scripts:/root/.local/bin:/root/.ghcup/bin:$PATH \
+  PATH=$CNODE_HOME/bin:$CNODE_HOME/scripts:/root/.local/bin:/root/.ghcup/bin:$PATH \
   G_ACCOUNT=$G_ACCOUNT \
   BRANCH=$BRANCH \
   COMMIT=$COMMIT

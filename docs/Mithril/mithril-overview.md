@@ -50,7 +50,7 @@ relay. This removes an individual Cardano relay as a single point of failure.
 
 The installation of the Mithril tools is automated by `guild-deploy.sh`. For a cnode
 deployment, include the `-s m` component flag. It installs the Mithril Client and Signer
-binaries in `"${HOME}"/.local/bin` and installs the Guild wrapper scripts in the
+binaries in `"${NODE_HOME}"/bin` and installs the Guild wrapper scripts in the
 selected node's `scripts` directory.
 
 ```bash

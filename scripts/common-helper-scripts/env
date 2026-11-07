@@ -11,9 +11,9 @@
 #USESYSVARS="N"                                         # Set Y to honor NODE_HOME/CNODE_HOME supplied above or by the calling shell
 #NODE_HOME="/opt/cardano/cnode"                         # Deployment root override; effective only when USESYSVARS=Y
 #CNODE_HOME="${NODE_HOME}"                              # Legacy deployment root alias; effective only when USESYSVARS=Y
-#CNODEBIN="${HOME}/.local/bin/cardano-node"             # Legacy node binary override
-#CCLI="${HOME}/.local/bin/cardano-cli"                  # Override adapter-selected cardano-cli executable
-#CNCLI="${HOME}/.local/bin/cncli"                       # Optional CNCLI executable
+#CNODEBIN="${NODE_HOME}/bin/cardano-node"               # Legacy node binary override
+#CCLI="${NODE_HOME}/bin/cardano-cli"                    # Override adapter-selected cardano-cli executable
+#CNCLI="${NODE_HOME}/bin/cncli"                         # Optional CNCLI executable
 #CNODE_PORT=6000                                        # Legacy node-to-node port alias
 #CONFIG="${NODE_HOME}/files/config.json"                # Implementation configuration override
 #SOCKET="${NODE_HOME}/sockets/node.socket"              # Node-to-client socket override
@@ -67,6 +67,12 @@ if [[ "${USESYSVARS:-N}" == "Y" ]]; then
 else
   NODE_HOME="$(cd "${PARENT}/.." >/dev/null 2>&1 && pwd -P)"
   CNODE_HOME="${NODE_HOME}"
+fi
+
+# This deployment's binaries come first, ahead of any other deployment a shell
+# has activated. Deployments without a bin folder keep resolving through PATH.
+if [[ -d "${NODE_HOME}/bin" && "${PATH%%:*}" != "${NODE_HOME}/bin" ]]; then
+  export PATH="${NODE_HOME}/bin:${PATH}"
 fi
 
 GUILD_COMMON_LIB_DIR="${GUILD_COMMON_ENV_DIR}/lib"

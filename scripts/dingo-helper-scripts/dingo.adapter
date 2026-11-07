@@ -65,8 +65,8 @@ node_adapter_defaults() {
   : "${NODE_HOME:=${GUILD_NODE_HOME:-/opt/cardano/dingo}}"
   : "${CNODE_HOME:=${NODE_HOME}}"
   : "${NODE_SERVICE:=${GUILD_NODE_SERVICE:-dingo}}"
-  : "${NODE_BINARY:=${DINGO_BIN:-${HOME}/.local/bin/dingo}}"
-  : "${CCLI:=${HOME}/.local/bin/cardano-cli-dingo}"
+  : "${NODE_BINARY:=${DINGO_BIN:-${NODE_HOME}/bin/dingo}}"
+  : "${CCLI:=${NODE_HOME}/bin/cardano-cli}"
   : "${NODE_NETWORK:=${CARDANO_NETWORK:-${NETWORK:-preview}}}"
   : "${NODE_CONFIG:=${DINGO_CONFIG:-${NODE_HOME}/files/dingo.yaml}}"
   dingo_adapter_load_deployment_config

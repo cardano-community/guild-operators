@@ -240,11 +240,6 @@ cnode_deploy_init_context() {
 
   dirs -c # clear dir stack
   mkdir -p "${HOME}"/tmp "${HOME}"/git > /dev/null 2>&1
-  [[ ! -d "${HOME}"/.local/bin ]] && mkdir -p "${HOME}"/.local/bin
-  if ! grep -q '/.local/bin' "${HOME}"/.bashrc; then
-    printf '\nexport PATH="${HOME}/.local/bin:${PATH}"\n' >> "${HOME}"/.bashrc
-    CNODE_DEPLOY_ADDED_LOCAL_BIN_PATH="Y"
-  fi
 
   # All cnode payload, toolchain and source dependency versions are loaded from
   # the validated release manifest installed by populate_cnode.
@@ -668,6 +663,10 @@ cnode_deploy_install_ghcup() {
   rm -rf -- "${staging_dir}"
 
   export PATH="${HOME}/.ghcup/bin:${HOME}/.local/bin:${PATH}"
+  if ! grep -q '/.local/bin' "${HOME}/.bashrc"; then
+    printf '\nexport PATH="${HOME}/.local/bin:${PATH}"\n' >> "${HOME}/.bashrc"
+    log_info "Added ${HOME}/.local/bin to PATH in ${HOME}/.bashrc for the build toolchain."
+  fi
   if ! grep -q '/.ghcup/bin' "${HOME}/.bashrc"; then
     printf '\nexport PATH="${HOME}/.ghcup/bin:${PATH}"\n' >> "${HOME}/.bashrc"
   fi
@@ -1502,9 +1501,7 @@ download_cnodebins() {
       "./cardano-db-sync" "${dbsync_version}" ||
       err_exit "Staged cardano-db-sync does not report manifest version ${dbsync_version}."
   fi
-  mkdir -p "${HOME}/.local/bin" ||
-    err_exit "Could not create ${HOME}/.local/bin."
-  mv -f "${install_binaries[@]}" "${HOME}/.local/bin/" ||
+  mv -f "${install_binaries[@]}" "${NODE_HOME}/bin/" ||
     err_exit "Could not install the validated cnode binary set."
   popd >/dev/null || true
   rm -rf -- "${staging_dir}"
@@ -1542,7 +1539,7 @@ download_cncli() {
     err_exit "CNCLI downloaded but binary (cncli) not found after extracting package!"
   chmod 0755 cncli ||
     err_exit "Could not set executable permissions on the staged CNCLI binary."
-  mv -f cncli "${HOME}"/.local/bin/ ||
+  mv -f cncli "${NODE_HOME}"/bin/ ||
     err_exit "Could not install the validated CNCLI binary."
   popd >/dev/null || true
   rm -rf -- "${staging_dir}"
@@ -1576,7 +1573,7 @@ download_ogmios() {
     err_exit "ogmios downloaded but binary not found after extracting package!"
   chmod 0755 "${OGMIOSPATH}" ||
     err_exit "Could not set executable permissions on the staged Ogmios binary."
-  mv -f "${OGMIOSPATH}" "${HOME}"/.local/bin/ ||
+  mv -f "${OGMIOSPATH}" "${NODE_HOME}"/bin/ ||
     err_exit "Could not install the validated Ogmios binary."
   popd >/dev/null || true
   rm -rf -- "${staging_dir}"
@@ -1607,7 +1604,7 @@ download_cardanosigner() {
     err_exit "Cardano Signer downloaded but binary(cardano-signer) not found after extracting package!"
   chmod 0755 cardano-signer ||
     err_exit "Could not set executable permissions on the staged Cardano Signer binary."
-  mv -f cardano-signer "${HOME}"/.local/bin/ ||
+  mv -f cardano-signer "${NODE_HOME}"/bin/ ||
     err_exit "Could not install the validated Cardano Signer binary."
   popd >/dev/null || true
   rm -rf -- "${staging_dir}"
@@ -1759,7 +1756,7 @@ download_mithril() {
       err_exit "Mithril archive downloaded, but binary 'mithril-client' was not found after extraction."
     chmod 0755 mithril-signer mithril-client ||
       err_exit "Could not set executable permissions on the staged Mithril binaries."
-    mv -f mithril-signer mithril-client "${HOME}"/.local/bin/ ||
+    mv -f mithril-signer mithril-client "${NODE_HOME}"/bin/ ||
       err_exit "Could not install the validated Mithril binaries."
     popd >/dev/null || true
     rm -rf -- "${staging_dir}"
@@ -1778,7 +1775,7 @@ setup_folder() {
     log_info "Added ${CNODE_DEPLOY_ENV_PREFIX}_HOME=${NODE_HOME} to ${HOME}/.bashrc."
   fi
 
-  $sudo mkdir -p "${NODE_HOME}"/files "${NODE_HOME}"/db "${NODE_HOME}"/guild-db "${NODE_HOME}"/logs "${NODE_HOME}"/scripts "${NODE_HOME}"/scripts/adapters "${NODE_HOME}"/scripts/archive "${NODE_HOME}"/scripts/lib "${NODE_HOME}"/sockets "${NODE_HOME}"/priv "${MITHRIL_HOME}"/data-stores
+  $sudo mkdir -p "${NODE_HOME}"/files "${NODE_HOME}"/db "${NODE_HOME}"/guild-db "${NODE_HOME}"/logs "${NODE_HOME}"/scripts "${NODE_HOME}"/scripts/adapters "${NODE_HOME}"/scripts/archive "${NODE_HOME}"/scripts/lib "${NODE_HOME}"/sockets "${NODE_HOME}"/priv "${NODE_HOME}"/bin "${MITHRIL_HOME}"/data-stores
   $sudo chown -R "$U_ID":"$G_ID" "${NODE_HOME}" 2>/dev/null
   log_ok "Folder structure ready" "${NODE_HOME}"
 
@@ -2000,7 +1997,6 @@ cnode_deploy_parse_flags() {
   CNODE_DEPLOY_FORCE_SCRIPTS="N"
   CNODE_DEPLOY_REFRESH_PAYLOAD="Y"
   CNODE_DEPLOY_NO_SELECTIVE_FLAGS="N"
-  CNODE_DEPLOY_ADDED_LOCAL_BIN_PATH="N"
   CNODE_DEPLOY_FRESH_TARGET="N"
 
   if [[ -n "${S_ARGS}" ]]; then
@@ -2040,7 +2036,6 @@ cnode_deploy_parse_flags() {
 # Main Flow for calling different functions
 cnode_deploy_main_flow() {
   [[ "${CNODE_DEPLOY_NO_SELECTIVE_FLAGS}" == "Y" ]] && log_info "No selective install flags supplied; refreshing scripts and configuration only."
-  [[ "${CNODE_DEPLOY_ADDED_LOCAL_BIN_PATH}" == "Y" ]] && log_info "Added ${HOME}/.local/bin to PATH in ${HOME}/.bashrc."
   [[ "${CNODE_DEPLOY_FRESH_TARGET}" == "Y" ]] && log_info "Fresh target detected; OS dependency check enabled."
   [[ "${CNODE_DEPLOY_INSTALL_OS_DEPS}" == "Y" ]] && run_step "OS dependencies" "auto/-s p/b/l/w" os_dependencies
   cnode_deploy_validate_openssl3 ||
@@ -2054,6 +2049,9 @@ cnode_deploy_main_flow() {
     PROFILE_TARGET_NODE_VERSION="${CARDANO_NODE_VERSION:-}"
     dispatcher_mark_payload_ready
   fi
+  # Everything this deployment runs lives in its own bin folder.
+  mkdir -p "${NODE_HOME}/bin" ||
+    err_exit "Could not create ${NODE_HOME}/bin."
   [[ "${CNODE_DEPLOY_BUILD_DEPS}" == "Y" ]] && run_step "Haskell build toolchain" "-s b" build_dependencies
   [[ "${CNODE_DEPLOY_INSTALL_LIBSODIUM}" == "Y" ]] && run_step "libsodium" "-s l" build_libsodium
   [[ "${CNODE_DEPLOY_INSTALL_MITHRIL}" == "Y" ]] && run_step "Mithril binaries" "-s m" download_mithril

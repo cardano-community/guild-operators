@@ -7,7 +7,7 @@ ARG CNODE_HOME=/opt/cardano/cnode
 ENV \
   LANG=C.UTF-8 \
   USER=root \
-  PATH=$CNODE_HOME/scripts:/root/.local/bin:/root/.ghcup/bin:$PATH \
+  PATH=$CNODE_HOME/bin:$CNODE_HOME/scripts:/root/.local/bin:/root/.ghcup/bin:$PATH \
   LD_LIBRARY_PATH=/usr/local/lib:$LD_LIBRARY_PATH \
   BRANCH=$BRANCH \
   G_ACCOUNT=$G_ACCOUNT \
@@ -26,6 +26,6 @@ RUN curl -s -f -k -o cnode-release.json "https://raw.githubusercontent.com/${G_A
     /opt/cardano/cnode/scripts/cabal-build-all.sh -c &&\
     CLI_VERSION=$(jq -er '.build.cardanoCli' cnode-release.json) &&\
     echo "Expecting source-built cardano-cli ${CLI_VERSION}" &&\
-    /root/.local/bin/cardano-cli version &&\
-    /root/.local/bin/cardano-cli version | head -n 1 | grep -Fq "cardano-cli ${CLI_VERSION} " &&\
-    /root/.local/bin/cardano-node version
+    $CNODE_HOME/bin/cardano-cli version &&\
+    $CNODE_HOME/bin/cardano-cli version | head -n 1 | grep -Fq "cardano-cli ${CLI_VERSION} " &&\
+    $CNODE_HOME/bin/cardano-node version

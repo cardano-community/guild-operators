@@ -88,8 +88,9 @@ dispatcher setting rather than a hidden profile variable.
 Hardware-wallet deployment is common rather than node-specific. The `-s w`
 flow reads `files/node-implementations/common/release.json`, verifies the
 selected architecture archive and its reported version, installs
-`cardano-hw-cli` in `$HOME/.local/bin`, and applies the pinned Ledger and Trezor
-udev rules. Set `GUILD_SKIP_HARDWARE_WALLET_RULES=Y` only when the host manages
+`cardano-hw-cli` in `${NODE_HOME}/bin`, and applies the pinned Ledger and Trezor
+udev rules. Those rules are host-wide, so the last `-s w` deployment on a host
+sets them. Set `GUILD_SKIP_HARDWARE_WALLET_RULES=Y` only when the host manages
 device permissions itself, such as for a containerized deployment.
 
 The dispatcher also gives every implementation the same package-manager
@@ -101,11 +102,12 @@ private log at a reported path, and preserve the package manager's exit status.
 Set `PACKAGE_MANAGER_OUTPUT=verbose` to stream the raw output when
 troubleshooting.
 
-When binary installation is selected with `-s d`, all implementations use
-`$HOME/.local/bin`. Node binary names are distinct (`cardano-node`, `dingo`,
-and `amaru`), so they can coexist. Dingo and Amaru install their standard
-Cardano CLI companions as `cardano-cli-dingo` and `cardano-cli-amaru`,
-independently of cnode's `cardano-cli`. Amaru also installs the pinned
+Every binary a deployment runs lives in `${NODE_HOME}/bin`, with its normal
+name, so deployments of the same OS user can't affect each other. This includes
+`cardano-hw-cli` and `gum`. Only the build toolchain (GHCup, GHC, Cabal) stays
+per user. Guild scripts and services find these binaries without any `PATH`
+change; for commands typed by hand, use
+`source ${NODE_HOME}/scripts/activate`. Amaru also installs the pinned
 `otelcol-contrib` executable used by its local metrics bridge. Every
 implementation has reviewed release metadata under
 `files/node-implementations/<implementation>/release.json`. The profiles
@@ -157,8 +159,8 @@ configuration:
 ```
 
 `nodeVersion` is the first version line reported by the executable actually
-installed in `$HOME/.local/bin` (or, if absent there, the selected executable
-on `PATH`). It is empty if no executable is installed. `targetNodeVersion` is
+installed in `${NODE_HOME}/bin` (or, if absent there, `$HOME/.local/bin` and then
+the selected executable on `PATH`). It is empty if no executable is installed. `targetNodeVersion` is
 the release policy selected by the deployment profile, even when `-s d` was
 not requested. It is a concrete cnode version and `latest` for Dingo or Amaru.
 This distinction prevents rolling release metadata from being mistaken for

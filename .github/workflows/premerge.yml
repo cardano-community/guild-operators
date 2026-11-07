@@ -52,6 +52,8 @@ jobs:
       run: bash files/tests/glv-logo.sh
     - name: Test cnode pre-release networks
       run: bash files/tests/cnode-prerelease-networks.sh
+    - name: Test binary layout migration
+      run: bash files/tests/binary-layout-migration.sh
     - name: Test Amaru migration from cnode
       run: bash files/tests/amaru-migrate.sh
     - name: Validate deployment shell entrypoints

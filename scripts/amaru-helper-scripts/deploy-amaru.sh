@@ -264,6 +264,7 @@ amaru_deploy_prepare_layout() {
   amaru_deploy_progress "Creating Amaru relay layout" "${NODE_HOME}"
   amaru_deploy_privileged mkdir -p \
     "${NODE_HOME}" \
+    "${NODE_HOME}/bin" \
     "${NODE_HOME}/files" \
     "${NODE_HOME}/logs" \
     "${NODE_HOME}/runtime" \
@@ -277,6 +278,7 @@ amaru_deploy_prepare_layout() {
   owner="$(id -u):$(id -g)"
   amaru_deploy_privileged chown "${owner}" \
     "${NODE_HOME}" \
+    "${NODE_HOME}/bin" \
     "${NODE_HOME}/files" \
     "${NODE_HOME}/logs" \
     "${NODE_HOME}/runtime" \
@@ -351,7 +353,7 @@ amaru_deploy_render_environment() {
   local escaped_home escaped_service escaped_binary
   escaped_home="$(printf '%s' "${NODE_HOME}" | sed 's/[&|\\]/\\&/g')"
   escaped_service="$(printf '%s' "${NODE_SERVICE}" | sed 's/[&|\\]/\\&/g')"
-  escaped_binary="$(printf '%s' "${HOME}/.local/bin/amaru" | sed 's/[&|\\]/\\&/g')"
+  escaped_binary="$(printf '%s' "${NODE_HOME}/bin/amaru" | sed 's/[&|\\]/\\&/g')"
   sed \
     -e "s|@NODE_HOME@|${escaped_home}|g" \
     -e "s|@NODE_SERVICE@|${escaped_service}|g" \
@@ -692,30 +694,43 @@ amaru_deploy_install_binary() (
     exit 1
   }
 
-  mkdir -p "${HOME}/.local/bin" "${HOME}/.local/bin/archive"
+  mkdir -p "${NODE_HOME}/bin" "${NODE_HOME}/bin/archive"
   archive_stamp="$(date -u +%Y%m%dT%H%M%SZ)"
-  if [[ -f "${HOME}/.local/bin/amaru" ]]; then
-    cp -p -- "${HOME}/.local/bin/amaru" \
-      "${HOME}/.local/bin/archive/amaru.${archive_stamp}"
+  if [[ -f "${NODE_HOME}/bin/amaru" ]]; then
+    cp -p -- "${NODE_HOME}/bin/amaru" \
+      "${NODE_HOME}/bin/archive/amaru.${archive_stamp}"
   fi
-  if [[ -f "${HOME}/.local/bin/cardano-cli-amaru" ]]; then
-    cp -p -- "${HOME}/.local/bin/cardano-cli-amaru" \
-      "${HOME}/.local/bin/archive/cardano-cli-amaru.${archive_stamp}"
+  if [[ -f "${NODE_HOME}/bin/cardano-cli" ]]; then
+    cp -p -- "${NODE_HOME}/bin/cardano-cli" \
+      "${NODE_HOME}/bin/archive/cardano-cli.${archive_stamp}"
   fi
-  if [[ -f "${HOME}/.local/bin/otelcol-contrib" ]]; then
-    cp -p -- "${HOME}/.local/bin/otelcol-contrib" \
-      "${HOME}/.local/bin/archive/otelcol-contrib.${archive_stamp}"
+  if [[ -f "${NODE_HOME}/bin/otelcol-contrib" ]]; then
+    cp -p -- "${NODE_HOME}/bin/otelcol-contrib" \
+      "${NODE_HOME}/bin/archive/otelcol-contrib.${archive_stamp}"
   fi
-  install -m 0755 "${binary}" "${HOME}/.local/bin/amaru"
-  install -m 0755 "${cli_binary}" "${HOME}/.local/bin/cardano-cli-amaru"
-  install -m 0755 "${collector_binary}" "${HOME}/.local/bin/otelcol-contrib"
+  install -m 0755 "${binary}" "${NODE_HOME}/bin/amaru"
+  install -m 0755 "${cli_binary}" "${NODE_HOME}/bin/cardano-cli"
+  install -m 0755 "${collector_binary}" "${NODE_HOME}/bin/otelcol-contrib"
+  amaru_deploy_use_deployment_binary
   amaru_deploy_ok "Installed verified Amaru" "${version}"
   amaru_deploy_ok \
     "Installed Amaru cardano-cli companion" \
-    "${cli_version} as cardano-cli-amaru"
+    "${cli_version}"
   amaru_deploy_ok \
     "Installed verified OpenTelemetry Collector" "${collector_version}"
 )
+
+# A deployment made before per-deployment binaries has the old path in its env
+# file, which redeploys preserve. A path the operator chose stays as it is.
+amaru_deploy_use_deployment_binary() {
+  local env_file="${NODE_HOME}/scripts/amaru.env"
+  local escaped_binary
+
+  [[ -f "${env_file}" ]] || return 0
+  grep -Fxq -- "AMARU_BIN=\"${HOME}/.local/bin/amaru\"" "${env_file}" || return 0
+  escaped_binary="$(printf '%s' "${NODE_HOME}/bin/amaru" | sed 's/[&|\\]/\\&/g')"
+  sed -i "s|^AMARU_BIN=.*|AMARU_BIN=\"${escaped_binary}\"|" "${env_file}"
+}
 
 amaru_deploy_state_populated() {
   [[ -d "$1" ]] && find "$1" -mindepth 1 -print -quit 2>/dev/null | grep -q .
@@ -763,14 +778,14 @@ deploy_amaru_profile() {
     dispatcher_install_cardano_hw_cli || return 1
   fi
 
-  if [[ ! -x "${HOME}/.local/bin/amaru" ]]; then
+  if [[ ! -x "${NODE_HOME}/bin/amaru" ]]; then
     amaru_deploy_warn "Amaru binary is not installed; re-run with -s d."
   fi
-  if [[ ! -x "${HOME}/.local/bin/otelcol-contrib" ]]; then
+  if [[ ! -x "${NODE_HOME}/bin/otelcol-contrib" ]]; then
     amaru_deploy_warn \
       "OpenTelemetry Collector is not installed; re-run with -s d before using gLiveView."
   fi
-  if [[ ! -x "${HOME}/.local/bin/cardano-cli-amaru" ]]; then
+  if [[ ! -x "${NODE_HOME}/bin/cardano-cli" ]]; then
     amaru_deploy_warn \
       "Amaru cardano-cli companion is not installed; re-run with -s d before using CNTools transaction or wallet operations."
   fi

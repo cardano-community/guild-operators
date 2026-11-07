@@ -268,6 +268,7 @@ dingo_deploy_prepare_layout() {
   dingo_deploy_progress "Creating Dingo node layout" "${NODE_HOME}"
   dingo_deploy_privileged mkdir -p \
     "${NODE_HOME}" \
+    "${NODE_HOME}/bin" \
     "${NODE_HOME}/db" \
     "${NODE_HOME}/files" \
     "${NODE_HOME}/logs" \
@@ -282,6 +283,7 @@ dingo_deploy_prepare_layout() {
   owner="$(id -u):$(id -g)"
   dingo_deploy_privileged chown "${owner}" \
     "${NODE_HOME}" \
+    "${NODE_HOME}/bin" \
     "${NODE_HOME}/db" \
     "${NODE_HOME}/files" \
     "${NODE_HOME}/logs" \
@@ -356,7 +358,7 @@ dingo_deploy_render_file() {
   local escaped_home escaped_service escaped_binary
   escaped_home="$(printf '%s' "${NODE_HOME}" | sed 's/[&|\\]/\\&/g')"
   escaped_service="$(printf '%s' "${NODE_SERVICE}" | sed 's/[&|\\]/\\&/g')"
-  escaped_binary="$(printf '%s' "${HOME}/.local/bin/dingo" | sed 's/[&|\\]/\\&/g')"
+  escaped_binary="$(printf '%s' "${NODE_HOME}/bin/dingo" | sed 's/[&|\\]/\\&/g')"
   sed \
     -e "s|@NODE_HOME@|${escaped_home}|g" \
     -e "s|@NODE_SERVICE@|${escaped_service}|g" \
@@ -650,21 +652,34 @@ dingo_deploy_install_binary() (
     exit 1
   }
 
-  mkdir -p "${HOME}/.local/bin" "${HOME}/.local/bin/archive"
+  mkdir -p "${NODE_HOME}/bin" "${NODE_HOME}/bin/archive"
   archive_stamp="$(date -u +%Y%m%dT%H%M%SZ)"
-  if [[ -f "${HOME}/.local/bin/dingo" ]]; then
-    cp -p -- "${HOME}/.local/bin/dingo" \
-      "${HOME}/.local/bin/archive/dingo.${archive_stamp}"
+  if [[ -f "${NODE_HOME}/bin/dingo" ]]; then
+    cp -p -- "${NODE_HOME}/bin/dingo" \
+      "${NODE_HOME}/bin/archive/dingo.${archive_stamp}"
   fi
-  if [[ -f "${HOME}/.local/bin/cardano-cli-dingo" ]]; then
-    cp -p -- "${HOME}/.local/bin/cardano-cli-dingo" \
-      "${HOME}/.local/bin/archive/cardano-cli-dingo.${archive_stamp}"
+  if [[ -f "${NODE_HOME}/bin/cardano-cli" ]]; then
+    cp -p -- "${NODE_HOME}/bin/cardano-cli" \
+      "${NODE_HOME}/bin/archive/cardano-cli.${archive_stamp}"
   fi
-  install -m 0755 "${binary}" "${HOME}/.local/bin/dingo"
-  install -m 0755 "${cli_binary}" "${HOME}/.local/bin/cardano-cli-dingo"
+  install -m 0755 "${binary}" "${NODE_HOME}/bin/dingo"
+  install -m 0755 "${cli_binary}" "${NODE_HOME}/bin/cardano-cli"
+  dingo_deploy_use_deployment_binary
   dingo_deploy_ok "Installed verified Dingo" "${version}"
-  dingo_deploy_ok "Installed Dingo cardano-cli companion" "${cli_version} as cardano-cli-dingo"
+  dingo_deploy_ok "Installed Dingo cardano-cli companion" "${cli_version}"
 )
+
+# A deployment made before per-deployment binaries has the old path in its env
+# file, which redeploys preserve. A path the operator chose stays as it is.
+dingo_deploy_use_deployment_binary() {
+  local env_file="${NODE_HOME}/scripts/dingo.env"
+  local escaped_binary
+
+  [[ -f "${env_file}" ]] || return 0
+  grep -Fxq -- "DINGO_BIN=\"${HOME}/.local/bin/dingo\"" "${env_file}" || return 0
+  escaped_binary="$(printf '%s' "${NODE_HOME}/bin/dingo" | sed 's/[&|\\]/\\&/g')"
+  sed -i "s|^DINGO_BIN=.*|DINGO_BIN=\"${escaped_binary}\"|" "${env_file}"
+}
 
 dingo_deploy_show_next_steps() {
   if ! dispatcher_directory_has_entries "${NODE_HOME}/db"; then
@@ -730,10 +745,10 @@ deploy_dingo_profile() {
     dispatcher_install_cardano_hw_cli || return 1
   fi
 
-  if [[ ! -x "${HOME}/.local/bin/dingo" ]]; then
+  if [[ ! -x "${NODE_HOME}/bin/dingo" ]]; then
     dingo_deploy_warn "Dingo binary is not installed; re-run with -s d."
   fi
-  if [[ ! -x "${HOME}/.local/bin/cardano-cli-dingo" ]]; then
+  if [[ ! -x "${NODE_HOME}/bin/cardano-cli" ]]; then
     dingo_deploy_warn "Dingo cardano-cli companion is not installed; re-run with -s d."
   fi
   dingo_deploy_show_next_steps
