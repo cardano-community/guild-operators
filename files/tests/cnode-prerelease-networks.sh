@@ -76,7 +76,12 @@ for network in dijkstra musashi; do
   cli="$(jq -er '.companions["cardano-cli"].version' \
     "${ROOT_DIR}/files/node-implementations/cnode/networks/${network}.json")"
   CNTOOLS_NETWORK="${network}"
+  CNTOOLS_NODE_HOME="${TEST_ROOT}/cntools-${network}"
+  mkdir -p "${CNTOOLS_NODE_HOME}/files"
+  jq -n --arg cli "${cli}" '{companions: {"cardano-cli": {version: $cli}}}' \
+    > "${CNTOOLS_NODE_HOME}/files/cnode-release.json"
   cntools_transaction_cli_version_supported "${cli}" || fail "CNTools rejects the ${network} cli ${cli}"
+  ! cntools_transaction_cli_version_supported "9.9.9.9" || fail "CNTools accepts a cli the ${network} deployment did not pin"
   CNTOOLS_NETWORK="mainnet"
   ! cntools_transaction_cli_version_supported "${cli}" || fail "CNTools accepts the ${network} cli on mainnet"
 done

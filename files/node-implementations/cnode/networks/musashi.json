@@ -1,4 +1,5 @@
 {
+  "releaseTag": "rc-2026w44",
   "version": "11.2.0.164",
   "artifacts": {
     "linux-x86_64": {

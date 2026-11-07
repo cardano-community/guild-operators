@@ -934,6 +934,8 @@ cnode_deploy_validate_release_metadata() {
       keys == ["artifacts", "version"] and
       (.version | concrete_version) and
       (.artifacts | artifact_map);
+    def release_tag:
+      type == "string" and test("\\A[A-Za-z0-9._-]+\\z");
     def anchored_selector:
       type == "string" and
       length > 2 and
@@ -981,7 +983,7 @@ cnode_deploy_validate_release_metadata() {
       (.repository | strict_https) and
       (.version | concrete_version) and
       (.ref | safe_ref);
-    keys == [
+    ((keys - ["releaseTag"]) == [
       "artifacts",
       "build",
       "companions",
@@ -990,7 +992,8 @@ cnode_deploy_validate_release_metadata() {
       "schemaVersion",
       "tools",
       "version"
-    ] and
+    ]) and
+    ((has("releaseTag") | not) or (.releaseTag | release_tag)) and
     .schemaVersion == 1 and
     .implementation == "cnode" and
     (.version | concrete_version) and

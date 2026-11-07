@@ -25,6 +25,11 @@
 # Do NOT modify code below           #
 ######################################
 
+# Pre-release networks deploy from this branch unless a deployment has stored
+# its own. Their pin updates land here. Switch it to alpha when cntools-rebuild
+# merges, together with PINS_BRANCH in .github/workflows/pins.yml.
+GUILD_PRERELEASE_BRANCH="cntools-rebuild"
+
 export LANG="C.UTF-8"
 export LC_ALL="${LANG}"
 GUILD_DEPLOY_SNAPSHOT_CAPABLE="Y"
@@ -442,7 +447,8 @@ dispatcher_usage() {
 	-t    Alternate top-level folder/service name (Default: selected implementation)
 	      Without -p and -t, the copy installed as <target>/scripts/guild-deploy.sh
 	      defaults to its own <target> and implementation
-	-b    Guild Operators repository branch (Default: stored deployment branch, then master)
+	-b    Guild Operators repository branch (Default: stored deployment branch, then master;
+	      the pre-release networks dijkstra and musashi use their own default branch)
 	-C    Check only: report what this run would do, including any binary move, and change nothing
 	-s    Selective install flags. All implementations:
 	        p  runtime OS prerequisites
@@ -2508,7 +2514,15 @@ dispatcher_set_defaults() {
       err_exit "The ${NODE_IMPLEMENTATION} profile requires -n preprod or -n preview."
     fi
   fi
-  [[ -z "${BRANCH:-}" ]] && BRANCH="master"
+  if [[ -z "${BRANCH:-}" ]]; then
+    case "${NETWORK}" in
+      dijkstra|musashi)
+        BRANCH="${GUILD_PRERELEASE_BRANCH}"
+        log_info "${NETWORK} is a pre-release network, so it deploys from ${BRANCH}. Use -b to choose another branch."
+        ;;
+      *) BRANCH="master" ;;
+    esac
+  fi
   validate_branch_name "${BRANCH}" || err_exit "Invalid branch name '${BRANCH}'."
   validate_account_name "${G_ACCOUNT}" || err_exit "Invalid GitHub account '${G_ACCOUNT}'."
 

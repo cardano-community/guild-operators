@@ -1,0 +1,86 @@
+name: Network pins
+
+# Proposes pin updates for the pre-release networks. A person merges them, and
+# operators then redeploy. GitHub runs schedules only from the default branch, so
+# this file has to be there even while PINS_BRANCH points elsewhere.
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '17 */6 * * *'
+
+env:
+  # These networks deploy from this branch. Switch it to alpha when cntools-rebuild
+  # merges, together with GUILD_PRERELEASE_BRANCH in guild-deploy.sh.
+  PINS_BRANCH: cntools-rebuild
+
+jobs:
+  update:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        network: [dijkstra, musashi]
+    env:
+      NETWORK: ${{ matrix.network }}
+      PROPOSAL: bot/pins-${{ matrix.network }}
+      # PRs opened with the default GITHUB_TOKEN don't start CI.
+      GH_TOKEN: ${{ secrets.REPO_SCOPED_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.PINS_BRANCH }}
+          token: ${{ secrets.REPO_SCOPED_TOKEN }}
+          fetch-depth: 0
+      - name: Update pins from what the network publishes
+        id: update
+        run: |
+          bash files/tools/update-network-pins.sh "${NETWORK}" --summary "${RUNNER_TEMP}/summary.md"
+          paths=("files/configs/cnode/${NETWORK}" "files/node-implementations/cnode/networks/${NETWORK}.json")
+          changed=false
+          if [[ -n "$(git status --porcelain -- "${paths[@]}")" ]]; then
+            changed=true
+            # An open proposal that already says this needs no new test run.
+            if git fetch --quiet origin "${PROPOSAL}" 2>/dev/null &&
+               git diff --quiet FETCH_HEAD -- "${paths[@]}"; then
+              changed=false
+            fi
+          fi
+          printf 'changed=%s\n' "${changed}" >> "${GITHUB_OUTPUT}"
+      - name: Publish the proposal branch
+        if: steps.update.outputs.changed == 'true'
+        run: |
+          git config user.name "${{ secrets.REPO_SCOPED_USER }}"
+          git config user.email "${{ secrets.REPO_SCOPED_EMAIL }}"
+          git switch -C "${PROPOSAL}"
+          git add "files/configs/cnode/${NETWORK}" "files/node-implementations/cnode/networks/${NETWORK}.json"
+          git commit -m "pins(${NETWORK}): update to what the network requires"
+          git push --force origin "${PROPOSAL}"
+      - name: Deploy it and follow the chain with a real node
+        if: steps.update.outputs.changed == 'true'
+        run: bash files/tests/network-smoke.sh "${NETWORK}" "${PROPOSAL}"
+      - name: Open or update the pull request
+        if: steps.update.outputs.changed == 'true'
+        run: |
+          body="${RUNNER_TEMP}/summary.md"
+          printf '\nA real node deployed from this branch followed the chain, and CNTools CLI checks passed: %s\n' \
+            "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" >> "${body}"
+          number="$(gh pr list --head "${PROPOSAL}" --state open --json number --jq '.[0].number // empty')"
+          if [[ -n "${number}" ]]; then
+            gh pr edit "${number}" --body-file "${body}"
+          else
+            gh pr create --base "${PINS_BRANCH}" --head "${PROPOSAL}" \
+              --title "pins(${NETWORK}): update to what the network requires" --body-file "${body}"
+          fi
+      - name: Report a failure
+        if: failure()
+        run: |
+          title="Network pins: updating ${NETWORK} failed"
+          run_url="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          number="$(gh issue list --state open --search "in:title \"${title}\"" --json number --jq '.[0].number // empty')"
+          if [[ -n "${number}" ]]; then
+            gh issue comment "${number}" --body "It failed again: ${run_url}"
+          else
+            gh issue create --title "${title}" --body "The pin update for ${NETWORK} failed, so nothing was proposed: ${run_url}"
+          fi

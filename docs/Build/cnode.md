@@ -303,6 +303,19 @@ The Leios archive holds only the node and its CLI, so on Musashi `bech32` and
 for either network, so CNTools works from the local node unless you set
 `KOIOS_API`. The Mithril helpers and `blockPerf.sh` don't support these networks.
 
+These networks deploy from `cntools-rebuild` unless you pass `-b`. Their pins
+change often, so a scheduled job, `pins.yml`, watches what each network requires and
+proposes a pull request for a person to merge: it reads `MinNodeVersion` from the
+book's config, updates the overlay and config with `files/tools/update-network-pins.sh`,
+and checks the result on a real node. A changed genesis is flagged as a respin. You
+get an update by redeploying, and nothing changes on its own. db-sync on Dijkstra and
+the Dijkstra CLI stay manual, as nothing upstream names them. You can also run the tool
+by hand:
+
+```bash
+files/tools/update-network-pins.sh musashi
+```
+
 Each deployment has its own binaries in `${NODE_HOME}/bin`, so one OS user can
 run these networks next to an existing deployment. Give each one its own `-t`
 name and ports. To use a network's binaries at a prompt, run

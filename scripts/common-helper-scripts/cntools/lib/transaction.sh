@@ -473,10 +473,14 @@ cntools_transaction_local_backend_ready() {
 
 cntools_transaction_cli_version_supported() {
   # Exact pin downloaded by the cnode, dingo and amaru profiles, or the release
-  # a cnode source build includes. The pre-release networks pin their own, see
-  # files/node-implementations/cnode/networks/.
-  case "${CNTOOLS_NETWORK:-}:${1:-}" in
-    dijkstra:11.6.0.0|musashi:11.3.1.0) return 0 ;;
+  # a cnode source build includes. The pre-release networks pin their own, which
+  # changes often, so the deployment's installed release metadata is the record.
+  case "${CNTOOLS_NETWORK:-}" in
+    dijkstra|musashi)
+      [[ -n "${1:-}" &&
+         "${1}" == "$(jq -r '.companions["cardano-cli"].version // empty' \
+           "${CNTOOLS_NODE_HOME:-}/files/cnode-release.json" 2>/dev/null)" ]] && return 0
+      ;;
   esac
   [[ "${1:-}" == "${CNTOOLS_TRANSACTION_CARDANO_CLI_VERSION}" ||
      "${1:-}" == "${CNTOOLS_TRANSACTION_SOURCE_BUILD_CLI_VERSION}" ]]
