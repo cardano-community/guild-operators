@@ -272,6 +272,22 @@ assert_eq "${block_delay}" "4.201" "slow live block delay"
 assert_eq "${blocks_w1s}" "0.5000" "share of live blocks within one second"
 assert_eq "${blocks_w5s}" "1.0000" "share of live blocks within five seconds"
 
+# Amaru 10.11.20261105 and later export the connection-manager gauges, which
+# replace the session total.
+session_fixture="${metrics_fixture}"
+metrics_fixture="${metrics_fixture}
+cardano_node_metrics_connectionManager_inboundConns_int 6
+cardano_node_metrics_connectionManager_outboundConns_int 20
+cardano_node_metrics_connectionManager_unidirectionalConns_int 1"
+getNodeMetrics
+assert_eq "${conn_incoming}" "6" "inbound connections"
+assert_eq "${conn_outgoing}" "20" "outbound connections"
+assert_eq "${conn_uni_dir}" "1" "unidirectional connections"
+assert_metric_unavailable conn_total
+metrics_fixture="${session_fixture}"
+getNodeMetrics
+assert_eq "${conn_total}" "2" "session total without connection-manager gauges"
+
 # Durations expire when no new block arrives for a long time.
 for key in "${!AMARU_HIST_LAST_AT[@]}"; do
   AMARU_HIST_LAST_AT["${key}"]=1
