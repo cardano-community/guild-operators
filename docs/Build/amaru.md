@@ -2,10 +2,9 @@
 
 !!! danger "Experimental rolling-release support"
     Amaru is under rapid development and ships a new public-beta build most
-    weeks. Upstream now documents mainnet relays and testnet block production,
-    but the Guild Operators profile remains restricted to `preprod` and
-    `preview` and runs Amaru as a relay only. Do not use it as a mainnet or
-    stake-pool deployment.
+    weeks. The Guild Operators profile runs Amaru as a relay only, on
+    `preprod`, `preview` and `mainnet`. Try it on a testnet before running a
+    mainnet relay, and do not use it as a stake-pool deployment.
 
 !!! warning "Coming from an earlier Amaru deployment"
     Current Amaru releases refuse chain databases created by older releases,
@@ -21,6 +20,11 @@ The common deployment entrypoint selects Amaru with `-i amaru`. For example:
 ```bash
 ./guild-deploy.sh -i amaru -n preview -s pd
 ```
+
+A mainnet relay is deployed the same way with `-n mainnet`. The deployment
+then prints a reminder that Amaru is still under heavy development, and its
+environment template starts from `backbone.cardano.iog.io:3001` and accepts up
+to 50 inbound connections instead of 10.
 
 When `-t` is omitted the target directory and service name default to `amaru`.
 The supported selective-install flags are:
@@ -187,8 +191,8 @@ commands stop and require a corrected deployment instead of managing the
 wrong target.
 
 The default relay listener is TCP 3000 on `0.0.0.0`. `AMARU_PEERS_MAX_DOWNSTREAM`
-also caps accepted inbound connections, 10 by default; raise it for a busier
-public relay. Outbound connections reuse the listen port as their source port
+also caps accepted inbound connections: 10 by default on the testnets, 50 on
+mainnet; raise it for a busier public relay. Outbound connections reuse the listen port as their source port
 when the operating system allows it, so firewall rules that match on source
 port should allow the relay port in both directions. Set
 `AMARU_PEERS_EPHEMERAL_OUTBOUND_PORT=true` to use ephemeral ports instead.
@@ -216,8 +220,8 @@ because it has no built-in authentication or TLS.
 
 ## Moving a cnode relay to Amaru
 
-An existing cnode relay on `preprod` or `preview` can move to Amaru without
-changing its block producer, other relays, or firewall. Amaru is deployed in its
+An existing cnode relay on `mainnet`, `preprod` or `preview` can move to Amaru
+without changing its block producer, other relays, or firewall. Amaru is deployed in its
 own top-level folder next to cnode, catches up while cnode keeps serving, and
 then takes over cnode's port. cnode's folder and database stay untouched, so
 going back only means swapping the services again. Keep block producers on
@@ -272,8 +276,8 @@ relay, Amaru reached the tip about 13 minutes after bootstrap. It used up to
 
 To switch, stop and disable cnode, give Amaru cnode's port (`CNODE_PORT` in
 cnode's `env`, 6000 by default), and restart it. `AMARU_PEERS_MAX_DOWNSTREAM` also
-caps accepted inbound connections, 10 by default, which a public relay quickly
-reaches, so raise it at the same time:
+caps accepted inbound connections, 10 by default on the testnets, which a public
+relay quickly reaches, so raise it at the same time:
 
 ```bash
 sudo systemctl disable --now cnode

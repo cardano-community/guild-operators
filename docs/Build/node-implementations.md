@@ -7,7 +7,7 @@ the same `guild-deploy.sh` entrypoint:
 | --- | --- | --- | --- | --- |
 | cardano-node | `cnode` | `/opt/cardano/cnode` | mainnet, preprod, preview, guild, dijkstra, musashi | Default, supported deployment |
 | Dingo | `dingo` | `/opt/cardano/dingo` | preprod, preview | Experimental relay and block-producer deployment |
-| Amaru | `amaru` | `/opt/cardano/amaru` | preprod, preview | Experimental rolling-release, relay-only deployment |
+| Amaru | `amaru` | `/opt/cardano/amaru` | mainnet, preprod, preview | Experimental rolling-release, relay-only deployment |
 
 Omitting `-i` selects `cnode`, preserving the existing install path and
 behavior:
@@ -21,12 +21,11 @@ behavior:
 Alternate implementations require an explicit network on their initial
 deployment. A later run against an existing, valid `.deployment.json` may omit
 `-n`; the dispatcher restores and validates the recorded network. Alternate
-profiles are deliberately restricted to testnets and reject cnode-only
-selective-install flags. The shared `w` flag installs the pinned
-`cardano-hw-cli` and host device rules for any implementation. Dingo can select
-relay or block-producer mode; Amaru
-remains relay-only. All three profiles install the CNTools 14 launcher and
-modular interface skeleton.
+profiles reject cnode-only selective-install flags. The shared `w` flag
+installs the pinned `cardano-hw-cli` and host device rules for any
+implementation. Dingo can select relay or block-producer mode; Amaru remains
+relay-only. All three profiles install the CNTools 14 launcher and modular
+interface skeleton.
 
 ## Dispatcher and implementation profiles
 

@@ -43,7 +43,7 @@ if [[ "${_manifest_required}" == "Y" ]]; then
     .schemaVersion == 1 and
     .deploymentStatus == "deployed" and
     .implementation == "amaru" and
-    (.network == "preprod" or .network == "preview") and
+    (.network == "mainnet" or .network == "preprod" or .network == "preview") and
     (.branch | type == "string" and length > 0) and
     (.repository | type == "string" and test("^[A-Za-z0-9_.-]+/guild-operators$")) and
     (.serviceName | type == "string" and length > 0) and
@@ -198,9 +198,9 @@ amaru_require_identity() {
 amaru_require_environment() {
   amaru_require_identity || return 1
   case "${AMARU_NETWORK:-}" in
-    preprod|preview) ;;
+    mainnet|preprod|preview) ;;
     *)
-      printf 'ERROR: this experimental profile supports only preprod or preview, got %s\n' "${AMARU_NETWORK:-unset}" >&2
+      printf 'ERROR: this experimental profile supports only mainnet, preprod or preview, got %s\n' "${AMARU_NETWORK:-unset}" >&2
       return 1
       ;;
   esac

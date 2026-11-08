@@ -755,6 +755,22 @@ common_configure_known_network() {
   normalized_network="$(printf '%s' "${network}" | tr '[:upper:]' '[:lower:]')"
 
   case "${normalized_network}" in
+    mainnet)
+      NWMAGIC=764824073
+      NETWORK_NAME="Mainnet"
+      SHELLEY_TRANS_EPOCH=208
+      SHELLEY_GENESIS_START_SEC=1506203091
+      EPOCH_LENGTH=432000
+      SLOT_LENGTH=1
+      ACTIVE_SLOTS_COEFF=0.05
+      SLOTS_PER_KES_PERIOD=129600
+      MAX_KES_EVOLUTIONS=62
+      BYRON_GENESIS_START_SEC=1506203091
+      BYRON_K=2160
+      BYRON_SLOT_LENGTH=20000
+      BYRON_EPOCH_LENGTH=21600
+      KOIOS_API="https://api.koios.rest/api/v1"
+      ;;
     preprod)
       NWMAGIC=1
       NETWORK_NAME="PreProd"
@@ -794,7 +810,11 @@ common_configure_known_network() {
       ;;
   esac
 
-  NETWORK_IDENTIFIER="--testnet-magic ${NWMAGIC}"
+  if [[ "${normalized_network}" == "mainnet" ]]; then
+    NETWORK_IDENTIFIER="--mainnet"
+  else
+    NETWORK_IDENTIFIER="--testnet-magic ${NWMAGIC}"
+  fi
   NODE_NETWORK="${normalized_network}"
   NODE_NETWORK_MAGIC="${NWMAGIC}"
   NODE_NETWORK_NAME="${NETWORK_NAME}"

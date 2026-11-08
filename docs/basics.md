@@ -78,8 +78,8 @@ Rust implementation on a supported testnet.
       or the full Guild Operators experience.
     - Choose **Dingo** to evaluate the Go node as an experimental testnet
       relay or block producer.
-    - Choose **Amaru** to evaluate the Rust node as an experimental testnet
-      relay.
+    - Choose **Amaru** to evaluate the Rust node as an experimental relay,
+      on a testnet first.
     - If you are unsure, omit `-i`; the safe default is **cnode**.
 
 For the precise deployment contract, layouts, and current compatibility
@@ -195,10 +195,10 @@ PACKAGE_MANAGER_OUTPUT=verbose ./guild-deploy.sh -i amaru -n preprod -s p
 ```
 
 !!! warning "Alternate implementations are experimental"
-    Dingo and Amaru are limited to `preprod` and `preview` and are not
-    supported for mainnet. Dingo block production is available only for
-    experimental testnet evaluation; Amaru remains relay-only. Never place
-    mainnet or real-funds pool keys in either deployment.
+    Dingo is limited to `preprod` and `preview`, and its block production is
+    available only for experimental testnet evaluation. Amaru runs as a relay
+    only; it can be deployed on mainnet, but try it on a testnet first. Never
+    place mainnet or real-funds pool keys in either deployment.
 
 - For cnode, a `glibc` error while installing CNCLI usually means that the
   precompiled binary is incompatible with the host OS. Compile CNCLI using its

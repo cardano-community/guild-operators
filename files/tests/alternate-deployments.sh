@@ -200,6 +200,9 @@ run_alternate_profile_test() (
   local default_port="$3"
   local expected_version
   local cntools_version
+  local expected_network_name
+  local expected_epoch_length
+  local conflicting_network
   local test_root
   local profile
   local deploy_function
@@ -246,6 +249,9 @@ run_alternate_profile_test() (
   NODE_HOME="${NODE_PARENT}/${NODE_NAME}"
   NODE_SERVICE="${implementation}-test"
   NETWORK="${network}"
+  # A supported network other than the deployed one.
+  conflicting_network="mainnet"
+  [[ "${network}" == "mainnet" ]] && conflicting_network="preprod"
   BRANCH="master"
   GIT_SOURCE_ROOT="${REPO_ROOT}"
   S_ARGS=""
@@ -412,9 +418,17 @@ run_alternate_profile_test() (
       '.otelcol.artifacts["linux-x86_64"].sha256 = "not-a-sha256"'
   fi
 
-  NETWORK="mainnet"
+  # guild is a cnode-only network.
+  NETWORK="guild"
   if "${validate_function}" >/dev/null 2>&1; then
     fail "${implementation} accepted an unsupported network"
+  fi
+  NETWORK="mainnet"
+  if [[ "${implementation}" == "amaru" ]]; then
+    "${validate_function}" >/dev/null 2>&1 ||
+      fail "amaru rejected a mainnet relay deployment"
+  elif "${validate_function}" >/dev/null 2>&1; then
+    fail "${implementation} accepted mainnet"
   fi
   NETWORK="${network}"
 
@@ -460,7 +474,17 @@ run_alternate_profile_test() (
     fail "${implementation} mutated its target before snapshot preflight completed"
 
   PAYLOAD_READY_MARKED="N"
-  "${deploy_function}"
+  "${deploy_function}" 2> "${test_root}/deploy.err" || {
+    cat "${test_root}/deploy.err" >&2
+    fail "${implementation} deployment failed"
+  }
+  if [[ "${network}" == "mainnet" ]]; then
+    grep -F "is still under heavy development. Try it on preview or preprod" \
+      "${test_root}/deploy.err" >/dev/null ||
+      fail "${implementation} did not print the mainnet notice"
+  elif grep -F "heavy development" "${test_root}/deploy.err" >/dev/null; then
+    fail "${implementation} printed the mainnet notice on ${network}"
+  fi
   [[ "${PAYLOAD_READY_MARKED}" == "Y" ]] ||
     fail "${implementation} did not mark its scripts and configuration ready"
 
@@ -1287,9 +1311,14 @@ run_alternate_profile_test() (
     fail "${implementation} adapter rejected the monitor profile"
   node_has metrics ||
     fail "${implementation} adapter does not advertise metrics"
-  [[ "${NODE_NETWORK_NAME}" == "$([[ "${network}" == "preprod" ]] && printf PreProd || printf Preview)" ]] ||
+  case "${network}" in
+    mainnet) expected_network_name="Mainnet" expected_epoch_length=432000 ;;
+    preprod) expected_network_name="PreProd" expected_epoch_length=432000 ;;
+    *) expected_network_name="Preview" expected_epoch_length=86400 ;;
+  esac
+  [[ "${NODE_NETWORK_NAME}" == "${expected_network_name}" ]] ||
     fail "${implementation} adapter selected unexpected network constants"
-  [[ "${EPOCH_LENGTH}" == "$([[ "${network}" == "preprod" ]] && printf 432000 || printf 86400)" ]] ||
+  [[ "${EPOCH_LENGTH}" == "${expected_epoch_length}" ]] ||
     fail "${implementation} adapter selected unexpected epoch length"
 
   jq -n \
@@ -1622,7 +1651,7 @@ run_alternate_profile_test() (
   }
 
   assert_common_env_rejects_override GUILD_NODE_IMPLEMENTATION_OVERRIDE cnode
-  assert_common_env_rejects_override GUILD_NODE_NETWORK_OVERRIDE mainnet
+  assert_common_env_rejects_override GUILD_NODE_NETWORK_OVERRIDE "${conflicting_network}"
   assert_common_env_rejects_override GUILD_NODE_SERVICE_OVERRIDE wrong-service
   assert_common_env_rejects_override GUILD_REPOSITORY_ACCOUNT_OVERRIDE wrong-account
 
@@ -1725,9 +1754,9 @@ run_alternate_profile_test() (
     'GUILD_NODE_IMPLEMENTATION="cnode"' \
     >> "${config_env}"
   if [[ "${implementation}" == "dingo" ]]; then
-    printf '%s\n' 'CARDANO_NETWORK="mainnet"' >> "${config_env}"
+    printf 'CARDANO_NETWORK="%s"\n' "${conflicting_network}" >> "${config_env}"
   else
-    printf '%s\n' 'AMARU_NETWORK="mainnet"' >> "${config_env}"
+    printf 'AMARU_NETWORK="%s"\n' "${conflicting_network}" >> "${config_env}"
   fi
 
   : > "${systemctl_log}"
@@ -1799,5 +1828,6 @@ assert_openssl3_deployment_contract dingo
 assert_openssl3_deployment_contract amaru
 run_alternate_profile_test dingo preview 3001
 run_alternate_profile_test amaru preprod 3000
+run_alternate_profile_test amaru mainnet 3000
 
 printf 'alternate deployment tests passed\n'
