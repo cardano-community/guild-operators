@@ -7,7 +7,7 @@ CNTOOLS_TRANSACTION_SCHEMA_VERSION=1
 CNTOOLS_TRANSACTION_MAX_BODY_BYTES=4194304
 CNTOOLS_TRANSACTION_MAX_WITNESS_BYTES=524288
 CNTOOLS_TRANSACTION_MAX_PACKAGE_BYTES=16777216
-CNTOOLS_TRANSACTION_CARDANO_CLI_VERSION="11.4.0.0"
+CNTOOLS_TRANSACTION_CARDANO_CLI_VERSION="11.5.0.0"
 # Included in a source build of the pinned cardano-node (cnode build.cardanoCli).
 CNTOOLS_TRANSACTION_SOURCE_BUILD_CLI_VERSION="11.2.3.0"
 CNTOOLS_TRANSACTION_TIMEOUT="${CNTOOLS_TRANSACTION_TIMEOUT:-60}"
@@ -486,11 +486,12 @@ cntools_transaction_cli_version_supported() {
      "${1:-}" == "${CNTOOLS_TRANSACTION_SOURCE_BUILD_CLI_VERSION}" ]]
 }
 
-# cardano-cli 11.2.1.0 through 11.2.3.1 write a pool relay's IPv4 address into
+# cardano-cli 11.2.1.0 through 11.4.0.0 write a pool relay's IPv4 address into
 # registration certificates with its bytes reversed (cardano-cli#1442).
 cntools_transaction_cli_reverses_relay_ipv4() {
   cntools_transaction_require_cli || return 2
-  [[ "${CNTOOLS_TRANSACTION_VALIDATED_CLI_VERSION}" == 11.2.[1-3].* ]]
+  [[ "${CNTOOLS_TRANSACTION_VALIDATED_CLI_VERSION}" == 11.2.[1-3].* ||
+     "${CNTOOLS_TRANSACTION_VALIDATED_CLI_VERSION}" == 11.[34].* ]]
 }
 
 # Shelley slots on supported deployment networks are one second. A lifetime
