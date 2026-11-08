@@ -64,7 +64,7 @@ else
   assert_eq "$?" "${NODE_ADAPTER_UNSUPPORTED}" "unsupported full profile status"
 fi
 
-for network in preprod preview; do
+for network in mainnet preprod preview; do
   (
     unset AMARU_WITH_OPEN_TELEMETRY AMARU_PROMETHEUS_URL
     unset OTEL_EXPORTER_OTLP_ENDPOINT OTEL_EXPORTER_OTLP_METRICS_ENDPOINT
@@ -75,8 +75,15 @@ for network in preprod preview; do
       "${network} exports only Amaru metrics to the local collector"
     assert_eq "${AMARU_DB_CHAIN_AUTOMATIC_MIGRATION}" "true" \
       "${network} lets Amaru migrate its chain database"
-    assert_eq "${AMARU_PEER}" "${network}-node.play.dev.cardano.org:3001" \
-      "${network} upstream peer"
+    assert_eq "${AMARU_NETWORK}" "${network}" "${network} template network"
+    if [[ "${network}" == "mainnet" ]]; then
+      assert_eq "${AMARU_PEER}" "backbone.cardano.iog.io:3001" "mainnet upstream peer"
+      assert_eq "${AMARU_PEERS_MAX_DOWNSTREAM}" "50" "mainnet relay inbound connections"
+    else
+      assert_eq "${AMARU_PEER}" "${network}-node.play.dev.cardano.org:3001" \
+        "${network} upstream peer"
+      assert_eq "${AMARU_PEERS_MAX_DOWNSTREAM}" "10" "${network} inbound connections"
+    fi
     assert_eq "${OTEL_EXPORTER_OTLP_ENDPOINT}" "http://127.0.0.1:4317" \
       "${network} metrics OTLP/gRPC endpoint"
     if [[ -v OTEL_EXPORTER_OTLP_METRICS_ENDPOINT ]]; then

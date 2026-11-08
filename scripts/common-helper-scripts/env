@@ -184,7 +184,7 @@ if [[ -e "${_deployment_manifest}" || -L "${_deployment_manifest}" ]]; then
     return 1
   }
   case "${_deployment_implementation}:${_deployment_network}" in
-    cnode:mainnet|cnode:guild|cnode:preprod|cnode:preview|cnode:dijkstra|cnode:musashi|dingo:preprod|dingo:preview|amaru:preprod|amaru:preview) ;;
+    cnode:mainnet|cnode:guild|cnode:preprod|cnode:preview|cnode:dijkstra|cnode:musashi|dingo:preprod|dingo:preview|amaru:mainnet|amaru:preprod|amaru:preview) ;;
     *)
       printf "Unsupported network '%s' for deployment implementation '%s'\n" \
         "${_deployment_network}" "${_deployment_implementation}" >&2

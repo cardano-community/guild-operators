@@ -46,9 +46,9 @@ amaru_deploy_validate_context() {
     return 1
   }
   case "${NETWORK:-}" in
-    preprod|preview) ;;
+    mainnet|preprod|preview) ;;
     *)
-      amaru_deploy_fail "Experimental Amaru deployment supports only preprod or preview (got '${NETWORK:-unset}')"
+      amaru_deploy_fail "Experimental Amaru deployment supports only mainnet, preprod or preview (got '${NETWORK:-unset}')"
       return 1
       ;;
   esac
@@ -773,6 +773,13 @@ deploy_amaru_profile() {
   amaru_deploy_parse_flags || return 1
 
   amaru_deploy_warn "Amaru deployment is experimental, relay-only, and limited to ${NETWORK}."
+  if [[ "${NETWORK}" == "mainnet" ]]; then
+    if declare -F dispatcher_mainnet_notice >/dev/null 2>&1; then
+      dispatcher_mainnet_notice "Amaru"
+    else
+      amaru_deploy_warn "Amaru is still under heavy development. Try it on preview or preprod before running it on mainnet."
+    fi
+  fi
   if [[ "${AMARU_DEPLOY_INSTALL_DEPS}" == "Y" ]]; then
     amaru_deploy_install_dependencies || return 1
   fi

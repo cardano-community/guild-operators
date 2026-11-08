@@ -104,7 +104,7 @@ node_adapter_init() {
 node_adapter_validate() {
   node_adapter_defaults
   [[ "${NODE_IMPLEMENTATION}" == "amaru" ]] || return 1
-  [[ "${NODE_NETWORK}" == "preprod" || "${NODE_NETWORK}" == "preview" ]] || return 1
+  [[ "${NODE_NETWORK}" =~ ^(mainnet|preprod|preview)$ ]] || return 1
   [[ -x "${NODE_BINARY}" ]]
 }
 

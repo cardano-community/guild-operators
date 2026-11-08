@@ -227,4 +227,31 @@ grep -qx 'systemctl disable --now cnode.service' "${CALLS}" || fail "the write-f
 grep -qx 'systemctl enable --now cnode.service' "${CALLS}" ||
   fail "a failed amaru.env write after stopping cnode must start cnode again"
 
+# --- cnode's tip is queried with the network's cardano-cli arguments -----------
+cat > "${TEMP_ROOT}/bin/cardano-cli" <<EOF
+#!/usr/bin/env bash
+printf '%s\n' "\$*" > "${TEMP_ROOT}/cli-args"
+printf '{"slot":1234}\n'
+EOF
+chmod 0755 "${TEMP_ROOT}/bin/cardano-cli"
+for case in "mainnet|--mainnet" "preprod|--testnet-magic 1" "preview|--testnet-magic 2"; do
+  (
+    # shellcheck source=/dev/null
+    . "${AMARU_HOME_DIR}/scripts/migrate-from-cnode.sh"
+    AMARU_MIGRATE_CLI="${TEMP_ROOT}/bin/cardano-cli"
+    CNODE_NETWORK="${case%%|*}"
+    CNODE_SOCKET="/run/cnode.socket"
+    assert_eq "$(amaru_migrate_cnode_slot)" "1234" "${CNODE_NETWORK} cnode slot"
+    assert_eq "$(< "${TEMP_ROOT}/cli-args")" "query tip ${case#*|} --socket-path /run/cnode.socket" \
+      "${CNODE_NETWORK} cardano-cli arguments"
+  )
+done
+(
+  # shellcheck source=/dev/null
+  . "${AMARU_HOME_DIR}/scripts/migrate-from-cnode.sh"
+  CNODE_NETWORK="guild"
+  amaru_migrate_cnode_slot >/dev/null 2>&1 && fail "an unsupported network must not query cnode's tip"
+  true
+)
+
 printf 'amaru migrate tests passed\n'

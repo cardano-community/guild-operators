@@ -182,16 +182,15 @@ amaru_migrate_configure_peers() {
   amaru_migrate_load_amaru_env
 }
 
-amaru_migrate_magic() {
+amaru_migrate_cnode_slot() {
+  local network_args
   case "${CNODE_NETWORK}" in
-    preprod) printf '1\n' ;;
-    preview) printf '2\n' ;;
+    mainnet) network_args=(--mainnet) ;;
+    preprod) network_args=(--testnet-magic 1) ;;
+    preview) network_args=(--testnet-magic 2) ;;
     *) return 1 ;;
   esac
-}
-
-amaru_migrate_cnode_slot() {
-  "${AMARU_MIGRATE_CLI}" query tip --testnet-magic "$(amaru_migrate_magic)" \
+  "${AMARU_MIGRATE_CLI}" query tip "${network_args[@]}" \
     --socket-path "${CNODE_SOCKET}" 2>/dev/null | jq -er '.slot'
 }
 
