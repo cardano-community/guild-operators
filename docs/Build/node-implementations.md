@@ -6,7 +6,7 @@ the same `guild-deploy.sh` entrypoint:
 | Implementation | Selector | Default folder | Networks | Deployment status |
 | --- | --- | --- | --- | --- |
 | cardano-node | `cnode` | `/opt/cardano/cnode` | mainnet, preprod, preview, guild, dijkstra, musashi | Default, supported deployment |
-| Dingo | `dingo` | `/opt/cardano/dingo` | preprod, preview | Experimental relay and block-producer deployment |
+| Dingo | `dingo` | `/opt/cardano/dingo` | mainnet, preprod, preview | Experimental relay deployment, plus block production on preprod and preview |
 | Amaru | `amaru` | `/opt/cardano/amaru` | mainnet, preprod, preview | Experimental rolling-release, relay-only deployment |
 
 Omitting `-i` selects `cnode`, preserving the existing install path and
@@ -299,7 +299,7 @@ available for cnode and Amaru. See the
 | CNTools 14 interface | Skeleton only | Skeleton only | Skeleton only |
 | cardano-cli local queries | Yes | Not exposed through the profile | No compatible node-to-client socket |
 | db-sync, Ogmios, standalone Mithril helpers | Existing support | Not deployed | Not deployed |
-| Block production | Yes | Experimental on preprod/preview | Not supported by this profile |
+| Block production | Yes | Experimental on preprod/preview, not on mainnet | Not supported by this profile |
 
 Dingo samples carry an upstream `network` label; the shared parser accepts
 labelled and unlabelled Prometheus samples. Amaru samples pass through

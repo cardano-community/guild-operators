@@ -31,8 +31,8 @@ at another node's existing data directory.
 | Guild selector | Node implementation | Project and team | Current Guild support |
 | --- | --- | --- | --- |
 | `cnode` | [cardano-node](https://github.com/IntersectMBO/cardano-node), written in Haskell | The established Cardano node originated under Input Output Global (IOG). Stewardship of the core repositories has moved to the member-based [Intersect MBO](https://www.intersectmbo.org/news/open-horizons-cardano-migrates-to-intersect). | Default and production option. Relays and block producers on mainnet and testnets, with the established Guild helper suite. |
-| `dingo` | [Dingo](https://github.com/blinklabs-io/dingo), written in Go | Developed by [Blink Labs](https://blinklabs.io/about), a Cardano-focused open-source software team. Upstream describes Dingo as under heavy active development and not ready for production use. | Experimental relays and block producers on `preprod` and `preview`, with runtime hot-key detection, gLiveView over native Prometheus, and CNTools through a separately pinned `cardano-cli`. No mainnet or remaining unverified cnode helpers. |
-| `amaru` | [Amaru](https://github.com/pragma-org/amaru), written in Rust | Hosted by the not-for-profit [PRAGMA](https://pragma.io/) open-source association and developed by [contributors from across the Cardano ecosystem](https://amaru.global/about/). Upstream describes Amaru as exploratory, with features still limited or incomplete. | Experimental rolling-release relay only on `preprod` and `preview`, with gLiveView through a managed, host-safe form of Amaru's reference OpenTelemetry-to-Prometheus bridge. No mainnet, block production, or socket-dependent cnode helpers. |
+| `dingo` | [Dingo](https://github.com/blinklabs-io/dingo), written in Go | Developed by [Blink Labs](https://blinklabs.io/about), a Cardano-focused open-source software team. Upstream describes Dingo as under heavy active development and not ready for production use. | Experimental relays and block producers on `preprod` and `preview`, and relays only on `mainnet`, with runtime hot-key detection, gLiveView over native Prometheus, and CNTools through a separately pinned `cardano-cli`. No mainnet block production or remaining unverified cnode helpers. |
+| `amaru` | [Amaru](https://github.com/pragma-org/amaru), written in Rust | Hosted by the not-for-profit [PRAGMA](https://pragma.io/) open-source association and developed by [contributors from across the Cardano ecosystem](https://amaru.global/about/). Upstream describes Amaru as exploratory, with features still limited or incomplete. | Experimental rolling-release relay only on `mainnet`, `preprod` and `preview`, with gLiveView through a managed, host-safe form of Amaru's reference OpenTelemetry-to-Prometheus bridge. No block production or socket-dependent cnode helpers. |
 
 ##### cnode / cardano-node
 
@@ -51,9 +51,10 @@ project includes node-to-client connectivity, Prometheus metrics, several
 storage and API options, and a built-in Mithril bootstrap client. The Guild
 profile exposes conservative core storage for relays and testnet block
 producers. As with cnode, a complete configured pool hot-key set selects
-producer mode at runtime; without it Dingo runs as a relay. Choose Dingo when
-you specifically want to test the Go implementation, its interoperability, or
-block production on a supported testnet. The profile includes gLiveView and
+producer mode at runtime; without it Dingo runs as a relay. On mainnet the
+profile runs Dingo only as a relay. Choose Dingo when you specifically want to
+test the Go implementation, its interoperability, or block production on a
+supported testnet. The profile includes gLiveView and
 CNTools. Dingo deliberately uses the standard `cardano-cli` interface rather
 than a Dingo-specific CLI; Guild pins that companion independently and
 installs it in the deployment's own `bin` folder. CNTools selects
@@ -76,8 +77,8 @@ Rust implementation on a supported testnet.
 !!! tip "Which implementation should I choose?"
     - Choose **cnode** for mainnet, block production, an existing stake pool,
       or the full Guild Operators experience.
-    - Choose **Dingo** to evaluate the Go node as an experimental testnet
-      relay or block producer.
+    - Choose **Dingo** to evaluate the Go node as an experimental relay, or as
+      a block producer on a testnet. Try it on a testnet first.
     - Choose **Amaru** to evaluate the Rust node as an experimental relay,
       on a testnet first.
     - If you are unsure, omit `-i`; the safe default is **cnode**.
@@ -195,10 +196,11 @@ PACKAGE_MANAGER_OUTPUT=verbose ./guild-deploy.sh -i amaru -n preprod -s p
 ```
 
 !!! warning "Alternate implementations are experimental"
-    Dingo is limited to `preprod` and `preview`, and its block production is
-    available only for experimental testnet evaluation. Amaru runs as a relay
-    only; it can be deployed on mainnet, but try it on a testnet first. Never
-    place mainnet or real-funds pool keys in either deployment.
+    Both can be deployed as mainnet relays, but try them on a testnet first;
+    running them on mainnet is at your own responsibility. Dingo block
+    production is available only for experimental evaluation on `preprod` and
+    `preview`, and Amaru runs as a relay only. Never place mainnet or
+    real-funds pool keys in either deployment.
 
 - For cnode, a `glibc` error while installing CNCLI usually means that the
   precompiled binary is incompatible with the host OS. Compile CNCLI using its

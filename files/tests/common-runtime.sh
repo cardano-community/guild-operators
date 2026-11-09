@@ -199,7 +199,7 @@ run_missing_and_malformed_manifest_tests() (
     "incomplete manifest was modified"
 
   for invalid_identity in \
-    '{"implementation":"dingo","network":"mainnet","serviceName":"manifest-invalid"}' \
+    '{"implementation":"dingo","network":"guild","serviceName":"manifest-invalid"}' \
     '{"implementation":"dingo","network":"preprod","serviceName":"another-service"}'; do
     jq -n --argjson identity "${invalid_identity}" '
       {

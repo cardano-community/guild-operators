@@ -43,7 +43,7 @@ if [[ "${_manifest_required}" == "Y" ]]; then
     .schemaVersion == 1 and
     .deploymentStatus == "deployed" and
     .implementation == "dingo" and
-    (.network == "preprod" or .network == "preview") and
+    (.network == "mainnet" or .network == "preprod" or .network == "preview") and
     (.branch | type == "string" and length > 0) and
     (.repository | type == "string" and test("^[A-Za-z0-9_.-]+/guild-operators$")) and
     (.serviceName | type == "string" and length > 0) and
@@ -159,9 +159,11 @@ Commands:
   version             Print the installed Dingo version
   -h, --help          Show this help
 
-Dingo support, including block production, is experimental. Only preprod and
-preview are accepted by this launcher. A complete operational hot-key set in
-POOL_DIR enables block production; otherwise Dingo runs as a relay.
+Dingo support, including block production, is experimental. This launcher
+accepts mainnet, preprod and preview. On preprod and preview, a complete
+operational hot-key set in POOL_DIR enables block production; otherwise Dingo
+runs as a relay. On mainnet Dingo runs only as a relay, and the launcher refuses
+to start while any operational hot key is present in POOL_DIR.
 EOF
 }
 
@@ -183,9 +185,9 @@ dingo_require_identity() {
 dingo_require_environment() {
   dingo_require_identity || return 1
   case "${CARDANO_NETWORK:-}" in
-    preprod|preview) ;;
+    mainnet|preprod|preview) ;;
     *)
-      printf 'ERROR: this experimental profile supports only preprod or preview, got %s\n' "${CARDANO_NETWORK:-unset}" >&2
+      printf 'ERROR: this experimental profile supports only mainnet, preprod or preview, got %s\n' "${CARDANO_NETWORK:-unset}" >&2
       return 1
       ;;
   esac
@@ -262,6 +264,15 @@ dingo_configure_runtime_role() {
     [[ -e "${file}" ]] && ((present += 1))
   done
   (( present == 0 )) && return 0
+
+  # Upstream does not support Dingo block production on mainnet yet, so a
+  # mainnet deployment stays a relay. Refusing beats silently ignoring keys.
+  if [[ "${CARDANO_NETWORK:-}" == "mainnet" ]]; then
+    printf 'ERROR: Dingo block production is limited to preprod and preview; this mainnet deployment runs only as a relay.\n' >&2
+    printf 'Move the operational hot keys out of %s, or point POOL_NAME elsewhere, to run it as a relay.\n' \
+      "${POOL_DIR}" >&2
+    return 1
+  fi
 
   for file in "${kes_file}" "${vrf_file}" "${opcert_file}"; do
     [[ -f "${file}" && -r "${file}" ]] || missing+=("${file}")

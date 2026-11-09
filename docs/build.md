@@ -12,8 +12,8 @@ enough; source-build instructions remain under
 [cardano-node and cardano-cli](Build/node-cli.md). Use the below to decide
 whether you need other components:
 
-Dingo and Amaru use their own experimental deployment profiles (Dingo on the
-testnets, Amaru also as a mainnet relay);
+Dingo and Amaru use their own experimental deployment profiles (on the
+testnets, and as mainnet relays);
 see the [node implementation guide](Build/node-implementations.md). Unless a
 component description explicitly says otherwise, the surrounding tools on
 this page are currently deployed only with `cnode`. gLiveView is supported

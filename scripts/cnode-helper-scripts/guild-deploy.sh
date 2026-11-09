@@ -299,7 +299,7 @@ dispatcher_systemd_unit_installed() {
 
 # Printed by an experimental implementation's profile before it deploys to mainnet.
 dispatcher_mainnet_notice() {
-  log_warn "${1:-This node} is still under heavy development. Try it on preview or preprod before running it on mainnet."
+  log_warn "${1:-This node} is still under heavy development. Try it on preview or preprod first; running it on mainnet is at your own responsibility."
 }
 
 dispatcher_resolve_github_release() {
@@ -2458,7 +2458,7 @@ dispatcher_set_defaults() {
       err_exit "Deployment manifest is missing authoritative target metadata: ${DEPLOYMENT_FILE}"
     [[ "${stored_implementation}" = "${NODE_IMPLEMENTATION}" ]] || err_exit "Target ${NODE_HOME} belongs to '${stored_implementation}', not '${NODE_IMPLEMENTATION}'. Choose another -t value."
     case "${stored_implementation}:${stored_network}" in
-      cnode:mainnet|cnode:guild|cnode:preprod|cnode:preview|cnode:dijkstra|cnode:musashi|dingo:preprod|dingo:preview|amaru:mainnet|amaru:preprod|amaru:preview) ;;
+      cnode:mainnet|cnode:guild|cnode:preprod|cnode:preview|cnode:dijkstra|cnode:musashi|dingo:mainnet|dingo:preprod|dingo:preview|amaru:mainnet|amaru:preprod|amaru:preview) ;;
       *) err_exit "Unsupported network '${stored_network}' for '${stored_implementation}' in ${DEPLOYMENT_FILE}." ;;
     esac
     [[ -n "${stored_service}" && "${stored_service}" = "${NODE_SERVICE}" ]] ||

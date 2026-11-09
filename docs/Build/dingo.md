@@ -1,11 +1,11 @@
 # Dingo deployment profile
 
-!!! danger "Experimental testnet support"
+!!! danger "Experimental support"
     Dingo is under heavy active development and upstream states that it is not
-    yet ready for mainnet block production. The Guild Operators profile is
-    restricted to `preprod` and `preview`. Relay and block-producer modes are
-    available for testing, but must not be used on mainnet or with keys
-    controlling real funds.
+    yet ready for mainnet block production. The Guild Operators profile runs
+    relays and block producers on `preprod` and `preview`, and relays only on
+    `mainnet`. Try it on a testnet first; running it on mainnet is at your own
+    responsibility. Never use it with keys controlling real funds.
 
 !!! warning "Coming from an earlier Dingo deployment"
     The profile tracks the newest Dingo release, whose database format is not
@@ -20,6 +20,12 @@ The common deployment entrypoint selects Dingo with `-i dingo`. For example:
 ```bash
 ./guild-deploy.sh -i dingo -n preview -s pd
 ```
+
+A mainnet relay is deployed the same way with `-n mainnet`. The deployment
+then prints a reminder that Dingo is still under heavy development and that
+running it on mainnet is at your own responsibility. A mainnet deployment is
+relay-only: `dingo.sh` refuses to start while any operational hot key is
+present in `POOL_DIR`.
 
 When `-t` is omitted the target directory and service name default to `dingo`.
 The supported selective-install flags are:
@@ -174,6 +180,8 @@ The expected filenames deliberately match the Guild cnode convention:
 - If all three are present and readable, it starts a block producer.
 - A partial set is treated as an operator error and startup stops with the
   missing paths instead of silently falling back to a relay.
+- On mainnet, any of these files stops startup, because the profile runs
+  Dingo there only as a relay.
 
 Dingo loads the standard `cardano-cli` text-envelope formats, so an existing
 testnet pool's operational hot keys do not need conversion. Copy only the
@@ -254,7 +262,8 @@ filesystem together. Extraction stops when free space falls below the larger
 of 1 GiB or 10% of the filesystem, and the whole download must finish within
 24 hours. Upstream no longer publishes per-network sizes; as a rough Guild
 estimate, allow about 150 GB for preprod and 50 GB for preview, and check
-current snapshot sizes before provisioning a host.
+current snapshot sizes before provisioning a host. A mainnet snapshot is many
+times larger than either, so check its size before bootstrapping mainnet.
 
 If a bootstrap is interrupted, run `dingo.sh bootstrap` again. It resumes the
 same snapshot. Until it completes, the service refuses to start and logs

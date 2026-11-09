@@ -773,13 +773,7 @@ deploy_amaru_profile() {
   amaru_deploy_parse_flags || return 1
 
   amaru_deploy_warn "Amaru deployment on ${NETWORK} is experimental and relay-only."
-  if [[ "${NETWORK}" == "mainnet" ]]; then
-    if declare -F dispatcher_mainnet_notice >/dev/null 2>&1; then
-      dispatcher_mainnet_notice "Amaru"
-    else
-      amaru_deploy_warn "Amaru is still under heavy development. Try it on preview or preprod before running it on mainnet."
-    fi
-  fi
+  [[ "${NETWORK}" != "mainnet" ]] || dispatcher_mainnet_notice "Amaru"
   if [[ "${AMARU_DEPLOY_INSTALL_DEPS}" == "Y" ]]; then
     amaru_deploy_install_dependencies || return 1
   fi

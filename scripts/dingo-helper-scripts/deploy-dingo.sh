@@ -46,9 +46,9 @@ dingo_deploy_validate_context() {
     return 1
   }
   case "${NETWORK:-}" in
-    preprod|preview) ;;
+    mainnet|preprod|preview) ;;
     *)
-      dingo_deploy_fail "Experimental Dingo deployment supports only preprod or preview (got '${NETWORK:-unset}')"
+      dingo_deploy_fail "Experimental Dingo deployment supports only mainnet, preprod or preview (got '${NETWORK:-unset}')"
       return 1
       ;;
   esac
@@ -739,7 +739,12 @@ deploy_dingo_profile() {
   dingo_deploy_validate_context || return 1
   dingo_deploy_parse_flags || return 1
 
-  dingo_deploy_warn "Dingo deployment and block production are experimental and limited to ${NETWORK}."
+  if [[ "${NETWORK}" == "mainnet" ]]; then
+    dingo_deploy_warn "Dingo deployment on mainnet is experimental and relay-only."
+    dispatcher_mainnet_notice "Dingo"
+  else
+    dingo_deploy_warn "Dingo deployment and block production on ${NETWORK} are experimental."
+  fi
   if [[ "${DINGO_DEPLOY_INSTALL_DEPS}" == "Y" ]]; then
     dingo_deploy_install_dependencies || return 1
   fi

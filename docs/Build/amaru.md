@@ -3,8 +3,9 @@
 !!! danger "Experimental rolling-release support"
     Amaru is under rapid development and ships a new public-beta build most
     weeks. The Guild Operators profile runs Amaru as a relay only, on
-    `preprod`, `preview` and `mainnet`. Try it on a testnet before running a
-    mainnet relay, and do not use it as a stake-pool deployment.
+    `preprod`, `preview` and `mainnet`. Try it on a testnet first; running a
+    mainnet relay is at your own responsibility. Do not use it as a stake-pool
+    deployment.
 
 !!! warning "Coming from an earlier Amaru deployment"
     Current Amaru releases refuse chain databases created by older releases,
@@ -22,8 +23,9 @@ The common deployment entrypoint selects Amaru with `-i amaru`. For example:
 ```
 
 A mainnet relay is deployed the same way with `-n mainnet`. The deployment
-then prints a reminder that Amaru is still under heavy development, and its
-environment template starts from `backbone.cardano.iog.io:3001` and accepts up
+then prints a reminder that Amaru is still under heavy development and that
+running it on mainnet is at your own responsibility, and its environment
+template starts from `backbone.cardano.iog.io:3001` and accepts up
 to 50 inbound connections instead of 10.
 
 When `-t` is omitted the target directory and service name default to `amaru`.

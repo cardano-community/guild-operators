@@ -318,8 +318,7 @@ deployment_set_branch() (
         (.network == "mainnet" or .network == "guild" or .network == "preprod" or .network == "preview" or
          .network == "dijkstra" or .network == "musashi")) or
       ((.implementation == "dingo" or .implementation == "amaru") and
-        (.network == "preprod" or .network == "preview")) or
-      (.implementation == "amaru" and .network == "mainnet")
+        (.network == "mainnet" or .network == "preprod" or .network == "preview"))
     ) and
     (.branch | type == "string" and length > 0) and
     (.repository | type == "string" and test("^[A-Za-z0-9_.-]+/guild-operators$")) and

@@ -424,12 +424,8 @@ run_alternate_profile_test() (
     fail "${implementation} accepted an unsupported network"
   fi
   NETWORK="mainnet"
-  if [[ "${implementation}" == "amaru" ]]; then
-    "${validate_function}" >/dev/null 2>&1 ||
-      fail "amaru rejected a mainnet relay deployment"
-  elif "${validate_function}" >/dev/null 2>&1; then
-    fail "${implementation} accepted mainnet"
-  fi
+  "${validate_function}" >/dev/null 2>&1 ||
+    fail "${implementation} rejected a mainnet relay deployment"
   NETWORK="${network}"
 
   S_ARGS="blmcoxr"
@@ -479,9 +475,12 @@ run_alternate_profile_test() (
     fail "${implementation} deployment failed"
   }
   if [[ "${network}" == "mainnet" ]]; then
-    grep -F "is still under heavy development. Try it on preview or preprod" \
+    grep -F "is still under heavy development. Try it on preview or preprod first; running it on mainnet is at your own responsibility." \
       "${test_root}/deploy.err" >/dev/null ||
       fail "${implementation} did not print the mainnet notice"
+    grep -F "deployment on mainnet is experimental and relay-only." \
+      "${test_root}/deploy.err" >/dev/null ||
+      fail "${implementation} did not say a mainnet deployment is relay-only"
   elif grep -F "heavy development" "${test_root}/deploy.err" >/dev/null; then
     fail "${implementation} printed the mainnet notice on ${network}"
   fi
@@ -1451,77 +1450,101 @@ run_alternate_profile_test() (
     chmod 0600 "${dingo_pool_dir}/hot.skey" "${dingo_pool_dir}/vrf.skey"
     chmod 0644 "${dingo_pool_dir}/op.cert"
 
-    DINGO_ROLE_CAPTURE="${dingo_capture}" "${launcher}" run
-    [[ "$(sed -n '1p' "${dingo_capture}")" == "true" ]] ||
-      fail "Dingo with complete pool credentials did not enable production"
-    [[ "$(sed -n '2p' "${dingo_capture}")" == "${dingo_pool_dir}/hot.skey" ]] ||
-      fail "Dingo producer did not receive its KES key path"
-    [[ "$(sed -n '3p' "${dingo_capture}")" == "${dingo_pool_dir}/vrf.skey" ]] ||
-      fail "Dingo producer did not receive its VRF key path"
-    [[ "$(sed -n '4p' "${dingo_capture}")" == "${dingo_pool_dir}/op.cert" ]] ||
-      fail "Dingo producer did not receive its operational certificate path"
-    CARDANO_SHELLEY_KES_AGENT_SOCKET="${test_root}/kes-agent.socket" \
-      SHELLEY_KES_KEY="${test_root}/stray.skey" \
+    if [[ "${network}" == "mainnet" ]]; then
+      # A mainnet deployment is relay-only: any pool key stops startup.
+      local producer_refusal="${test_root}/dingo-mainnet-producer.err"
+      if DINGO_ROLE_CAPTURE="${dingo_capture}" \
+        "${launcher}" run >/dev/null 2> "${producer_refusal}"; then
+        fail "Dingo started with pool keys on mainnet"
+      fi
+      grep -F "Dingo block production is limited to preprod and preview" \
+        "${producer_refusal}" >/dev/null ||
+        fail "Dingo did not explain why it refused pool keys on mainnet"
+      rm -f -- "${dingo_pool_dir}/hot.skey" "${dingo_pool_dir}/vrf.skey"
+      if DINGO_ROLE_CAPTURE="${dingo_capture}" \
+        "${launcher}" run >/dev/null 2>&1; then
+        fail "Dingo started with a single pool key on mainnet"
+      fi
+      DINGO_ROLE_CAPTURE="${dingo_capture}" "${launcher}" bootstrap
+      [[ "$(sed -n '1p' "${dingo_capture}")" == "false" ]] ||
+        fail "Dingo mainnet bootstrap did not suppress block production"
+      rm -f -- "${dingo_pool_dir}/op.cert"
       DINGO_ROLE_CAPTURE="${dingo_capture}" "${launcher}" run
-    [[ "$(sed -n '6p' "${dingo_capture}")" == "unset" ]] ||
-      fail "Dingo producer inherited a KES agent socket alongside its key file"
-    [[ "$(sed -n '7p' "${dingo_capture}")" == "unset" ]] ||
-      fail "Dingo inherited an unprefixed KES key fallback"
+      [[ "$(sed -n '1p' "${dingo_capture}")" == "false" ]] ||
+        fail "Dingo mainnet relay did not run as a relay"
+    else
+      DINGO_ROLE_CAPTURE="${dingo_capture}" "${launcher}" run
+      [[ "$(sed -n '1p' "${dingo_capture}")" == "true" ]] ||
+        fail "Dingo with complete pool credentials did not enable production"
+      [[ "$(sed -n '2p' "${dingo_capture}")" == "${dingo_pool_dir}/hot.skey" ]] ||
+        fail "Dingo producer did not receive its KES key path"
+      [[ "$(sed -n '3p' "${dingo_capture}")" == "${dingo_pool_dir}/vrf.skey" ]] ||
+        fail "Dingo producer did not receive its VRF key path"
+      [[ "$(sed -n '4p' "${dingo_capture}")" == "${dingo_pool_dir}/op.cert" ]] ||
+        fail "Dingo producer did not receive its operational certificate path"
+      CARDANO_SHELLEY_KES_AGENT_SOCKET="${test_root}/kes-agent.socket" \
+        SHELLEY_KES_KEY="${test_root}/stray.skey" \
+        DINGO_ROLE_CAPTURE="${dingo_capture}" "${launcher}" run
+      [[ "$(sed -n '6p' "${dingo_capture}")" == "unset" ]] ||
+        fail "Dingo producer inherited a KES agent socket alongside its key file"
+      [[ "$(sed -n '7p' "${dingo_capture}")" == "unset" ]] ||
+        fail "Dingo inherited an unprefixed KES key fallback"
 
-    # Reload signals only a running process that was started as a producer.
-    local reload_systemctl="${test_root}/bin/systemctl-reload"
-    local reload_log="${test_root}/systemctl-reload.log"
-    local reload_proc="${test_root}/proc"
-    local reload_marker="${test_root}/reload.marker"
-    local reload_pid
-    printf '%s\n' \
-      '#!/usr/bin/env bash' \
-      'printf "%s\n" "$*" >> "${SYSTEMCTL_LOG:?}"' \
-      '[[ "${1:-}" != "show" ]] || printf "%s\n" "${RELOAD_MAIN_PID:?}"' \
-      > "${reload_systemctl}"
-    chmod 0755 "${reload_systemctl}"
-    : > "${reload_log}"
-    # The stand-in main process records SIGHUP instead of exiting on it.
-    "${BASH}" -c 'trap "printf hup > \"$1\"; exit 0" HUP; for _ in $(seq 300); do sleep 0.1; done' \
-      _ "${reload_marker}" </dev/null >/dev/null 2>&1 &
-    reload_pid=$!
-    mkdir -p "${reload_proc}/${reload_pid}"
-    printf 'HOME=/home/test\0CARDANO_BLOCK_PRODUCER=false\0' \
-      > "${reload_proc}/${reload_pid}/environ"
-    if SYSTEMCTL_BIN="${reload_systemctl}" SYSTEMCTL_LOG="${reload_log}" \
-      RELOAD_MAIN_PID="${reload_pid}" SUDO="N" DINGO_PROCFS_ROOT="${reload_proc}" \
-      "${launcher}" reload >/dev/null 2>&1; then
-      fail "Dingo reload accepted a service running as a relay"
-    fi
-    sleep 0.3
-    if [[ -e "${reload_marker}" ]] || grep -q '^kill' "${reload_log}"; then
-      fail "Dingo reload signalled a relay, which would stop it"
-    fi
-    printf 'HOME=/home/test\0CARDANO_BLOCK_PRODUCER=true\0' \
-      > "${reload_proc}/${reload_pid}/environ"
-    SYSTEMCTL_BIN="${reload_systemctl}" SYSTEMCTL_LOG="${reload_log}" \
-      RELOAD_MAIN_PID="${reload_pid}" SUDO="N" DINGO_PROCFS_ROOT="${reload_proc}" \
-      "${launcher}" reload >/dev/null
-    for _ in $(seq 50); do
-      [[ -e "${reload_marker}" ]] && break
-      sleep 0.1
-    done
-    [[ "$(cat "${reload_marker}" 2>/dev/null)" == "hup" ]] ||
-      fail "Dingo reload did not send SIGHUP to the producer's main process"
-    wait "${reload_pid}" 2>/dev/null || true
+      # Reload signals only a running process that was started as a producer.
+      local reload_systemctl="${test_root}/bin/systemctl-reload"
+      local reload_log="${test_root}/systemctl-reload.log"
+      local reload_proc="${test_root}/proc"
+      local reload_marker="${test_root}/reload.marker"
+      local reload_pid
+      printf '%s\n' \
+        '#!/usr/bin/env bash' \
+        'printf "%s\n" "$*" >> "${SYSTEMCTL_LOG:?}"' \
+        '[[ "${1:-}" != "show" ]] || printf "%s\n" "${RELOAD_MAIN_PID:?}"' \
+        > "${reload_systemctl}"
+      chmod 0755 "${reload_systemctl}"
+      : > "${reload_log}"
+      # The stand-in main process records SIGHUP instead of exiting on it.
+      "${BASH}" -c 'trap "printf hup > \"$1\"; exit 0" HUP; for _ in $(seq 300); do sleep 0.1; done' \
+        _ "${reload_marker}" </dev/null >/dev/null 2>&1 &
+      reload_pid=$!
+      mkdir -p "${reload_proc}/${reload_pid}"
+      printf 'HOME=/home/test\0CARDANO_BLOCK_PRODUCER=false\0' \
+        > "${reload_proc}/${reload_pid}/environ"
+      if SYSTEMCTL_BIN="${reload_systemctl}" SYSTEMCTL_LOG="${reload_log}" \
+        RELOAD_MAIN_PID="${reload_pid}" SUDO="N" DINGO_PROCFS_ROOT="${reload_proc}" \
+        "${launcher}" reload >/dev/null 2>&1; then
+        fail "Dingo reload accepted a service running as a relay"
+      fi
+      sleep 0.3
+      if [[ -e "${reload_marker}" ]] || grep -q '^kill' "${reload_log}"; then
+        fail "Dingo reload signalled a relay, which would stop it"
+      fi
+      printf 'HOME=/home/test\0CARDANO_BLOCK_PRODUCER=true\0' \
+        > "${reload_proc}/${reload_pid}/environ"
+      SYSTEMCTL_BIN="${reload_systemctl}" SYSTEMCTL_LOG="${reload_log}" \
+        RELOAD_MAIN_PID="${reload_pid}" SUDO="N" DINGO_PROCFS_ROOT="${reload_proc}" \
+        "${launcher}" reload >/dev/null
+      for _ in $(seq 50); do
+        [[ -e "${reload_marker}" ]] && break
+        sleep 0.1
+      done
+      [[ "$(cat "${reload_marker}" 2>/dev/null)" == "hup" ]] ||
+        fail "Dingo reload did not send SIGHUP to the producer's main process"
+      wait "${reload_pid}" 2>/dev/null || true
 
-    rm -f -- "${dingo_pool_dir}/op.cert"
-    if DINGO_ROLE_CAPTURE="${dingo_capture}" \
-      "${launcher}" run >/dev/null 2>&1; then
-      fail "Dingo accepted a partial block-producer credential set"
+      rm -f -- "${dingo_pool_dir}/op.cert"
+      if DINGO_ROLE_CAPTURE="${dingo_capture}" \
+        "${launcher}" run >/dev/null 2>&1; then
+        fail "Dingo accepted a partial block-producer credential set"
+      fi
+      DINGO_ROLE_CAPTURE="${dingo_capture}" "${launcher}" bootstrap
+      [[ "$(sed -n '1p' "${dingo_capture}")" == "false" ]] ||
+        fail "Dingo bootstrap did not suppress block production"
+      [[ "$(sed -n '5p' "${dingo_capture}")" == *"sync --mithril" ]] ||
+        fail "Dingo bootstrap did not invoke Mithril sync"
+      printf '{}\n' > "${dingo_pool_dir}/op.cert"
+      chmod 0644 "${dingo_pool_dir}/op.cert"
     fi
-    DINGO_ROLE_CAPTURE="${dingo_capture}" "${launcher}" bootstrap
-    [[ "$(sed -n '1p' "${dingo_capture}")" == "false" ]] ||
-      fail "Dingo bootstrap did not suppress block production"
-    [[ "$(sed -n '5p' "${dingo_capture}")" == *"sync --mithril" ]] ||
-      fail "Dingo bootstrap did not invoke Mithril sync"
-    printf '{}\n' > "${dingo_pool_dir}/op.cert"
-    chmod 0644 "${dingo_pool_dir}/op.cert"
   elif [[ "${implementation}" == "amaru" ]]; then
     local state_root="${test_root}/container-state"
     local state_capture="${test_root}/amaru-state.log"
@@ -1827,6 +1850,7 @@ assert_openssl3_deployment_contract cnode
 assert_openssl3_deployment_contract dingo
 assert_openssl3_deployment_contract amaru
 run_alternate_profile_test dingo preview 3001
+run_alternate_profile_test dingo mainnet 3001
 run_alternate_profile_test amaru preprod 3000
 run_alternate_profile_test amaru mainnet 3000
 
