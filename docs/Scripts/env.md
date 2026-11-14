@@ -66,10 +66,14 @@ those values in `env`.
 
 For cnode, `CNODE_PORT` defaults to `6000`; override it only if the node uses a
 different port. Set `POOL_NAME` to the CNTools pool directory name, not the
-ticker, when `cnode.sh` should launch a block producer. A `NODE_HOME` or
-`CNODE_HOME` override is honored only when `USESYSVARS=Y`.
+ticker, when the node should run as a block producer. `cnode.sh` and `dingo.sh`
+both take `POOL_NAME`, `POOL_FOLDER`, and `POOL_DIR` from this file, so the
+launcher and CNTools always use the same pool folder. Amaru runs only as a
+relay and ignores them. A `NODE_HOME` or `CNODE_HOME` override is honored only
+when `USESYSVARS=Y`.
 
-Dingo and Amaru keep launcher-specific values in `dingo.env` and `amaru.env`.
+Dingo and Amaru keep the remaining launcher-specific values in `dingo.env` and
+`amaru.env`.
 The common cnode-era aliases remain available for compatibility, but setting
 one does not add a capability that an alternate adapter has not declared.
 

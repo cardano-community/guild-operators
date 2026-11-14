@@ -25,7 +25,7 @@ A mainnet relay is deployed the same way with `-n mainnet`. The deployment
 then prints a reminder that Dingo is still under heavy development and that
 running it on mainnet is at your own responsibility. A mainnet deployment is
 relay-only: `dingo.sh` refuses to start while any operational hot key is
-present in `POOL_DIR`.
+present in the `POOL_DIR` that `scripts/env` configures.
 
 When `-t` is omitted the target directory and service name default to `dingo`.
 The supported selective-install flags are:
@@ -158,8 +158,10 @@ default, matching Dingo's upstream configuration precedence.
 
 ## Relay and block-producer modes
 
-Role selection follows the established cnode behavior. Edit
-`scripts/dingo.env` and set `POOL_NAME` to the pool subfolder below
+Role selection follows the established cnode behavior. Pool settings live in
+the common `scripts/env`, the same file CNTools and the other Guild scripts
+read, so they all see the same pool folder. Edit the User Variables section of
+`scripts/env` and set `POOL_NAME` to the pool subfolder below
 `$NODE_HOME/priv/pool`, or set an absolute `POOL_DIR` directly:
 
 ```bash
@@ -167,6 +169,10 @@ POOL_NAME="my-pool"
 # Equivalent advanced override:
 # POOL_DIR="/secure/online-keys/my-pool"
 ```
+
+`dingo.sh` loads these values the same way `cnode.sh` does, so a value
+exported by the calling shell or container is honored unless `scripts/env`
+sets one.
 
 The expected filenames deliberately match the Guild cnode convention:
 

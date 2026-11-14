@@ -1199,9 +1199,10 @@ run_alternate_profile_test() (
     grep -F 'metricsBindAddr: "127.0.0.1"' "${NODE_HOME}/files/dingo.yaml" >/dev/null
     grep -F 'healthPort: 0' "${NODE_HOME}/files/dingo.yaml" >/dev/null
     grep -F 'DINGO_STORAGE_MODE="core"' "${config_env}" >/dev/null
-    grep -F 'POOL_FOLDER=' "${config_env}" >/dev/null
-    grep -F 'POOL_NAME="${POOL_NAME:-CHANGE_ME}"' "${config_env}" >/dev/null
-    grep -F 'POOL_DIR="${POOL_DIR:-${POOL_FOLDER}/${POOL_NAME}}"' "${config_env}" >/dev/null
+    # Pool settings belong to scripts/env, which CNTools reads too.
+    if grep -Eq '^[[:space:]]*(export[[:space:]]+)?POOL_[A-Z_]*=' "${config_env}"; then
+      fail "Dingo environment template sets pool variables"
+    fi
     [[ -d "${NODE_HOME}/priv/pool" ]] ||
       fail "Dingo deployment did not create its pool root"
     dingo_pool_mode="$(
@@ -1415,7 +1416,8 @@ run_alternate_profile_test() (
 
   if [[ "${implementation}" == "dingo" ]]; then
     local dingo_capture="${test_root}/dingo-role.log"
-    local dingo_pool_dir="${NODE_HOME}/priv/pool/test-pool"
+    local dingo_pool_dir="${resolved_node_home}/priv/pool/test-pool"
+    local common_env="${NODE_HOME}/scripts/env"
     printf '%s\n' \
       '#!/usr/bin/env bash' \
       'if [[ "${1:-}" == "version" ]]; then' \
@@ -1440,10 +1442,17 @@ run_alternate_profile_test() (
       fail "Dingo relay inherited a KES credential path"
 
     mkdir -p "${dingo_pool_dir}"
-    printf '%s\n' \
-      "POOL_NAME=\"test-pool\"" \
-      "POOL_DIR=\"${dingo_pool_dir}\"" \
-      >> "${config_env}"
+    # Pool settings come from the common env, exactly as CNTools sees them.
+    awk '/^# Do NOT modify code below/ && !added { print "POOL_NAME=\"test-pool\""; added = 1 } { print }' \
+      "${common_env}" > "${common_env}.next"
+    command mv -f -- "${common_env}.next" "${common_env}"
+    [[ "$(
+      set +eu
+      # shellcheck source=/dev/null
+      . "${common_env}" definitions >/dev/null
+      printf '%s' "${POOL_DIR}"
+    )" == "${dingo_pool_dir}" ]] ||
+      fail "Common env did not resolve the Dingo pool folder from POOL_NAME"
     printf '{}\n' > "${dingo_pool_dir}/hot.skey"
     printf '{}\n' > "${dingo_pool_dir}/vrf.skey"
     printf '{}\n' > "${dingo_pool_dir}/op.cert"
@@ -1544,6 +1553,19 @@ run_alternate_profile_test() (
         fail "Dingo bootstrap did not invoke Mithril sync"
       printf '{}\n' > "${dingo_pool_dir}/op.cert"
       chmod 0644 "${dingo_pool_dir}/op.cert"
+
+      # Without a scripts/env value, a caller export is honored, as in CNTools.
+      awk '$0 != "POOL_NAME=\"test-pool\""' "${common_env}" > "${common_env}.next"
+      command mv -f -- "${common_env}.next" "${common_env}"
+      DINGO_ROLE_CAPTURE="${dingo_capture}" "${launcher}" run
+      [[ "$(sed -n '1p' "${dingo_capture}")" == "false" ]] ||
+        fail "Dingo kept producing after POOL_NAME was removed from scripts/env"
+      POOL_NAME="test-pool" DINGO_ROLE_CAPTURE="${dingo_capture}" "${launcher}" run
+      [[ "$(sed -n '2p' "${dingo_capture}")" == "${dingo_pool_dir}/hot.skey" ]] ||
+        fail "Dingo ignored an exported POOL_NAME that CNTools would use"
+      awk '/^# Do NOT modify code below/ && !added { print "POOL_NAME=\"test-pool\""; added = 1 } { print }' \
+        "${common_env}" > "${common_env}.next"
+      command mv -f -- "${common_env}.next" "${common_env}"
     fi
   elif [[ "${implementation}" == "amaru" ]]; then
     local state_root="${test_root}/container-state"

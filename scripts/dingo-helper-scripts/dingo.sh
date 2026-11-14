@@ -19,6 +19,48 @@ dingo_manifest_value() {
   jq -er --arg key "${key}" '.[$key] // empty' "${_manifest_file}" 2>/dev/null
 }
 
+# Pool settings are shared with CNTools and every other Guild script, so the
+# launcher takes them from scripts/env, resolved the same way cnode.sh does.
+# The env is loaded in a child process so its defaults, aliases and PATH
+# changes stay out of this launcher.
+dingo_load_pool_settings() {
+  local common_env="${DINGO_SCRIPT_DIR}/env"
+  local output="" i
+  local -a variables=(
+    POOL_FOLDER POOL_NAME POOL_DIR
+    POOL_HOTKEY_SK_FILENAME POOL_VRF_SK_FILENAME POOL_OPCERT_FILENAME
+  )
+  local -a values=()
+
+  if [[ ! -r "${common_env}" ]]; then
+    printf 'ERROR: common env file is missing: %s\n' "${common_env}" >&2
+    printf 'Re-run guild-deploy.sh for this deployment to restore it.\n' >&2
+    return 1
+  fi
+  # shellcheck disable=SC2016  # expanded by the child shell
+  if ! output="$(
+    "${BASH}" -c '
+      set +eu
+      . "$1" definitions >/dev/null || exit 1
+      shift
+      for var in "$@"; do printf "%s\n" "${!var}"; done
+      printf "end\n"
+    ' dingo-common-env "${common_env}" "${variables[@]}"
+  )"; then
+    printf 'ERROR: failed to load the pool settings from %s\n' "${common_env}" >&2
+    return 1
+  fi
+  mapfile -t values <<< "${output}"
+  if (( ${#values[@]} != ${#variables[@]} + 1 )) ||
+     [[ "${values[${#variables[@]}]}" != "end" ]]; then
+    printf 'ERROR: unexpected pool settings from %s\n' "${common_env}" >&2
+    return 1
+  fi
+  for i in "${!variables[@]}"; do
+    printf -v "${variables[i]}" '%s' "${values[i]}"
+  done
+}
+
 _manifest_implementation=""
 _manifest_service=""
 _manifest_network=""
@@ -132,12 +174,9 @@ fi
 
 : "${DINGO_BIN:=${GUILD_NODE_HOME}/bin/dingo}"
 : "${DINGO_CONFIG:=${GUILD_NODE_HOME}/files/dingo.yaml}"
-: "${POOL_FOLDER:=${GUILD_NODE_HOME}/priv/pool}"
-: "${POOL_NAME:=CHANGE_ME}"
-: "${POOL_DIR:=${POOL_FOLDER}/${POOL_NAME}}"
-: "${POOL_HOTKEY_SK_FILENAME:=hot.skey}"
-: "${POOL_VRF_SK_FILENAME:=vrf.skey}"
-: "${POOL_OPCERT_FILENAME:=op.cert}"
+case "${command_name}" in
+  run|-d|install|reload) dingo_load_pool_settings || exit 1 ;;
+esac
 
 export DINGO_STORAGE_MODE=core
 export DINGO_RUN_MODE=serve
@@ -160,10 +199,12 @@ Commands:
   -h, --help          Show this help
 
 Dingo support, including block production, is experimental. This launcher
-accepts mainnet, preprod and preview. On preprod and preview, a complete
-operational hot-key set in POOL_DIR enables block production; otherwise Dingo
-runs as a relay. On mainnet Dingo runs only as a relay, and the launcher refuses
-to start while any operational hot key is present in POOL_DIR.
+accepts mainnet, preprod and preview. Pool settings (POOL_NAME, POOL_FOLDER,
+POOL_DIR) are read from scripts/env, the same file CNTools reads. On preprod
+and preview, a complete operational hot-key set in POOL_DIR enables block
+production; otherwise Dingo runs as a relay. On mainnet Dingo runs only as a
+relay, and the launcher refuses to start while any operational hot key is
+present in POOL_DIR.
 EOF
 }
 
@@ -232,9 +273,7 @@ dingo_secret_file_is_private() {
 
 dingo_configure_runtime_role() {
   local mode="${1:-run}"
-  local kes_file="${POOL_DIR}/${POOL_HOTKEY_SK_FILENAME}"
-  local vrf_file="${POOL_DIR}/${POOL_VRF_SK_FILENAME}"
-  local opcert_file="${POOL_DIR}/${POOL_OPCERT_FILENAME}"
+  local kes_file vrf_file opcert_file
   local present=0
   local file
   local -a missing=()
@@ -259,6 +298,9 @@ dingo_configure_runtime_role() {
       "${POOL_DIR}" >&2
     return 1
   fi
+  kes_file="${POOL_DIR}/${POOL_HOTKEY_SK_FILENAME}"
+  vrf_file="${POOL_DIR}/${POOL_VRF_SK_FILENAME}"
+  opcert_file="${POOL_DIR}/${POOL_OPCERT_FILENAME}"
 
   for file in "${kes_file}" "${vrf_file}" "${opcert_file}"; do
     [[ -e "${file}" ]] && ((present += 1))
@@ -269,7 +311,7 @@ dingo_configure_runtime_role() {
   # mainnet deployment stays a relay. Refusing beats silently ignoring keys.
   if [[ "${CARDANO_NETWORK:-}" == "mainnet" ]]; then
     printf 'ERROR: Dingo block production is limited to preprod and preview; this mainnet deployment runs only as a relay.\n' >&2
-    printf 'Move the operational hot keys out of %s, or point POOL_NAME elsewhere, to run it as a relay.\n' \
+    printf 'Move the operational hot keys out of %s, or point POOL_NAME in scripts/env elsewhere, to run it as a relay.\n' \
       "${POOL_DIR}" >&2
     return 1
   fi
