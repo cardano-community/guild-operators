@@ -1539,7 +1539,7 @@ parsePoolInfo () {
 getOpCert () {
   op_cert_disk="?"
   op_cert_chain="?"
-  opcert_file="${POOL_DIR}/${POOL_OPCERT_FILENAME}"
+  opcert_file="${POOL_FOLDER}/${POOL_NAME}/${POOL_OPCERT_FILENAME}"
   if [[ ! -f ${opcert_file} ]] && node_has opcert; then
     adapter_opcert="$(node_operational_certificate 2>/dev/null || true)"
     [[ -n "${adapter_opcert}" ]] && opcert_file="${adapter_opcert}"

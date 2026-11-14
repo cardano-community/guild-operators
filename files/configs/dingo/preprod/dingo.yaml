@@ -1,5 +1,5 @@
 # Guild Operators Dingo profile: preprod
-# The launcher overrides blockProducer when a complete POOL_DIR is available.
+# The launcher overrides blockProducer when the pool folder holds a complete key set.
 network: "preprod"
 databasePath: "@NODE_HOME@/db"
 socketPath: "@NODE_HOME@/sockets/dingo.socket"

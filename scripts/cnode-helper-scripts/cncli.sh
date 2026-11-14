@@ -486,11 +486,11 @@ cncliInit() {
   PT_SENDSLOTS_START=$((PT_SENDSLOTS_START*60))
   [[ -z "${PT_SENDSLOTS_STOP}" ]] && PT_SENDSLOTS_STOP=60
   PT_SENDSLOTS_STOP=$((PT_SENDSLOTS_STOP*60))
-  if [[ -d "${POOL_DIR}" ]]; then
-    [[ -z "${POOL_ID}" && -f "${POOL_DIR}/${POOL_ID_FILENAME}" ]] && POOL_ID=$(cat "${POOL_DIR}/${POOL_ID_FILENAME}")
-    [[ -z "${POOL_ID_BECH32}" && -f "${POOL_DIR}/${POOL_ID_FILENAME}-bech32" ]] && POOL_ID_BECH32=$(cat "${POOL_DIR}/${POOL_ID_FILENAME}-bech32")
-    [[ -z "${POOL_VRF_SKEY}" ]] && POOL_VRF_SKEY="${POOL_DIR}/${POOL_VRF_SK_FILENAME}"
-    [[ -z "${POOL_VRF_VKEY}" ]] && POOL_VRF_VKEY="${POOL_DIR}/${POOL_VRF_VK_FILENAME}"
+  if [[ -d "${POOL_FOLDER}/${POOL_NAME}" ]]; then
+    [[ -z "${POOL_ID}" && -f "${POOL_FOLDER}/${POOL_NAME}/${POOL_ID_FILENAME}" ]] && POOL_ID=$(cat "${POOL_FOLDER}/${POOL_NAME}/${POOL_ID_FILENAME}")
+    [[ -z "${POOL_ID_BECH32}" && -f "${POOL_FOLDER}/${POOL_NAME}/${POOL_ID_FILENAME}-bech32" ]] && POOL_ID_BECH32=$(cat "${POOL_FOLDER}/${POOL_NAME}/${POOL_ID_FILENAME}-bech32")
+    [[ -z "${POOL_VRF_SKEY}" ]] && POOL_VRF_SKEY="${POOL_FOLDER}/${POOL_NAME}/${POOL_VRF_SK_FILENAME}"
+    [[ -z "${POOL_VRF_VKEY}" ]] && POOL_VRF_VKEY="${POOL_FOLDER}/${POOL_NAME}/${POOL_VRF_VK_FILENAME}"
   fi
 
   # export SHELLEY_TRANS_EPOCH to be seen by cncli

@@ -27,7 +27,7 @@ dingo_load_pool_settings() {
   local common_env="${DINGO_SCRIPT_DIR}/env"
   local output="" i
   local -a variables=(
-    POOL_FOLDER POOL_NAME POOL_DIR
+    POOL_FOLDER POOL_NAME
     POOL_HOTKEY_SK_FILENAME POOL_VRF_SK_FILENAME POOL_OPCERT_FILENAME
   )
   local -a values=()
@@ -199,12 +199,12 @@ Commands:
   -h, --help          Show this help
 
 Dingo support, including block production, is experimental. This launcher
-accepts mainnet, preprod and preview. Pool settings (POOL_NAME, POOL_FOLDER,
-POOL_DIR) are read from scripts/env, the same file CNTools reads. On preprod
-and preview, a complete operational hot-key set in POOL_DIR enables block
-production; otherwise Dingo runs as a relay. On mainnet Dingo runs only as a
-relay, and the launcher refuses to start while any operational hot key is
-present in POOL_DIR.
+accepts mainnet, preprod and preview. The pool folder is POOL_FOLDER/POOL_NAME
+from scripts/env, the same file CNTools reads. On preprod and preview, a
+complete operational hot-key set in the pool folder enables block production;
+otherwise Dingo runs as a relay. On mainnet Dingo runs only as a relay, and the
+launcher refuses to start while any operational hot key is present in the pool
+folder.
 EOF
 }
 
@@ -250,7 +250,7 @@ dingo_require_supported_profile() {
     return 1
   fi
   if ! grep -Eq '^[[:space:]]*blockProducer:[[:space:]]*false([[:space:]]|$)' "${DINGO_CONFIG}"; then
-    printf 'ERROR: the Guild Dingo base config must keep blockProducer false; dingo.sh enables it from POOL_DIR\n' >&2
+    printf 'ERROR: the Guild Dingo base config must keep blockProducer false; dingo.sh enables it from the pool folder\n' >&2
     return 1
   fi
 }
@@ -273,7 +273,7 @@ dingo_secret_file_is_private() {
 
 dingo_configure_runtime_role() {
   local mode="${1:-run}"
-  local kes_file vrf_file opcert_file
+  local pool_dir kes_file vrf_file opcert_file
   local present=0
   local file
   local -a missing=()
@@ -293,14 +293,15 @@ dingo_configure_runtime_role() {
   # Snapshot import never forges and should not require online hot keys.
   [[ "${mode}" == "bootstrap" ]] && return 0
 
-  if [[ ! "${POOL_DIR}" =~ ^/[A-Za-z0-9._/+@:-]+$ ]]; then
-    printf 'ERROR: POOL_DIR must be an absolute deployment-safe path: %s\n' \
-      "${POOL_DIR}" >&2
+  pool_dir="${POOL_FOLDER}/${POOL_NAME}"
+  if [[ ! "${pool_dir}" =~ ^/[A-Za-z0-9._/+@:-]+$ ]]; then
+    printf 'ERROR: the pool folder (POOL_FOLDER/POOL_NAME) must be an absolute deployment-safe path: %s\n' \
+      "${pool_dir}" >&2
     return 1
   fi
-  kes_file="${POOL_DIR}/${POOL_HOTKEY_SK_FILENAME}"
-  vrf_file="${POOL_DIR}/${POOL_VRF_SK_FILENAME}"
-  opcert_file="${POOL_DIR}/${POOL_OPCERT_FILENAME}"
+  kes_file="${pool_dir}/${POOL_HOTKEY_SK_FILENAME}"
+  vrf_file="${pool_dir}/${POOL_VRF_SK_FILENAME}"
+  opcert_file="${pool_dir}/${POOL_OPCERT_FILENAME}"
 
   for file in "${kes_file}" "${vrf_file}" "${opcert_file}"; do
     [[ -e "${file}" ]] && ((present += 1))
@@ -312,7 +313,7 @@ dingo_configure_runtime_role() {
   if [[ "${CARDANO_NETWORK:-}" == "mainnet" ]]; then
     printf 'ERROR: Dingo block production is limited to preprod and preview; this mainnet deployment runs only as a relay.\n' >&2
     printf 'Move the operational hot keys out of %s, or point POOL_NAME in scripts/env elsewhere, to run it as a relay.\n' \
-      "${POOL_DIR}" >&2
+      "${pool_dir}" >&2
     return 1
   fi
 
@@ -320,7 +321,7 @@ dingo_configure_runtime_role() {
     [[ -f "${file}" && -r "${file}" ]] || missing+=("${file}")
   done
   if (( ${#missing[@]} > 0 )); then
-    printf 'ERROR: POOL_DIR contains an incomplete Dingo block-producer credential set. Missing or unreadable:\n' >&2
+    printf 'ERROR: the pool folder contains an incomplete Dingo block-producer credential set. Missing or unreadable:\n' >&2
     printf '  %s\n' "${missing[@]}" >&2
     return 1
   fi
@@ -420,7 +421,7 @@ dingo_reload_credentials() {
     return 1
   fi
   if [[ "${DINGO_RUNTIME_ROLE}" != "producer" ]]; then
-    printf 'ERROR: POOL_DIR no longer holds a complete credential set; refusing to reload\n' >&2
+    printf 'ERROR: the pool folder no longer holds a complete credential set; refusing to reload\n' >&2
     return 1
   fi
 

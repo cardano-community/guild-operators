@@ -265,15 +265,15 @@ if [[ "${MITHRIL_DOWNLOAD}" == "Y" ]]; then
 fi
 
 # Run Node
-if [[ -f "${POOL_DIR}/${POOL_OPCERT_FILENAME}" && -f "${POOL_DIR}/${POOL_VRF_SK_FILENAME}" && -f "${POOL_DIR}/${POOL_HOTKEY_SK_FILENAME}" ]]; then
+if [[ -f "${POOL_FOLDER}/${POOL_NAME}/${POOL_OPCERT_FILENAME}" && -f "${POOL_FOLDER}/${POOL_NAME}/${POOL_VRF_SK_FILENAME}" && -f "${POOL_FOLDER}/${POOL_NAME}/${POOL_HOTKEY_SK_FILENAME}" ]]; then
   exec "${CNODEBIN}" "${CPU_RUNTIME[@]}" run \
     --topology "${TOPOLOGY}" \
     --config "${CONFIG}" \
     --database-path "${DB_DIR}" \
     --socket-path "${CARDANO_NODE_SOCKET_PATH}" \
-    --shelley-kes-key "${POOL_DIR}/${POOL_HOTKEY_SK_FILENAME}" \
-    --shelley-vrf-key "${POOL_DIR}/${POOL_VRF_SK_FILENAME}" \
-    --shelley-operational-certificate "${POOL_DIR}/${POOL_OPCERT_FILENAME}" \
+    --shelley-kes-key "${POOL_FOLDER}/${POOL_NAME}/${POOL_HOTKEY_SK_FILENAME}" \
+    --shelley-vrf-key "${POOL_FOLDER}/${POOL_NAME}/${POOL_VRF_SK_FILENAME}" \
+    --shelley-operational-certificate "${POOL_FOLDER}/${POOL_NAME}/${POOL_OPCERT_FILENAME}" \
     --port ${CNODE_PORT} \
     ${MEMPOOL_OVERRIDE} "${host_addr[@]}"
 else

@@ -67,8 +67,8 @@ those values in `env`.
 For cnode, `CNODE_PORT` defaults to `6000`; override it only if the node uses a
 different port. Set `POOL_NAME` to the CNTools pool directory name, not the
 ticker, when the node should run as a block producer. `cnode.sh` and `dingo.sh`
-both take `POOL_NAME`, `POOL_FOLDER`, and `POOL_DIR` from this file, so the
-launcher and CNTools always use the same pool folder. Amaru runs only as a
+both use `${POOL_FOLDER}/${POOL_NAME}` from this file as the pool folder, so
+the launcher and CNTools always use the same one. Amaru runs only as a
 relay and ignores them. A `NODE_HOME` or `CNODE_HOME` override is honored only
 when `USESYSVARS=Y`.
 

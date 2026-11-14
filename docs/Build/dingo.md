@@ -25,7 +25,7 @@ A mainnet relay is deployed the same way with `-n mainnet`. The deployment
 then prints a reminder that Dingo is still under heavy development and that
 running it on mainnet is at your own responsibility. A mainnet deployment is
 relay-only: `dingo.sh` refuses to start while any operational hot key is
-present in the `POOL_DIR` that `scripts/env` configures.
+present in the pool folder that `scripts/env` configures.
 
 When `-t` is omitted the target directory and service name default to `dingo`.
 The supported selective-install flags are:
@@ -149,7 +149,7 @@ The supplied YAML uses a conservative relay default:
 - a 30-second graceful shutdown window
 
 `dingo.sh` owns the effective runtime role. It resets inherited Dingo forging
-variables, inspects the configured `POOL_DIR`, and exports Dingo's official
+variables, inspects the configured pool folder, and exports Dingo's official
 `CARDANO_BLOCK_PRODUCER` and `CARDANO_SHELLEY_*` variables only when the
 complete operational credential set is present. It also clears Dingo's KES
 agent settings, because Dingo refuses to start with both a KES key file and a
@@ -160,14 +160,16 @@ default, matching Dingo's upstream configuration precedence.
 
 Role selection follows the established cnode behavior. Pool settings live in
 the common `scripts/env`, the same file CNTools and the other Guild scripts
-read, so they all see the same pool folder. Edit the User Variables section of
+read, so they all see the same pool folder. The pool folder is
+`${POOL_FOLDER}/${POOL_NAME}`. Edit the User Variables section of
 `scripts/env` and set `POOL_NAME` to the pool subfolder below
-`$NODE_HOME/priv/pool`, or set an absolute `POOL_DIR` directly:
+`$NODE_HOME/priv/pool`. To keep the online keys elsewhere, also set
+`POOL_FOLDER` to the folder that holds the pool subfolder:
 
 ```bash
 POOL_NAME="my-pool"
-# Equivalent advanced override:
-# POOL_DIR="/secure/online-keys/my-pool"
+# Keys outside $NODE_HOME/priv/pool, here in /secure/online-keys/my-pool:
+# POOL_FOLDER="/secure/online-keys"
 ```
 
 `dingo.sh` loads these values the same way `cnode.sh` does, so a value

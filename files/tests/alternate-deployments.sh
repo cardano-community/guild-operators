@@ -1450,7 +1450,7 @@ run_alternate_profile_test() (
       set +eu
       # shellcheck source=/dev/null
       . "${common_env}" definitions >/dev/null
-      printf '%s' "${POOL_DIR}"
+      printf '%s' "${POOL_FOLDER}/${POOL_NAME}"
     )" == "${dingo_pool_dir}" ]] ||
       fail "Common env did not resolve the Dingo pool folder from POOL_NAME"
     printf '{}\n' > "${dingo_pool_dir}/hot.skey"
