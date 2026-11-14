@@ -125,11 +125,16 @@ sets:
 
 - `AMARU_DB_CHAIN_AUTOMATIC_MIGRATION=true`, so a newer release can upgrade the
   chain database in place when upstream provides a migration;
-- `AMARU_WITH_OPEN_TELEMETRY=metrics`, because the local collector keeps only
+- `AMARU_LOG_OTLP=metrics`, because the local collector keeps only
   metrics;
 - `AMARU_LOG`, matching Amaru's default log filter;
 - `AMARU_PEER`, the network's public relay, because current releases no longer
   default to one.
+
+`AMARU_LOG_OTLP` and `AMARU_LOG_JSON` are the names Amaru uses since
+10.11.20261112. An existing `amaru.env` that still sets
+`AMARU_WITH_OPEN_TELEMETRY` and `AMARU_WITH_JSON_TRACES` keeps working. When
+pinning an older release, use those two older names instead.
 
 The profile deliberately does not create `chain/` or `ledger/`. Upstream
 bootstrap refuses to proceed if either already holds data, which prevents a

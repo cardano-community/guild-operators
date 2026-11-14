@@ -66,13 +66,18 @@ fi
 
 for network in mainnet preprod preview; do
   (
-    unset AMARU_WITH_OPEN_TELEMETRY AMARU_PROMETHEUS_URL
+    unset AMARU_LOG_OTLP AMARU_LOG_JSON AMARU_PROMETHEUS_URL
+    unset AMARU_WITH_OPEN_TELEMETRY AMARU_WITH_JSON_TRACES
     unset OTEL_EXPORTER_OTLP_ENDPOINT OTEL_EXPORTER_OTLP_METRICS_ENDPOINT
     unset OTEL_METRIC_EXPORT_INTERVAL
     # shellcheck source=/dev/null
     . "${REPO_ROOT}/files/configs/amaru/${network}/amaru.env"
-    assert_eq "${AMARU_WITH_OPEN_TELEMETRY}" "metrics" \
+    assert_eq "${AMARU_LOG_OTLP}" "metrics" \
       "${network} exports only Amaru metrics to the local collector"
+    assert_eq "${AMARU_LOG_JSON}" "false" \
+      "${network} keeps the text log gLiveView's peer analysis reads"
+    assert_eq "${AMARU_WITH_OPEN_TELEMETRY-unset}${AMARU_WITH_JSON_TRACES-unset}" "unsetunset" \
+      "${network} template uses Amaru's current log setting names"
     assert_eq "${AMARU_DB_CHAIN_AUTOMATIC_MIGRATION}" "true" \
       "${network} lets Amaru migrate its chain database"
     assert_eq "${AMARU_NETWORK}" "${network}" "${network} template network"
