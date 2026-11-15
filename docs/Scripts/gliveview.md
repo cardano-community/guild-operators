@@ -92,7 +92,7 @@ adapter marks the current sample as available. An absent field therefore means
 | Field | Meaning |
 | --- | --- |
 | Implementation | The active adapter and node implementation. This should agree with `.deployment.json`. |
-| Role | `Relay` or `Core`. cnode and Dingo derive producer mode from the live forging metric; Amaru is currently relay-only. |
+| Role | `Relay` or `Core`. cnode and Dingo derive producer mode from the live forging metric; Amaru from the operational-certificate gauges that only a block producer exports. |
 | Network | The configured Cardano network. |
 | Version | Version reported by the running process or its build metric. The Network page can also show the source revision. |
 | Uptime | Elapsed time for the current node process, not host uptime. The adapters use a trustworthy native start value or local process timing. |
@@ -376,9 +376,22 @@ on every scrape.
 ### Amaru
 
 Amaru's reference bridge supplies a cardano-node-compatible subset for the
-common chain, mempool, served-block, and build fields. Amaru is relay-only in
-Guild Operators, so it has no Block Production section; its network-derived
-KES period is listed on the Network page instead.
+common chain, mempool, served-block, and build fields. Amaru exports no
+forging flag. Its forge stage is the only source of the
+operational-certificate gauges, so the adapter treats their presence as
+producer mode. They first appear once the node adopts a new tip after a
+start. An Amaru producer uses the shared Block Production section:
+
+| Field | Mode | Meaning |
+| --- | --- | --- |
+| KES current | Compact | Current network KES period. |
+| KES remaining | Compact | Remaining usable KES periods for the loaded operational certificate. |
+| KES expires | Compact | Expiry time calculated from KES and network timing. |
+| OpCert starts / expires | Verbose | Operational certificate's starting and ending KES-period bounds. |
+
+Amaru exports no leader-schedule or forged-block counters, so the section has
+no such rows. On a relay there is no Block Production section; the
+network-derived KES period is listed on the Network page instead.
 
 Amaru's own terminal dashboard runs inside the node process and is therefore
 only available when `amaru.sh run` is started from an interactive terminal.
@@ -426,7 +439,7 @@ that changed the selected chain.
 calculated from the active Amaru service PID using Linux's monotonic process
 start time, with a bounded `ps` fallback; collector runtime telemetry is not
 presented as Amaru node telemetry. The Network page adds the build platform,
-host memory, and the current KES period.
+host memory, and, on a relay, the current KES period.
 
 Amaru releases evolve quickly. The tables document the current adapter
 contract, but gLiveView displays a native metric only when the running release

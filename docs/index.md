@@ -1,8 +1,8 @@
 
 Guild Operators provides community-maintained deployment, management, and
 monitoring tools for Cardano node operators. `cardano-node` (`cnode`) remains
-the default implementation. Experimental Dingo relays and block producers,
-plus Amaru relays, are also available for the networks documented in their
+the default implementation. Experimental Dingo and Amaru relays and block
+producers are also available for the networks documented in their
 implementation guides.
 All three profiles include gLiveView; its adapter identifies the selected node
 implementation and hides measurements that implementation does not export.

@@ -478,9 +478,15 @@ run_alternate_profile_test() (
     grep -F "is still under heavy development. Try it on preview or preprod first; running it on mainnet is at your own responsibility." \
       "${test_root}/deploy.err" >/dev/null ||
       fail "${implementation} did not print the mainnet notice"
-    grep -F "deployment on mainnet is experimental and relay-only." \
-      "${test_root}/deploy.err" >/dev/null ||
-      fail "${implementation} did not say a mainnet deployment is relay-only"
+    if [[ "${implementation}" == "dingo" ]]; then
+      grep -F "deployment on mainnet is experimental and relay-only." \
+        "${test_root}/deploy.err" >/dev/null ||
+        fail "${implementation} did not say a mainnet deployment is relay-only"
+    else
+      grep -F "Amaru deployment and block production on mainnet are experimental." \
+        "${test_root}/deploy.err" >/dev/null ||
+        fail "Amaru did not say block production on mainnet is experimental"
+    fi
   elif grep -F "heavy development" "${test_root}/deploy.err" >/dev/null; then
     fail "${implementation} printed the mainnet notice on ${network}"
   fi
@@ -1233,6 +1239,19 @@ run_alternate_profile_test() (
     grep -F 'OTEL_METRIC_EXPORT_INTERVAL="2000"' "${config_env}" >/dev/null
     grep -F 'AMARU_PROMETHEUS_URL="http://127.0.0.1:8889/metrics"' \
       "${config_env}" >/dev/null
+    # Pool settings belong to scripts/env, which CNTools reads too, and the
+    # launcher derives the operator key paths from the pool folder.
+    if grep -Eq '^[[:space:]]*(export[[:space:]]+)?(POOL_[A-Z_]*|AMARU_OPERATOR_[A-Z_]*)=' "${config_env}"; then
+      fail "Amaru environment template sets pool or operator key variables"
+    fi
+    [[ -d "${NODE_HOME}/priv/pool" ]] ||
+      fail "Amaru deployment did not create its pool root"
+    amaru_pool_mode="$(
+      stat -c '%a' "${NODE_HOME}/priv/pool" 2>/dev/null ||
+        stat -f '%Lp' "${NODE_HOME}/priv/pool"
+    )"
+    [[ "${amaru_pool_mode}" == "700" ]] ||
+      fail "Amaru pool root is not mode 0700"
     assert_file "${NODE_HOME}/files/otelcol.yaml"
     assert_otelcol_yaml "${NODE_HOME}/files/otelcol.yaml"
   fi
@@ -1341,7 +1360,7 @@ run_alternate_profile_test() (
         n2c: ($implementation == "dingo"),
         localCli: ($implementation == "dingo"),
         metrics: true,
-        forging: ($implementation == "dingo")
+        forging: true
       }
     }' > "${NODE_HOME}/.deployment.json"
   valid_deployment_manifest="$(cat "${NODE_HOME}/.deployment.json")"
@@ -1613,6 +1632,138 @@ run_alternate_profile_test() (
     if AMARU_STATE_ROOT="/" "${launcher}" bootstrap >/dev/null 2>&1; then
       fail "Amaru launcher accepted / as its state root"
     fi
+
+    local amaru_capture="${test_root}/amaru-role.log"
+    local amaru_role_err="${test_root}/amaru-role.err"
+    local amaru_pool_dir="${resolved_node_home}/priv/pool/test-pool"
+    local common_env="${NODE_HOME}/scripts/env"
+    printf '%s\n' \
+      '#!/usr/bin/env bash' \
+      'printf "%s\n%s\n%s\n%s\n" \
+        "${AMARU_OPERATOR_KES:-unset}" \
+        "${AMARU_OPERATOR_VRF:-unset}" \
+        "${AMARU_OPERATOR_CERT:-unset}" \
+        "$*" > "${AMARU_ROLE_CAPTURE:?}"' \
+      > "${NODE_HOME}/bin/amaru"
+    chmod 0755 "${NODE_HOME}/bin/amaru"
+    amaru_role_launch() {
+      AMARU_STATE_ROOT="${state_root}" AMARU_ROLE_CAPTURE="${amaru_capture}" \
+        "${launcher}" "$@"
+    }
+
+    amaru_role_launch run
+    [[ "$(sed -n '1p' "${amaru_capture}")" == "unset" ]] ||
+      fail "Amaru without pool credentials received a KES key path"
+    [[ "$(sed -n '2p' "${amaru_capture}")" == "unset" ]] ||
+      fail "Amaru without pool credentials received a VRF key path"
+    [[ "$(sed -n '3p' "${amaru_capture}")" == "unset" ]] ||
+      fail "Amaru without pool credentials received an operational certificate path"
+    [[ "$(sed -n '4p' "${amaru_capture}")" == "node run" ]] ||
+      fail "Amaru run did not invoke node run"
+
+    # Key variables do not belong in amaru.env: the launcher drops them and
+    # says so, instead of letting them select the role.
+    printf 'AMARU_OPERATOR_KES="%s"\n' "${test_root}/stray.skey" >> "${config_env}"
+    amaru_role_launch run 2> "${amaru_role_err}"
+    [[ "$(sed -n '1p' "${amaru_capture}")" == "unset" ]] ||
+      fail "Amaru relay inherited a KES key path from amaru.env"
+    grep -F "ignoring AMARU_OPERATOR_KES from the environment" \
+      "${amaru_role_err}" >/dev/null ||
+      fail "Amaru did not report the operator variable it dropped"
+    awk '$0 !~ /^AMARU_OPERATOR_KES=/' "${config_env}" > "${config_env}.next"
+    command mv -f -- "${config_env}.next" "${config_env}"
+
+    mkdir -p "${amaru_pool_dir}"
+    # Pool settings come from the common env, exactly as CNTools sees them.
+    awk '/^# Do NOT modify code below/ && !added { print "POOL_NAME=\"test-pool\""; added = 1 } { print }' \
+      "${common_env}" > "${common_env}.next"
+    command mv -f -- "${common_env}.next" "${common_env}"
+    [[ "$(
+      set +eu
+      # shellcheck source=/dev/null
+      . "${common_env}" definitions >/dev/null
+      printf '%s' "${POOL_FOLDER}/${POOL_NAME}"
+    )" == "${amaru_pool_dir}" ]] ||
+      fail "Common env did not resolve the Amaru pool folder from POOL_NAME"
+    printf '{}\n' > "${amaru_pool_dir}/hot.skey"
+    printf '{}\n' > "${amaru_pool_dir}/vrf.skey"
+    printf '{}\n' > "${amaru_pool_dir}/op.cert"
+    chmod 0600 "${amaru_pool_dir}/hot.skey" "${amaru_pool_dir}/vrf.skey"
+    chmod 0644 "${amaru_pool_dir}/op.cert"
+
+    # Amaru forges on every supported network, mainnet included.
+    amaru_role_launch run 2> "${amaru_role_err}"
+    [[ "$(sed -n '1p' "${amaru_capture}")" == "${amaru_pool_dir}/hot.skey" ]] ||
+      fail "Amaru producer did not receive its KES key path"
+    [[ "$(sed -n '2p' "${amaru_capture}")" == "${amaru_pool_dir}/vrf.skey" ]] ||
+      fail "Amaru producer did not receive its VRF key path"
+    [[ "$(sed -n '3p' "${amaru_capture}")" == "${amaru_pool_dir}/op.cert" ]] ||
+      fail "Amaru producer did not receive its operational certificate path"
+    [[ ! -s "${amaru_role_err}" ]] ||
+      fail "Amaru producer start printed an unexpected message"
+    AMARU_OPERATOR_KES="${test_root}/stray.skey" \
+      AMARU_OPERATOR_VRF="${test_root}/stray-vrf.skey" \
+      AMARU_OPERATOR_CERT="${test_root}/stray.cert" \
+      amaru_role_launch run 2>/dev/null
+    [[ "$(sed -n '1p' "${amaru_capture}")" == "${amaru_pool_dir}/hot.skey" &&
+       "$(sed -n '2p' "${amaru_capture}")" == "${amaru_pool_dir}/vrf.skey" &&
+       "$(sed -n '3p' "${amaru_capture}")" == "${amaru_pool_dir}/op.cert" ]] ||
+      fail "Amaru producer kept inherited operator paths over the pool folder"
+
+    # Signing keys readable by group or others stop the start.
+    chmod 0640 "${amaru_pool_dir}/hot.skey"
+    if amaru_role_launch run >/dev/null 2> "${amaru_role_err}"; then
+      fail "Amaru accepted a group-readable KES signing key"
+    fi
+    grep -F "KES signing key must be owned by uid" "${amaru_role_err}" >/dev/null ||
+      fail "Amaru did not explain why it refused the KES signing key"
+    chmod 0600 "${amaru_pool_dir}/hot.skey"
+    chmod 0604 "${amaru_pool_dir}/vrf.skey"
+    if amaru_role_launch run >/dev/null 2> "${amaru_role_err}"; then
+      fail "Amaru accepted a world-readable VRF signing key"
+    fi
+    grep -F "VRF signing key must be owned by uid" "${amaru_role_err}" >/dev/null ||
+      fail "Amaru did not explain why it refused the VRF signing key"
+    chmod 0600 "${amaru_pool_dir}/vrf.skey"
+
+    rm -f -- "${amaru_pool_dir}/op.cert"
+    : > "${amaru_capture}"
+    if amaru_role_launch run >/dev/null 2> "${amaru_role_err}"; then
+      fail "Amaru accepted a partial block-producer credential set"
+    fi
+    grep -F "incomplete Amaru block-producer credential set" \
+      "${amaru_role_err}" >/dev/null ||
+      fail "Amaru did not explain the partial credential set"
+    grep -F "${amaru_pool_dir}/op.cert" "${amaru_role_err}" >/dev/null ||
+      fail "Amaru did not name the missing credential file"
+    [[ ! -s "${amaru_capture}" ]] ||
+      fail "Amaru started its binary with a partial credential set"
+    # Snapshot import never forges, whatever the pool folder holds.
+    amaru_role_launch bootstrap
+    [[ "$(sed -n '1p' "${amaru_capture}")" == "unset" ]] ||
+      fail "Amaru bootstrap received a KES key path"
+    [[ "$(sed -n '4p' "${amaru_capture}")" == "node bootstrap" ]] ||
+      fail "Amaru bootstrap did not invoke node bootstrap"
+    printf '{}\n' > "${amaru_pool_dir}/op.cert"
+    chmod 0644 "${amaru_pool_dir}/op.cert"
+    amaru_role_launch bootstrap
+    [[ "$(sed -n '1p' "${amaru_capture}")" == "unset" &&
+       "$(sed -n '2p' "${amaru_capture}")" == "unset" &&
+       "$(sed -n '3p' "${amaru_capture}")" == "unset" ]] ||
+      fail "Amaru bootstrap did not suppress block production"
+
+    # Without a scripts/env value, a caller export is honored, as in CNTools.
+    awk '$0 != "POOL_NAME=\"test-pool\""' "${common_env}" > "${common_env}.next"
+    command mv -f -- "${common_env}.next" "${common_env}"
+    amaru_role_launch run
+    [[ "$(sed -n '1p' "${amaru_capture}")" == "unset" ]] ||
+      fail "Amaru kept producing after POOL_NAME was removed from scripts/env"
+    POOL_NAME="test-pool" amaru_role_launch run
+    [[ "$(sed -n '1p' "${amaru_capture}")" == "${amaru_pool_dir}/hot.skey" ]] ||
+      fail "Amaru ignored an exported POOL_NAME that CNTools would use"
+    awk '/^# Do NOT modify code below/ && !added { print "POOL_NAME=\"test-pool\""; added = 1 } { print }' \
+      "${common_env}" > "${common_env}.next"
+    command mv -f -- "${common_env}.next" "${common_env}"
     write_fake_executable \
       "${NODE_HOME}/bin/${implementation}" \
       "${implementation} ${expected_version}"
@@ -1677,6 +1828,27 @@ run_alternate_profile_test() (
       fail "common env accepted ${implementation} semantic ${manifest_corruption} corruption"
     fi
   done
+  if [[ "${implementation}" == "amaru" ]]; then
+    # A deployment made before Amaru block production has forging=false in
+    # its manifest and keeps working until guild-deploy.sh runs again.
+    jq '.capabilities.forging = false' \
+      <<< "${valid_deployment_manifest}" > "${NODE_HOME}/.deployment.json"
+    SYSTEMD_UNIT_DIR="${unit_dir}" \
+      SYSTEMCTL_BIN="${fake_systemctl}" \
+      SYSTEMCTL_LOG="${systemctl_log}" \
+      SUDO="N" \
+      "${launcher}" status >/dev/null 2>&1 ||
+      fail "amaru launcher rejected a manifest written before block production"
+    (
+      unset GUILD_NODE_IMPLEMENTATION_OVERRIDE GUILD_NODE_NETWORK_OVERRIDE
+      unset GUILD_NODE_SERVICE_OVERRIDE GUILD_REPOSITORY_ACCOUNT_OVERRIDE
+      USESYSVARS="N"
+      set +u
+      # shellcheck source=/dev/null
+      . "${NODE_HOME}/scripts/env" definitions
+    ) >/dev/null 2>&1 ||
+      fail "common env rejected an Amaru manifest written before block production"
+  fi
   printf '%s\n' "${valid_deployment_manifest}" > "${NODE_HOME}/.deployment.json"
 
   assert_common_env_rejects_override() {
@@ -1769,6 +1941,8 @@ run_alternate_profile_test() (
   grep -F "ReadWritePaths=${resolved_node_home}" "${unit_file}" >/dev/null
   if [[ "${implementation}" == "amaru" ]]; then
     grep -F 'Restart=always' "${unit_file}" >/dev/null
+    grep -F "Description=Guild Operators Amaru experimental node (${network})" \
+      "${unit_file}" >/dev/null
     assert_file "${metrics_unit_file}"
     grep -F "Wants=network-online.target time-sync.target ${NODE_SERVICE}-metrics.service" \
       "${unit_file}" >/dev/null

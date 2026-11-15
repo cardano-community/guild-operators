@@ -261,12 +261,13 @@ amaru_deploy_preflight_snapshot() {
 }
 
 amaru_deploy_prepare_layout() {
-  amaru_deploy_progress "Creating Amaru relay layout" "${NODE_HOME}"
+  amaru_deploy_progress "Creating Amaru node layout" "${NODE_HOME}"
   amaru_deploy_privileged mkdir -p \
     "${NODE_HOME}" \
     "${NODE_HOME}/bin" \
     "${NODE_HOME}/files" \
     "${NODE_HOME}/logs" \
+    "${NODE_HOME}/priv/pool" \
     "${NODE_HOME}/runtime" \
     "${NODE_HOME}/snapshots" \
     "${NODE_HOME}/scripts" \
@@ -281,17 +282,21 @@ amaru_deploy_prepare_layout() {
     "${NODE_HOME}/bin" \
     "${NODE_HOME}/files" \
     "${NODE_HOME}/logs" \
+    "${NODE_HOME}/priv" \
+    "${NODE_HOME}/priv/pool" \
     "${NODE_HOME}/runtime" \
     "${NODE_HOME}/snapshots" \
     "${NODE_HOME}/scripts" \
     "${NODE_HOME}/scripts/adapters" \
     "${NODE_HOME}/scripts/archive" \
     "${NODE_HOME}/scripts/lib" || return 1
+  amaru_deploy_privileged chmod 0700 \
+    "${NODE_HOME}/priv" "${NODE_HOME}/priv/pool" || return 1
 
   # Do not create chain or ledger here. Their presence with content is what
   # marks a bootstrapped node, and `amaru node bootstrap` refuses to touch a
   # populated destination.
-  amaru_deploy_ok "Amaru relay layout" "${NODE_HOME}"
+  amaru_deploy_ok "Amaru node layout" "${NODE_HOME}"
 }
 
 amaru_deploy_install_code_payload() {
@@ -528,7 +533,7 @@ amaru_deploy_install_payloads() {
   PROFILE_CAP_N2C="false"
   PROFILE_CAP_LOCAL_CLI="false"
   PROFILE_CAP_METRICS="true"
-  PROFILE_CAP_FORGING="false"
+  PROFILE_CAP_FORGING="true"
   amaru_deploy_ok "Amaru scripts and configuration"
 }
 
@@ -772,7 +777,7 @@ deploy_amaru_profile() {
   amaru_deploy_validate_context || return 1
   amaru_deploy_parse_flags || return 1
 
-  amaru_deploy_warn "Amaru deployment on ${NETWORK} is experimental and relay-only."
+  amaru_deploy_warn "Amaru deployment and block production on ${NETWORK} are experimental."
   [[ "${NETWORK}" != "mainnet" ]] || dispatcher_mainnet_notice "Amaru"
   if [[ "${AMARU_DEPLOY_INSTALL_DEPS}" == "Y" ]]; then
     amaru_deploy_install_dependencies || return 1

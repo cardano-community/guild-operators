@@ -51,6 +51,7 @@ assert_eq "${NODE_METRICS_URL}" "http://127.0.0.1:8889/metrics" \
   "Amaru Prometheus bridge URL"
 node_has metrics || fail "Amaru adapter does not advertise metrics"
 node_has prometheus_bridge || fail "Amaru adapter does not advertise its Prometheus bridge"
+node_has forge || fail "Amaru adapter does not advertise block production"
 
 configured_network=""
 common_configure_known_network() {
@@ -223,7 +224,8 @@ assert_eq "${amaru_headers_rejected}" "11" "rejected consensus headers"
 assert_eq "${amaru_kes_period}" "587" "network KES period on the Network page"
 assert_eq "${amaru_platform}" "linux/x86_64" "Amaru build platform"
 assert_eq "${amaru_host_memory}" "15.6" "Amaru host memory"
-for metric in kesperiod remaining_kes_periods conn_incoming conn_outgoing \
+for metric in forging_enabled kesperiod remaining_kes_periods \
+  opcert_start_kes opcert_expiry_kes conn_incoming conn_outgoing \
   block_delay blocks_w1s amaru_header_delay_ms amaru_block_fetch_ms; do
   assert_metric_unavailable "${metric}"
 done
@@ -294,6 +296,29 @@ assert_metric_unavailable conn_total
 metrics_fixture="${session_fixture}"
 getNodeMetrics
 assert_eq "${conn_total}" "2" "session total without connection-manager gauges"
+
+# Only the forge stage of a block producer reports the operational-certificate
+# gauges. They select gLiveView's producer role, and the KES values move from
+# the Network page to the block-production section.
+metrics_fixture="${session_fixture/remainingKESPeriods_int 0/remainingKESPeriods_int 55}
+cardano_node_metrics_operationalCertificateStartKESPeriod_int 580
+cardano_node_metrics_operationalCertificateExpiryKESPeriod_int 642"
+getNodeMetrics
+assert_eq "${forging_enabled}" "1" "producer role from the operational-certificate gauges"
+assert_eq "${kesperiod}" "587" "producer current KES period"
+assert_eq "${remaining_kes_periods}" "55" "producer remaining KES periods"
+assert_eq "${opcert_start_kes}" "580" "operational certificate start period"
+assert_eq "${opcert_expiry_kes}" "642" "operational certificate expiry period"
+assert_metric_unavailable amaru_kes_period
+[[ " ${NODE_INFO_METRICS[*]} " != *" amaru_kes_period "* ]] ||
+  fail "producer KES period stayed on the Network page"
+metrics_fixture="${session_fixture}"
+getNodeMetrics
+for metric in forging_enabled kesperiod remaining_kes_periods \
+  opcert_start_kes opcert_expiry_kes; do
+  assert_metric_unavailable "${metric}"
+done
+assert_eq "${amaru_kes_period}" "587" "network KES period after returning to relay metrics"
 
 # Durations expire when no new block arrives for a long time.
 for key in "${!AMARU_HIST_LAST_AT[@]}"; do

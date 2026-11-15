@@ -10,7 +10,7 @@ NODE_IMPLEMENTATION_DISPLAY_NAME="Amaru"
 NODE_IMPLEMENTATION_LOGO=("  ▗█▗ " " ▟█▛▟▐" "▝▀▜▘▘▝")
 NODE_IMPLEMENTATION_LOGO_RGB=("48;228;161" "48;209;177" "49;130;243")
 NODE_IMPLEMENTATION_LOGO_RGB_LIGHT=("14;128;90" "16;122;110" "49;130;243")
-NODE_CAPABILITIES="process process_pid metrics prometheus_bridge peer_inspection"
+NODE_CAPABILITIES="process process_pid metrics prometheus_bridge peer_inspection forge kes"
 
 # Histogram state kept between gLiveView refreshes. node_adapter_collect_metrics
 # runs in gLiveView's own shell, so per-interval means survive across scrapes.
@@ -580,16 +580,25 @@ node_adapter_collect_metrics() {
   common_parse_cardano_metrics "${normalized_metrics}"
   printf -v now '%(%s)T' -1
 
-  # Amaru derives its KES gauges from the network clock rather than from an
-  # operational certificate, and it does not forge here. The current period
-  # is still useful context for offline operational-certificate work.
-  node_metric_unset kesperiod
-  node_metric_unset remaining_kes_periods
-  if prometheus_first_metric_value value cardano_node_metrics_currentKESPeriod_int &&
-     node_metric_value_is_numeric "${value}"; then
-    amaru_adapter_set_info amaru_kes_period "${value}" "KES period"
-  else
+  # Amaru exports no forging flag. Only its forge stage reports the
+  # operational-certificate gauges, so their presence marks a block producer
+  # and the KES values belong in the block-production section. On a relay the
+  # current period comes from the network clock alone; it is still useful
+  # context for offline operational-certificate work.
+  if node_metric_has opcert_start_kes; then
+    node_metric_set forging_enabled 1
     node_metric_unset_info amaru_kes_period
+  else
+    node_metric_unset forging_enabled
+    node_metric_unset kesperiod
+    node_metric_unset remaining_kes_periods
+    node_metric_unset opcert_expiry_kes
+    if prometheus_first_metric_value value cardano_node_metrics_currentKESPeriod_int &&
+       node_metric_value_is_numeric "${value}"; then
+      amaru_adapter_set_info amaru_kes_period "${value}" "KES period"
+    else
+      node_metric_unset_info amaru_kes_period
+    fi
   fi
 
   # Only fork switches that changed the selected chain count as forks.

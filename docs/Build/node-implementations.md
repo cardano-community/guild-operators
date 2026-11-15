@@ -7,7 +7,7 @@ the same `guild-deploy.sh` entrypoint:
 | --- | --- | --- | --- | --- |
 | cardano-node | `cnode` | `/opt/cardano/cnode` | mainnet, preprod, preview, guild, dijkstra, musashi | Default, supported deployment |
 | Dingo | `dingo` | `/opt/cardano/dingo` | mainnet, preprod, preview | Experimental relay deployment, plus block production on preprod and preview |
-| Amaru | `amaru` | `/opt/cardano/amaru` | mainnet, preprod, preview | Experimental rolling-release, relay-only deployment |
+| Amaru | `amaru` | `/opt/cardano/amaru` | mainnet, preprod, preview | Experimental rolling-release deployment, relay or block producer |
 
 Omitting `-i` selects `cnode`, preserving the existing install path and
 behavior:
@@ -23,9 +23,8 @@ deployment. A later run against an existing, valid `.deployment.json` may omit
 `-n`; the dispatcher restores and validates the recorded network. Alternate
 profiles reject cnode-only selective-install flags. The shared `w` flag
 installs the pinned `cardano-hw-cli` and host device rules for any
-implementation. Dingo can select relay or block-producer mode; Amaru remains
-relay-only. All three profiles install the CNTools 14 launcher and modular
-interface skeleton.
+implementation. Dingo and Amaru can select relay or block-producer mode. All
+three profiles install the CNTools 14 launcher and modular interface skeleton.
 
 ## Dispatcher and implementation profiles
 
@@ -68,7 +67,7 @@ Implementation-specific work remains separate:
 - `scripts/dingo-helper-scripts/deploy-dingo.sh` installs Dingo's node
   layout, rolling release, independently pinned CLI companion, configuration,
   launcher, adapter, common gLiveView dashboard, and CNTools framework;
-- `scripts/amaru-helper-scripts/deploy-amaru.sh` installs Amaru's relay
+- `scripts/amaru-helper-scripts/deploy-amaru.sh` installs Amaru's node
   layout, rolling release, environment, launcher, adapter, managed
   OpenTelemetry bridge, common gLiveView dashboard, and CNTools framework.
 
@@ -280,11 +279,13 @@ upstream bridge. It receives metrics, traces, and logs over OTLP/gRPC on
 `127.0.0.1:4317` and exposes Prometheus-formatted metrics on
 `127.0.0.1:8889`. Both Amaru monitoring endpoints are loopback-only.
 
-For Dingo, `capabilities.forging: true` records that the implementation profile
-can forge; it does not claim that every deployed process is a producer. The
-launcher selects the live role from the complete operational hot-key set and
-gLiveView confirms it from Dingo's `forging_enabled` metric. A Dingo producer
-uses the common KES and block-production display. CNCLI blocklog, Koios pool
+For Dingo and Amaru, `capabilities.forging: true` records that the
+implementation profile can forge; it does not claim that every deployed
+process is a producer. The launcher selects the live role from the complete
+operational hot-key set. gLiveView confirms it from Dingo's `forging_enabled`
+metric and, for Amaru, from the operational-certificate gauges that only its
+forge stage exports. Such a producer uses the common KES and block-production
+display. CNCLI blocklog, Koios pool
 and Mithril signer sections remain cnode-only, and interactive peer analysis is
 available for cnode and Amaru. See the
 [gLiveView guide](../Scripts/gliveview.md) for the displayed metric groups.
@@ -299,7 +300,7 @@ available for cnode and Amaru. See the
 | CNTools 14 interface | Skeleton only | Skeleton only | Skeleton only |
 | cardano-cli local queries | Yes | Not exposed through the profile | No compatible node-to-client socket |
 | db-sync, Ogmios, standalone Mithril helpers | Existing support | Not deployed | Not deployed |
-| Block production | Yes | Experimental on preprod/preview, not on mainnet | Not supported by this profile |
+| Block production | Yes | Experimental on preprod/preview, not on mainnet | Experimental |
 
 Dingo samples carry an upstream `network` label; the shared parser accepts
 labelled and unlabelled Prometheus samples. Amaru samples pass through
