@@ -291,19 +291,23 @@ cnode_populate_line="$(grep -n 'run_step "Scripts and configuration"' \
   fail "cnode does not preflight its complete snapshot before target mutation"
 
 GLIVEVIEW="${ROOT_DIR}/scripts/common-helper-scripts/gLiveView.sh"
-grep -Fq 'tip_gap "Tip gap" "slots"' "${GLIVEVIEW}" ||
-  fail "gLiveView does not render the normalized Tip gap in the chain grid"
+grep -Fq 'glv_cell "$1" "Tip gap"' "${GLIVEVIEW}" ||
+  fail "gLiveView does not show the normalized Tip gap with the chain figures"
 if grep -Eq 'Tip [(](ref|diff)[)]' "${GLIVEVIEW}"; then
   fail "gLiveView still renders the retired Tip ref/diff fields"
 fi
-grep -Fq 'glvRenderNetworkPage' "${GLIVEVIEW}" ||
-  fail "gLiveView does not provide the Network details page"
-grep -Fq 'glvRenderProducerMetrics' "${GLIVEVIEW}" ||
-  fail "gLiveView does not provide the shared producer metrics section"
-grep -Fq 'glvMetricGrid "BLOCK PRODUCTION"' "${GLIVEVIEW}" ||
-  fail "gLiveView does not render normalized block-production metrics"
-grep -Fq '[n] Network' "${GLIVEVIEW}" ||
-  fail "gLiveView does not advertise the Network page shortcut"
+grep -Fq '"Node & network"' "${GLIVEVIEW}" ||
+  fail "gLiveView does not provide the Node & network page"
+grep -Fq 'glv_production_cells' "${GLIVEVIEW}" ||
+  fail "gLiveView does not provide the shared block-production figures"
+grep -Fq 'glv_metric_cell "$1" leader_sched_slots' "${GLIVEVIEW}" ||
+  fail "gLiveView does not show normalized block-production metrics"
+grep -Fq '"? Help"' "${GLIVEVIEW}" ||
+  fail "gLiveView does not advertise its help"
+[[ "$(grep -c '^# Do NOT modify code below' "${GLIVEVIEW}")" == "1" ]] ||
+  fail "gLiveView needs exactly one user-variables marker for script updates"
+grep -q '^GLV_VERSION=v[0-9]' "${GLIVEVIEW}" ||
+  fail "gLiveView does not state its version for the update check"
 grep -Fq \
   'https://cardano-community.github.io/guild-operators/Scripts/gliveview' \
   "${GLIVEVIEW}" ||
@@ -319,8 +323,8 @@ for documentation_heading in \
     fail "gLiveView documentation is missing ${documentation_heading}"
 done
 for documented_metric in \
-  'Tip gap' 'Disk util' 'OpCert starts / expires' 'Total' 'ALERT' 'SYNC' \
-  'Goroutines' 'Valid fail' 'Replay err' 'Lost slots' 'Keys valid' \
+  'Tip gap' 'Disk util' 'Op cert' 'Conns' 'Alert' 'Sync' \
+  'Goroutines' 'Valid fail' 'Replay err' 'Lost' 'Keys' \
   'Proc CPU' 'Tx reject' 'Hdr delay' 'Fetch wait'; do
   grep -Fq "| ${documented_metric} |" "${GLIVEVIEW_DOCS}" ||
     fail "gLiveView documentation is missing metric: ${documented_metric}"

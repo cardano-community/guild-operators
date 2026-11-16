@@ -1,81 +1,44 @@
 #!/usr/bin/env bash
 # Canonical implementation-neutral gLiveView entrypoint.
-#shellcheck disable=SC2009,SC2034,SC2059,SC2206,SC2086,SC2015,SC2154
-#shellcheck source=/dev/null
+# shellcheck disable=SC1090,SC1091,SC2015,SC2034,SC2086,SC2154,SC2162,SC2178
+#
+# Koios gLiveView: a live dashboard for cardano-node, Amaru and Dingo. Bash
+# draws every frame; gum is only used for the command list and for the text
+# prompts, and the dashboard runs without it.
 
 ######################################
 # User Variables - Change as desired #
 # Common variables set in env file   #
 ######################################
 
-#NODE_NAME="Cardano Node"                 # Change your node's name prefix here, keep at or below 19 characters!
-#REFRESH_RATE=2                           # How often (in seconds) to refresh the view (additional time for processing and output may slow it down)
-#REPAINT_RATE=10                          # Seconds between full row reconciliation (changed rows still refresh every REFRESH_RATE)
-#LEGACY_MODE=false                        # (true|false) If enabled unicode box-drawing characters will be replaced by standard ASCII characters
-#SHOW_NODE_LOGO=true                      # (true|false) Show the node implementation's logo beside its name in the header
-#RETRIES=3                                # How many attempts to connect to running Cardano node before erroring out and quitting (0 for continuous retries)
-#PEER_LIST_CNT=10                         # Number of peers to show on each in/out page in peer analysis view
-#THEME="dark"                             # dark  = suited for terminals with a dark background
-                                          # light = suited for terminals with a bright background
-#ENABLE_IP_GEOLOCATION=Y                  # Enable IP geolocation on outgoing and incoming connections using ip-api.com (default: Y)
-#LATENCY_TOOLS="ss|cncli|tcptraceroute|ping" # Preferred latency check tool order, valid entries: ss|cncli|tcptraceroute|ping (must be separated by |)
-#CNCLI_CONNECT_ONLY=false                 # By default cncli measure full connect handshake duration. If set to false, only connect is measured similar to other tools
-#HIDE_DUPLICATE_IPS=N                     # If set to 'Y', duplicate and local IP's will be filtered out in peer analysis, else all connected peers are shown (default: N)
-#ENABLE_NODE_PEER_STATE=Y                 # Read connection use, peer states and scores in peer analysis from the node's journal: cardano-node's log and state dump (SIGUSR1), or Amaru's log (default: Y)
-#VERBOSE=N                               # Start in verbose mode showing additional metrics (default: N)
-#GLV_LOG="${LOG_DIR}/gLiveView.log"       # Log gLiveView errors, set empty to disable. LOG_DIR set in env file.
-
-#####################################
-# Themes                            #
-#####################################
-
-setTheme() {
-  if [[ -z ${THEME} || ${THEME} = "dark" ]]; then
-    style_title=${FG_MAGENTA}${BOLD}      # style of title
-    style_base=${FG_WHITE}                # default color for text and lines
-    style_values_1=${FG_LBLUE}            # color of most live values
-    style_values_2=${FG_GREEN}            # color of node name
-    style_values_3=${STANDOUT}            # color of selected outgoing/incoming paging
-    style_values_4=${FG_LGRAY}            # color of informational text
-    style_info=${FG_YELLOW}               # info messages
-    style_status_1=${FG_GREEN}            # :)
-    style_status_2=${FG_YELLOW}           # :|
-    style_status_3=${FG_RED}              # :(
-    style_status_4=${FG_MAGENTA}          # :((
-  elif [[ ${THEME} = "light" ]]; then
-    style_title=${FG_MAGENTA}${BOLD}      # style of title
-    style_base=${FG_BLACK}                # default color for text and lines
-    style_values_1=${FG_BLUE}             # color of most live values
-    style_values_2=${FG_GREEN}            # color of node name
-    style_values_3=${STANDOUT}            # color of selected outgoing/incoming paging
-    style_values_4=${FG_LGRAY}            # color of informational text
-    style_info=${FG_YELLOW}               # info messages
-    style_status_1=${FG_GREEN}            # :)
-    style_status_2=${FG_YELLOW}           # :|
-    style_status_3=${FG_RED}              # :(
-    style_status_4=${FG_MAGENTA}          # :((
-  else
-    myExit 1 "Please specify a valid THEME name!"
-  fi
-}
+#NODE_NAME=""                             # Name shown for this node (default: the deployment folder's name)
+#REFRESH_RATE=2                           # Seconds between metric collections; clocks and countdowns move every second
+#GLV_THEME=""                             # default or hydra-after-dark (default: the theme chosen in CNTools)
+#GLV_COLORS=""                            # truecolor, 256 or none (default: truecolor when COLORTERM announces it, else 256)
+#ENABLE_IP_GEOLOCATION=Y                  # Peer analysis asks ip-api.com for the city and country of peer addresses (N to disable)
+#ENABLE_NODE_PEER_STATE=Y                 # Peer analysis reads the node's own view of its peers from its journal: cardano-node's log and state dump (SIGUSR1), or Amaru's log (N to disable)
 
 ######################################
 # Do NOT modify code below           #
 ######################################
 
-GLV_VERSION=v1.34.0
+GLV_VERSION=v2.0.0
 
 PARENT="$(cd "$(dirname "${BASH_SOURCE[0]}")" >/dev/null 2>&1 && pwd -P)"
 
 usage() {
   cat <<-EOF
-		Usage: $(basename "$0") [-l] [-u] [-b <branch name>] [-v]
+		Usage: $(basename "$0") [-u] [-b <branch name>] [-t <theme>] [-c <colours>] [-d] [-v]
 		Koios gLiveView - A local Cardano node monitoring tool
 
-		-l    Activate legacy mode - standard ASCII characters instead of box-drawing characters
 		-u    Skip script update check overriding UPDATE_CHECK value in env
 		-b    Persist an alternate Guild Operators branch for this deployment
+		-t    Colour theme: default or hydra-after-dark
+		-c    Colour depth: truecolor, 256 or none (default: detected)
+		-d    Show frame and collection times in the footer
 		-v    Print Koios gLiveView version
+
+		Guide: https://cardano-community.github.io/guild-operators/Scripts/gliveview
 		EOF
   exit 1
 }
@@ -84,37 +47,26 @@ SKIP_UPDATE=N
 BRANCH_EXPLICIT=N
 PRINT_VERSION=N
 REQUESTED_BRANCH=""
+GLV_DEBUG=N
 GLIVE_ARG_COPY=("$@")
 
-while getopts :lub:v opt; do
+# -l selected ASCII borders in gLiveView 1. It is still accepted, so that an
+# old alias keeps working, and has no effect.
+while getopts :lub:t:c:dv opt; do
   case ${opt} in
-    l ) LEGACY_MODE="true" ;;
+    l ) : ;;
     u ) SKIP_UPDATE=Y ;;
     b ) REQUESTED_BRANCH="${OPTARG}"; GUILD_BRANCH_OVERRIDE="${OPTARG}"; BRANCH_EXPLICIT=Y ;;
+    t ) GLV_THEME="${OPTARG}" ;;
+    c ) GLV_COLORS="${OPTARG}" ;;
+    d ) GLV_DEBUG=Y ;;
     v ) PRINT_VERSION=Y ;;
     \? ) usage ;;
   esac
 done
 shift $((OPTIND -1))
 
-# General exit handler
-cleanup() {
-  [[ -n $1 ]] && err=$1 || err=$?
-  [[ $err -eq 0 ]] && clear
-  tput cnorm # restore cursor
-  [[ -n ${exit_msg} ]] && echo -e "\n${exit_msg}\n" || echo -e "\nKoios gLiveView terminated, cleaning up...\n"
-  tput sgr0  # turn off all attributes
-  exit $err
-}
-trap cleanup HUP INT TERM
-trap 'stty echo; [[ -z ${GLV_LEGACY_FRAME_FILE:-} ]] || rm -f -- "${GLV_LEGACY_FRAME_FILE}"' EXIT
-
-# Command     : myExit [exit code] [message]
-# Description : gracefully handle an exit and restore terminal to original state
-myExit() {
-  exit_msg="$2"
-  cleanup "$1"
-}
+glv_die() { printf 'gLiveView: %b\n' "$1" >&2; exit "${2:-1}"; }
 
 cnodeToolTargetVersion() {
   local tool_key="$1"
@@ -193,19 +145,15 @@ cnodeToolTargetVersion() {
 #######################################################
 # Version Check                                       #
 #######################################################
-clear
 
-if [[ ! -f "${PARENT}"/env ]]; then
-  echo -e "\nCommon env file missing: ${PARENT}/env"
-  echo -e "This is a mandatory prerequisite, please install with guild-deploy.sh or manually download from GitHub\n"
-  myExit 1
-fi
+[[ -f "${PARENT}/env" ]] ||
+  glv_die "common env file missing: ${PARENT}/env\nThis is a mandatory prerequisite, please install with guild-deploy.sh or manually download from GitHub"
 
-. "${PARENT}"/env definitions || myExit 1 "ERROR: gLiveView failed to load common env definitions"
+. "${PARENT}"/env definitions || glv_die "failed to load common env definitions"
 
 if [[ "${BRANCH_EXPLICIT}" == "Y" ]]; then
   deployment_set_branch "${REQUESTED_BRANCH}" ||
-    myExit 1 "ERROR: Invalid branch '${REQUESTED_BRANCH}' or unable to update ${NODE_HOME}/.deployment.json"
+    glv_die "Invalid branch '${REQUESTED_BRANCH}' or unable to update ${NODE_HOME}/.deployment.json"
   unset GUILD_BRANCH_OVERRIDE
 fi
 
@@ -214,13 +162,22 @@ if [[ "${PRINT_VERSION}" == "Y" ]]; then
   exit 0
 fi
 
+# The update check asks its question on the controlling terminal. Where there
+# is none, as under "su -c", the question could never be answered, so the
+# check is skipped. The probe runs in a subshell: a redirection that fails on
+# ":" itself can end the shell it runs in.
+if [[ ${UPDATE_CHECK} = Y && ${SKIP_UPDATE} != Y ]] && ! (: < /dev/tty) 2>/dev/null; then
+  printf 'Skipping the script update check: no controlling terminal to ask on.\n'
+  SKIP_UPDATE=Y
+fi
+
 if [[ ${UPDATE_CHECK} = Y && ${SKIP_UPDATE} != Y ]]; then
   if [[ "${NODE_IMPLEMENTATION}" == "cnode" ]] &&
      command -v cncli >/dev/null &&
      command -v systemctl >/dev/null &&
      systemctl is-active --quiet "${CNODE_VNAME}-cncli-sync.service" 2>/dev/null; then
     if ! cncli_release_policy="$(cnodeToolTargetVersion "cncli")"; then
-      myExit 1 "ERROR: unable to resolve CNCLI release policy from ${NODE_HOME}/files/cnode-release.json"
+      glv_die "unable to resolve CNCLI release policy from ${NODE_HOME}/files/cnode-release.json"
     fi
     IFS=$'\t' read -r cncli_release_mode vrem <<< "${cncli_release_policy}"
     vcur=$(cncli -V | awk '{print $2}')
@@ -231,7 +188,7 @@ if [[ ${UPDATE_CHECK} = Y && ${SKIP_UPDATE} != Y ]]; then
 
   echo "Checking for script updates..."
   if ! declare -F checkCommonRuntimeUpdates >/dev/null; then
-    myExit 1 "Common runtime bundle updater is unavailable; re-run guild-deploy.sh"
+    glv_die "Common runtime bundle updater is unavailable; re-run guild-deploy.sh"
   fi
 
   BUNDLE_UPDATED=N
@@ -243,13 +200,13 @@ if [[ ${UPDATE_CHECK} = Y && ${SKIP_UPDATE} != Y ]]; then
   case "${common_update_status}" in
     0) ;;
     1) BUNDLE_UPDATED=Y ;;
-    2) myExit 1 "Failed to update the common runtime bundle" ;;
+    2) glv_die "Failed to update the common runtime bundle" ;;
   esac
 
   checkUpdate "${PARENT}/gLiveView.sh" "${BUNDLE_UPDATED}" N N "common-helper-scripts" N
   case $? in
     1) BUNDLE_UPDATED=Y ;;
-    2) myExit 1 "Failed to update gLiveView.sh" ;;
+    2) glv_die "Failed to update gLiveView.sh" ;;
   esac
 
   if [[ "${BUNDLE_UPDATED}" == "Y" ]]; then
@@ -257,1473 +214,2385 @@ if [[ ${UPDATE_CHECK} = Y && ${SKIP_UPDATE} != Y ]]; then
   fi
 fi
 
-. "${PARENT}"/env monitor
-case $? in
-  1) myExit 1 "ERROR: gLiveView failed to initialize the selected node adapter\nPlease verify .deployment.json and values in env" ;;
-  2) clear ;;
-  3) myExit 1 "ERROR: ${NODE_IMPLEMENTATION} does not provide the metrics capability required by gLiveView" ;;
-esac
 
-node_require metrics \
-  "${NODE_IMPLEMENTATION} does not expose a metrics interface supported by gLiveView." ||
-  myExit "${NODE_ADAPTER_UNSUPPORTED}" \
-    "ERROR: ${NODE_IMPLEMENTATION} does not expose a supported metrics interface"
+##############################################################################
+# Drawing: colours, the line builder, boxes and the row-diff writer
+##############################################################################
+# Drawing primitives: colours, a line builder that tracks visible width, boxes
+# with titles in the border, and a row-diff writer. Nothing in this section
+# knows about a node.
+#
+# Bash draws every frame. A gum process costs about 55 ms to start, so gum is
+# kept for dialogs that stop the page anyway.
 
-NODE_IMPLEMENTATION_NAME="${NODE_IMPLEMENTATION_DISPLAY_NAME:-${NODE_IMPLEMENTATION}}"
-nodemode="Relay"
+# ── locale ───────────────────────────────────────────────────────────────────
+# Widths are counted in characters, so the shell must read UTF-8.
+ui_utf8() { local probe='─'; (( ${#probe} == 1 )); }
 
-#######################################################
-# Validate config variables                           #
-# Can be overridden in 'User Variables' section above #
-#######################################################
-
-# The default name is left out beside an implementation's logo, which already names the node.
-[[ -z ${NODE_NAME} ]] && NODE_NAME="Cardano Node" && NODE_NAME_DEFAULT=Y
-[[ ${#NODE_NAME} -gt 19 ]] && myExit 1 "Please keep node name at or below 19 characters in length!"
-
-[[ -z ${REFRESH_RATE} ]] && REFRESH_RATE=2
-[[ ! ${REFRESH_RATE} =~ ^[0-9]+$ ]] && myExit 1 "Please set a valid refresh rate number!"
-
-[[ -z ${REPAINT_RATE} ]] && REPAINT_RATE=10
-[[ ! ${REPAINT_RATE} =~ ^[1-9][0-9]*$ ]] &&
-  myExit 1 "Please set a positive repaint interval in seconds!"
-
-[[ -z ${LEGACY_MODE} ]] && LEGACY_MODE=false
-[[ -z ${SHOW_NODE_LOGO} ]] && SHOW_NODE_LOGO=true
-
-[[ -z "${RETRIES}" ]]  && RETRIES=3
-
-[[ -z ${ENABLE_IP_GEOLOCATION} ]] && ENABLE_IP_GEOLOCATION=Y
-declare -gA geoIP=()
-[[ -f "$0.geodb" ]] && . -- "$0.geodb"
-
-[[ -z ${PEER_LIST_CNT} ]] && PEER_LIST_CNT=10
-
-[[ -z ${LATENCY_TOOLS} ]] && LATENCY_TOOLS="ss|cncli|tcptraceroute|ping"
-
-[[ -z ${CNCLI_CONNECT_ONLY} ]] && CNCLI_CONNECT_ONLY=false
-
-[[ -z ${HIDE_DUPLICATE_IPS} ]] && HIDE_DUPLICATE_IPS=N
-
-[[ -z ${ENABLE_NODE_PEER_STATE} ]] && ENABLE_NODE_PEER_STATE=Y
-declare -gA nodeConnUse=()   # "ip;remote port;local port" -> dup, out, in or idle
-declare -gA nodePeerTemp=()  # "ip;port" -> H or W on the node's outbound side
-declare -gA nodePeerScore=() # "ip;port" -> headers first plus blocks fetched first
-declare -gA nodeRemoteTemp=() # "ip;remote port;local port" -> H, W or C on the peer's side
-node_peer_state_available=false
-PEER_STATE_FILE="$0.peerstate" # what was read from the node's log of its connections, and how far
-peer_filter_dir="all"     # all | out | in | dup, cycled with [d] in peer analysis
-peer_filter_state="any"   # any | hot | warm, cycled with [s] in peer analysis
-peer_search=""            # IP or port substring, entered with [/] in peer analysis
-peer_filter_static="all"  # all | static (topology localRoots), toggled with [t] on nodes with a topology file
-declare -gA staticPeer=() # resolved IP of a localRoots access point -> its label(s)
-declare -gA staticPeerPort=()    # "ip;port" of a localRoots access point -> its label
-declare -gA staticPeerEntries=() # resolved IP -> number of access points using it
-staticPeerList=()         # "address;port;label;ip,ip" per localRoots access point
-
-[[ -z ${VERBOSE} ]] && VERBOSE=N
-
-[[ -z ${GLV_LOG} ]] && GLV_LOG="${LOG_DIR}/gLiveView.log"
-
-#######################################################
-# Style / UI                                          #
-#######################################################
-width=71
-
-# first column
-left_most_column=$(( width + 1 ))
-
-# two column view
-two_col_width=$(( (width-3)/2 ))
-two_col_second=$(( two_col_width + 2 ))
-
-# three column view
-three_col_width=$(( (width-5)/3 ))
-three_col_2_start=$(( three_col_width + 3 ))
-three_col_3_start=$(( three_col_width*2 + 4 ))
-# main section
-three_col_value_width=$(( three_col_width - 12 ))
-
-# block section use same width as main section
-
-setTheme # call function to set theme colors
-glv_resolve_theme_escapes \
-  style_title style_base \
-  style_values_1 style_values_2 style_values_3 style_values_4 \
-  style_info \
-  style_status_1 style_status_2 style_status_3 style_status_4 ||
-  myExit 1 "ERROR: unable to initialize gLiveView terminal theme"
-NC="$(tput sgr0 2>/dev/null || true)${style_base}" # override default NC in env
-
-# Progressbar
-if [[ ${LEGACY_MODE} = "true" ]]; then
-  char_marked="#"
-  char_unmarked="."
-else
-  char_marked=$(printf "\\u258C")
-  char_unmarked=$(printf "\\u2596")
-fi
-granularity=$((width-3))
-granularity_small=$((granularity/2))
-bar_col_small=$((width - granularity_small))
-
-# Title
-title="Koios gLiveView ${GLV_VERSION}"
-
-# Lines
-if [[ ${LEGACY_MODE} = "true" ]]; then
-  VL=$(printf "${NC}|")
-  HL=$(printf "${NC}=")
-  LVL=$(printf "${NC}|")
-  RVL=$(printf "${NC}|")
-  UHL=$(printf "${NC}=")
-  DHL=$(printf "${NC}=")
-  UR=$(printf "${NC}=")
-  UL=$(printf "${NC}|")
-  DR=$(printf "${NC}|")
-  DL=$(printf "${NC}|")
-  tdivider=$(printf "${NC}|" && printf "%0.s=" $(seq $((width-1))) && printf "|")
-  mdivider=$(printf "${NC}|" && printf "%0.s=" $(seq $((width-1))) && printf "|")
-  m2divider=$(printf "${NC}|" && printf "%0.s-" $(seq $((width-1))) && printf "|")
-  m3divider=$(printf "${NC}|" && printf "%0.s- " $(seq $((width/2))) && printf "|")
-  bdivider=$(printf "${NC}|" && printf "%0.s=" $(seq $((width-1))) && printf "|")
-  coredivider=$(printf "${NC}|= ${style_info}CORE${NC} " && printf "%0.s=" $(seq $((width-8))) && printf "|")
-  conndivider=$(printf "${NC}|- ${style_info}CONNECTIONS${NC} " && printf "%0.s-" $(seq $((width-15))) && printf "|")
-  propdivider=$(printf "${NC}|- ${style_info}BLOCK PROPAGATION${NC} " && printf "%0.s-" $(seq $((width-21))) && printf "|")
-  resourcesdivider=$(printf "${NC}|- ${style_info}NODE RESOURCE USAGE${NC} " && printf "%0.s-" $(seq $((width-23))) && printf "|")
-  blockdivider=$(printf "${NC}|- ${style_info}BLOCK PRODUCTION${NC} " && printf "%0.s-" $(seq $((width-20))) && printf "|")
-  mithrildivider=$(printf "${NC}|- ${style_info}MITHRIL SIGNER${NC} " && printf "%0.s-" $(seq $((width-18))) && printf "|")
-  blank_line=$(printf "${NC}|%$((width-1))s|" "")
-  arrow_right=$(printf ">")
-  arrow_left=$(printf "<")
-else
-  VL=$(printf "${NC}\\u2502")
-  HL=$(printf "${NC}\\u2500")
-  LVL=$(printf "${NC}\\u2524")
-  RVL=$(printf "${NC}\\u251C")
-  UHL=$(printf "${NC}\\u2534")
-  DHL=$(printf "${NC}\\u252C")
-  UR=$(printf "${NC}\\u2514")
-  UL=$(printf "${NC}\\u2518")
-  DR=$(printf "${NC}\\u250C")
-  DL=$(printf "${NC}\\u2510")
-  tdivider=$(printf "${NC}\\u250C" && printf "%0.s\\u2500" $(seq $((width-${#title}-${#CNODE_PORT}-13))) && printf "\\u252C" && printf "%0.s\\u2500" $(seq $((${#CNODE_PORT}+8))) && printf "\\u252C" && printf "%0.s\\u2500" $(seq $((${#title}+2))) && printf "\\u2510")
-  mdivider=$(printf "${NC}\\u251C" && printf "%0.s\\u2500" $(seq $((width-1))) && printf "\\u2524")
-  m2divider=$(printf "${NC}\\u2502" && printf "%0.s-" $(seq $((width-1))) && printf "\\u2502")
-  m3divider=$(printf "${NC}\\u2502" && printf "%0.s- " $(seq $((width/2))) && printf "\\u2502")
-  bdivider=$(printf "${NC}\\u2514" && printf "%0.s\\u2500" $(seq $((width-1))) && printf "\\u2518")
-  coredivider=$(printf "${NC}\\u251C\\u2500 ${style_info}CORE${NC} " && printf "%0.s\\u2500" $(seq $((width-8))) && printf "\\u2524")
-  conndivider=$(printf "${NC}\\u2502- ${style_info}CONNECTIONS${NC} " && printf "%0.s-" $(seq $((width-15))) && printf "\\u2502")
-  propdivider=$(printf "${NC}\\u2502- ${style_info}BLOCK PROPAGATION${NC} " && printf "%0.s-" $(seq $((width-21))) && printf "\\u2502")
-  resourcesdivider=$(printf "${NC}\\u2502- ${style_info}NODE RESOURCE USAGE${NC} " && printf "%0.s-" $(seq $((width-23))) && printf "\\u2502")
-  blockdivider=$(printf "${NC}\\u2502- ${style_info}BLOCK PRODUCTION${NC} " && printf "%0.s-" $(seq $((width-20))) && printf "\\u2502")
-  mithrildivider=$(printf "${NC}\\u2502- ${style_info}MITHRIL SIGNER${NC} " && printf "%0.s-" $(seq $((width-18))) && printf "\\u2502")
-  blank_line=$(printf "${NC}\\u2502%$((width-1))s\\u2502" "")
-  arrow_right=$(printf "\\u25B6")
-  arrow_left=$(printf "\\u25C0")
-fi
-
-#####################################
-# Helper functions                  #
-#####################################
-
-# Command     : waitForKeyOrResize
-# Description : Wait for a keypress (in key1) on a view that shows static data,
-#               without redrawing it. Returns 1 after clearing the screen when
-#               the terminal is resized, so the main loop draws it again.
-waitForKeyOrResize() {
-  local wait_lines wait_cols read_status
-  wait_lines=$(tput lines)
-  wait_cols=$(tput cols)
-  while :; do
-    read -rsn1 -t 1 key1 && return 0
-    read_status=$?
-    (( read_status > 128 )) || return 0 # end of input rather than a timeout
-    if [[ $(tput lines) != "${wait_lines}" || $(tput cols) != "${wait_cols}" ]]; then
-      clrScreen
-      return 1
-    fi
+ui_locale_init() {
+  local candidate
+  ui_utf8 && return 0
+  for candidate in C.UTF-8 C.utf8 en_US.UTF-8; do
+    { LC_ALL="${candidate}"; } 2>/dev/null
+    if ui_utf8; then export LC_ALL; return 0; fi
   done
+  return 1
 }
 
-# Command     : readPeerSearch
-# Description : Prompt on the footer line for an IP address or port to search
-#               the peer analysis list for. An empty answer clears the search.
-readPeerSearch() {
-  local answer
-  printf "\r\033[K"
-  stty echo
-  tput cnorm
-  # readline prints the prompt itself so line editing keeps the cursor right.
-  read -r -e -p " Search IP or port (Enter applies, empty clears): " -i "${peer_search}" answer
-  stty -echo
-  tput civis
-  answer="${answer//[[:space:]]/}"
-  peer_search="${answer:0:45}"
-}
+# ── colours ──────────────────────────────────────────────────────────────────
+UI_RESET=$'\e[0m'
+UI_BOLD=$'\e[1m'
+UI_COLOUR_DEPTH=256
 
-# Command     : waitForInput [submenu]
-# Description : wait for user keypress to quit, else do nothing if timeout expire
-waitForInput() {
-  ESC=$(printf "\033")
-  if [[ $1 = "homeInfo" || $1 = "networkInfo" || $1 = "peersInfo" || $1 = "peers" ]]; then
-    waitForKeyOrResize || return
-  elif ! read -rsn1 -t ${REFRESH_RATE} key1; then return; fi
-  [[ ${key1} = "${ESC}" ]] && read -rsn2 -t 0.3 key2 # read 2 more chars
-  [[ ${key1} = "q" ]] && myExit 0 "Koios gLiveView stopped!"
-  [[ ${key1} = "${ESC}" && ${key2} = "" ]] && myExit 0 "Koios gLiveView stopped!"
-  if [[ $# -eq 0 ]]; then
-    if [[ ${key1} = "p" ]] && node_has peer_inspection; then
-      check_peers="true"
-      clrScreen
-      return
-    fi
-    [[ ${key1} = "i" ]] && show_home_info="true" && clrScreen && return
-    [[ ${key1} = "n" ]] && show_network_info="true" && clrScreen && return
-    if [[ ${key1} = "v" ]]; then
-      [[ ${VERBOSE} = "N" ]] && VERBOSE="Y" || VERBOSE="N"
-      if [[ ${NODE_IMPLEMENTATION} = "cnode" && ${nodemode} = "Core" ]]; then
-        clrScreen
-      fi
-      return
-    fi
-  elif [[ $1 = "homeInfo" ]]; then
-    [[ ${key1} = "h" ]] && show_home_info="false" && line=0 && clrScreen && return
-  elif [[ $1 = "networkInfo" ]]; then
-    [[ ${key1} = "h" ]] && show_network_info="false" && line=0 && clrScreen && return
-  elif [[ $1 = "peersInfo" ]]; then
-    [[ ${key1} = "b" ]] && show_peers_info="false" && line=0 && clrScreen && return
-  elif [[ $1 = "peers" ]]; then
-    [[ ${key1} = "h" ]] && show_peers="false" && clrScreen && return
-    [[ ${key1} = "i" ]] && show_peers_info="true" && clrScreen && return
-    # The peer view is buffered and rewrites only the rows that change, so
-    # filters and paging need no clear. The search prompt writes over the
-    # footer, so the view is cleared after it.
-    if [[ ${key1} = "/" ]]; then
-      readPeerSearch
-      computePeerStats
-      peerNbr_start=1
-      clrScreen
-      return
-    fi
-    if [[ ${key1} = "t" ]] && node_has topology_file; then
-      [[ ${peer_filter_static} = "all" ]] && peer_filter_static="static" || peer_filter_static="all"
-      computePeerStats
-      peerNbr_start=1
-      return
-    fi
-    if [[ ${key1} = "d" || ${key1} = "s" ]] && peerConnAvailable; then
-      if [[ ${key1} = "d" ]]; then
-        case ${peer_filter_dir} in
-          all) peer_filter_dir="out" ;; out) peer_filter_dir="in" ;;
-          in) peer_filter_dir="dup" ;; *) peer_filter_dir="all" ;;
-        esac
-      else
-        case ${peer_filter_state} in
-          any) peer_filter_state="hot" ;; hot) peer_filter_state="warm" ;;
-          *) peer_filter_state="any" ;;
-        esac
-      fi
-      computePeerStats
-      peerNbr_start=1
-      return
-    fi
-    if [[ ${key2} = "[C" && ${show_peers} = "true" ]]; then # Right arrow
-      [[ ${peerListCNT} -gt ${peerNbr} ]] && peerNbr_start=$((peerNbr_start+PEER_LIST_CNT)) && return
-    fi
-    if [[ ${key2} = "[D" && ${show_peers} = "true" ]]; then # Left arrow
-      [[ ${peerNbr_start} -gt ${PEER_LIST_CNT} ]] && peerNbr_start=$((peerNbr_start-PEER_LIST_CNT)) && return
-    fi
-  fi
-}
-
-# Command    : sizeOfProgressSlotSpan
-# Description: Determine and set the size and style of the progress bar based on remaining time
-# Return     : sets leader_bar_span as integer [432000, 43200, 3600, 300]
-#            : sets leader_bar_style using styling from theme
-setSizeAndStyleOfProgressBar() {
-  if [[ ${1} -gt 43200 ]]; then
-    leader_bar_span=432000
-    leader_bar_style="${style_status_1}"
-  elif [[ ${1} -gt 3600 ]]; then
-    leader_bar_span=43200
-    leader_bar_style="${style_status_2}"
-  elif [[ ${1} -gt 300 ]]; then
-    leader_bar_span=3600
-    leader_bar_style="${style_status_3}"
+# ui_colour_256 <variable> <r> <g> <b>: nearest xterm-256 colour index.
+# The locals carry a prefix because the result is written through a nameref:
+# a caller's variable with the same name as a local here would be shadowed.
+ui_colour_256() {
+  local -n _c256_out="$1"
+  local _c256_r="$2" _c256_g="$3" _c256_b="$4" _c256_channel _c256_level _c256_value
+  local _c256_cube=16 _c256_cube_distance=0 _c256_grey_distance _c256_step=36
+  for _c256_channel in "${_c256_r}" "${_c256_g}" "${_c256_b}"; do
+    if (( _c256_channel < 48 )); then _c256_level=0
+    elif (( _c256_channel < 115 )); then _c256_level=1
+    else _c256_level=$(((_c256_channel - 35) / 40)); fi
+    _c256_value=$(( _c256_level == 0 ? 0 : 55 + 40 * _c256_level ))
+    _c256_cube=$((_c256_cube + _c256_level * _c256_step))
+    _c256_cube_distance=$((_c256_cube_distance + (_c256_channel - _c256_value) * (_c256_channel - _c256_value)))
+    _c256_step=$((_c256_step / 6))
+  done
+  _c256_level=$(((_c256_r + _c256_g + _c256_b) / 3))
+  _c256_level=$(( _c256_level < 8 ? 0 : (_c256_level - 8) / 10 ))
+  (( _c256_level <= 23 )) || _c256_level=23
+  _c256_value=$((8 + 10 * _c256_level))
+  _c256_grey_distance=$(( (_c256_r - _c256_value) * (_c256_r - _c256_value) +
+    (_c256_g - _c256_value) * (_c256_g - _c256_value) +
+    (_c256_b - _c256_value) * (_c256_b - _c256_value) ))
+  if (( _c256_grey_distance < _c256_cube_distance )); then
+    _c256_out=$((232 + _c256_level))
   else
-    leader_bar_span=300
-    leader_bar_style="${style_status_4}"
+    _c256_out="${_c256_cube}"
   fi
 }
 
-# Command    : alignLeft <nbr chars> <string>
-# Description: printf align helpers useful to handle umlauts correctly
-alignLeft () {
-  (($#==2)) || return 2
-  ((${#2}>$1)) && return 1
-  printf '%s%*s' "$2" $(($1-${#2})) ''
-}
-# Command    : alignRight <nbr chars> <string>
-alignRight () {
-  (($#==2)) || return 2
-  ((${#2}>$1)) && return 1
-  printf '%*s%s' $(($1-${#2})) '' "$2"
-}
-
-# Command    : mvRight <nbr columns>
-# Description: move curser x columns to the right
-mvRight () {
-  printf "\033[${1}C"
-}
-# Command    : mvLeft <nbr columns>
-# Description: move curser x columns to the left
-mvLeft () {
-  printf "\033[${1}D"
-}
-# Command    : mvPos <line nbr> <column nbr>
-# Description: move curser to specified position
-mvPos () {
-  printf "\033[$1;$2H"
-}
-# Command    : mvTwoSecond
-# Description: move curser to two column view, second column start
-mvTwoSecond () {
-  printf "\033[${left_most_column}D\033[${two_col_second}C"
-}
-# Command    : mvThreeSecond
-# Description: move curser to three column view, second column start
-mvThreeSecond () {
-  printf "\033[${left_most_column}D\033[${three_col_2_start}C"
-}
-# Command    : mvThreeThird
-# Description: move curser to three column view, third column start
-mvThreeThird () {
-  printf "\033[${left_most_column}D\033[${three_col_3_start}C"
-}
-# Command    : mvEnd
-# Description: move curser to last column
-mvEnd () {
-  printf "\033[${left_most_column}D\033[${width}C"
-}
-# Command    : closeRow
-# Description: move curser to last column, print border and newline and finally increment line number
-closeRow () {
-  printf "${NC}\033[${left_most_column}D\033[${width}C${VL}\n" && ((line++))
-}
-
-glvSectionDivider() {
-  local label="$1"
-  local fill_count=$(( width - ${#label} - 5 ))
-  (( fill_count < 1 )) && fill_count=1
-  printf "${VL}- ${style_info}%s${NC} " "${label}"
-  printf "%0.s-" $(seq "${fill_count}")
-  closeRow
-}
-
-glvMetricCell() {
-  local name="$1"
-  local label="$2"
-  local unit="$3"
-  local cell_width="${4:-23}"
-  local label_width=10
-  local value_width=$((cell_width - label_width - 3))
-  local value="${!name:-?}"
-  local display healthy_tip_gap=60 style="${style_values_1}"
-
-  case "${name}" in
-    block_delay)
-      if node_metric_value_is_numeric "${value}"; then
-        LC_NUMERIC=C printf -v value '%.2f' "${value}"
-      fi
-      unit="s"
+# ui_colour <NAME> <hex>: sets C_<NAME> (foreground) and CB_<NAME> (background)
+# for the depth the terminal supports, and HEX_<NAME> for gum.
+ui_colour() {
+  local name="$1" hex="${2#\#}" r g b palette
+  r=$((16#${hex:0:2})); g=$((16#${hex:2:2})); b=$((16#${hex:4:2}))
+  printf -v "HEX_${name}" '#%s' "${hex}"
+  case "${UI_COLOUR_DEPTH}" in
+    rgb)
+      printf -v "C_${name}" '\e[38;2;%d;%d;%dm' "${r}" "${g}" "${b}"
+      printf -v "CB_${name}" '\e[48;2;%d;%d;%dm' "${r}" "${g}" "${b}"
       ;;
-    blocks_w1s|blocks_w3s|blocks_w5s)
-      value="$(glv_ratio_percent "${value}" 2>/dev/null || printf '?')"
-      unit="%"
+    none)
+      printf -v "C_${name}" '%s' ''
+      printf -v "CB_${name}" '%s' ''
       ;;
-    density)
-      if node_metric_value_is_numeric "${value}"; then
-        LC_NUMERIC=C printf -v value '%.3f' "${value}"
-      fi
-      unit="%"
-      ;;
-    tip_gap)
-      if [[ "${value}" =~ ^[0-9]+$ ]]; then
-        if declare -F slotInterval >/dev/null 2>&1; then
-          healthy_tip_gap="$(slotInterval 2>/dev/null || printf '60')"
-          [[ "${healthy_tip_gap}" =~ ^[1-9][0-9]*$ ]] ||
-            healthy_tip_gap=60
-        fi
-        if (( value <= healthy_tip_gap )); then
-          style="${style_status_1}"
-        elif (( value <= 600 )); then
-          style="${style_status_2}"
-        else
-          style="${style_info}"
-        fi
-      fi
-      unit="slots"
-      ;;
-    forge_keys_valid)
-      if [[ "${value}" == "1" ]]; then
-        value="yes"
-        style="${style_status_1}"
-      else
-        value="NO"
-        style="${style_status_3}"
-      fi
-      ;;
-    leader_lost)
-      [[ "${value}" =~ ^[1-9][0-9]*$ ]] && style="${style_status_2}"
-      ;;
-    glv_opcert_counters)
-      # The on-disk certificate counter must equal the on-chain counter, or
-      # exceed it by one for a certificate not yet used to forge a block.
-      if [[ "${value}" =~ ^([0-9]+)\|([0-9]+)$ ]] &&
-         (( BASH_REMATCH[1] != BASH_REMATCH[2] &&
-            BASH_REMATCH[1] != BASH_REMATCH[2] + 1 )); then
-        style="${style_status_3}"
-      fi
+    *)
+      ui_colour_256 palette "${r}" "${g}" "${b}"
+      printf -v "C_${name}" '\e[38;5;%dm' "${palette}"
+      printf -v "CB_${name}" '\e[48;5;%dm' "${palette}"
       ;;
   esac
-
-  # Implementation-specific byte gauges use the same bounded binary-unit
-  # formatting as common memory and mempool fields.
-  if [[ "${unit}" == "B" ]] &&
-     node_metric_value_is_numeric "${value}"; then
-    if awk -v bytes="${value}" 'BEGIN { exit !(bytes >= 1073741824) }'; then
-      LC_NUMERIC=C printf -v value '%.1f' \
-        "$(awk -v bytes="${value}" 'BEGIN { print bytes / 1073741824 }')"
-      unit="GiB"
-    elif awk -v bytes="${value}" 'BEGIN { exit !(bytes >= 1048576) }'; then
-      LC_NUMERIC=C printf -v value '%.1f' \
-        "$(awk -v bytes="${value}" 'BEGIN { print bytes / 1048576 }')"
-      unit="MiB"
-    elif awk -v bytes="${value}" 'BEGIN { exit !(bytes >= 1024) }'; then
-      LC_NUMERIC=C printf -v value '%.1f' \
-        "$(awk -v bytes="${value}" 'BEGIN { print bytes / 1024 }')"
-      unit="KiB"
-    fi
-  fi
-
-  if [[ "${value}" =~ ^[0-9]+$ &&
-        $(( ${#value} + ${#unit} + 1 )) -gt ${value_width} ]]; then
-    unset cn_value cn_suffix
-    compactNumber "${value}" >/dev/null 2>&1 || true
-    [[ -n "${cn_value:-}" ]] && value="${cn_value}${cn_suffix:-}"
-  elif [[ "${value}" =~ ^[0-9]+[.][0-9]+$ &&
-          ${#value} -gt ${value_width} ]]; then
-    LC_NUMERIC=C printf -v value '%.2f' "${value}"
-  fi
-
-  display="${value}${unit:+ ${unit}}"
-  label="$(glv_text_pad "${label_width}" "${label}")"
-  display="$(glv_text_pad "${value_width}" "${display}")"
-  printf "%s : ${style}%s${NC}" "${label}" "${display}"
 }
 
-# Render only samples advertised by the adapter in the normalized metrics
-# registry. Parameters after the section label are repeating
-# <variable> <display-label> <unit> triples.
-glvMetricGrid() {
-  local section="$1"
-  shift
-  local name label unit index cell_one cell_two cell_three
-  local -a available=()
+# The palettes are the CNTools themes, so both tools look like one product.
+ui_theme() {
+  # GLV_COLORS overrides the detection: ssh and su do not pass COLORTERM on,
+  # so a terminal that can show 24-bit colour is often not announced as one.
+  case "${GLV_COLORS:-auto}" in
+    truecolor|24bit|rgb) UI_COLOUR_DEPTH=rgb ;;
+    256) UI_COLOUR_DEPTH=256 ;;
+    none) UI_COLOUR_DEPTH=none ;;
+    *)
+      if [[ -n "${NO_COLOR:-}" ]]; then UI_COLOUR_DEPTH=none
+      elif [[ "${COLORTERM:-}" == truecolor || "${COLORTERM:-}" == 24bit ]]; then UI_COLOUR_DEPTH=rgb
+      else UI_COLOUR_DEPTH=256; fi
+      ;;
+  esac
+  case "${1:-default}" in
+    hydra-after-dark)
+      ui_colour TEXT E6F0FA; ui_colour MUTED 9AABC1; ui_colour TRACK 1D3048
+      ui_colour BORDER 27415F; ui_colour ACCENT 59D8F5; ui_colour OK 61D6A3
+      ui_colour WARN F3C875; ui_colour DANGER FF7C91; ui_colour ID 83B6FF
+      ui_colour NUM E9CF8A; ui_colour SURFACE 111E31; ui_colour SELECT 1D3048
+      ;;
+    *)
+      ui_colour TEXT DFDFD6; ui_colour MUTED 98989F; ui_colour TRACK 34343A
+      ui_colour BORDER 45454D; ui_colour ACCENT 4FBC85; ui_colour OK 3DD68C
+      ui_colour WARN F9B44E; ui_colour DANGER F66F81; ui_colour ID 78BFD0
+      ui_colour NUM D8BC7A; ui_colour SURFACE 202127; ui_colour SELECT 2E3038
+      ;;
+  esac
+  if [[ "${UI_COLOUR_DEPTH}" == none ]]; then UI_RESET=''; UI_BOLD=''; fi
+  UI_BASE_MAIN="${UI_RESET}${C_TEXT}"
+  UI_BASE_RAIL="${UI_RESET}${CB_SURFACE}${C_TEXT}"
+  UI_BASE_SELECT="${UI_RESET}${CB_SELECT}${C_TEXT}"
+  UI_BASE="${UI_BASE_MAIN}"
+  UI_KEY="${UI_BOLD}${C_ACCENT}"
+}
 
-  while (( $# >= 3 )); do
-    name="$1"
-    label="$2"
-    unit="$3"
-    shift 3
-    node_metric_has "${name}" && available+=("${name}" "${label}" "${unit}")
+printf -v UI_SPACES '%500s' ''
+UI_DASHES="${UI_SPACES// /─}"
+UI_BLOCKS="${UI_SPACES// /█}"
+UI_HEAVY="${UI_SPACES// /━}"
+UI_BARS="${UI_SPACES// /▇}"
+UI_SPARK=(▁ ▂ ▃ ▄ ▅ ▆ ▇ █)
+
+# ── line builder ─────────────────────────────────────────────────────────────
+# A line is built left to right in UI_L while UI_LW tracks its visible width,
+# so no code ever has to measure a string that contains colour codes.
+UI_L=''
+UI_LW=0
+
+ui_put() { UI_L+="$1$2${UI_BASE}"; UI_LW=$((UI_LW + ${#2})); }
+
+ui_gap() { (( $1 > 0 )) || return 0; UI_L+="${UI_SPACES:0:$1}"; UI_LW=$((UI_LW + $1)); }
+
+# ui_putw <colour> <width> <text> [r]: text cut or padded to exactly <width>.
+ui_putw() {
+  local text="$3" width="$2" pad
+  (( width > 0 )) || return 0
+  (( ${#text} <= width )) || text="${text:0:width}"
+  pad="${UI_SPACES:0:width-${#text}}"
+  if [[ "${4:-}" == r ]]; then text="${pad}${text}"; else text="${text}${pad}"; fi
+  UI_L+="$1${text}${UI_BASE}"
+  UI_LW=$((UI_LW + width))
+}
+
+# ui_kv <width> <label> <colour> <value>: label left, value right, one cell.
+ui_kv() {
+  local width="$1" label="$2" value="$4" room
+  (( ${#value} <= width )) || value="${value:0:width}"
+  room=$((width - 1 - ${#value}))
+  (( room >= 0 )) || room=0
+  (( ${#label} <= room )) || label="${label:0:room}"
+  ui_put "${C_MUTED}" "${label}"
+  ui_gap $((width - ${#label} - ${#value}))
+  ui_put "$3" "${value}"
+}
+
+# ui_endl <array> <width>: pad the line to <width>, append it, start anew.
+ui_endl() {
+  local -n _endl_lines="$1"
+  (( UI_LW >= $2 )) || UI_L+="${UI_SPACES:0:$2-UI_LW}"
+  _endl_lines+=("${UI_BASE}${UI_L}")
+  UI_L=''
+  UI_LW=0
+}
+
+# ui_spark <array> <width> <colour> <max>: the last <width> samples as bars.
+ui_spark() {
+  local -n _spark_values="$1"
+  local width="$2" max="$4" count=${#_spark_values[@]} start i level text=''
+  (( max > 0 )) || max=1
+  start=$(( count > width ? count - width : 0 ))
+  for ((i = start; i < count; i++)); do
+    level=$(( _spark_values[i] * 7 / max ))
+    (( level <= 7 )) || level=7
+    (( level >= 0 )) || level=0
+    text+="${UI_SPARK[level]}"
   done
-  (( ${#available[@]} > 0 )) || return 1
+  ui_put "$3" "${text}"
+}
 
-  glvSectionDivider "${section}"
-  for (( index=0; index<${#available[@]}; index+=9 )); do
-    cell_one="$(
-      glvMetricCell \
-        "${available[index]}" "${available[index+1]}" "${available[index+2]}" 23
-    )"
-    cell_two="$(printf '%23s' '')"
-    cell_three="$(printf '%24s' '')"
-    if (( index + 3 < ${#available[@]} )); then
-      cell_two="$(
-        glvMetricCell \
-          "${available[index+3]}" "${available[index+4]}" "${available[index+5]}" 23
-      )"
-    fi
-    if (( index + 6 < ${#available[@]} )); then
-      cell_three="$(
-        glvMetricCell \
-          "${available[index+6]}" "${available[index+7]}" "${available[index+8]}" 24
-      )"
-    fi
-    glv_frame_add "${VL}${cell_one}${cell_two}${cell_three}${VL}"
+# ui_bar <width> <filled> <glyphs> <colour>: a filled bar on a dim track.
+ui_bar() {
+  local width="$1" filled="$2"
+  local -n _bar_glyphs="$3"
+  (( filled >= 0 )) || filled=0
+  (( filled <= width )) || filled="${width}"
+  ui_put "$4" "${_bar_glyphs:0:filled}"
+  ui_put "${C_TRACK}" "${_bar_glyphs:0:width-filled}"
+}
+
+# ui_grid <cells> <columns> <rows> <inner width> <output array>
+# Lays "label|value|colour variable" cells out column by column, each cell a
+# label on the left and its value on the right. Cells that do not fit are
+# left out, so callers list them in order of importance.
+ui_grid() {
+  local -n _grid_cells="$1"
+  local columns="$2" rows="$3" inner="$4" output="$5"
+  local cell row column index entry label value colour
+  cell=$(((inner - 2 * (columns - 1)) / columns))
+  for ((row = 0; row < rows; row++)); do
+    for ((column = 0; column < columns; column++)); do
+      index=$((column * rows + row))
+      (( column == 0 )) || ui_gap 2
+      entry="${_grid_cells[index]:-}"
+      if [[ -z "${entry}" ]]; then ui_gap "${cell}"; continue; fi
+      label="${entry%%|*}"; entry="${entry#*|}"
+      value="${entry%%|*}"; colour="${entry#*|}"
+      if [[ -n "${colour}" ]]; then local -n _grid_colour="${colour}"; colour="${_grid_colour}"; fi
+      ui_kv "${cell}" "${label}" "${colour}" "${value}"
+    done
+    ui_endl "${output}" "${inner}"
   done
 }
 
-glvMetricRow() {
-  local index name label unit cell available_count=0
-  local -a cells widths=(23 23 24)
-
-  for (( index=0; index<3; index++ )); do
-    name="${1-}"
-    label="${2-}"
-    unit="${3-}"
-    (( $# >= 3 )) && shift 3 || true
-    if [[ -n "${name}" ]] && node_metric_has "${name}"; then
-      cell="$(glvMetricCell "${name}" "${label}" "${unit}" "${widths[index]}")"
-      available_count=$((available_count + 1))
+# ui_wrap <array> <width> <text>: the text as lines of at most <width>
+# columns, broken between words.
+ui_wrap() {
+  local -n _wrap_out="$1"
+  local width="$2" word line=''
+  local -a words=()
+  _wrap_out=()
+  read -r -a words <<< "$3"
+  for word in "${words[@]}"; do
+    (( ${#word} <= width )) || word="${word:0:width}"
+    if [[ -z "${line}" ]]; then
+      line="${word}"
+    elif (( ${#line} + 1 + ${#word} <= width )); then
+      line+=" ${word}"
     else
-      printf -v cell '%*s' "${widths[index]}" ''
+      _wrap_out+=("${line}")
+      line="${word}"
     fi
-    cells[index]="${cell}"
   done
-  (( available_count > 0 )) || return 1
-  glv_frame_add "${VL}${cells[0]}${cells[1]}${cells[2]}${VL}"
+  [[ -z "${line}" ]] || _wrap_out+=("${line}")
 }
 
-glvRenderConnections() {
-  local metric any_available=N
-  local -a all_metrics=(
-    conn_incoming conn_outgoing conn_duplex conn_total
-    inbound_governor_hot peer_selection_hot
-    peer_known peer_established peer_active
-  )
-  if [[ "${VERBOSE}" == "Y" ]]; then
-    all_metrics+=(
-      conn_uni_dir conn_bi_dir inbound_governor_warm
-      peer_selection_cold peer_selection_warm
-    )
-  fi
-
-  for metric in "${all_metrics[@]}"; do
-    if node_metric_has "${metric}"; then
-      any_available=Y
-      break
-    fi
+# ── number formats (no subshells) ────────────────────────────────────────────
+ui_fmt_int() {
+  local -n _fmt_out="$1"
+  local number="$2" rest=''
+  [[ "${number}" =~ ^[0-9]+$ ]] || { _fmt_out="${number}"; return 0; }
+  while (( ${#number} > 3 )); do
+    rest=",${number: -3}${rest}"
+    number="${number:0:${#number}-3}"
   done
-  [[ "${any_available}" == "Y" ]] || return 0
+  _fmt_out="${number}${rest}"
+}
 
-  glvSectionDivider "CONNECTIONS"
-  glvMetricRow \
-    conn_incoming "Incoming" "" \
-    conn_outgoing "Outgoing" "" \
-    conn_duplex "Duplex" "" || true
-  # Implementations without a connection manager report only a session total.
-  glvMetricRow \
-    conn_total "Total" "" \
-    "" "" "" \
-    "" "" "" || true
-  glvMetricRow \
-    peer_known "Known" "" \
-    peer_established "Established" "" \
-    peer_active "Active" "" || true
-  if [[ "${VERBOSE}" == "Y" ]]; then
-    glvMetricRow \
-      conn_uni_dir "Uni-dir" "" \
-      conn_bi_dir "Bi-dir" "" \
-      "" "" "" || true
-    glvMetricRow \
-      inbound_governor_warm "In warm" "" \
-      inbound_governor_hot "In hot" "" \
-      "" "" "" || true
-    glvMetricRow \
-      peer_selection_cold "Out cold" "" \
-      peer_selection_warm "Out warm" "" \
-      peer_selection_hot "Out hot" "" || true
+# ui_scale <variable> <decimal text> <digits>: the value times 10^digits as an
+# integer, so decimals from the metrics can be used in shell arithmetic.
+ui_scale() {
+  local -n _scale_out="$1"
+  local text="${2:-}" digits="$3" sign=1 whole fraction
+  _scale_out=0
+  if [[ "${text}" == -* ]]; then sign=-1; text="${text#-}"; fi
+  [[ "${text}" =~ ^([0-9]*)[.]?([0-9]*)$ ]] || return 1
+  whole="${BASH_REMATCH[1]:-0}"
+  fraction="${BASH_REMATCH[2]}000000000"
+  fraction="${fraction:0:digits}"
+  _scale_out=$(( sign * (10#${whole} * 10 ** digits + 10#${fraction:-0}) ))
+}
+
+ui_fmt_tenths() { printf -v "$1" '%d.%d' "$(($2 / 10))" "$(($2 % 10))"; }
+
+ui_fmt_delay() { printf -v "$1" '%d.%02d s' "$(($2 / 1000))" "$((($2 % 1000) / 10))"; }
+
+ui_fmt_duration() {
+  local seconds="$2" days
+  (( seconds >= 0 )) || seconds=0
+  days=$((seconds / 86400))
+  if (( days > 0 )); then
+    printf -v "$1" '%dd %02d:%02d:%02d' "${days}" \
+      "$((seconds % 86400 / 3600))" "$((seconds % 3600 / 60))" "$((seconds % 60))"
   else
-    glvMetricRow \
-      inbound_governor_hot "In hot" "" \
-      peer_selection_hot "Out hot" "" \
-      "" "" "" || true
+    printf -v "$1" '%02d:%02d:%02d' \
+      "$((seconds / 3600))" "$((seconds % 3600 / 60))" "$((seconds % 60))"
   fi
 }
 
-glvRenderCustomMetrics() {
-  local name
-  local -a custom_grid=()
-  (( ${#NODE_CUSTOM_METRICS[@]} > 0 )) || return 0
+# ui_fmt_bytes <variable> <bytes>: 1,536 -> "1.5 KiB".
+ui_fmt_bytes() {
+  local -n _bytes_out="$1"
+  local bytes="$2" unit tenths
+  [[ "${bytes}" =~ ^[0-9]+$ ]] || { _bytes_out="${bytes}"; return 0; }
+  if (( bytes < 1024 )); then _bytes_out="${bytes} B"; return 0; fi
+  for unit in KiB MiB GiB TiB; do
+    tenths=$((bytes * 10 / 1024))
+    bytes=$((bytes / 1024))
+    (( bytes >= 1024 )) || break
+  done
+  _bytes_out="$((tenths / 10)).$((tenths % 10)) ${unit}"
+}
 
+# ui_fmt_compact <variable> <number>: 1,234,567 -> "1.23 M".
+ui_fmt_compact() {
+  local -n _compact_out="$1"
+  local number="$2"
+  [[ "${number}" =~ ^[0-9]+$ ]] || { _compact_out="${number}"; return 0; }
+  if (( number >= 1000000000 )); then
+    printf -v _compact_out '%d.%02d B' "$((number / 1000000000))" "$((number % 1000000000 / 10000000))"
+  elif (( number >= 1000000 )); then
+    printf -v _compact_out '%d.%02d M' "$((number / 1000000))" "$((number % 1000000 / 10000))"
+  else
+    ui_fmt_int _compact_out "${number}"
+  fi
+}
+
+ui_delay_colour() {
+  local -n _delay_out="$1"
+  if (( $2 <= 1000 )); then _delay_out="${C_OK}"
+  elif (( $2 <= 3000 )); then _delay_out="${C_WARN}"
+  else _delay_out="${C_DANGER}"; fi
+}
+
+# ── boxes ────────────────────────────────────────────────────────────────────
+# A caller that sets UI_HELP before a panel is drawn gives that panel a help
+# key: the panel is then known by that key (UI_PANEL_KEY, by output array) and
+# by its title (UI_PANEL_TITLE), and it is drawn with a double accent border
+# when the key is the one in UI_FOCUS.
+UI_HELP=''
+UI_FOCUS=''
+UI_DOUBLE="${UI_SPACES// /═}"
+declare -gA UI_PANEL_KEY=()
+declare -gA UI_PANEL_TITLE=()
+
+# ui_box_top <variable> <width> <title> <right title> <colour> [double]
+ui_box_top() {
+  local -n _top_out="$1"
+  local width="$2" title="$3" right="$4" colour="$5"
+  local left='╭' end='╮' rule="${UI_DASHES}" bar='─'
+  if [[ "${6:-}" == double ]]; then left='╔'; end='╗'; rule="${UI_DOUBLE}"; bar='═'; fi
+  local line="${colour}${left}${bar}${UI_RESET}" used=2 tail="${colour}${end}${UI_RESET}" tail_width=1 fill
+  if [[ -n "${title}" ]]; then
+    (( ${#title} + 6 <= width )) || title="${title:0:$(( width > 6 ? width - 6 : 0 ))}"
+    line+=" ${UI_BOLD}${C_ACCENT}${title}${UI_RESET} "
+    used=$((used + ${#title} + 2))
+  fi
+  if [[ -n "${right}" ]] && (( used + ${#right} + 5 <= width )); then
+    tail=" ${C_MUTED}${right}${UI_RESET} ${colour}${bar}${end}${UI_RESET}"
+    tail_width=$((${#right} + 4))
+  fi
+  fill=$((width - used - tail_width))
+  (( fill >= 0 )) || fill=0
+  _top_out="${line}${colour}${rule:0:fill}${UI_RESET}${tail}"
+}
+
+# ui_panel <output array> <width> <height> <title> <right title> [colour name]
+# Wraps the lines in UI_BODY (each width-4 columns) in a rounded box of
+# exactly <height> lines and <width> columns.
+ui_panel() {
+  local -n _panel_out="$1"
+  local width="$2" height="$3" title="$4" right="$5" colour_name="${6:-BORDER}"
+  local key="${UI_HELP}" top='' i side='│' style=''
+  UI_HELP=''
+  if [[ -n "${key}" ]]; then
+    UI_PANEL_KEY["$1"]="${key}"
+    UI_PANEL_TITLE["${key}"]="${title}"
+    if [[ "${key}" == "${UI_FOCUS}" ]]; then colour_name=ACCENT; side='║'; style=double; fi
+  else
+    unset "UI_PANEL_KEY[$1]"
+  fi
+  local -n _panel_colour="C_${colour_name}"
+  ui_box_top top "${width}" "${title}" "${right}" "${_panel_colour}" "${style}"
+  _panel_out=("${top}")
+  for ((i = 0; i < height - 2; i++)); do
+    _panel_out+=("${_panel_colour}${side}${UI_RESET} ${UI_BODY[i]:-${UI_SPACES:0:width-4}} ${_panel_colour}${side}${UI_RESET}")
+  done
+  if [[ "${style}" == double ]]; then
+    _panel_out+=("${_panel_colour}╚${UI_DOUBLE:0:width-2}╝${UI_RESET}")
+  else
+    _panel_out+=("${_panel_colour}╰${UI_DASHES:0:width-2}╯${UI_RESET}")
+  fi
+}
+
+# ── output ───────────────────────────────────────────────────────────────────
+UI_FRAME=()
+UI_PREV=()
+UI_OUT_ROWS=0
+
+ui_invalidate() { UI_PREV=(); }
+
+# Only rows that differ from the previous frame are written, inside one
+# synchronised update so the terminal never shows a half-drawn frame.
+ui_flush() {
+  local out='' row changed=0
+  for ((row = 0; row < ${#UI_FRAME[@]}; row++)); do
+    [[ "${UI_FRAME[row]}" != "${UI_PREV[row]:-}" ]] || continue
+    out+=$'\e['"$((row + 1))"';1H'"${UI_FRAME[row]}"
+    changed=$((changed + 1))
+  done
+  UI_PREV=("${UI_FRAME[@]}")
+  UI_OUT_ROWS="${changed}"
+  [[ -z "${out}" ]] || printf '\e[?2026h%s\e[?2026l' "${out}"
+}
+
+##############################################################################
+# Data: metrics through the node adapters, history and per-page collectors
+##############################################################################
+# Collects the node's metrics through the common adapter interface and keeps
+# what the views need between collections (history for the sparklines, the
+# recent block list, the leader schedule). Used after env has loaded the node
+# adapter.
+#
+# glv_data_collect runs every REFRESH_RATE seconds and may fork (curl, the
+# adapter's parser). glv_data_clock runs every second and never forks: it only
+# moves the clock-driven values (countdowns, tip gap, uptime).
+
+GLV_HISTORY_MAX=120
+GLV_ROWS_MAX=60
+
+glv_is_int() { [[ "${1:-}" =~ ^[0-9]+$ ]]; }
+
+# glv_push <array> <value> <max>: append, keeping the newest <max> entries.
+glv_push() {
+  local -n _push_array="$1"
+  _push_array+=("$2")
+  (( ${#_push_array[@]} <= $3 )) || _push_array=("${_push_array[@]:${#_push_array[@]}-$3}")
+}
+
+glv_data_init() {
+  D_IMPL="${NODE_IMPLEMENTATION_DISPLAY_NAME:-${NODE_IMPLEMENTATION:-node}}"
+  # A name the operator set wins; otherwise the deployment folder says more
+  # than the stock "Cardano Node".
+  if [[ -n "${NODE_NAME:-}" && "${NODE_NAME}" != "Cardano Node" ]]; then
+    D_NAME="${NODE_NAME}"
+  else
+    D_NAME="${NODE_HOME##*/}"
+  fi
+  D_NETWORK="${NETWORK_NAME:-${NODE_NETWORK:-unknown}}"
+  D_ROLE=Relay
+  D_OK=N
+  D_DOWN=''
+  D_FAILS=0
+  D_VERSION='?'
+  D_PID=''
+  D_NOW=0
+  D_COLLECTED_AT=0
+  D_COLLECT_MS=0
+  D_SLOW_AT=0
+  D_KES_AT=0
+  D_CPU=0
+  D_CPU_BUSY=''
+  D_CPU_TOTAL=''
+  D_MEM=''
+  D_DISK=''
+  D_PCPU=''
+  D_PCPU_TICKS=''
+  D_PCPU_AT=0
+  D_PCPU_PID=''
+  D_LAST_EPOCH=''
+  D_LAST_UPTIME=''
+  D_LAST_HOT=''
+  D_LAST_ADOPTED=''
+  D_LAST_PHASE=''
+  D_BLOCK_EVERY=''
+  D_BIG_HOT=''
+  D_BIG_WARM=''
+  D_BIG_COLD=''
+  D_THREADS=''
+  D_LOAD=''
+  D_HOST_MEM_TOTAL=''
+  D_HOST_MEM_FREE=''
+  D_CORES=0
+  D_METRICS_URL=''
+  D_PEERS=()
+  D_STARTUP=()
+  D_STARTUP_PID=''
+  D_PARAMS=()
+  D_PARAMS_SOURCE=''
+  D_PARAMS_NOTE=''
+  D_PARAMS_EPOCH=''
+  PARAMS_JOB_PID=''
+  D_LOG=()
+  D_LOG_NOTE=''
+  D_NEXT_EPOCH_SLOTS=0
+  D_EPOCHS=()
+  declare -gA D_RAW=()
+  local stat_line
+  if [[ -r /proc/stat ]]; then
+    while read -r stat_line; do
+      [[ "${stat_line}" != cpu[0-9]* ]] || D_CORES=$((D_CORES + 1))
+    done < /proc/stat
+  fi
+  if declare -F node_adapter_metrics_url >/dev/null; then
+    D_METRICS_URL="$(node_adapter_metrics_url 2>/dev/null)" || D_METRICS_URL=''
+  fi
+  GLV_CLK_TCK="$(getconf CLK_TCK 2>/dev/null)" || GLV_CLK_TCK=100
+  [[ "${GLV_CLK_TCK}" =~ ^[1-9][0-9]*$ ]] || GLV_CLK_TCK=100
+  D_UPTIME=''
+  D_TIP_GAP=''
+  D_EPOCH_LEFT=''
+  D_NEXT_AT=''
+  D_NEXT_IN=''
+  D_LAST_BLOCK=''
+  D_LAST_FORKS=''
+  D_LAST_ALERT=''
+  D_LAST_EVENT=''
+  D_KES_EXPIRES=''
+  D_KES_SECONDS=''
+  D_OPCERT_DISK=''
+  D_OPCERT_CHAIN=''
+  D_IDEAL=''
+  D_LUCK=''
+  D_SCHEDULE_EPOCH=''
+  D_BLOCKLOG_DB="${BLOCKLOG_DB:-${NODE_HOME}/guild-db/blocklog/blocklog.db}"
+  # Average seconds between blocks: slot length over the active slot coefficient.
+  local coefficient=0
+  if ui_scale coefficient "${ACTIVE_SLOTS_COEFF:-}" 4 && (( coefficient > 0 )) && glv_is_int "${SLOT_LENGTH:-}"; then
+    D_BLOCK_EVERY=$((SLOT_LENGTH * 10000 / coefficient))
+  fi
+  H_DELAY=()
+  H_CPU=()
+  H_PCPU=()
+  H_MEM=()
+  D_ROWS=()
+  D_SCHEDULE=()
+  declare -gA D_STATUS=()
+}
+
+glv_data_stamp() { printf -v "$1" '%(%H:%M:%S)T' -1; }
+
+# glv_data_event <headline> <detail>: a row for the block list and the footer.
+glv_data_event() {
+  local stamp
+  glv_data_stamp stamp
+  D_ROWS=("E|${stamp}|$1|${2:-}" "${D_ROWS[@]:0:GLV_ROWS_MAX-1}")
+  D_LAST_EVENT="${stamp} $1${2:+ · $2}"
+}
+
+glv_data_cpu() {
+  local label user nice system idle rest busy total
+  [[ -r /proc/stat ]] || return 0
+  read -r label user nice system idle rest < /proc/stat
+  glv_is_int "${user}" && glv_is_int "${system}" && glv_is_int "${idle}" || return 0
+  # Same figure as gLiveView 1: user and system time across the whole host.
+  busy=$((user + system))
+  total=$((user + system + idle))
+  if [[ -n "${D_CPU_TOTAL}" ]] && (( total > D_CPU_TOTAL )); then
+    D_CPU=$(((busy - D_CPU_BUSY) * 1000 / (total - D_CPU_TOTAL)))
+  fi
+  D_CPU_BUSY="${busy}"
+  D_CPU_TOTAL="${total}"
+  glv_push H_CPU "${D_CPU}" "${GLV_HISTORY_MAX}"
+}
+
+# Processor time of the node process alone, in tenths of a percent of one
+# core, so a busy node on several cores can pass 100 %.
+glv_data_process_cpu() {
+  local line now ticks
+  local -a field=()
+  D_PCPU=''
+  if [[ -z "${D_PID}" || ! -r "/proc/${D_PID}/stat" ]]; then D_PCPU_TICKS=''; return 0; fi
+  read -r line < "/proc/${D_PID}/stat" 2>/dev/null || { D_PCPU_TICKS=''; return 0; }
+  # The process name may hold spaces, so count fields after its closing bracket.
+  read -r -a field <<< "${line##*) }"
+  glv_is_int "${field[11]:-}" && glv_is_int "${field[12]:-}" || return 0
+  ticks=$((field[11] + field[12]))
+  now="${EPOCHREALTIME/[.,]/}"
+  if [[ -n "${D_PCPU_TICKS}" && "${D_PCPU_PID}" == "${D_PID}" ]] && (( now > D_PCPU_AT && ticks >= D_PCPU_TICKS )); then
+    D_PCPU=$(( (ticks - D_PCPU_TICKS) * 1000000000 / (GLV_CLK_TCK * (now - D_PCPU_AT)) ))
+    glv_push H_PCPU "${D_PCPU}" "${GLV_HISTORY_MAX}"
+  fi
+  D_PCPU_TICKS="${ticks}"
+  D_PCPU_AT="${now}"
+  D_PCPU_PID="${D_PID}"
+}
+
+# Changes worth a line in the event list. Each keeps the last value it saw
+# and reports only when that value moves.
+glv_data_watch() {
+  local phase=''
+  if node_metric_has epochnum && glv_is_int "${epochnum:-}"; then
+    if [[ -n "${D_LAST_EPOCH}" ]] && (( epochnum > D_LAST_EPOCH )); then
+      glv_data_event "epoch ${epochnum}" "started"
+    fi
+    D_LAST_EPOCH="${epochnum}"
+  fi
+  if node_metric_has uptimes && glv_is_int "${uptimes:-}"; then
+    if [[ -n "${D_LAST_UPTIME}" ]] && (( uptimes + 5 < D_LAST_UPTIME )); then
+      glv_data_event "node restarted" "${D_IMPL}"
+    fi
+    D_LAST_UPTIME="${uptimes}"
+  fi
+  if node_metric_has peer_selection_hot && glv_is_int "${peer_selection_hot:-}"; then
+    if [[ -n "${D_LAST_HOT}" ]]; then
+      if (( peer_selection_hot == 0 && D_LAST_HOT > 0 )); then
+        glv_data_event "no hot peers" "the node has no peer in use"
+      elif (( peer_selection_hot > 0 && D_LAST_HOT == 0 )); then
+        glv_data_event "peers back" "${peer_selection_hot} hot"
+      fi
+    fi
+    D_LAST_HOT="${peer_selection_hot}"
+  fi
+  if [[ "${D_ROLE}" == Core ]] && node_metric_has adopted && glv_is_int "${adopted:-}"; then
+    if [[ -n "${D_LAST_ADOPTED}" ]] && (( adopted > D_LAST_ADOPTED )); then
+      glv_data_event "block adopted" "block ${blocknum:-?}"
+    fi
+    D_LAST_ADOPTED="${adopted}"
+  fi
+  if node_metric_has sync_phase; then phase="${sync_phase:-}"; fi
+  if [[ "${phase}" != "${D_LAST_PHASE}" ]]; then
+    if [[ -n "${phase}" ]]; then glv_data_event "sync" "${phase}"
+    else glv_data_event "sync done" "${D_LAST_PHASE}"; fi
+    D_LAST_PHASE="${phase}"
+  fi
+}
+
+# cardano-node counts big ledger peers apart from its other outgoing peers.
+# The shared parser does not carry them yet, so they are read from the scrape
+# it indexed. They belong in common_parse_cardano_metrics once this tool ships.
+glv_data_big_ledger() {
+  local value='' name
+  D_BIG_HOT=''; D_BIG_WARM=''; D_BIG_COLD=''
+  D_RAW=()
+  declare -F prometheus_first_metric_value >/dev/null || return 0
+  for name in Hot Warm Cold; do
+    if prometheus_first_metric_value value "cardano_node_metrics_peerSelection_${name}BigLedgerPeers_int" 2>/dev/null &&
+       glv_is_int "${value}"; then
+      printf -v "D_BIG_${name^^}" '%s' "${value}"
+    fi
+  done
+  # Counters only the Peers page shows, kept under the node's own names.
+  for name in peerSelection_KnownLocalRootPeers peerSelection_EstablishedLocalRootPeers \
+      peerSelection_ActiveLocalRootPeers peerSelection_RootPeers peerSelection_KnownPeers \
+      inboundGovernor_cold inboundGovernor_idle; do
+    if prometheus_first_metric_value value "cardano_node_metrics_${name}_int" 2>/dev/null &&
+       glv_is_int "${value}"; then
+      D_RAW["${name}"]="${value}"
+    fi
+  done
+}
+
+glv_data_memory() {
+  local key value rest
+  D_MEM=''
+  [[ -n "${D_PID}" && -r "/proc/${D_PID}/status" ]] || return 0
+  D_THREADS=''
+  while read -r key value rest; do
+    case "${key}" in
+      VmRSS:) glv_is_int "${value}" && D_MEM=$((value * 10 / 1048576)) ;;
+      Threads:) D_THREADS="${value}"; break ;;
+    esac
+  done < "/proc/${D_PID}/status"
+  [[ -z "${D_MEM}" ]] || glv_push H_MEM "${D_MEM}" "${GLV_HISTORY_MAX}"
+}
+
+glv_data_disk() {
+  D_DISK=''
+  [[ "$(df -P "${NODE_HOME}" 2>/dev/null)" =~ ([0-9]+)% ]] && D_DISK="${BASH_REMATCH[1]}"
+}
+
+# The operational certificate counters. Dingo reports them as metrics;
+# cardano-node needs one CLI query, so this runs when the role is detected and
+# not on every collection.
+glv_data_opcert() {
+  local file adapter_file answer
+  D_OPCERT_DISK=''
+  D_OPCERT_CHAIN=''
+  node_has opcert || return 0
+  file="${POOL_FOLDER:-}/${POOL_NAME:-}/${POOL_OPCERT_FILENAME:-op.cert}"
+  if [[ ! -f "${file}" ]]; then
+    adapter_file="$(node_operational_certificate 2>/dev/null || true)"
+    [[ -z "${adapter_file}" ]] || file="${adapter_file}"
+  fi
+  [[ -f "${file}" && -n "${CCLI:-}" && -n "${CARDANO_NODE_SOCKET_PATH:-}" ]] || return 0
+  # shellcheck disable=SC2086
+  answer="$("${CCLI}" query kes-period-info ${NETWORK_IDENTIFIER} --op-cert-file "${file}" 2>/dev/null)" || return 0
+  [[ "${answer}" =~ qKesNodeStateOperationalCertificateNumber.:[[:space:]]([0-9]+) ]] &&
+    D_OPCERT_CHAIN="${BASH_REMATCH[1]}"
+  [[ "${answer}" =~ qKesOnDiskOperationalCertificateNumber.:[[:space:]]([0-9]+) ]] &&
+    D_OPCERT_DISK="${BASH_REMATCH[1]}"
+}
+
+# The leader schedule and its results for the current epoch. CNCLI writes
+# these rows for cardano-node; the Amaru leader log is planned to write the
+# same ones, so nothing here asks which node produced them.
+glv_data_blocklog() {
+  local kind first second third fourth fifth total=0
+  D_SCHEDULE=()
+  D_STATUS=()
+  D_EPOCHS=()
+  D_IDEAL=''
+  D_LUCK=''
+  D_NEXT_AT=''
+  D_SCHEDULE_EPOCH=''
+  D_NEXT_EPOCH_SLOTS=0
+  [[ -f "${D_BLOCKLOG_DB}" ]] && glv_is_int "${epochnum:-}" || return 0
+  command -v sqlite3 >/dev/null 2>&1 || return 0
+  # One sqlite3 process for everything: S rows are this epoch's leader slots
+  # (slot in epoch, status, time, block, slot), X counts the next epoch's, N is
+  # the next slot's time, I the ideal count, H one row per recent epoch.
+  while IFS='|' read -r kind first second third fourth fifth; do
+    case "${kind}" in
+      S) D_SCHEDULE+=("${first}|${second}|${third}|${fourth}|${fifth}")
+         D_STATUS["${second}"]=$(( ${D_STATUS[${second}]:-0} + 1 ))
+         total=$((total + 1)) ;;
+      X) glv_is_int "${first}" && D_NEXT_EPOCH_SLOTS="${first}" ;;
+      N) glv_is_int "${first}" && D_NEXT_AT="${first}" ;;
+      I) D_IDEAL="${first}" ;;
+      H) D_EPOCHS+=("${first}|${second}|${third}|${fourth}") ;;
+    esac
+  done < <(sqlite3 "${D_BLOCKLOG_DB}" "
+    SELECT 'S', slot_in_epoch, status, CAST(strftime('%s', at) AS INTEGER), block, slot
+      FROM blocklog WHERE epoch=${epochnum} ORDER BY slot;
+    SELECT 'X', COUNT(*) FROM blocklog WHERE epoch=${epochnum}+1;
+    SELECT 'N', CAST(strftime('%s', at) AS INTEGER) FROM blocklog
+      WHERE datetime(at) > datetime('now') ORDER BY slot LIMIT 1;
+    SELECT 'I', epoch_slots_ideal FROM epochdata WHERE epoch=${epochnum} LIMIT 1;
+    SELECT 'H', b.epoch, COUNT(*),
+           SUM(CASE WHEN b.status IN ('adopted','confirmed') THEN 1 ELSE 0 END),
+           IFNULL((SELECT e.epoch_slots_ideal FROM epochdata e WHERE e.epoch=b.epoch LIMIT 1), '')
+      FROM blocklog b GROUP BY b.epoch ORDER BY b.epoch DESC LIMIT 6;" 2>/dev/null)
+  D_SCHEDULE_EPOCH="${epochnum}"
+  D_STATUS[total]="${total}"
+  if [[ "${D_IDEAL}" =~ ^[0-9]+([.][0-9]+)?$ ]]; then
+    local ideal_hundredths
+    ui_scale ideal_hundredths "${D_IDEAL}" 2
+    (( ideal_hundredths <= 0 )) || D_LUCK=$((total * 100000 / ideal_hundredths))
+  fi
+}
+
+glv_data_kes() {
+  D_KES_EXPIRES=''
+  D_KES_SECONDS=''
+  node_metric_has remaining_kes_periods && declare -F kesExpiration >/dev/null || return 0
+  kesExpiration >/dev/null 2>&1 || return 0
+  D_KES_EXPIRES="${kes_expiration:-}"
+  D_KES_SECONDS="${expiration_time_sec_diff:-}"
+}
+
+# A new tip since the last collection becomes a row in the block list and a
+# sample in the propagation history.
+glv_data_blocks() {
+  local delay=-1 note='' stamp
+  node_metric_has blocknum && glv_is_int "${blocknum:-}" || return 0
+  if [[ -n "${D_LAST_BLOCK}" ]] && (( blocknum > D_LAST_BLOCK )); then
+    if node_metric_has block_delay; then
+      ui_scale delay "${block_delay}" 3 || delay=-1
+    fi
+    (( blocknum - D_LAST_BLOCK <= 1 )) || note="+$((blocknum - D_LAST_BLOCK - 1)) more"
+    if glv_is_int "${forks:-}" && glv_is_int "${D_LAST_FORKS}" && (( forks > D_LAST_FORKS )); then
+      note="fork switch"
+    fi
+    (( delay <= 5000 )) || note="late"
+    glv_data_stamp stamp
+    D_ROWS=("B|${stamp}|${blocknum}|${slotnum:-}|${delay}|${note}" "${D_ROWS[@]:0:GLV_ROWS_MAX-1}")
+    (( delay < 0 )) || glv_push H_DELAY "${delay}" "${GLV_HISTORY_MAX}"
+  fi
+  D_LAST_BLOCK="${blocknum}"
+  glv_is_int "${forks:-}" && D_LAST_FORKS="${forks}"
+}
+
+# The node's TCP connections with the kernel's round-trip time for each, from
+# one ss call. Rows are "rtt in tenths of ms|in or out|address|port|local
+# port", fastest first. Nothing is probed and the node is not asked anything.
+# "in" means the connection uses the node's listening port; cardano-node and
+# Amaru also dial out from that port, so only the node itself knows who opened
+# such a connection (see peers.sh).
+glv_data_peers() {
+  local line entry='' mine=N rtt local_port remote address port
+  local -a raw=() field=()
+  D_PEERS=()
+  [[ -n "${D_PID}" ]] && command -v ss >/dev/null 2>&1 || return 0
+  while IFS= read -r line; do
+    if [[ "${line}" == [[:space:]]* ]]; then
+      # The detail line of the socket above; ss may name the process on either.
+      [[ "${line}" != *"pid=${D_PID},"* ]] || mine=Y
+      if [[ -n "${entry}" && "${mine}" == Y ]]; then
+        rtt=999999
+        if [[ "${line}" =~ rtt:([0-9]+)([.]([0-9]))? ]]; then
+          rtt=$((BASH_REMATCH[1] * 10 + ${BASH_REMATCH[3]:-0}))
+        fi
+        raw+=("${rtt}|${entry}")
+      fi
+      entry=''
+      continue
+    fi
+    entry=''
+    mine=N
+    [[ "${line}" != *"pid=${D_PID},"* ]] || mine=Y
+    set -f
+    # shellcheck disable=SC2206
+    field=(${line})
+    set +f
+    local_port="${field[2]:-}"
+    local_port="${local_port##*:}"
+    remote="${field[3]:-}"
+    [[ -n "${remote}" ]] || continue
+    port="${remote##*:}"
+    address="${remote%:*}"
+    address="${address#[}"; address="${address%]}"; address="${address#::ffff:}"
+    # Scrapes of the node's metrics and its own telemetry export are not peers.
+    [[ "${local_port}" != "${PROM_PORT:-}" ]] || continue
+    if [[ "${port}" == "${NODE_TELEMETRY_PORT:-}" && "${address}" =~ ^(127\.|::1$) ]]; then continue; fi
+    if [[ "${local_port}" == "${CNODE_PORT:-}" ]]; then
+      entry="in|${address}|${port}|${local_port}"
+    else
+      entry="out|${address}|${port}|${local_port}"
+    fi
+  done < <(ss -tinpH state established 2>/dev/null)
+  (( ${#raw[@]} > 0 )) || return 0
+  mapfile -t D_PEERS < <(printf '%s\n' "${raw[@]}" | sort -t'|' -k1,1n)
+}
+
+# Host figures for the System page, all read from /proc without a fork.
+glv_data_system() {
+  local key value rest one five fifteen
+  D_LOAD=''
+  D_HOST_MEM_TOTAL=''
+  D_HOST_MEM_FREE=''
+  if [[ -r /proc/loadavg ]]; then
+    read -r one five fifteen rest < /proc/loadavg
+    D_LOAD="${one} · ${five} · ${fifteen}"
+  fi
+  [[ -r /proc/meminfo ]] || return 0
+  while read -r key value rest; do
+    case "${key}" in
+      MemTotal:) D_HOST_MEM_TOTAL="${value}" ;;
+      MemAvailable:) D_HOST_MEM_FREE="${value}"; break ;;
+    esac
+  done < /proc/meminfo
+}
+
+# The newest lines of the node's journal for the Logs page.
+glv_data_logs() {
+  # Paused, the page keeps the lines it has.
+  [[ "${LOG_PAUSED:-N}" != Y || ${#D_LOG[@]} -eq 0 ]] || return 0
+  D_LOG=()
+  D_LOG_NOTE=''
+  if [[ -z "${NODE_SERVICE:-}" ]] || ! command -v journalctl >/dev/null 2>&1; then
+    D_LOG_NOTE="No systemd service is known for this node, so there is no journal to read."
+    return 0
+  fi
+  mapfile -t D_LOG < <(journalctl -q -o cat --no-pager -n 1000 -u "${NODE_SERVICE}" 2>/dev/null)
+  glv_log_index
+  (( ${#D_LOG[@]} > 0 )) ||
+    D_LOG_NOTE="journalctl -u ${NODE_SERVICE} returned nothing. The node may log elsewhere, or this user may not read its journal."
+}
+
+# How the node process was started, as "name|value" rows: the options on its
+# command line, then the settings in its environment that carry the node's
+# own prefix. Read once for each process.
+glv_data_startup() {
+  local word name='' prefix command='' runtime='' runtime_options=''
+  local -a arguments=()
+  [[ "${D_STARTUP_PID}" != "${D_PID}" ]] || return 0
+  D_STARTUP=()
+  D_STARTUP_PID="${D_PID}"
+  [[ -n "${D_PID}" && -r "/proc/${D_PID}/cmdline" ]] || return 0
+  mapfile -d '' -t arguments < "/proc/${D_PID}/cmdline"
+  for word in "${arguments[@]:1}"; do
+    # Options for the Haskell runtime sit between +RTS and -RTS.
+    if [[ "${word}" == +RTS ]]; then runtime=open; continue; fi
+    if [[ "${word}" == -RTS ]]; then runtime=closed; continue; fi
+    if [[ "${runtime}" == open ]]; then runtime_options+="${runtime_options:+ }${word}"; continue; fi
+    case "${word}" in
+      --*=*) [[ -z "${name}" ]] || D_STARTUP+=("${name}|set"); D_STARTUP+=("${word%%=*}|${word#*=}"); name='' ;;
+      -*) [[ -z "${name}" ]] || D_STARTUP+=("${name}|set"); name="${word}" ;;
+      *) if [[ -n "${name}" ]]; then D_STARTUP+=("${name}|${word}"); name=''; else command+="${command:+ }${word}"; fi ;;
+    esac
+  done
+  [[ -z "${name}" ]] || D_STARTUP+=("${name}|set")
+  [[ -z "${runtime_options}" ]] || D_STARTUP=("Runtime options|${runtime_options}" "${D_STARTUP[@]}")
+  [[ -z "${command}" ]] || D_STARTUP=("Command|${command}" "${D_STARTUP[@]}")
+  case "${NODE_IMPLEMENTATION:-}" in
+    amaru) prefix=AMARU_ ;;
+    dingo) prefix=DINGO_ ;;
+    *) prefix=CARDANO_ ;;
+  esac
+  [[ -r "/proc/${D_PID}/environ" ]] || return 0
+  while IFS= read -r -d '' word; do
+    [[ "${word}" == "${prefix}"* ]] || continue
+    name="${word%%=*}"
+    # Nothing that looks like a secret is put on screen.
+    if [[ "${name}" =~ (KEY|TOKEN|SECRET|PASS) ]]; then D_STARTUP+=("${name}|hidden")
+    else D_STARTUP+=("${name}|${word#*=}"); fi
+  done < "/proc/${D_PID}/environ"
+}
+
+# The protocol parameters, as "group|label|value" rows on standard output:
+# from the node through its socket where it has one, else from Koios. Runs
+# as a background job because either can take a moment.
+glv_params_job_run() {
+  local json='' source=''
+  if [[ -n "${CCLI:-}" && -S "${CARDANO_NODE_SOCKET_PATH:-}" ]]; then
+    # shellcheck disable=SC2086
+    json="$("${CCLI}" query protocol-parameters ${NETWORK_IDENTIFIER} 2>/dev/null)" && source="the node"
+    [[ "${json}" == '{'* ]] || { json=''; source=''; }
+  fi
+  if [[ -z "${json}" && -n "${KOIOS_API:-}" ]]; then
+    json="$(curl -sSL -f -m 10 "${KOIOS_API_HEADERS[@]}" "${KOIOS_API}/cli_protocol_params" 2>/dev/null)" && source="Koios"
+    [[ "${json}" == '{'* ]] || { json=''; source=''; }
+  fi
+  if [[ -z "${json}" ]]; then printf 'none\n'; return 0; fi
+  printf 'source\t%s\n' "${source}"
+  jq -r '
+    def short: {"memory": "mem", "steps": "cpu", "priceMemory": "mem", "priceSteps": "cpu"}[.] // .;
+    def show:
+      if type == "object" and has("major") then "\(.major).\(.minor)"
+      elif type == "object" then (to_entries | map("\(.key | short)=\(.value)") | join(", "))
+      else tostring end;
+    [["Network","protocolVersion","Protocol version"],
+     ["Network","maxBlockBodySize","Max block body size"],
+     ["Network","maxTxSize","Max transaction size"],
+     ["Network","maxBlockHeaderSize","Max block header size"],
+     ["Network","maxTxExecutionUnits","Max tx execution units"],
+     ["Network","maxBlockExecutionUnits","Max block execution units"],
+     ["Network","maxValueSize","Max value size"],
+     ["Network","maxCollateralInputs","Max collateral inputs"],
+     ["Economic","txFeePerByte","Min fee per byte"],
+     ["Economic","txFeeFixed","Min fee fixed"],
+     ["Economic","stakeAddressDeposit","Stake key deposit"],
+     ["Economic","stakePoolDeposit","Stake pool deposit"],
+     ["Economic","monetaryExpansion","Monetary expansion"],
+     ["Economic","treasuryCut","Treasury expansion"],
+     ["Economic","minPoolCost","Min pool cost"],
+     ["Economic","utxoCostPerByte","Lovelace per UTxO byte"],
+     ["Economic","executionUnitPrices","Execution unit prices"],
+     ["Economic","collateralPercentage","Collateral percentage"],
+     ["Economic","minFeeRefScriptCostPerByte","Ref script fee per byte"],
+     ["Governance","poolRetireMaxEpoch","Pool max retirement epoch"],
+     ["Governance","stakePoolTargetNum","Optimal stake pools"],
+     ["Governance","poolPledgeInfluence","Pledge influence"],
+     ["Governance","committeeMinSize","Min committee size"],
+     ["Governance","committeeMaxTermLength","Max committee term length"],
+     ["Governance","govActionLifetime","Gov action lifetime"],
+     ["Governance","govActionDeposit","Gov action deposit"],
+     ["Governance","dRepDeposit","DRep deposit"],
+     ["Governance","dRepActivity","DRep expiry"]] as $known |
+    . as $p |
+    ($known[] | select($p[.[1]] != null) | ["row", .[0], .[2], ($p[.[1]] | show)]),
+    (($p | keys) - ($known | map(.[1])) | .[] |
+      select(($p[.] | type) == "number" or ($p[.] | type) == "string" or ($p[.] | type) == "boolean") |
+      ["row", "Other", ., ($p[.] | tostring)])
+    | @tsv' <<< "${json}" 2>/dev/null
+}
+
+# Starts reading the protocol parameters unless that is running, or was done
+# for this epoch already.
+glv_params_job_start() {
+  [[ -z "${PARAMS_JOB_PID}" ]] || return 0
+  [[ -z "${D_PARAMS_EPOCH}" || "${D_PARAMS_EPOCH}" != "${epochnum:-}" ]] || return 0
+  rm -f -- "${PARAMS_JOB_FILE}" "${PARAMS_JOB_FILE}.part"
+  (
+    glv_params_job_run > "${PARAMS_JOB_FILE}.part" 2>/dev/null
+    mv -f -- "${PARAMS_JOB_FILE}.part" "${PARAMS_JOB_FILE}"
+  ) < /dev/null > /dev/null 2>&1 &
+  PARAMS_JOB_PID=$!
+}
+
+glv_params_job_poll() {
+  local kind first second third
+  [[ -n "${PARAMS_JOB_PID}" ]] || return 0
+  if [[ ! -f "${PARAMS_JOB_FILE}" ]]; then
+    ! kill -0 "${PARAMS_JOB_PID}" 2>/dev/null || return 0
+    [[ -f "${PARAMS_JOB_FILE}" ]] || { PARAMS_JOB_PID=''; D_PARAMS_NOTE="The protocol parameters could not be read."; return 0; }
+  fi
+  D_PARAMS=()
+  D_PARAMS_NOTE=''
+  while IFS=$'\t' read -r kind first second third; do
+    case "${kind}" in
+      source) D_PARAMS_SOURCE="${first}" ;;
+      row) D_PARAMS+=("${first}|${second}|${third}") ;;
+      none) D_PARAMS_NOTE="No protocol parameters: the node has no local socket to ask, and no Koios address is set for this network." ;;
+    esac
+  done < "${PARAMS_JOB_FILE}"
+  rm -f -- "${PARAMS_JOB_FILE}"
+  PARAMS_JOB_PID=''
+  D_PARAMS_EPOCH="${epochnum:-}"
+}
+
+# What only the page on screen needs.
+glv_data_view() {
+  case "${VIEW:-1}" in
+    7) glv_data_startup; glv_params_job_start; glv_params_job_poll ;;
+    3) glv_data_peers; glv_peers_job_poll ;;
+    5) glv_data_system ;;
+    6) glv_data_logs ;;
+  esac
+}
+
+glv_data_collect() {
+  local start="${EPOCHREALTIME/[.,]/}" was_ok="${D_OK}" role=Relay alert=''
+  printf -v D_COLLECTED_AT '%(%s)T' -1
+
+  if getNodeMetrics 2>/dev/null; then
+    D_OK=Y
+    D_FAILS=0
+  else
+    # The failed collector has already reset availability; this only gives the
+    # arithmetic-facing variables safe defaults.
+    common_parse_cardano_metrics "" 2>/dev/null
+    D_OK=N
+    D_FAILS=$((D_FAILS + 1))
+  fi
+  node_refresh_process >/dev/null 2>&1 || true
+  D_PID="${NODE_PID:-}"
+  D_DOWN=''
+  if [[ -z "${D_PID}" ]]; then
+    # Without a process, whatever answered on the metrics port is not this
+    # node (another deployment may share the port), so nothing is shown.
+    if [[ "${D_OK}" == Y ]]; then
+      node_metric_reset_availability
+      common_parse_cardano_metrics "" 2>/dev/null
+    fi
+    D_OK=N
+    D_DOWN="not running"
+  elif [[ "${D_OK}" != Y ]]; then
+    D_DOWN="no metrics"
+  fi
+
+  if [[ "${D_OK}" != "${was_ok}" ]]; then
+    if [[ "${D_OK}" == Y ]]; then
+      (( D_SLOW_AT == 0 )) || glv_data_event "node back" "${D_IMPL}"
+    else
+      glv_data_event "node lost" "${D_IMPL} ${D_DOWN}"
+    fi
+  fi
+
+  if [[ "${D_OK}" == Y ]]; then
+    node_metric_has running_node_version && D_VERSION="${running_node_version}"
+    if [[ "${NODE_IMPLEMENTATION:-}" == cnode ]] && ! glv_is_int "${SHELLEY_TRANS_EPOCH:-}"; then
+      getShelleyTransitionEpoch >/dev/null 2>&1 || true
+    fi
+    if node_has forge && node_metric_has forging_enabled && [[ "${forging_enabled}" == 1 ]]; then
+      role=Core
+    fi
+    if [[ "${role}" != "${D_ROLE}" ]]; then
+      D_ROLE="${role}"
+      D_SLOW_AT=0
+      D_KES_AT=0
+      [[ "${role}" != Core ]] || glv_data_opcert
+    fi
+    if node_metric_has opcert_counter_disk; then D_OPCERT_DISK="${opcert_counter_disk}"; fi
+    if node_metric_has opcert_counter_chain; then D_OPCERT_CHAIN="${opcert_counter_chain}"; fi
+    if node_metric_has node_alert; then alert="${node_alert}"; fi
+    if [[ "${alert}" != "${D_LAST_ALERT}" ]]; then
+      [[ -z "${alert}" ]] || glv_data_event "alert" "${alert}"
+      D_LAST_ALERT="${alert}"
+    fi
+    glv_data_blocks
+    glv_data_big_ledger
+    glv_data_watch
+  fi
+
+  glv_data_cpu
+  glv_data_process_cpu
+  glv_data_memory
+  # Slower sources: the disk, the leader schedule and the KES expiry date.
+  if (( D_COLLECTED_AT - D_SLOW_AT >= 30 )); then
+    D_SLOW_AT="${D_COLLECTED_AT}"
+    glv_data_disk
+    if [[ "${D_ROLE}" == Core ]]; then glv_data_blocklog; fi
+  fi
+  if [[ "${D_ROLE}" == Core ]] && (( D_COLLECTED_AT - D_KES_AT >= 60 )); then
+    D_KES_AT="${D_COLLECTED_AT}"
+    glv_data_kes
+  fi
+
+  glv_data_view
+  D_COLLECT_MS=$(( (${EPOCHREALTIME/[.,]/} - start) / 1000 ))
+  glv_data_clock
+}
+
+# The wall-clock slot, as env's getSlotTipRef works it out, without a subshell.
+glv_data_reference_slot() {
+  local -n _reference_out="$1"
+  local byron_slots byron_end name
+  _reference_out=''
+  for name in SHELLEY_TRANS_EPOCH BYRON_EPOCH_LENGTH BYRON_SLOT_LENGTH \
+      BYRON_GENESIS_START_SEC SLOT_LENGTH; do
+    glv_is_int "${!name:-}" || return 1
+  done
+  (( SLOT_LENGTH > 0 && BYRON_SLOT_LENGTH > 0 )) || return 1
+  byron_slots=$((SHELLEY_TRANS_EPOCH * BYRON_EPOCH_LENGTH))
+  byron_end=$((BYRON_GENESIS_START_SEC + byron_slots * BYRON_SLOT_LENGTH / 1000))
+  if (( D_NOW < byron_end )); then
+    _reference_out=$(((D_NOW - BYRON_GENESIS_START_SEC) * 1000 / BYRON_SLOT_LENGTH))
+  else
+    _reference_out=$((byron_slots + (D_NOW - byron_end) / SLOT_LENGTH))
+  fi
+}
+
+glv_data_clock() {
+  local reference='' native byron_end epoch_now
+  printf -v D_NOW '%(%s)T' -1
+  # A finished peer analysis shows up within a second, not at the next collection.
+  [[ -z "${PEER_JOB_PID:-}" ]] || glv_peers_job_poll
+  [[ -z "${PARAMS_JOB_PID:-}" ]] || glv_params_job_poll
+
+  D_UPTIME=''
+  if node_metric_has uptimes && glv_is_int "${uptimes:-}"; then
+    D_UPTIME=$((uptimes + D_NOW - D_COLLECTED_AT))
+  fi
+
+  # A gap the node reports itself wins; otherwise compare with the wall clock.
+  D_TIP_GAP=''
+  glv_data_reference_slot reference || reference=''
+  if node_metric_has tip_gap && ui_scale native "${tip_gap:-}" 0; then
+    (( native >= 0 )) || native=0
+    D_TIP_GAP="${native}"
+  elif [[ -n "${reference}" ]] && node_metric_has slotnum && glv_is_int "${slotnum:-}"; then
+    D_TIP_GAP=$((reference - slotnum))
+    (( D_TIP_GAP >= 0 )) || D_TIP_GAP=0
+  fi
+
+  D_EPOCH_LEFT=''
+  if [[ -n "${reference}" ]] && glv_is_int "${EPOCH_LENGTH:-}" && (( EPOCH_LENGTH > 0 )); then
+    byron_end=$((BYRON_GENESIS_START_SEC + SHELLEY_TRANS_EPOCH * BYRON_EPOCH_LENGTH * BYRON_SLOT_LENGTH / 1000))
+    if (( D_NOW >= byron_end )); then
+      epoch_now=$(((D_NOW - byron_end) / SLOT_LENGTH / EPOCH_LENGTH))
+      D_EPOCH_LEFT=$((byron_end + (epoch_now + 1) * SLOT_LENGTH * EPOCH_LENGTH - D_NOW))
+    fi
+  fi
+  if [[ -z "${D_EPOCH_LEFT}" ]] && node_metric_has slot_in_epoch &&
+     glv_is_int "${slot_in_epoch:-}" && glv_is_int "${EPOCH_LENGTH:-}" &&
+     glv_is_int "${SLOT_LENGTH:-}"; then
+    D_EPOCH_LEFT=$(((EPOCH_LENGTH - slot_in_epoch) * SLOT_LENGTH))
+  fi
+
+  D_NEXT_IN=''
+  if glv_is_int "${D_NEXT_AT}"; then
+    D_NEXT_IN=$((D_NEXT_AT - D_NOW))
+    # The slot has passed: ask the schedule again on the next collection.
+    (( D_NEXT_IN >= 0 )) || { D_NEXT_IN=''; D_NEXT_AT=''; D_SLOW_AT=0; }
+  fi
+}
+
+##############################################################################
+# Views: the rail, the overview panels and the layouts for each terminal size
+##############################################################################
+# The rail, the panels and the page layouts for each terminal size. Everything is
+# availability driven: a panel shows what the node's adapter reported and
+# leaves out what it did not, so one layout serves cardano-node, Amaru and
+# Dingo.
+#
+# Layouts by terminal width (rows shorter than a layout needs drop panels from
+# the bottom of the page first):
+#   wide      150+     full rail, four tiles in a row, events beside blocks
+#   standard  110-149  full rail, tiles two by two
+#   compact   80-109   rail of view numbers, one stacked column
+#   mini      34-79    the rail alone
+#   small     below 34 x 16: a request to enlarge the terminal
+
+GLV_MIN_COLS=34
+GLV_MIN_ROWS=16
+GLV_RAIL_W=26
+GLV_SLIM_W=5
+
+VIEW=1
+VIEW_KEYS=('' 1 2 3 4 5 6 n)
+VIEW_NAMES=('' Overview Chain Peers Production System Logs "Node & network")
+
+glv_layout_class() {
+  if (( COLS < GLV_MIN_COLS || ROWS < GLV_MIN_ROWS )); then LAYOUT=small
+  elif (( COLS < 80 )); then LAYOUT=mini
+  elif (( COLS < 110 )); then LAYOUT=compact
+  elif (( COLS < 150 )); then LAYOUT=standard
+  else LAYOUT=wide; fi
+}
+
+# ── cells ────────────────────────────────────────────────────────────────────
+# glv_cell <array> <label> <value> [colour variable]
+glv_cell() {
+  local -n _cell_list="$1"
+  [[ -n "${3:-}" ]] || return 0
+  _cell_list+=("$2|$3|${4:-}")
+}
+
+# glv_metric_cell <array> <metric> <label> [int|compact|bytes|percent|raw] [colour variable]
+# Adds the cell only when the adapter reported the metric.
+glv_metric_cell() {
+  local metric="$2" format="${4:-int}" value text scaled
+  node_metric_has "${metric}" || return 0
+  value="${!metric:-}"
+  case "${format}" in
+    int) ui_scale scaled "${value}" 0 && ui_fmt_int text "${scaled}" || text="${value}" ;;
+    compact) ui_scale scaled "${value}" 0 && ui_fmt_compact text "${scaled}" || text="${value}" ;;
+    bytes) ui_scale scaled "${value}" 0 && ui_fmt_bytes text "${scaled}" || text="${value}" ;;
+    percent) ui_scale scaled "${value}" 2 && text="$((scaled / 100)).$((scaled % 100 / 10))$((scaled % 10)) %" || text="${value}" ;;
+    *) text="${value}" ;;
+  esac
+  glv_cell "$1" "$3" "${text}" "${5:-}"
+}
+
+# glv_slots <variable> <count>: "1 slot", "1,204 slots".
+glv_slots() {
+  local -n _slots_out="$1"
+  ui_fmt_int _slots_out "$2"
+  if [[ "$2" == 1 ]]; then _slots_out+=" slot"; else _slots_out+=" slots"; fi
+}
+
+# The one-line verdict used by the compact header and the mini layout.
+glv_status() {
+  local -n _status_text="$1" _status_colour="$2"
+  local gap
+  if [[ "${D_OK}" != Y ]]; then
+    _status_text="${D_DOWN:-No metrics}"; _status_colour="${C_DANGER}"
+  elif node_metric_has node_alert && [[ -n "${node_alert:-}" ]]; then
+    _status_text="Alert"; _status_colour="${C_DANGER}"
+  elif node_metric_has sync_phase && [[ -n "${sync_phase:-}" ]]; then
+    _status_text="Syncing"; _status_colour="${C_WARN}"
+  elif [[ -n "${D_TIP_GAP}" ]] && (( D_TIP_GAP > 120 )); then
+    glv_slots gap "${D_TIP_GAP}"
+    _status_text="${gap} behind"; _status_colour="${C_WARN}"
+  else
+    _status_text="In sync"; _status_colour="${C_OK}"
+  fi
+}
+
+glv_gap_colour() {
+  local -n _gap_out="$1"
+  if [[ -z "${D_TIP_GAP}" ]]; then _gap_out=C_MUTED
+  elif (( D_TIP_GAP <= 120 )); then _gap_out=C_OK
+  elif (( D_TIP_GAP <= 600 )); then _gap_out=C_WARN
+  else _gap_out=C_DANGER; fi
+}
+
+glv_kes_colour() {
+  local -n _kes_out="$1"
+  local remaining
+  _kes_out=C_OK
+  ui_scale remaining "${remaining_kes_periods:-0}" 0 || return 0
+  if (( remaining <= 5 )); then _kes_out=C_DANGER
+  elif (( remaining <= 15 )); then _kes_out=C_WARN; fi
+}
+
+# "7 · 7 ✓": the certificate on disk must match the chain or be one ahead.
+glv_opcert_text() {
+  local -n _opcert_text="$1" _opcert_colour="$2"
+  _opcert_text=''
+  _opcert_colour=''
+  [[ -n "${D_OPCERT_DISK}${D_OPCERT_CHAIN}" ]] || return 0
+  _opcert_text="${D_OPCERT_DISK:-?} · ${D_OPCERT_CHAIN:-?}"
+  if glv_is_int "${D_OPCERT_DISK}" && glv_is_int "${D_OPCERT_CHAIN}"; then
+    if (( D_OPCERT_DISK == D_OPCERT_CHAIN || D_OPCERT_DISK == D_OPCERT_CHAIN + 1 )); then
+      _opcert_text+=" ✓"; _opcert_colour=C_OK
+    else
+      _opcert_text+=" ✗"; _opcert_colour=C_DANGER
+    fi
+  fi
+}
+
+# ── panels ───────────────────────────────────────────────────────────────────
+# Each builder leaves a finished box in P_<NAME>.
+
+# glv_panel_epoch <width> [title prefix]. Three rows without a second line,
+# four with one (sync status, or the leader slots of this epoch).
+glv_panel_epoch() {
+  local width="$1" prefix="${2:-}" inner=$(($1 - 4)) title right='' filled=0
+  local slot length left tenths text entry position status colour i
+  local -a glyph=() tint=()
+  UI_BASE="${UI_BASE_MAIN}"
+  UI_BODY=()
+  title="${prefix}Epoch"
+  if node_metric_has epochnum && node_metric_has slot_in_epoch &&
+     glv_is_int "${slot_in_epoch:-}" && glv_is_int "${EPOCH_LENGTH:-}" && (( EPOCH_LENGTH > 0 )); then
+    title="${prefix}Epoch ${epochnum}"
+    filled=$((inner * slot_in_epoch / EPOCH_LENGTH))
+    tenths=$((slot_in_epoch * 1000 / EPOCH_LENGTH))
+    ui_fmt_int slot "${slot_in_epoch}"
+    ui_fmt_int length "${EPOCH_LENGTH}"
+    right="$((tenths / 10)).$((tenths % 10)) %"
+    left=''
+    if [[ -n "${D_EPOCH_LEFT}" ]]; then
+      ui_fmt_duration left "${D_EPOCH_LEFT}"
+      left=" · ${left} left"
+    fi
+    # The slot count is the first thing to go when the border is short.
+    if (( ${#title} + ${#right} + ${#slot} + ${#length} + ${#left} + 15 <= width )); then
+      right+=" · ${slot} / ${length}"
+    fi
+    right+="${left}"
+    ui_bar "${inner}" "${filled}" UI_BLOCKS "${C_ACCENT}"
+  elif [[ "${D_OK}" == Y ]]; then
+    ui_putw "${C_MUTED}" "${inner}" "${D_IMPL} has not reported an epoch yet."
+  else
+    ui_putw "${C_DANGER}" "${inner}" "${D_IMPL}: ${D_DOWN:-no metrics}. Trying again every ${REFRESH_RATE} s."
+  fi
+  ui_endl UI_BODY "${inner}"
+
+  if node_metric_has node_alert && [[ -n "${node_alert:-}" ]]; then
+    ui_putw "${C_DANGER}" "${inner}" "Alert: ${node_alert}"
+    ui_endl UI_BODY "${inner}"
+  elif node_metric_has sync_phase && [[ -n "${sync_phase:-}" ]]; then
+    text="Sync: ${sync_phase}"
+    if node_metric_has sync_progress; then text+=" · ${sync_progress} %"; fi
+    if node_metric_has sync_rate && [[ -n "${sync_rate:-}" ]]; then text+=" · ${sync_rate}"; fi
+    ui_putw "${C_WARN}" "${inner}" "${text}"
+    ui_endl UI_BODY "${inner}"
+  elif (( ${#D_SCHEDULE[@]} > 0 )) && [[ "${D_SCHEDULE_EPOCH}" == "${epochnum:-}" ]] &&
+       glv_is_int "${slot_in_epoch:-}" && glv_is_int "${EPOCH_LENGTH:-}" && (( EPOCH_LENGTH > 0 )); then
+    # One mark per leader slot, placed where the slot falls on the bar.
+    for entry in "${D_SCHEDULE[@]}"; do
+      status="${entry#*|}"
+      status="${status%%|*}"
+      glv_is_int "${entry%%|*}" || continue
+      position=$((inner * ${entry%%|*} / EPOCH_LENGTH))
+      (( position < inner )) || position=$((inner - 1))
+      case "${status}" in
+        adopted|confirmed) colour="${C_OK}" ;;
+        leader) if (( ${entry%%|*} >= slot_in_epoch )); then colour="${C_ACCENT}"; else colour="${C_WARN}"; fi ;;
+        *) colour="${C_DANGER}" ;;
+      esac
+      glyph[position]='▲'
+      tint[position]="${colour}"
+    done
+    for ((i = 0; i < inner; i++)); do
+      if [[ -n "${glyph[i]:-}" ]]; then UI_L+="${tint[i]}▲${UI_BASE}"; else UI_L+=' '; fi
+    done
+    UI_LW="${inner}"
+    ui_endl UI_BODY "${inner}"
+  fi
+  UI_HELP=epoch
+  ui_panel P_EPOCH "${width}" $((${#UI_BODY[@]} + 2)) "${title}" "${right}"
+}
+
+glv_chain_cells() {
+  local colour value
+  glv_metric_cell "$1" blocknum "Block" int UI_BOLD
+  glv_metric_cell "$1" slotnum "Slot"
+  if [[ -n "${D_TIP_GAP}" ]]; then
+    glv_gap_colour colour
+    glv_slots value "${D_TIP_GAP}"
+    glv_cell "$1" "Tip gap" "${value}" "${colour}"
+  fi
+  glv_metric_cell "$1" slot_in_epoch "Epoch slot"
+  if node_metric_has density; then glv_cell "$1" "Density" "${density} %"; fi
+  glv_metric_cell "$1" forks "Forks"
+  glv_metric_cell "$1" mempool_tx "Pending tx"
+  glv_metric_cell "$1" mempool_bytes "Mempool" bytes
+  glv_metric_cell "$1" tx_processed "Total tx" compact
+}
+
+# glv_panel_chain <width> <columns> <rows>
+glv_panel_chain() {
+  local width="$1" inner=$(($1 - 4))
+  local -a cells=()
+  UI_BASE="${UI_BASE_MAIN}"
+  UI_BODY=()
+  glv_chain_cells cells
+  if (( ${#cells[@]} == 0 )); then
+    ui_put "${C_MUTED}" "No chain metrics yet."
+    ui_endl UI_BODY "${inner}"
+  else
+    ui_grid cells "$2" "$3" "${inner}" UI_BODY
+  fi
+  UI_HELP=chain
+  ui_panel P_CHAIN "${width}" $(($3 + 2)) "Chain" ""
+}
+
+# The implementation's own metrics (Amaru's pipeline timings, Dingo's sync
+# figures), as many as fit in <rows>.
+glv_custom_rows() {
+  local inner="$1" rows="$2" name value
+  local -a cells=()
   for name in "${NODE_CUSTOM_METRICS[@]}"; do
     node_metric_has "${name}" || continue
-    custom_grid+=(
-      "${name}"
-      "${NODE_METRIC_LABEL[${name}]:-${name}}"
-      "${NODE_METRIC_UNIT[${name}]:-}"
-    )
+    value="${!name:-}"
+    [[ -z "${NODE_METRIC_UNIT[${name}]:-}" ]] || value+=" ${NODE_METRIC_UNIT[${name}]}"
+    glv_cell cells "${NODE_METRIC_LABEL[${name}]:-${name}}" "${value}"
   done
-  (( ${#custom_grid[@]} > 0 )) ||
-    return 0
-  glvMetricGrid "${NODE_IMPLEMENTATION_NAME^^} METRICS" \
-    "${custom_grid[@]}"
+  (( ${#cells[@]} > 0 && rows > 0 )) || return 0
+  ui_grid cells 2 "${rows}" "${inner}" UI_BODY
 }
 
-glvRenderProducerMetrics() {
-  local schedule_label=""
-  local -a producer_metrics=()
-  node_has forge || return 0
-  [[ "${nodemode}" == "Core" ]] || return 0
+glv_panel_propagation() {
+  local width="$1" inner=$(($1 - 4)) cell third count=${#H_DELAY[@]}
+  local delay last slowest=0 colour value i scaled right='' title="Propagation"
+  local -a cells=()
+  cell=$(((inner - 2) / 2))
+  third=$((inner / 3))
+  UI_BASE="${UI_BASE_MAIN}"
+  UI_BODY=()
 
-  if node_metric_has kesperiod; then
-    producer_metrics+=(kesperiod "KES current" "")
-  fi
-  if node_metric_has remaining_kes_periods; then
-    producer_metrics+=(remaining_kes_periods "KES remaining" "")
-    node_metric_set glv_kes_expiration "${kes_expiration:-?}"
-    producer_metrics+=(glv_kes_expiration "KES expires" "")
-  fi
-  node_metric_has forge_keys_valid &&
-    producer_metrics+=(forge_keys_valid "Keys valid" "")
-  # A node may publish the schedule of the current or the next epoch.
-  if node_metric_has leader_sched_slots &&
-     node_metric_has leader_sched_epoch &&
-     [[ "${leader_sched_epoch}" =~ ^[0-9]+$ && "${epochnum:-}" =~ ^[0-9]+$ ]]; then
-    if (( leader_sched_epoch == epochnum )); then
-      schedule_label="Scheduled"
-    elif (( leader_sched_epoch == epochnum + 1 )); then
-      schedule_label="Next sched"
+  if node_metric_has block_delay && ui_scale last "${block_delay}" 3; then
+    ui_delay_colour colour "${last}"
+    ui_fmt_delay value "${last}"
+    # A narrow tile gives each figure its own row.
+    (( inner >= 38 )) || cell="${inner}"
+    ui_kv "${cell}" "Last block" "${UI_BOLD}${colour}" "${value}"
+    if (( count > 0 )); then
+      for delay in "${H_DELAY[@]}"; do (( delay <= slowest )) || slowest="${delay}"; done
+      ui_delay_colour colour "${slowest}"
+      ui_fmt_delay value "${slowest}"
+      if (( inner >= 38 )); then ui_gap 2; else ui_endl UI_BODY "${inner}"; fi
+      ui_kv "${cell}" "Slowest" "${colour}" "${value}"
+      right="${count} blocks"
+      (( count != 1 )) || right="1 block"
     fi
-    [[ -n "${schedule_label}" ]] &&
-      producer_metrics+=(leader_sched_slots "${schedule_label}" "")
+    ui_endl UI_BODY "${inner}"
+    # One colour per sample, so the slow blocks stand out in the row.
+    for ((i = (count > inner ? count - inner : 0); i < count; i++)); do
+      delay="${H_DELAY[i]}"
+      ui_delay_colour colour "${delay}"
+      (( delay > 1000 )) || colour="${C_ACCENT}"
+      delay=$((delay / 700))
+      (( delay <= 7 )) || delay=7
+      UI_L+="${colour}${UI_SPARK[delay]}"
+      UI_LW=$((UI_LW + 1))
+    done
+    if (( count == 0 )); then ui_putw "${C_MUTED}" "${inner}" "History builds with new blocks."; else UI_L+="${UI_BASE}"; fi
+    ui_endl UI_BODY "${inner}"
   fi
-  node_metric_has isleader &&
-    producer_metrics+=(isleader "Leader slots" "")
-  node_metric_has adopted &&
-    producer_metrics+=(adopted "Adopted" "")
-  node_metric_has didntadopt &&
-    producer_metrics+=(didntadopt "Not adopted" "")
-  node_metric_has leader_lost &&
-    producer_metrics+=(leader_lost "Lost slots" "")
 
-  if [[ "${VERBOSE}" == "Y" ]]; then
-    if node_metric_has opcert_counter_disk &&
-       node_metric_has opcert_counter_chain; then
-      node_metric_set glv_opcert_counters \
-        "${opcert_counter_disk}|${opcert_counter_chain}"
-      producer_metrics+=(glv_opcert_counters "OpCert #" "")
+  if node_metric_has blocks_w1s; then
+    for i in 1 3 5; do
+      case "${i}" in
+        1) value="${blocks_w1s:-}" ;;
+        3) value="${blocks_w3s:-}" ;;
+        *) value="${blocks_w5s:-}" ;;
+      esac
+      ui_scale scaled "${value}" 3 || scaled=0
+      ui_put "${C_MUTED}" "≤${i}s"
+      if (( third >= 12 )); then
+        ui_putw '' $((third - 3)) " $((scaled / 10)).$((scaled % 10)) %"
+      else
+        ui_putw '' $((third - 3)) " $((scaled / 10))%"
+      fi
+    done
+    ui_endl UI_BODY "${inner}"
+  fi
+  glv_metric_cell cells blocks_late "Late"
+  glv_metric_cell cells blocks_served "Served"
+  if (( ${#cells[@]} > 0 )); then ui_grid cells 2 1 "${inner}" UI_BODY; fi
+
+  # A node without propagation figures gives the tile to its own metrics.
+  if (( ${#UI_BODY[@]} == 0 )); then title="${D_IMPL} metrics"; fi
+  glv_custom_rows "${inner}" $((5 - ${#UI_BODY[@]}))
+  if (( ${#UI_BODY[@]} == 0 )); then
+    title="Propagation"
+    ui_putw "${C_MUTED}" "${inner}" "No propagation figures from ${D_IMPL}."
+    ui_endl UI_BODY "${inner}"
+  fi
+  UI_HELP=propagation
+  ui_panel P_PROP "${width}" 7 "${title}" "${right}"
+}
+
+glv_panel_peers() {
+  local width="$1" inner=$(($1 - 4)) column text
+  local -a cells=()
+  column=$(((inner - 10) / 3))
+  (( column <= 10 )) || column=10
+  UI_BASE="${UI_BASE_MAIN}"
+  UI_BODY=()
+  if node_metric_has peer_selection_hot; then
+    # Peers by how they are used. Outgoing plus big ledger are the peers this
+    # node chose; incoming are the peers that chose it.
+    ui_gap 10
+    ui_putw "${C_MUTED}" "${column}" "hot" r
+    ui_putw "${C_MUTED}" "${column}" "warm" r
+    ui_putw "${C_MUTED}" "${column}" "cold" r; ui_endl UI_BODY "${inner}"
+    ui_putw "${C_MUTED}" 10 "Outgoing"
+    ui_putw '' "${column}" "${peer_selection_hot}" r
+    ui_putw '' "${column}" "${peer_selection_warm:-—}" r
+    ui_putw '' "${column}" "${peer_selection_cold:-—}" r; ui_endl UI_BODY "${inner}"
+    if [[ -n "${D_BIG_HOT}" ]]; then
+      ui_putw "${C_MUTED}" 10 "Big ledger"
+      ui_putw '' "${column}" "${D_BIG_HOT}" r
+      ui_putw '' "${column}" "${D_BIG_WARM:-—}" r
+      ui_putw '' "${column}" "${D_BIG_COLD:-—}" r; ui_endl UI_BODY "${inner}"
     fi
-    node_metric_has about_to_lead &&
-      producer_metrics+=(about_to_lead "Leader checks" "")
-    node_metric_has not_leader &&
-      producer_metrics+=(not_leader "Not leader" "")
-    node_metric_has could_not_forge &&
-      producer_metrics+=(could_not_forge "Forge failed" "")
-    node_metric_has missed_slots &&
-      producer_metrics+=(missed_slots "Missed checks" "")
-    node_metric_has opcert_start_kes &&
-      producer_metrics+=(opcert_start_kes "OpCert starts" "KES")
-    node_metric_has opcert_expiry_kes &&
-      producer_metrics+=(opcert_expiry_kes "OpCert expires" "KES")
-  fi
-
-  (( ${#producer_metrics[@]} > 0 )) || return 0
-  glvMetricGrid "BLOCK PRODUCTION" "${producer_metrics[@]}"
-}
-
-glvFrameSectionDivider() {
-  local label="$1"
-  local fill_count=$(( width - ${#label} - 4 ))
-  local fill=""
-  (( fill_count < 1 )) && fill_count=1
-  printf -v fill '%*s' "${fill_count}" ''
-  fill="${fill// /-}"
-  glv_frame_add "${VL}- ${style_info}${label}${NC} ${fill}${VL}"
-}
-
-glvSectionDivider() {
-  glvFrameSectionDivider "$1"
-}
-
-glvFrameInfoRow() {
-  local label value label_fmt value_fmt
-  label="$(glv_text_clip 18 "$1")"
-  value="$(glv_text_clip 49 "${2-}")"
-  label_fmt="$(glv_text_pad 18 "${label}")"
-  value_fmt="$(glv_text_pad 49 "${value}")"
-  glv_frame_add \
-    "${VL}${label_fmt} : ${style_values_1}${value_fmt}${NC}${VL}"
-}
-
-glvFrameHeaderDivider() {
-  local position="${1:-top}"
-  local left junction right fill segment_one segment_two segment_three
-
-  printf -v segment_one '%30s' ''
-  printf -v segment_two '%13s' ''
-  printf -v segment_three '%25s' ''
-  if [[ "${LEGACY_MODE}" == "true" ]]; then
-    left="+"
-    junction="+"
-    right="+"
-    [[ "${position}" == "top" ]] && fill="=" || fill="-"
-  elif [[ "${position}" == "top" ]]; then
-    left=$'\u250c'
-    junction=$'\u252c'
-    right=$'\u2510'
-    fill=$'\u2500'
+    if node_metric_has inbound_governor_hot; then
+      ui_putw "${C_MUTED}" 10 "Incoming"
+      ui_putw '' "${column}" "${inbound_governor_hot}" r
+      ui_putw '' "${column}" "${inbound_governor_warm:-—}" r
+      ui_putw "${C_MUTED}" "${column}" "—" r; ui_endl UI_BODY "${inner}"
+    fi
+    if node_metric_has conn_outgoing && node_metric_has conn_incoming; then
+      # The same peers counted as connections, in the longest form that fits.
+      text="${conn_outgoing} out · ${conn_incoming} in"
+      if node_metric_has conn_duplex && (( ${#text} + ${#conn_duplex} + 8 <= inner - 10 )); then
+        text+=" · ${conn_duplex} both"
+      fi
+      ui_putw "${C_MUTED}" 10 "Conns"
+      ui_putw '' $((inner - 10)) "${text}"; ui_endl UI_BODY "${inner}"
+    fi
   else
-    left=$'\u251c'
-    junction=$'\u2534'
-    right=$'\u2524'
-    fill=$'\u2500'
-  fi
-  segment_one="${segment_one// /${fill}}"
-  segment_two="${segment_two// /${fill}}"
-  segment_three="${segment_three// /${fill}}"
-  printf '%s%s%s%s%s%s%s%s' \
-    "${NC}" "${left}" "${segment_one}" "${junction}" \
-    "${segment_two}" "${junction}" "${segment_three}" "${right}"
-}
-
-# Description : Set GLV_LOGO_SGR to the colour for a logo row: 24-bit when COLORTERM says the terminal supports it,
-#             : otherwise the closest colour of the 256-colour palette, which also works through terminals and
-#             : multiplexers without 24-bit colour, and over SSH, which doesn't pass COLORTERM on by default.
-#             : $1 = red;green;blue
-glvLogoColor() {
-  local red green blue channel index=0
-  if [[ ${COLORTERM:-} == "truecolor" || ${COLORTERM:-} == "24bit" ]]; then
-    GLV_LOGO_SGR="38;2;${1}"
-    return
-  fi
-  IFS=';' read -r red green blue <<< "${1}"
-  for channel in "${red}" "${green}" "${blue}"; do
-    index=$(( index * 6 + (channel < 48 ? 0 : channel < 115 ? 1 : (channel - 35) / 40) ))
-  done
-  GLV_LOGO_SGR="38;5;$(( 16 + index ))"
-}
-
-# Description : Prepare the logo from the adapter once at startup, coloured for the theme and the terminal. Leaves
-#             : GLV_LOGO_ART empty when there is no logo to show: disabled, legacy ASCII mode, no logo in the adapter,
-#             : or not one colour per row.
-glvLogoInit() {
-  local index row
-  local -a colours=()
-  GLV_LOGO_ART=()
-  GLV_LOGO_WIDTH=0
-  [[ ${SHOW_NODE_LOGO} != "false" && ${LEGACY_MODE} != "true" ]] || return 0
-  declare -p NODE_IMPLEMENTATION_LOGO NODE_IMPLEMENTATION_LOGO_RGB &>/dev/null || return 0
-  colours=("${NODE_IMPLEMENTATION_LOGO_RGB[@]}")
-  if [[ ${THEME:-dark} == "light" ]] && declare -p NODE_IMPLEMENTATION_LOGO_RGB_LIGHT &>/dev/null; then
-    colours=("${NODE_IMPLEMENTATION_LOGO_RGB_LIGHT[@]}")
-  fi
-  (( ${#NODE_IMPLEMENTATION_LOGO[@]} > 0 && ${#NODE_IMPLEMENTATION_LOGO[@]} == ${#colours[@]} )) || return 0
-  for index in "${!NODE_IMPLEMENTATION_LOGO[@]}"; do
-    glvLogoColor "${colours[index]}"
-    printf -v row '\e[%sm%s%s' "${GLV_LOGO_SGR}" "${NODE_IMPLEMENTATION_LOGO[index]}" "${NC}"
-    GLV_LOGO_ART+=("${row}")
-  done
-  GLV_LOGO_WIDTH=${#NODE_IMPLEMENTATION_LOGO[0]}
-}
-
-# Description : Build the header rows with the logo, the node info beside its middle row, in GLV_LOGO_HEADER, and set
-#             : GLV_LOGO_ROWS to the rows the logo adds. Returns 1 when the text header is used instead: no logo to
-#             : show, the rows it adds would not fit the height of the last frame in the terminal (GLV_TEXT_LINES, see
-#             : glvFrameFitsTerminal and glvLegacyFrameFits), or the node info is too long to fit beside it.
-#             : $1 = node name, left out when NODE_NAME is the default, $2 = implementation, $3 = role, $4 = network,
-#             : $5 = version
-glvLogoHeaderRows() {
-  local name="${1}" logo_rows=$(( ${#GLV_LOGO_ART[@]} - 1 )) info padding middle index row
-  GLV_LOGO_HEADER=()
-  GLV_LOGO_ROWS=0
-  (( logo_rows >= 0 && ${GLV_TEXT_LINES:-0} + logo_rows < ${tlines:-0} - 1 )) || return 1
-  [[ ${NODE_NAME_DEFAULT:-N} == "Y" ]] && name=""
-  info="> ${name:+${name} - }${2} - ${3} - ${4} : ${5} <"
-  (( GLV_LOGO_WIDTH + 2 + ${#info} <= width )) || return 1
-  padding=$(( (width - GLV_LOGO_WIDTH - 2 - ${#info}) / 2 ))
-  middle=$(( logo_rows / 2 ))
-  for index in "${!GLV_LOGO_ART[@]}"; do
-    printf -v row '%*s%s' "${padding}" '' "${GLV_LOGO_ART[index]}"
-    if (( index == middle )); then
-      row+="  > ${name:+${style_values_2}${name}${NC} - }${style_info}${2}${NC} - ${style_info}${3}${NC} - ${4} : ${style_values_1}${5}${NC} <"
+    glv_metric_cell cells peer_active "Active"
+    glv_metric_cell cells peer_established "Established"
+    glv_metric_cell cells peer_known "Known"
+    glv_metric_cell cells conn_outgoing "Outgoing"
+    glv_metric_cell cells conn_incoming "Incoming"
+    glv_metric_cell cells conn_total "Connections"
+    if (( ${#cells[@]} > 0 )); then
+      ui_grid cells 2 3 "${inner}" UI_BODY
+    else
+      ui_putw "${C_MUTED}" "${inner}" "No peer counters from ${D_IMPL}."
+      ui_endl UI_BODY "${inner}"
     fi
-    GLV_LOGO_HEADER+=("${row}")
-  done
-  GLV_LOGO_ROWS=${logo_rows}
+  fi
+  UI_HELP=peers
+  ui_panel P_PEERS "${width}" 7 "Peers" ""
 }
 
-glvFrameHeader() {
-  local node_label implementation_label role_label network_label version_label
-  local plain_header header_padding uptime_value uptime_segment port_segment title_segment row
+glv_panel_resources() {
+  local width="$1" inner=$(($1 - 4)) spark value text peak sample
+  spark=$((inner - 21))
+  (( spark <= 30 )) || spark=30
+  UI_BASE="${UI_BASE_MAIN}"
+  UI_BODY=()
+  ui_fmt_tenths value "${D_CPU}"
+  ui_putw "${C_MUTED}" 10 "CPU (sys)"; ui_putw '' 9 "${value} %" r; ui_gap 2
+  ui_spark H_CPU "${spark}" "${C_ACCENT}" 1000; ui_endl UI_BODY "${inner}"
+  if [[ -n "${D_PCPU}" ]]; then
+    # One core is the full bar; a node using more just stays at the top.
+    ui_fmt_tenths value "${D_PCPU}"
+    ui_putw "${C_MUTED}" 10 "CPU (node)"; ui_putw '' 9 "${value} %" r; ui_gap 2
+    ui_spark H_PCPU "${spark}" "${C_ACCENT}" 1000; ui_endl UI_BODY "${inner}"
+  fi
+  if [[ -n "${D_MEM}" ]]; then
+    ui_fmt_tenths value "${D_MEM}"
+    peak=1
+    for sample in "${H_MEM[@]}"; do (( sample <= peak )) || peak="${sample}"; done
+    ui_putw "${C_MUTED}" 10 "Mem (RSS)"; ui_putw '' 9 "${value} GiB" r; ui_gap 2
+    ui_spark H_MEM "${spark}" "${C_ACCENT}" "${peak}"; ui_endl UI_BODY "${inner}"
+  fi
+  if node_metric_has mem_live && ui_scale sample "${mem_live}" 0; then
+    ui_fmt_bytes text "${sample}"
+    ui_putw "${C_MUTED}" 10 "Live"; ui_putw '' 9 "${text}" r
+    if (( spark >= 14 )) && node_metric_has mem_heap && ui_scale sample "${mem_heap}" 0; then
+      ui_fmt_bytes text "${sample}"
+      ui_gap 2
+      ui_put "${C_MUTED}" "heap "; ui_put '' "${text}"
+    fi
+    ui_endl UI_BODY "${inner}"
+  fi
+  if [[ -n "${D_DISK}" ]]; then
+    ui_putw "${C_MUTED}" 10 "Disk util"; ui_putw '' 9 "${D_DISK} %" r; ui_gap 2
+    ui_bar "${spark}" $((spark * D_DISK / 100)) UI_HEAVY "${C_ACCENT}"
+    ui_endl UI_BODY "${inner}"
+  fi
+  if node_metric_has open_files; then
+    ui_putw "${C_MUTED}" 10 "Open files"; ui_putw '' 9 "${open_files}" r
+    if node_metric_has max_files && ui_scale sample "${max_files}" 0; then
+      ui_fmt_int text "${sample}"
+      ui_gap 2
+      ui_putw "${C_MUTED}" $((inner - 21)) "of ${text}"
+    fi
+    ui_endl UI_BODY "${inner}"
+  fi
+  UI_HELP=resources
+  ui_panel P_RES "${width}" 7 "Resources" ""
+}
 
-  node_label="$(glv_text_clip 16 "${NODE_NAME}")"
-  implementation_label="$(glv_text_clip 12 "${NODE_IMPLEMENTATION_NAME}")"
-  role_label="$(glv_text_clip 6 "${nodemode}")"
-  network_label="$(glv_text_clip 8 "${NETWORK_NAME}")"
-  # Amaru's date-based versions such as 10.11.20261022 need 14 characters.
-  version_label="$(glv_text_clip 14 "${running_node_version}")"
-  if glvLogoHeaderRows "${node_label}" "${implementation_label}" "${role_label}" "${network_label}" "${version_label}"; then
-    for row in "${GLV_LOGO_HEADER[@]}"; do
-      glv_frame_add "${row}"
+glv_production_cells() {
+  local colour text total lost
+  if [[ -n "${D_SCHEDULE_EPOCH}" ]]; then
+    total="${D_STATUS[total]:-0}"
+    glv_cell "$1" "Leader" "${total}"
+    glv_cell "$1" "Ideal" "${D_IDEAL}"
+    [[ -z "${D_LUCK}" ]] || glv_cell "$1" "Luck" "$((D_LUCK / 10)).$((D_LUCK % 10)) %"
+    glv_cell "$1" "Adopted" "$(( ${D_STATUS[adopted]:-0} + ${D_STATUS[confirmed]:-0} ))" C_OK
+    glv_cell "$1" "Confirmed" "${D_STATUS[confirmed]:-0}" C_OK
+    for text in missed ghosted stolen invalid; do
+      colour=''
+      (( ${D_STATUS[${text}]:-0} == 0 )) || colour=C_DANGER
+      glv_cell "$1" "${text^}" "${D_STATUS[${text}]:-0}" "${colour}"
     done
   else
-    plain_header="> ${node_label} [${implementation_label}] - ${role_label} - ${network_label} : ${version_label} <"
-    (( ${#plain_header} < width )) &&
-      header_padding=$(( (width - ${#plain_header}) / 2 )) ||
-      header_padding=0
-    glv_frame_add \
-      "$(printf '%*s' "${header_padding}" '')> ${style_values_2}${node_label}${NC} [${style_info}${implementation_label}${NC}] - ${style_info}${role_label}${NC} - ${network_label} : ${style_values_1}${version_label}${NC} <"
+    glv_metric_cell "$1" isleader "Leader"
+    glv_metric_cell "$1" adopted "Adopted" int C_OK
+    glv_metric_cell "$1" didntadopt "Invalid"
+    glv_metric_cell "$1" leader_sched_slots "Scheduled"
+    glv_metric_cell "$1" leader_lost "Lost"
   fi
-
-  glv_frame_add "$(glvFrameHeaderDivider top)"
-  if node_metric_has uptimes; then
-    uptime_value="$(timeLeft "${uptimes}")"
-  else
-    uptime_value="unavailable"
+  # "results" asks for the slot results only, without the key figures.
+  [[ "${2:-}" != results ]] || return 0
+  if node_metric_has remaining_kes_periods; then
+    glv_kes_colour colour
+    glv_cell "$1" "KES" "${remaining_kes_periods} periods" "${colour}"
   fi
-  uptime_segment="$(glv_text_pad 30 " Uptime: ${uptime_value}")"
-  port_segment="$(glv_text_pad 13 " Port: ${CNODE_PORT}")"
-  title_segment="$(glv_text_pad 25 " ${title}")"
-  glv_frame_add \
-    "${VL}${style_values_1}${uptime_segment}${NC}${VL}${style_values_2}${port_segment}${NC}${VL}${style_title}${title_segment}${NC}${VL}"
-  glv_frame_add "$(glvFrameHeaderDivider bottom)"
+  glv_opcert_text text colour
+  glv_cell "$1" "Op cert" "${text}" "${colour}"
+  glv_metric_cell "$1" missed_slots "Missed chk"
+  if node_metric_has forge_keys_valid; then
+    if [[ "${forge_keys_valid}" == 1 ]]; then glv_cell "$1" "Keys" "valid" C_OK
+    else glv_cell "$1" "Keys" "invalid" C_DANGER; fi
+  fi
 }
 
-# Add one full-width progress bar row for a 0-100 percentage.
-glvFrameProgressBar() {
-  local percent="${1:-0}"
-  local style="${2:-${style_values_1}}"
-  local items i progress_row="${VL} "
+# The Resources figures as cells, for the compact layout: host, then the
+# node process, then the disk.
+glv_resource_cells() {
+  local text sample
+  ui_fmt_tenths text "${D_CPU}"
+  glv_cell "$1" "CPU (sys)" "${text} %"
+  if [[ -n "${D_PCPU}" ]]; then
+    ui_fmt_tenths text "${D_PCPU}"
+    glv_cell "$1" "CPU (node)" "${text} %"
+  fi
+  if [[ -n "${D_MEM}" ]]; then
+    ui_fmt_tenths text "${D_MEM}"
+    glv_cell "$1" "Mem (RSS)" "${text} GiB"
+  fi
+  if node_metric_has mem_live && ui_scale sample "${mem_live}" 0; then
+    ui_fmt_bytes text "${sample}"
+    glv_cell "$1" "Live" "${text}"
+  fi
+  [[ -z "${D_DISK}" ]] || glv_cell "$1" "Disk util" "${D_DISK} %"
+  glv_metric_cell "$1" open_files "Open files"
+}
 
-  items=$(( $(LC_NUMERIC=C printf '%.0f' "${percent}") * granularity / 100 ))
-  for i in $(seq 0 $((granularity-1))); do
-    if (( i < items )); then
-      progress_row+="${style}${char_marked}"
+# glv_panel_production <width> <columns>
+glv_panel_production() {
+  local width="$1" columns="$2" inner=$(($1 - 4)) rows title="Block production" source
+  local -a cells=()
+  UI_BASE="${UI_BASE_MAIN}"
+  UI_BODY=()
+  glv_production_cells cells
+  rows=$(( (${#cells[@]} + columns - 1) / columns ))
+  (( rows >= 1 )) || rows=1
+  if (( ${#cells[@]} == 0 )); then
+    ui_putw "${C_MUTED}" "${inner}" "${D_IMPL} reports no forging figures yet."
+    ui_endl UI_BODY "${inner}"
+  else
+    ui_grid cells "${columns}" "${rows}" "${inner}" UI_BODY
+  fi
+  if node_metric_has epochnum; then title+=" · epoch ${epochnum}"; fi
+  source="node counters"
+  [[ -z "${D_SCHEDULE_EPOCH}" ]] || source="leader schedule"
+  UI_HELP=production
+  ui_panel P_PROD "${width}" $((rows + 2)) "${title}" "${source}"
+}
+
+# glv_panel_recent <width> <height> <all|blocks> [rows to skip]
+glv_panel_recent() {
+  local width="$1" height="$2" filter="${3:-all}" skip="${4:-0}" inner=$(($1 - 4)) rows=$(($2 - 3))
+  local record kind stamp block slot delay note colour value bar room shown=0
+  UI_BASE="${UI_BASE_MAIN}"
+  UI_BODY=()
+  room=$((inner - 43))
+  ui_putw "${C_MUTED}" 8 "Time"; ui_putw "${C_MUTED}" 12 "Block" r
+  ui_putw "${C_MUTED}" 13 "Slot" r; ui_putw "${C_MUTED}" 8 "Delay" r
+  ui_endl UI_BODY "${inner}"
+  for record in "${D_ROWS[@]:skip}"; do
+    (( shown < rows )) || break
+    kind="${record%%|*}"; record="${record#*|}"
+    [[ "${filter}" == all || "${kind}" == B ]] || continue
+    stamp="${record%%|*}"; record="${record#*|}"
+    ui_putw "${C_MUTED}" 8 "${stamp}"
+    if [[ "${kind}" == E ]]; then
+      ui_putw "${C_MUTED}" 12 "—" r; ui_putw "${C_MUTED}" 13 "—" r
+      ui_putw "${C_MUTED}" 8 "—" r; ui_gap 2
+      record="${record/|/ · }"
+      ui_putw "${C_WARN}" $(( room < ${#record} ? room : ${#record} )) "${record}"
     else
-      progress_row+="${NC}${char_unmarked}"
+      block="${record%%|*}"; record="${record#*|}"
+      slot="${record%%|*}"; record="${record#*|}"
+      delay="${record%%|*}"; note="${record#*|}"
+      ui_fmt_int value "${block}"; ui_putw '' 12 "${value}" r
+      ui_fmt_int value "${slot}"; ui_putw '' 13 "${value}" r
+      if (( delay < 0 )); then
+        ui_putw "${C_MUTED}" 8 "—" r
+        ui_gap 2
+      else
+        ui_delay_colour colour "${delay}"
+        ui_fmt_delay value "${delay}"; ui_putw "${colour}" 8 "${value}" r
+        ui_gap 2
+        bar=$((delay / 250))
+        (( bar >= 1 )) || bar=1
+        (( bar <= room )) || bar="${room}"
+        (( delay > 1000 )) || colour="${C_ACCENT}"
+        ui_put "${colour}" "${UI_BARS:0:bar}"
+      fi
+      if [[ -n "${note}" ]] && (( UI_LW + 1 + ${#note} <= inner )); then
+        ui_gap 1
+        ui_put "${C_MUTED}" "${note}"
+      fi
     fi
+    ui_endl UI_BODY "${inner}"
+    shown=$((shown + 1))
   done
-  progress_row+="${NC} ${VL}"
-  glv_frame_add "${progress_row}"
+  if (( shown == 0 )); then
+    ui_putw "${C_MUTED}" "${inner}" "Blocks are listed here as the node adopts them."
+    ui_endl UI_BODY "${inner}"
+  fi
+  UI_HELP=recent
+  ui_panel P_RECENT "${width}" "${height}" "Recent blocks" "newest first"
 }
 
-glvFrameEpoch() {
-  local epoch_length="${EPOCH_LENGTH:-0}"
-  local epoch_progress epoch_text epoch_row=""
-
-  if node_metric_has epochnum &&
-     node_metric_has slot_in_epoch &&
-     epoch_progress="$(
-       node_epoch_progress_percent "${slot_in_epoch}" "${epoch_length}"
-     )"; then
-    epoch_text=" Epoch ${epochnum} [${epoch_progress}%]"
-    epoch_text="$(glv_text_pad $((width - 1)) "${epoch_text}")"
-    epoch_row="${VL}${style_values_1}${epoch_text}${NC}${VL}"
-    glv_frame_add "${epoch_row}"
-    glvFrameProgressBar "${epoch_progress}"
+# Events, plus the blocks that came with a fork switch or arrived late.
+glv_panel_events() {
+  local width="$1" height="$2" inner=$(($1 - 4)) rows=$(($2 - 2)) record shown=0
+  local stamp block delay note colour text
+  UI_BASE="${UI_BASE_MAIN}"
+  UI_BODY=()
+  for record in "${D_ROWS[@]}"; do
+    (( shown < rows )) || break
+    if [[ "${record}" == E\|* ]]; then
+      record="${record#E|}"
+      stamp="${record%%|*}"; record="${record#*|}"
+      text="${record/|/ · }"
+      colour="${C_WARN}"
+    else
+      note="${record##*|}"
+      [[ "${note}" == "fork switch" || "${note}" == late ]] || continue
+      record="${record#B|}"
+      stamp="${record%%|*}"; record="${record#*|}"
+      block="${record%%|*}"
+      ui_fmt_int block "${block}"
+      text="${note} · block ${block}"
+      colour="${C_WARN}"
+      [[ "${note}" != late ]] || colour="${C_DANGER}"
+    fi
+    ui_putw "${C_MUTED}" 9 "${stamp}"
+    ui_putw "${colour}" $((inner - 9)) "${text}"
+    ui_endl UI_BODY "${inner}"
+    shown=$((shown + 1))
+  done
+  if (( shown == 0 )); then
+    ui_putw "${C_MUTED}" "${inner}" "Nothing to report."
+    ui_endl UI_BODY "${inner}"
   fi
+  UI_HELP=events
+  ui_panel P_EVENTS "${width}" "${height}" "Events" ""
 }
 
-# Optional attention and synchronization rows reported by the adapter, such
-# as a halted ledger or a running Mithril bootstrap.
-glvFrameStatus() {
-  local status_text
-
-  if node_metric_has node_alert && [[ -n "${node_alert}" ]]; then
-    status_text="$(glv_text_pad $((width - 1)) " ALERT: ${node_alert}")"
-    glv_frame_add "${VL}${style_status_3}${status_text}${NC}${VL}"
-  fi
-  if node_metric_has sync_phase && [[ -n "${sync_phase}" ]]; then
-    status_text=" SYNC: ${sync_phase}"
-    if node_metric_has sync_progress; then
-      status_text+=" [${sync_progress}%]"
-    fi
-    if node_metric_has sync_rate && [[ -n "${sync_rate}" ]]; then
-      status_text+=" ${sync_rate}"
-    fi
-    status_text="$(glv_text_pad $((width - 1)) "${status_text}")"
-    glv_frame_add "${VL}${style_status_2}${status_text}${NC}${VL}"
-    if node_metric_has sync_progress; then
-      glvFrameProgressBar "${sync_progress}" "${style_status_2}"
-    fi
-  fi
+# ── rail ─────────────────────────────────────────────────────────────────────
+glv_vital() {
+  ui_put "$2" "●"; ui_gap 1
+  ui_putw "${C_MUTED}" 8 "$3"
+  ui_putw '' $((GLV_VITAL_W - 10)) "$4"
+  ui_endl "$1" "${GLV_VITAL_W}"
 }
 
-glvRenderCommonDashboard() {
-  local mem_rss_gb disk_usage
-  local -a propagation_metrics runtime_metrics
-
-  glv_frame_reset
-  glvFrameHeader
-  glvFrameEpoch
-  glvFrameStatus
-
-  glvMetricGrid "CHAIN" \
-    blocknum "Block" "" \
-    slotnum "Slot" "" \
-    tip_gap "Tip gap" "slots" \
-    slot_in_epoch "Epoch slot" "" \
-    density "Density" "%" \
-    forks "Forks" "" \
-    tx_processed "Total tx" "" \
-    mempool_tx "Pending tx" "" \
-    mempool_bytes "Mempool" "B" || true
-
-  glvRenderConnections
-
-  propagation_metrics=(block_delay "Last block" "s")
-  if [[ "${VERBOSE}" == "Y" ]]; then
-    propagation_metrics+=(
-      blocks_served "Served" ""
-      blocks_late "Late (>5s)" ""
-      blocks_w1s "Within 1s" "%"
-      blocks_w3s "Within 3s" "%"
-      blocks_w5s "Within 5s" "%"
-    )
+# glv_vitals <array> <inner width>: the health list of the rail.
+glv_vitals() {
+  local list="$1" colour text value last
+  GLV_VITAL_W="$2"
+  if [[ "${D_OK}" != Y ]]; then
+    glv_vital "${list}" "${C_DANGER}" "Node" "${D_DOWN:-no metrics}"
   fi
-  glvMetricGrid "BLOCK PROPAGATION" "${propagation_metrics[@]}" || true
+  if node_metric_has sync_phase && [[ -n "${sync_phase:-}" ]]; then
+    text="${sync_phase}"
+    if node_metric_has sync_progress; then text="${sync_progress} %"; fi
+    glv_vital "${list}" "${C_WARN}" "Sync" "${text}"
+  elif [[ -n "${D_TIP_GAP}" ]]; then
+    glv_gap_colour colour
+    local -n _vital_colour="${colour}"
+    glv_slots value "${D_TIP_GAP}"
+    glv_vital "${list}" "${_vital_colour}" "Sync" "${value}"
+  fi
+  if node_metric_has conn_outgoing && node_metric_has conn_incoming; then
+    colour="${C_OK}"
+    [[ "${conn_outgoing}" != 0 ]] || colour="${C_DANGER}"
+    glv_vital "${list}" "${colour}" "Peers" "${conn_outgoing} out · ${conn_incoming} in"
+  elif node_metric_has peer_selection_hot; then
+    glv_vital "${list}" "${C_OK}" "Peers" "${peer_selection_hot} hot"
+  elif node_metric_has peer_active; then
+    glv_vital "${list}" "${C_OK}" "Peers" "${peer_active} active"
+  fi
+  if node_metric_has block_delay && ui_scale last "${block_delay}" 3; then
+    ui_delay_colour colour "${last}"
+    ui_fmt_delay value "${last}"
+    glv_vital "${list}" "${colour}" "Blocks" "${value}"
+  fi
+  if [[ "${D_ROLE}" == Core ]]; then
+    if node_metric_has remaining_kes_periods; then
+      glv_kes_colour colour
+      local -n _kes_colour="${colour}"
+      glv_vital "${list}" "${_kes_colour}" "KES" "${remaining_kes_periods} periods"
+    fi
+    glv_opcert_text text colour
+    if [[ -n "${text}" ]]; then
+      if [[ "${colour}" == C_DANGER ]]; then colour="${C_DANGER}"; else colour="${C_OK}"; fi
+      glv_vital "${list}" "${colour}" "Op cert" "${text}"
+    fi
+  fi
+  # The host as a whole, then the node process on its own.
+  colour="${C_OK}"
+  (( D_CPU < 900 )) || colour="${C_WARN}"
+  glv_vital "${list}" "${colour}" "Host" "$((D_CPU / 10)) % cpu"
+  text=''
+  [[ -z "${D_PCPU}" ]] || text="$((D_PCPU / 10)) % cpu"
+  if [[ -n "${D_MEM}" ]]; then
+    ui_fmt_tenths value "${D_MEM}"
+    text+="${text:+ · }${value}G"
+  fi
+  [[ -z "${text}" ]] || glv_vital "${list}" "${C_OK}" "Node" "${text}"
+}
 
-  glvRenderProducerMetrics
+glv_next_block() {
+  local list="$1" inner="$2" value filled
+  ui_put "${C_MUTED}" "NEXT BLOCK"; ui_endl "${list}" "${inner}"
+  ui_fmt_duration value "${D_NEXT_IN}"
+  ui_put "${UI_BOLD}${C_ACCENT}" "${value}"; ui_endl "${list}" "${inner}"
+  # The bar fills over the last day before the slot.
+  filled=$(( D_NEXT_IN >= 86400 ? 0 : inner * (86400 - D_NEXT_IN) / 86400 ))
+  ui_bar "${inner}" "${filled}" UI_HEAVY "${C_ACCENT}"; ui_endl "${list}" "${inner}"
+  printf -v value '%(%a %d %b %H:%M)T' "${D_NEXT_AT}"
+  ui_put "${C_MUTED}" "${value}"; ui_endl "${list}" "${inner}"
+}
 
-  LC_NUMERIC=C printf -v mem_rss_gb "%.1f" \
-    "$(awk -v rss="${mem_rss:-0}" 'BEGIN { print rss / 1048576 }')"
-  [[ $(df -h "${NODE_HOME}") =~ ([0-9.]+)% ]] &&
-    disk_usage=${BASH_REMATCH[1]} || disk_usage="?"
-  node_metric_set glv_cpu_util "${cpu_util:-0}"
-  node_metric_set glv_mem_rss_gb "${mem_rss_gb}"
-  node_metric_set glv_disk_usage "${disk_usage}"
-  glvMetricGrid "NODE RESOURCE USAGE" \
-    glv_cpu_util "CPU (sys)" "%" \
-    glv_mem_rss_gb "Mem (RSS)" "GiB" \
-    glv_disk_usage "Disk util" "%" || true
+# glv_rail <height>: the full rail, RAIL lines of GLV_RAIL_W columns. Sections
+# leave in this order when the terminal is short: next block, more, vitals.
+glv_rail() {
+  local height="$1" inner=$((GLV_RAIL_W - 2)) value i line needed
+  local -a head=() vitals=() views=() more=() next=() body=()
+  UI_BASE="${UI_BASE_RAIL}"
 
-  if [[ "${VERBOSE}" == "Y" ]]; then
-    runtime_metrics=(
-      mem_live "Live memory" "B" \
-      mem_heap "Heap" "B" \
-      gc_minor "GC minor" "" \
-      gc_major "GC major" "" \
-      open_files "Open files" "" \
-      max_files "Max files" ""
-    )
-    glvMetricGrid "RUNTIME" "${runtime_metrics[@]}" || true
-    glvRenderCustomMetrics
+  ui_put "${UI_BOLD}${C_ACCENT}" "Koios gLiveView"; ui_put "${C_MUTED}" " ${GLV_VERSION}"; ui_endl head "${inner}"
+  ui_endl head "${inner}"
+  ui_putw "${UI_BOLD}" "${inner}" "${D_NAME}"; ui_endl head "${inner}"
+  ui_putw "${C_MUTED}" "${inner}" "${D_ROLE,,} · ${D_IMPL}"; ui_endl head "${inner}"
+  ui_putw "${C_MUTED}" "${inner}" "${D_VERSION} · ${D_NETWORK}"; ui_endl head "${inner}"
+  if [[ -n "${D_UPTIME}" ]]; then
+    ui_fmt_duration value "${D_UPTIME}"
+    ui_put "${C_MUTED}" "up ${value}"; ui_endl head "${inner}"
   fi
 
-  glv_frame_add "${bdivider}"
-  glv_frame_add \
-    " TG Announcement/Support channel: ${style_info}t.me/CardanoKoios/9759${NC}"
-  glv_frame_add ""
-  if node_has peer_inspection; then
-    glv_frame_add \
-      " ${style_info}[q] Quit${NC} | ${style_info}[i] Info${NC} | ${style_info}[n] Network${NC} | ${style_info}[p] Peers${NC} | ${style_info}[v] $([[ ${VERBOSE} == Y ]] && printf Compact || printf Verbose)${NC}"
+  ui_endl vitals "${inner}"
+  ui_put "${C_MUTED}" "VITALS"; ui_endl vitals "${inner}"
+  glv_vitals vitals "${inner}"
+
+  ui_endl views "${inner}"
+  ui_put "${C_MUTED}" "VIEWS"; ui_endl views "${inner}"
+  for i in 1 2 3 4 5 6 7; do
+    if (( i == VIEW )); then
+      UI_BASE="${UI_BASE_SELECT}"
+      ui_put "${UI_KEY}" "▸"; ui_gap 1
+      ui_put "${UI_KEY}" "${VIEW_KEYS[i]}"; ui_gap 1
+      ui_put "${UI_BOLD}" "${VIEW_NAMES[i]}"
+    else
+      ui_gap 2
+      ui_put "${UI_KEY}" "${VIEW_KEYS[i]}"; ui_gap 1
+      # Production has nothing to show on a relay.
+      if (( i == 4 )) && [[ "${D_ROLE}" != Core ]]; then
+        ui_put "${C_MUTED}" "${VIEW_NAMES[i]}"
+      else
+        ui_put '' "${VIEW_NAMES[i]}"
+      fi
+    fi
+    ui_endl views "${inner}"
+    UI_BASE="${UI_BASE_RAIL}"
+  done
+
+  if [[ -n "${GLV_EXTRA_KEYS[0]:-}" ]]; then
+    ui_endl more "${inner}"
+    ui_put "${C_MUTED}" "MORE"; ui_endl more "${inner}"
+    ui_gap 2; ui_put "${UI_KEY}" "/"; ui_gap 1; ui_put '' "Command"; ui_endl more "${inner}"
+  fi
+
+  if [[ -n "${D_NEXT_IN}" ]]; then
+    ui_endl next "${inner}"
+    glv_next_block next "${inner}"
+  fi
+
+  needed=$((${#head[@]} + ${#views[@]}))
+  body=("${head[@]}")
+  if (( needed + ${#vitals[@]} <= height )); then
+    body+=("${vitals[@]}")
+    needed=$((needed + ${#vitals[@]}))
+  fi
+  body+=("${views[@]}")
+  if (( needed + ${#more[@]} <= height )); then
+    body+=("${more[@]}")
+    needed=$((needed + ${#more[@]}))
+  fi
+  if (( needed + ${#next[@]} <= height )); then body+=("${next[@]}"); fi
+  while (( ${#body[@]} < height )); do ui_endl body "${inner}"; done
+  UI_BASE="${UI_BASE_MAIN}"
+
+  RAIL=()
+  for line in "${body[@]:0:height}"; do
+    RAIL+=("${CB_SURFACE} ${line}${UI_RESET}${CB_SURFACE} ${UI_RESET}")
+  done
+}
+
+# glv_rail_slim <height>: view numbers only, for 80 to 109 columns.
+glv_rail_slim() {
+  local height="$1" i line
+  local -a body=()
+  UI_BASE="${UI_BASE_RAIL}"
+  for i in 1 2 3 4 5 6 7; do
+    if (( i == VIEW )); then
+      UI_BASE="${UI_BASE_SELECT}"
+      ui_put "${UI_KEY}" "▸"
+    else
+      ui_gap 1
+    fi
+    ui_put "${UI_KEY}" "${VIEW_KEYS[i]}"
+    ui_endl body 3
+    UI_BASE="${UI_BASE_RAIL}"
+  done
+  if [[ -n "${GLV_EXTRA_KEYS[0]:-}" ]]; then
+    ui_endl body 3
+    ui_gap 1; ui_put "${UI_KEY}" "/"; ui_endl body 3
+  fi
+  while (( ${#body[@]} < height )); do ui_endl body 3; done
+  UI_BASE="${UI_BASE_MAIN}"
+  RAIL=()
+  for line in "${body[@]:0:height}"; do
+    RAIL+=("${CB_SURFACE} ${line}${UI_RESET}${CB_SURFACE} ${UI_RESET}")
+  done
+}
+
+# ── page assembly ────────────────────────────────────────────────────────────
+# Bands are added top to bottom. The first band that does not fit closes the
+# page, so panels leave from the bottom when the terminal is short.
+MAIN=()
+MAIN_LIMIT=0
+MAIN_CLOSED=N
+
+# UI_PANELS lists the help keys of the panels that made it onto the page, in
+# reading order; help mode moves its focus through that list.
+UI_PANELS=()
+
+glv_main_begin() { MAIN=(); MAIN_LIMIT="$1"; MAIN_CLOSED=N; UI_PANELS=(); }
+
+glv_main_room() { GLV_ROOM=$((MAIN_LIMIT - ${#MAIN[@]})); [[ "${MAIN_CLOSED}" == N ]] || GLV_ROOM=0; }
+
+# glv_main_add <array> [array …]: one band of boxes side by side.
+glv_main_add() {
+  local -n _band_first="$1"
+  local name i line
+  [[ "${MAIN_CLOSED}" == N ]] || return 0
+  if (( ${#MAIN[@]} + ${#_band_first[@]} > MAIN_LIMIT )); then MAIN_CLOSED=Y; return 0; fi
+  for name in "$@"; do
+    [[ -z "${UI_PANEL_KEY[${name}]:-}" ]] || UI_PANELS+=("${UI_PANEL_KEY[${name}]}")
+  done
+  for i in "${!_band_first[@]}"; do
+    line=''
+    for name in "$@"; do
+      local -n _band_part="${name}"
+      line+="${_band_part[i]:-}"
+    done
+    MAIN+=("${line}")
+  done
+}
+
+glv_footer() {
+  local -n _footer_out="$1"
+  local item right room
+  local -a line=()
+  shift
+  UI_BASE="${UI_BASE_MAIN}"
+  # The right side (position in a list, the clock) is placed first, and the
+  # keys get the room that is left. A row wider than the terminal would make
+  # it scroll, so a key that does not fit is left out; callers list the keys
+  # that matter most first.
+  printf -v right '%(%H:%M:%S)T' -1
+  [[ -z "${GLV_FOOTER_NOTE:-}" ]] || right="${GLV_FOOTER_NOTE} · ${right}"
+  if [[ "${GLV_DEBUG:-N}" == Y ]]; then
+    right="frame ${GLV_FRAME_MS:-0} ms · collect ${D_COLLECT_MS} ms · ${right}"
+  fi
+  (( ${#right} + 12 <= COLS )) || right=''
+  room=$((COLS - ${#right} - 2))
+  ui_gap 1
+  for item in "$@"; do
+    (( UI_LW + ${#item} + 1 <= room )) || continue
+    ui_put "${UI_KEY}" "${item%% *}"
+    ui_put "${C_MUTED}" " ${item#* }"
+    ui_gap 2
+  done
+  if [[ -n "${right}" ]]; then
+    ui_gap $((COLS - UI_LW - ${#right} - 1))
+    ui_put "${C_MUTED}" "${right}"
+  fi
+  ui_endl line "${COLS}"
+  _footer_out="${line[0]}${UI_RESET}"
+}
+
+# Wide and standard: the full rail beside the page.
+# The overview at wide and standard widths.
+glv_view_overview() {
+  local width="$1" quarter=$(($1 / 4)) half=$(($1 / 2)) third
+  glv_panel_epoch "${width}"
+  glv_main_add P_EPOCH
+  if [[ "${LAYOUT}" == wide ]]; then
+    glv_panel_chain "${quarter}" 1 5
+    glv_panel_propagation "${quarter}"
+    glv_panel_peers "${quarter}"
+    glv_panel_resources $((width - 3 * quarter))
+    glv_main_add P_CHAIN P_PROP P_PEERS P_RES
   else
-    glv_frame_add \
-      " ${style_info}[q] Quit${NC} | ${style_info}[i] Info${NC} | ${style_info}[n] Network${NC} | ${style_info}[v] $([[ ${VERBOSE} == Y ]] && printf Compact || printf Verbose)${NC}"
+    glv_panel_chain "${half}" 2 5
+    glv_panel_propagation $((width - half))
+    glv_main_add P_CHAIN P_PROP
+    glv_panel_peers "${half}"
+    glv_panel_resources $((width - half))
+    glv_main_add P_PEERS P_RES
+  fi
+  if [[ "${D_ROLE}" == Core ]]; then
+    glv_panel_production "${width}" 4
+    glv_main_add P_PROD
+  fi
+  glv_main_room
+  (( GLV_ROOM >= 5 )) || return 0
+  if [[ "${LAYOUT}" == wide ]]; then
+    third=$((width / 3))
+    glv_panel_recent $((width - third)) "${GLV_ROOM}" blocks
+    glv_panel_events "${third}" "${GLV_ROOM}"
+    glv_main_add P_RECENT P_EVENTS
+  else
+    glv_panel_recent "${width}" "${GLV_ROOM}" all
+    glv_main_add P_RECENT
   fi
 }
 
-glvRenderNetworkPage() {
-  local version_text epoch_length_text shelley_start_value
-  local shelley_start_text info_name info_value info_section_added=N
-
-  glv_frame_reset
-  glvFrameHeader
-  glvFrameSectionDivider "NODE"
-  version_text="${running_node_version:-?}"
-  if node_metric_has running_node_rev &&
-     [[ "${running_node_rev:-?}" != "?" ]]; then
-    version_text+=" (${running_node_rev})"
+# glv_footer_page <variable> <page navigation keys…>: the footer of a page
+# other than the overview. With the focus on the page's list the arrows
+# scroll it; otherwise they move between pages and Tab offers the list.
+glv_footer_page() {
+  local name="$1"
+  shift
+  if [[ "${PAGE_FOCUS}" == Y ]]; then
+    glv_footer "${name}" "↑↓ Line" "Tab Pages" "${GLV_PAGE_KEYS[@]}" "? Help" "q Quit" "${GLV_EXTRA_KEYS[@]}"
+  elif [[ "${PAGE_FOCUSABLE[VIEW]}" == Y ]]; then
+    glv_footer "${name}" "Tab List" "${GLV_PAGE_KEYS[@]}" "? Help" "q Quit" "$@" "${GLV_EXTRA_KEYS[@]}"
+  else
+    glv_footer "${name}" "${GLV_PAGE_KEYS[@]}" "? Help" "q Quit" "$@" "${GLV_EXTRA_KEYS[@]}"
   fi
-  glvFrameInfoRow "Implementation" "${NODE_IMPLEMENTATION_NAME}"
-  glvFrameInfoRow "Version" "${version_text}"
-  glvFrameInfoRow "Role" "${nodemode}"
-  glvFrameInfoRow "Service" "${NODE_SERVICE:-${CNODE_VNAME:-?}}"
-
-  glvFrameSectionDivider "NETWORK"
-  glvFrameInfoRow "Network" "${NETWORK_NAME:-${NODE_NETWORK:-?}}"
-  glvFrameInfoRow "Network magic" "${NWMAGIC:-?}"
-  glvFrameInfoRow "Node port" "${CNODE_PORT:-?}"
-  epoch_length_text="${EPOCH_LENGTH:-?}"
-  if node_metric_has dingo_epoch_length_slots; then
-    epoch_length_text="${dingo_epoch_length_slots}"
-  fi
-  glvFrameInfoRow "Epoch length" "${epoch_length_text} slots"
-  glvFrameInfoRow "Slot length" "${SLOT_LENGTH:-?} s"
-  glvFrameInfoRow "Active slots coeff" "${ACTIVE_SLOTS_COEFF:-?}"
-  shelley_start_value="${SHELLEY_GENESIS_START_SEC:-?}"
-  if node_metric_has dingo_shelley_start_time; then
-    shelley_start_value="${dingo_shelley_start_time}"
-  fi
-  shelley_start_text="${shelley_start_value}"
-  if [[ "${shelley_start_value}" =~ ^[0-9]+$ ]]; then
-    TZ=UTC printf -v shelley_start_text '%(%Y-%m-%d %H:%M:%S UTC)T' \
-      "${shelley_start_value}"
-  fi
-  glvFrameInfoRow "Shelley start" "${shelley_start_text}"
-
-  for info_name in "${NODE_INFO_METRICS[@]}"; do
-    node_metric_has "${info_name}" || continue
-    case "${info_name}" in
-      dingo_epoch_length_slots|dingo_shelley_start_time) continue ;;
-    esac
-    if [[ "${info_section_added}" == "N" ]]; then
-      glvFrameSectionDivider "NODE RUNTIME"
-      info_section_added=Y
-    fi
-    info_value="${!info_name:-?}"
-    info_value+="${NODE_METRIC_UNIT[${info_name}]:+ ${NODE_METRIC_UNIT[${info_name}]}}"
-    glvFrameInfoRow "${NODE_METRIC_LABEL[${info_name}]:-${info_name}}" \
-      "${info_value}"
-  done
-
-  glvFrameSectionDivider "DEPLOYMENT"
-  glvFrameInfoRow "Node home" "${NODE_HOME}"
-  [[ -n "${NODE_CONFIG:-}" ]] &&
-    glvFrameInfoRow "Configuration" "${NODE_CONFIG}"
-  [[ -n "${NODE_SOCKET:-}" ]] &&
-    glvFrameInfoRow "Node socket" "${NODE_SOCKET}"
-  glvFrameInfoRow "Metrics provider" "${_deployment_metrics_provider:-native}"
-  glvFrameInfoRow "Metrics endpoint" \
-    "$(node_adapter_metrics_url 2>/dev/null || printf '%s' "${NODE_METRICS_URL:-?}")"
-  glv_frame_add "${bdivider}"
-  glv_frame_add ""
-  glv_frame_add \
-    " ${style_info}[esc/q] Quit${NC} | ${style_info}[h] Home${NC}"
 }
 
-glvCommitFrame() {
-  local force="${1:-N}"
-  local frame_height=${#GLV_FRAME_NEXT[@]}
-  local cursor_row=$((frame_height + 1))
-
-  if [[ "${GLV_FRAME_LAST_LINES:-}" != "${tlines:-}" ||
-        "${GLV_FRAME_LAST_COLS:-}" != "${tcols:-}" ]]; then
-    force=Y
-  fi
-  glv_frame_build_patch "${force}" "${SECONDS}" "${REPAINT_RATE}"
-  # Synchronized output (DEC mode 2026) shows the update in one step.
-  printf '\033[?2026h%s\033[%d;1H\033[?2026l' "${GLV_FRAME_PATCH}" "${cursor_row}"
-  GLV_FRAME_LAST_LINES="${tlines:-}"
-  GLV_FRAME_LAST_COLS="${tcols:-}"
-  line="${frame_height}"
-  oldLine="${line}"
-}
-
-glvFrameFitsTerminal() {
-  local frame_height=${#GLV_FRAME_NEXT[@]}
-  local text_height=$(( frame_height - ${GLV_LOGO_ROWS:-0} ))
-  GLV_TEXT_LINES=${text_height}
-  if (( frame_height < ${tlines:-0} - 1 )); then
+# glv_page_body <width> <rows>: the main area beside the full rail. In help
+# mode the page gives its lower rows to a drawer that explains the focused
+# panel, or, where there is no room for that, becomes the help text itself.
+glv_page_body() {
+  local width="$1" rows="$2" drawer=0 pass key found blank="${UI_SPACES:0:$1}"
+  glv_help_mode "${rows}"
+  if [[ "${HELP_MODE}" == page ]]; then
+    glv_main_begin "${rows}"
+    glv_help_fullpage "${width}" "${rows}"
     return 0
   fi
-  # Only the logo doesn't fit: GLV_TEXT_LINES makes the next pass draw the frame without it.
-  if (( text_height < ${tlines:-0} - 1 )); then
-    line=${text_height}
-    oldLine="${line}"
-    return 1
+  if [[ "${HELP_MODE}" == drawer ]]; then
+    drawer=$((rows * 2 / 5))
+    (( drawer >= 9 )) || drawer=9
+    (( drawer <= 16 )) || drawer=16
   fi
-  line=$((text_height + 2))
-  oldLine="${line}"
-  clrScreen
-  return 1
-}
-
-# Command    : clrLine
-# Description: clear to end of line
-clrLine () {
-  printf "\033[K"
-}
-# Command    : clrScreen
-# Description: clear the screen, move to (0,0), and invalidate frame state
-clrScreen () {
-  if [[ ${glv_legacy_buffered:-N} = Y ]]; then clear >&5; else clear; fi
-  unset GLV_FRAME_PREV GLV_FRAME_LAST_FULL_REPAINT
-  unset GLV_FRAME_LAST_LINES GLV_FRAME_LAST_COLS
-  GLV_LEGACY_PREV=()
-  unset GLV_LEGACY_LAST_FULL
-}
-
-# The cnode block producer dashboard, peer analysis and the info pages use the
-# older renderer, which prints rows straight to the terminal and only moves
-# the cursor within the current row. Their output is buffered per frame
-# instead, so that only changed rows are written, each erased first, and the
-# screen never has to be cleared.
-
-# Command    : glvBeginLegacyFrame
-# Description: Send the older renderer's output for this frame to the buffer.
-glvBeginLegacyFrame() {
-  [[ -n ${GLV_LEGACY_FRAME_FILE:-} && ${glv_legacy_buffered:-N} != Y ]] || return 0
-  exec 5>&1 1>"${GLV_LEGACY_FRAME_FILE}"
-  glv_legacy_buffered=Y
-}
-
-# Command    : glvEndLegacyFrame
-# Description: Send output to the terminal again, without drawing the buffer.
-glvEndLegacyFrame() {
-  [[ ${glv_legacy_buffered:-N} = Y ]] || return 0
-  exec 1>&5 5>&-
-  glv_legacy_buffered=N
-}
-
-# Command    : glvFlushLegacyFrame
-# Description: Draw the buffered frame: rows that changed since the last frame
-#              are erased and rewritten, rows below a shorter frame are
-#              cleared, and every REPAINT_RATE all rows are rewritten. The
-#              update is wrapped in synchronized output (DEC mode 2026), which
-#              supporting terminals show at once; others ignore it. The cursor
-#              ends on the last row, where the footer is.
-glvFlushLegacyFrame() {
-  local -a rows=()
-  local row_nr last_row seq update="" rewrite_all=N clear_below=N
-  [[ ${glv_legacy_buffered:-N} = Y ]] || return 0
-  glvEndLegacyFrame
-  mapfile -t rows < "${GLV_LEGACY_FRAME_FILE}"
-  (( ${#rows[@]} > 0 )) || return 0
-  last_row=$(( ${#rows[@]} - 1 ))
-  if [[ -z ${GLV_LEGACY_LAST_FULL:-} ]] ||
-     (( SECONDS - GLV_LEGACY_LAST_FULL >= REPAINT_RATE )); then
-    rewrite_all=Y
-    GLV_LEGACY_LAST_FULL=${SECONDS}
-  fi
-  (( ${#rows[@]} < ${#GLV_LEGACY_PREV[@]} )) && clear_below=Y
-  for row_nr in "${!rows[@]}"; do
-    if [[ ${rewrite_all} = N && ${row_nr} -lt ${#GLV_LEGACY_PREV[@]} &&
-          "${rows[row_nr]}" == "${GLV_LEGACY_PREV[row_nr]}" ]] &&
-       ! [[ ${clear_below} = Y && ${row_nr} -eq ${last_row} ]]; then
-      continue
-    fi
-    printf -v seq '\033[%d;1H\033[2K' $(( row_nr + 1 ))
-    update+="${seq}${rows[row_nr]}"
+  for pass in 1 2; do
+    UI_FOCUS=''
+    if [[ "${HELP_MODE}" == drawer ]]; then UI_FOCUS="${HELP_FOCUS}"
+    elif [[ "${PAGE_FOCUS}" == Y ]]; then UI_FOCUS="${PAGE_LIST_KEY[VIEW]}"; fi
+    glv_main_begin $((rows - drawer))
+    GLV_PAGE_KEYS=()
+    GLV_FOOTER_NOTE=''
+    if (( VIEW == 1 )); then glv_view_overview "${width}"; else glv_view_build "${width}"; fi
+    [[ "${HELP_MODE}" == drawer ]] || break
+    # The focus must be on a panel that is on screen; if it is not, take the
+    # first one and draw the page once more.
+    found=N
+    for key in "${UI_PANELS[@]}"; do [[ "${key}" != "${HELP_FOCUS}" ]] || found=Y; done
+    [[ "${found}" == N ]] || break
+    HELP_FOCUS="${UI_PANELS[0]:-}"
+    HELP_SCROLL=0
   done
-  if [[ ${rewrite_all} = Y || ${clear_below} = Y ]]; then
-    update+=$'\033[J' # the last row was written last, so the cursor ends on it
-  else
-    printf -v seq '\033[%d;1H' $(( last_row + 1 ))
-    update+="${seq}"
-  fi
-  printf '\033[?2026h%s\033[?2026l' "${update}"
-  GLV_LEGACY_PREV=("${rows[@]}")
+  UI_FOCUS=''
+  [[ "${HELP_MODE}" == drawer ]] || return 0
+  while (( ${#MAIN[@]} < rows - drawer )); do MAIN+=("${blank}"); done
+  glv_help_drawer "${width}" "${drawer}"
+  MAIN+=("${P_DRAWER[@]}")
 }
 
-# Command    : glvLegacyFrameFits
-# Description: Record the frame's height without the logo for the next header.
-#              Returns 1 if the logo makes the frame too tall for the terminal,
-#              after discarding it so that the next pass draws it without the
-#              logo. Its rows hold their own positions, so they can't be moved
-#              up here the way the logo could be left out of a frame of rows.
-glvLegacyFrameFits() {
-  GLV_TEXT_LINES=$(( line - ${GLV_LOGO_ROWS:-0} ))
-  (( ${GLV_LOGO_ROWS:-0} > 0 && line >= ${tlines:-0} - 1 )) || return 0
-  glvEndLegacyFrame
-  line=${GLV_TEXT_LINES}
-  oldLine="${line}"
-  [[ -n ${GLV_LEGACY_FRAME_FILE:-} ]] || clrScreen
-  return 1
-}
-
-# Description: latency helper functions
-latencyCNCLI () {
-  if [[ -n ${CNCLI} && -f ${CNCLI} ]]; then
-    checkPEER=$(${CNCLI} ping --host "${peerIP}" --port "${peerPORT}" --network-magic "${NWMAGIC}")
-    if [[ $(jq -r .status <<< "${checkPEER}") = "ok" ]]; then
-      [[ ${CNCLI_CONNECT_ONLY} = true ]] && peerRTT=$(jq -r .connectDurationMs <<< "${checkPEER}") || peerRTT=$(jq -r .durationMs <<< "${checkPEER}")
-    else # cncli ping failed
-      peerRTT=99999
-    fi
-  fi
-}
-latencySS () {
-  if command -v ss >/dev/null; then
-    if [[ $(ss -ni "dst ${peerIP}:${peerPORT}" | tail -1) =~ rtt:([0-9]+) ]]; then
-      peerRTT=${BASH_REMATCH[1]}
-    else
-      peerRTT=99999
-    fi
-  fi
-}
-latencyTCPTRACEROUTE () {
-  if command -v tcptraceroute >/dev/null; then
-    checkPEER=$(tcptraceroute -n -S -f 255 -m 255 -q 1 -w 1 "${peerIP}" "${peerPORT}" 2>&1 | tail -n 1)
-    if [[ ${checkPEER} = *'[open]'* ]]; then
-      peerRTT=$(echo "${checkPEER}" | awk '{print $4}' | cut -d. -f1)
-    else # Nope, no response
-      peerRTT=99999
-    fi
-  fi
-}
-latencyPING () {
-  if checkPEER=$(ping -c 2 -i 0.3 -w 1 "${peerIP}" 2>&1); then # Ping OK, show RTT
-    peerRTT=$(echo "${checkPEER}" | tail -n 1 | cut -d/ -f5 | cut -d. -f1)
-  fi
-}
-
-# Description: Get index of first entry in array matching input string (no spaces allowed in search)
-# $1 = string to match against, $2 = array to search
-# returns index in array or -1 if not found
-getArrayIndex () {
-  local match=$1
-  shift
-  arr=("$@")
-  for i in "${!arr[@]}"; do [[ ${arr[$i]} = *"${match}"* ]] && echo $i && return; done
-  echo -1
-}
-
-logln() {
-  [[ -z ${GLV_LOG} ]] && return
-  local log_level=$1
-  shift
-  [[ -z $1 ]] && return
-  echo -e "$@" | while read -r log_line; do
-    log_line=$(sed -E 's/\x1b(\[[0-9;]*[a-zA-Z]|[0-9])//g' <<< ${log_line##*( )})
-    [[ -z ${log_line} ]] && continue
-    printf '%s %-8s %s\n' "$(date "+%F %T %Z")" "[${log_level}]" "${log_line}" >> "${GLV_LOG}"
-  done
-}
-
-getPoolInfo () {
-  # runs in background to not stall rest of gLiveView while fetching data
-  if ! pool_info=$(curl -sSL -f -X POST "${KOIOS_API_HEADERS[@]}" -H "Content-Type: application/json" -d '{"_pool_bech32_ids":["'${pool_id_bech32}'"]}' "${KOIOS_API}/pool_info" 2>&1); then
-    [[ -n ${GLV_LOG} ]] && logln "ERROR" "${pool_info}"
-    return
-  fi
-  [[ ${pool_info} = '[]' ]] && return
-  echo ${pool_info} > ${pool_info_file}
-}
-
-parsePoolInfo () {
-  pool_info_tsv=$(jq -r '[
-  .[0].active_epoch_no //0,
-  .[0].vrf_key_hash //"-",
-  .[0].margin //0,
-  .[0].fixed_cost //0,
-  .[0].pledge //0,
-  .[0].reward_addr //"-",
-  (.[0].owners|@json),
-  (.[0].relays|@json),
-  .[0].meta_url //"-",
-  .[0].meta_hash //"-",
-  (.[0].meta_json|@base64),
-  .[0].pool_status //"-",
-  .[0].retiring_epoch //"-",
-  .[0].op_cert //"-",
-  .[0].op_cert_counter //"null",
-  .[0].active_stake //0,
-  .[0].block_count //0,
-  .[0].live_pledge //0,
-  .[0].live_stake //0,
-  .[0].live_delegators //0,
-  .[0].live_saturation //0
-  ] | @tsv' "${pool_info_file}")
-
-  read -ra pool_info_arr <<< ${pool_info_tsv}
-
-  p_active_epoch_no=${pool_info_arr[0]}
-  p_vrf_key_hash=${pool_info_arr[1]}
-  p_margin=${pool_info_arr[2]}
-  p_fixed_cost=${pool_info_arr[3]}
-  p_pledge=${pool_info_arr[4]}
-  p_reward_addr=${pool_info_arr[5]}
-  p_owners=${pool_info_arr[6]}
-  p_relays=${pool_info_arr[7]}
-  p_meta_url=${pool_info_arr[8]}
-  p_meta_hash=${pool_info_arr[9]}
-  p_meta_json=$(base64 -d <<< ${pool_info_arr[10]})
-  p_pool_status=${pool_info_arr[11]}
-  p_retiring_epoch=${pool_info_arr[12]}
-  p_op_cert=${pool_info_arr[13]}
-  p_op_cert_counter=${pool_info_arr[14]}
-  p_active_stake=${pool_info_arr[15]}
-  p_block_count=${pool_info_arr[16]}
-  p_live_pledge=${pool_info_arr[17]}
-  p_live_stake=${pool_info_arr[18]}
-  p_live_delegators=${pool_info_arr[19]}
-  p_live_saturation=${pool_info_arr[20]}
-
-  rm ${pool_info_file}
-}
-
-getOpCert () {
-  op_cert_disk="?"
-  op_cert_chain="?"
-  opcert_file="${POOL_FOLDER}/${POOL_NAME}/${POOL_OPCERT_FILENAME}"
-  if [[ ! -f ${opcert_file} ]] && node_has opcert; then
-    adapter_opcert="$(node_operational_certificate 2>/dev/null || true)"
-    [[ -n "${adapter_opcert}" ]] && opcert_file="${adapter_opcert}"
-  fi
-  if [[ -f ${opcert_file} && -n ${CCLI:-} && -n ${CARDANO_NODE_SOCKET_PATH:-} ]]; then
-    op_cert="$(${CCLI} query kes-period-info ${NETWORK_IDENTIFIER} --op-cert-file "${opcert_file}" 2>/dev/null)"
-    [[ ${op_cert} =~ qKesNodeStateOperationalCertificateNumber.:[[:space:]]([0-9]+) ]] && op_cert_chain="${BASH_REMATCH[1]}"
-    [[ ${op_cert} =~ qKesOnDiskOperationalCertificateNumber.:[[:space:]]([0-9]+) ]] && op_cert_disk="${BASH_REMATCH[1]}"
-  fi
-}
-
-# Command    : checkPeers
-# Description: Check peer connections
-#              Inspired by ping script from Martin @ ATADA pool
-checkPeers() {
-  # initialize variables
-  peerCNT=0; peerCNT0=0; peerCNT1=0; peerCNT2=0; peerCNT3=0; peerCNT4=0
-  peerPCT1=0; peerPCT2=0; peerPCT3=0; peerPCT4=0
-  peerPCT1items=0; peerPCT2items=0; peerPCT3items=0; peerPCT4items=0
-  peerRTTSUM=0; peerRTTAVG=0
-  peersFiltered=(); rttResults=(); rttResultsSorted=""
-  local -A geoIPpending=()
-  local -a geoIPqueue=()
-  local geoIPbatch geoIPdata query_ip city countryCode
-
-  command -v dig >/dev/null && ext_ip_resolve=$(dig @resolver1.opendns.com ANY myip.opendns.com +short) || ext_ip_resolve=""
-
-  # Each peer is "remote|local": the local port tells apart connections to the
-  # same remote address and port, such as one in each direction.
-  if [[ ${use_lsof} = 'Y' ]]; then
-    peers_in=$(lsof -Pnl +M | grep ESTABLISHED | awk -v pid="${CNODE_PID}" -v port=":${CNODE_PORT}->" '$2 == pid && $9 ~ port {print $9}' | awk -F "->" '{print $2 "|" $1}')
-    peers_out=$(lsof -Pnl +M | grep ESTABLISHED | awk -v pid="${CNODE_PID}" -v port=":(${CNODE_PORT}|${PROM_PORT})->" '$2 == pid && $9 !~ port {print $9}' | awk -F "->" '{print $2 "|" $1}')
-  else
-    peers_in=$(ss -tnp state established 2>/dev/null | grep "${CNODE_PID}," | awk -v port=":${CNODE_PORT}" '$3 ~ port {print $4 "|" $3}')
-    peers_out=$(ss -tnp state established 2>/dev/null | grep "${CNODE_PID}," | awk -v port=":(${CNODE_PORT}|${PROM_PORT})" '$3 !~ port {print $4 "|" $3}')
-  fi
-
-  [[ -z ${peers_in} && -z ${peers_out} ]] && return
-
-  getNodePeerState
-
-  for peer in ${peers_in}; do
-
-    peerLocalPort="${peer#*|}"
-    peerLocalPort="${peerLocalPort##*:}"
-    peer="${peer%%|*}"
-    if [[ ${peer} = "["* ]]; then # IPv6
-      IFS=']' read -ra ipv6_peer <<< "${peer:1}"; unset IFS
-      peerIP=${ipv6_peer[0]}
-      peerPORT=${ipv6_peer[1]:1}
-    else # IPv4
-      peerIP=$(cut -d: -f1 <<< "${peer}")
-      peerPORT=$(cut -d: -f2 <<< "${peer}")
-    fi
-
-    if [[ -z ${peerIP} || -z ${peerPORT} || (${HIDE_DUPLICATE_IPS} = 'Y' && ${peerIP} = 127.0.0.1) || (${HIDE_DUPLICATE_IPS} = 'Y' && ${peerIP} = "${ext_ip_resolve}" && ${peerPORT} = "${CNODE_PORT}") ]]; then
-      continue
-    fi
-    # The node's own telemetry export, such as Amaru's OTLP connection, is not a peer.
-    [[ ${peerPORT} = "${NODE_TELEMETRY_PORT:-}" && ${peerIP} =~ ^(127\.|::1$|::ffff:127\.) ]] && continue
-
-    [[ ${HIDE_DUPLICATE_IPS} = 'Y' && $(getArrayIndex "${peerIP};" "${peersFiltered[@]}") -ge 0 ]] && continue # IP already added and duplicates not wanted
-
-    peersFiltered+=("${peerIP};${peerPORT};i;${peerLocalPort}")
-
-  done
-
-  for peer in ${peers_out}; do
-
-    peerLocalPort="${peer#*|}"
-    peerLocalPort="${peerLocalPort##*:}"
-    peer="${peer%%|*}"
-    if [[ ${peer} = "["* ]]; then # IPv6
-      IFS=']' read -ra ipv6_peer <<< "${peer:1}"; unset IFS
-      peerIP=${ipv6_peer[0]}
-      peerPORT=${ipv6_peer[1]:1}
-    else # IPv4
-      peerIP=$(cut -d: -f1 <<< "${peer}")
-      peerPORT=$(cut -d: -f2 <<< "${peer}")
-    fi
-
-    if [[ -z ${peerIP} || -z ${peerPORT} || (${HIDE_DUPLICATE_IPS} = 'Y' && ${peerIP} = 127.0.0.1) || (${HIDE_DUPLICATE_IPS} = 'Y' && ${peerIP} = "${ext_ip_resolve}" && ${peerPORT} = "${CNODE_PORT}") ]]; then
-      continue
-    fi
-    # The node's own telemetry export, such as Amaru's OTLP connection, is not a peer.
-    [[ ${peerPORT} = "${NODE_TELEMETRY_PORT:-}" && ${peerIP} =~ ^(127\.|::1$|::ffff:127\.) ]] && continue
-
-    if [[ ${HIDE_DUPLICATE_IPS} = 'Y' ]]; then
-      local peerIndex;peerIndex=$(getArrayIndex "${peerIP};" "${peersFiltered[@]}")
-      if [[ ${peerIndex} -ge 0 ]]; then
-        IFS=";" read -r -a peer_arr <<< "${peersFiltered[$peerIndex]}"
-        if [[ ${peer_arr[2]} != *o ]]; then
-          peersFiltered[$peerIndex]="${peerIP};${peerPORT};i+o;${peerLocalPort}"
-        fi
+# Wide and standard: the full rail beside the page.
+glv_page_full() {
+  local page=$((ROWS - 1)) width=$((COLS - GLV_RAIL_W)) i footer='' blank
+  glv_rail "${page}"
+  GLV_FOOTER_NOTE=''
+  GLV_PAGE_KEYS=()
+  glv_page_body "${width}" "${page}"
+  case "${HELP_MODE}" in
+    drawer) glv_footer footer "←→ Panel" "↑↓ Scroll text" "? Close help" "1-6 Jump" "q Quit" ;;
+    page) glv_footer footer "↑↓ Scroll" "? Close help" "1-6 Jump" "q Quit" ;;
+    *)
+      if (( VIEW == 1 )); then
+        glv_footer footer "↑↓ View" "1-6 Jump" "? Help" "${GLV_EXTRA_KEYS[@]}" "r Redraw" "q Quit"
       else
-        peersFiltered+=("${peerIP};${peerPORT};o;${peerLocalPort}")
-      fi
-    else
-      peersFiltered+=("${peerIP};${peerPORT};o;${peerLocalPort}")
-    fi
-
-  done
-
-  readarray -td '' peersFiltered < <(printf '%s\0' "${peersFiltered[@]}" | sort -z)
-
-  peerCNT=${#peersFiltered[@]}
-
-  print_start=$(( width - (${#peerCNT}*2) - 2 ))
-  mvPos ${line} ${print_start}
-  printf "${style_values_1}%${#peerCNT}s${NC}/${style_values_2}%s${NC}" "0" "${peerCNT}"
-
-  # Ping every node in the list
-  index=0
-  lastpeerIP=""
-
-  for peerIndex in "${!peersFiltered[@]}"; do
-
-    IFS=";" read -r -a peer_arr <<< "${peersFiltered[$peerIndex]}"; unset IFS
-
-    peerIP=${peer_arr[0]}
-    peerPORT=${peer_arr[1]}
-    peerDIR=${peer_arr[2]}
-
-    if [[ ${ENABLE_IP_GEOLOCATION} = "Y" &&
-          -z "${geoIP[${peerIP}]+present}" &&
-          -z "${geoIPpending[${peerIP}]+present}" ]] && ! isPrivateIP "${peerIP}"; then
-      geoIPpending[${peerIP}]=1
-      geoIPqueue+=("${peerIP}")
-    fi
-
-    # Another connection to the same IP reuses its RTT.
-    if [[ "${peerIP}" != "${lastpeerIP}" || ${peerRTT} -eq 99999 ]]; then
-      unset peerRTT
-      for tool in ${LATENCY_TOOLS//|/ }; do
-        case ${tool} in
-          cncli)
-            latencyCNCLI ;;
-          ss)
-            latencySS ;;
-          tcptraceroute)
-            latencyTCPTRACEROUTE ;;
-          ping)
-            latencyPING ;;
-        esac
-        [[ -n ${peerRTT} && ${peerRTT} != 99999 ]] && break
-      done
-      if [[ -z ${peerRTT} ]]; then # cncli, ss & tcptraceroute and ping failed
-        peerRTT=99999
-      fi
-      isNumber ${peerRTT} || peerRTT=99999
-    fi
-    lastpeerIP=${peerIP}
-
-    rttResults+=( "${peerRTT};${peerIP};${peerPORT};${peerDIR};${peer_arr[3]:-}" )
-
-    mvPos ${line} ${print_start}
-    printf "${style_values_1}%${#peerCNT}s${NC}" "$((++index))"
-  done
-  mvPos ${line} ${print_start}
-  printf "${style_values_2}%${#peerCNT}s${NC}" "${index}"
-
-  # ip-api.com takes at most 100 addresses per batch request and 15 batch
-  # requests per minute. Failed lookups are not cached, so they are retried.
-  local batch_start
-  for ((batch_start=0; batch_start < ${#geoIPqueue[@]} && batch_start < 1500; batch_start+=100)); do
-    geoIPbatch="$(printf '%s\n' "${geoIPqueue[@]:batch_start:100}" |
-      jq -Rnc '[inputs | {query: ., fields: "status,city,countryCode,query"}]')" || continue
-    geoIPdata="$(curl -s -f -m 10 http://ip-api.com/batch --data "${geoIPbatch}")" || continue
-    while IFS=$'\t' read -r query_ip city countryCode; do
-      [[ -n ${query_ip} ]] && geoIP[${query_ip}]="${city}, ${countryCode}"
-    done < <(jq -r '
-        .[] | select(.status == "success" and (.query | type) == "string") |
-        [.query, (.city // "?"), (.countryCode // "?")] | @tsv
-      ' <<< "${geoIPdata}" 2>/dev/null)
-  done
-
-  node_has topology_file && getStaticPeers
-  computePeerStats
+        glv_footer_page footer "↑↓ View" "1-6 Jump"
+      fi ;;
+  esac
+  blank="${UI_SPACES:0:width}"
+  UI_FRAME=()
+  for ((i = 0; i < page; i++)); do UI_FRAME+=("${RAIL[i]}${MAIN[i]:-${blank}}"); done
+  UI_FRAME+=("${footer}")
 }
 
-# Command    : resolvePeerAddress [address]
-# Description: Print the IP addresses of a topology address, comma separated:
-#              the address itself when it is an IP, else its DNS records.
-#              Prints nothing when a name does not resolve.
+# Compact: a rail of view numbers and one stacked column, as today's
+# gLiveView does it.
+glv_page_compact() {
+  local page=$((ROWS - 1)) width=$((COLS - GLV_SLIM_W)) inner=$((COLS - GLV_SLIM_W - 4))
+  local i footer='' blank status colour text value
+  local -a head=() cells=() tail=()
+  glv_rail_slim "${page}"
+  glv_main_begin "${page}"
+
+  UI_BASE="${UI_BASE_MAIN}"
+  glv_status status colour
+  text="${D_ROLE,,} · ${D_IMPL} ${D_VERSION} · ${D_NETWORK}"
+  ui_gap 2
+  ui_put "${UI_BOLD}" "${D_NAME}"; ui_gap 1
+  ui_putw "${C_MUTED}" $(( width - UI_LW - ${#status} - 6 )) "${text}"
+  ui_gap $((width - UI_LW - ${#status} - 4))
+  ui_put "${colour}" "● ${status}"
+  ui_endl head "${width}"
+  glv_main_add head
+
+  GLV_FOOTER_NOTE=''
+  GLV_PAGE_KEYS=()
+  UI_FOCUS=''
+  [[ "${PAGE_FOCUS}" != Y || "${HELP}" == Y ]] || UI_FOCUS="${PAGE_LIST_KEY[VIEW]}"
+  # There is no room for a help drawer here, so help is a page of its own.
+  HELP_MODE=off
+  [[ "${HELP}" != Y ]] || HELP_MODE=page
+  if [[ "${HELP_MODE}" == page ]]; then
+    glv_help_fullpage "${width}" $((page - 1))
+  elif (( VIEW != 1 )); then
+    glv_view_build "${width}"
+  else
+    glv_panel_epoch "${width}" "1 Overview · "
+    glv_main_add P_EPOCH
+    glv_panel_chain "${width}" 3 3
+    glv_main_add P_CHAIN
+
+    # Peers in use and kept ready (big ledger peers included), then the
+    # peers that connected to this node, then how blocks arrive.
+    UI_BODY=()
+    if node_metric_has peer_selection_hot && glv_is_int "${peer_selection_hot:-}"; then
+      glv_cell cells "Hot peers" "$((peer_selection_hot + ${D_BIG_HOT:-0}))"
+      if glv_is_int "${peer_selection_warm:-}"; then
+        glv_cell cells "Warm peers" "$((peer_selection_warm + ${D_BIG_WARM:-0}))"
+      fi
+    else
+      glv_metric_cell cells peer_active "Active"
+      glv_metric_cell cells conn_outgoing "Outgoing"
+    fi
+    glv_metric_cell cells conn_incoming "Incoming"
+    if node_metric_has blocks_w1s && ui_scale value "${blocks_w1s}" 3; then
+      glv_cell cells "Within 1 s" "$((value / 10)).$((value % 10)) %"
+    else
+      glv_metric_cell cells conn_total "Connections"
+    fi
+    if node_metric_has block_delay && ui_scale value "${block_delay}" 3; then
+      ui_fmt_delay text "${value}"
+      colour=C_OK
+      (( value <= 1000 )) || colour=C_WARN
+      glv_cell cells "Last block" "${text}" "${colour}"
+    fi
+    glv_metric_cell cells blocks_late "Late"
+    if (( ${#cells[@]} > 0 )); then
+      ui_grid cells 3 2 "${inner}" UI_BODY
+      UI_HELP=peers
+      ui_panel P_PEERS "${width}" 4 "Peers · propagation" ""
+      glv_main_add P_PEERS
+    fi
+
+    if [[ "${D_ROLE}" == Core ]]; then
+      # Six cells: what must not be missed comes first.
+      cells=()
+      UI_BODY=()
+      if [[ -n "${D_NEXT_IN}" ]]; then
+        ui_fmt_duration text "${D_NEXT_IN}"
+        glv_cell cells "Next block" "${text}" C_ACCENT
+      fi
+      if node_metric_has remaining_kes_periods; then
+        glv_kes_colour colour
+        glv_cell cells "KES" "${remaining_kes_periods} periods" "${colour}"
+      fi
+      glv_opcert_text text colour
+      glv_cell cells "Op cert" "${text}" "${colour}"
+      if [[ -n "${D_SCHEDULE_EPOCH}" ]]; then
+        glv_cell cells "Leader" "${D_STATUS[total]:-0}"
+        glv_cell cells "Adopted" "$(( ${D_STATUS[adopted]:-0} + ${D_STATUS[confirmed]:-0} ))" C_OK
+        value=$(( ${D_STATUS[missed]:-0} + ${D_STATUS[ghosted]:-0} + ${D_STATUS[stolen]:-0} + ${D_STATUS[invalid]:-0} ))
+        colour=''
+        (( value == 0 )) || colour=C_DANGER
+        glv_cell cells "Lost" "${value}" "${colour}"
+      else
+        glv_metric_cell cells isleader "Leader"
+        glv_metric_cell cells adopted "Adopted" int C_OK
+        glv_metric_cell cells leader_sched_slots "Scheduled"
+      fi
+      ui_grid cells 3 2 "${inner}" UI_BODY
+      UI_HELP=production
+      ui_panel P_PROD "${width}" 4 "Production" ""
+      glv_main_add P_PROD
+    fi
+
+    cells=()
+    UI_BODY=()
+    glv_resource_cells cells
+    ui_grid cells 3 2 "${inner}" UI_BODY
+    UI_HELP=resources
+    ui_panel P_RES "${width}" 4 "Resources" ""
+    glv_main_add P_RES
+
+    # Whatever height is left goes to the block list, which also carries
+    # the events.
+    glv_main_room
+    if (( GLV_ROOM >= 5 )); then
+      glv_panel_recent "${width}" "${GLV_ROOM}" all
+      glv_main_add P_RECENT
+    elif [[ -n "${D_LAST_EVENT}" ]]; then
+      ui_gap 2
+      ui_putw '' $((width - 14)) "${D_LAST_EVENT}"
+      ui_put "${C_MUTED}" "last event"
+      ui_endl tail "${width}"
+      glv_main_add tail
+    fi
+  fi
+  if [[ "${HELP_MODE}" == page ]]; then
+    glv_footer footer "↑↓ Scroll" "? Close help" "1-6 View" "q Quit"
+  elif (( VIEW != 1 )); then
+    glv_footer_page footer "1-6 View"
+  else
+    glv_footer footer "1-6 View" "? Help" "${GLV_EXTRA_KEYS[@]}" "r Redraw" "q Quit"
+  fi
+  blank="${UI_SPACES:0:width}"
+  UI_FRAME=()
+  for ((i = 0; i < page; i++)); do UI_FRAME+=("${RAIL[i]}${MAIN[i]:-${blank}}"); done
+  UI_FRAME+=("${footer}")
+}
+
+# Mini: no room for pages, so the rail's content fills the terminal.
+glv_page_mini() {
+  local page=$((ROWS - 1)) inner=$((COLS - 2)) status colour value filled tenths line
+  local -a lines=() next=() foot=()
+  UI_BASE="${UI_BASE_RAIL}"
+  glv_status status colour
+  ui_put "${UI_BOLD}${C_ACCENT}" "Koios gLiveView"; ui_put "${C_MUTED}" " ${GLV_VERSION}"; ui_endl lines "${inner}"
+  ui_putw "${colour}" "${inner}" "● ${status}"; ui_endl lines "${inner}"
+  ui_endl lines "${inner}"
+  ui_putw "${UI_BOLD}" "${inner}" "${D_NAME}"; ui_endl lines "${inner}"
+  ui_putw "${C_MUTED}" "${inner}" "${D_ROLE,,} · ${D_IMPL} ${D_VERSION}"; ui_endl lines "${inner}"
+  value="${D_NETWORK}"
+  if [[ -n "${D_UPTIME}" ]]; then
+    ui_fmt_duration value "${D_UPTIME}"
+    value="${D_NETWORK} · up ${value}"
+  fi
+  ui_putw "${C_MUTED}" "${inner}" "${value}"; ui_endl lines "${inner}"
+
+  if node_metric_has epochnum && node_metric_has slot_in_epoch &&
+     glv_is_int "${slot_in_epoch:-}" && glv_is_int "${EPOCH_LENGTH:-}" && (( EPOCH_LENGTH > 0 )); then
+    tenths=$((slot_in_epoch * 1000 / EPOCH_LENGTH))
+    value="$((tenths / 10)).$((tenths % 10)) %"
+    ui_endl lines "${inner}"
+    ui_put "${C_MUTED}" "EPOCH ${epochnum}"
+    ui_gap $((inner - UI_LW - ${#value}))
+    ui_put "${C_MUTED}" "${value}"; ui_endl lines "${inner}"
+    ui_bar "${inner}" $((inner * slot_in_epoch / EPOCH_LENGTH)) UI_BLOCKS "${C_ACCENT}"
+    ui_endl lines "${inner}"
+    if [[ -n "${D_EPOCH_LEFT}" ]]; then
+      ui_fmt_duration value "${D_EPOCH_LEFT}"
+      ui_put "${C_MUTED}" "${value} left"; ui_endl lines "${inner}"
+    fi
+  fi
+
+  ui_endl lines "${inner}"
+  ui_put "${C_MUTED}" "VITALS"; ui_endl lines "${inner}"
+  glv_vitals lines "${inner}"
+
+  if [[ -n "${D_NEXT_IN}" ]]; then
+    ui_endl next "${inner}"
+    glv_next_block next "${inner}"
+    (( ${#lines[@]} + ${#next[@]} > page )) || lines+=("${next[@]}")
+  fi
+  if (( ${#lines[@]} + 2 <= page )); then
+    ui_endl lines "${inner}"
+    ui_put "${C_MUTED}" "Pages need 80 columns."; ui_endl lines "${inner}"
+  fi
+  while (( ${#lines[@]} < page )); do ui_endl lines "${inner}"; done
+
+  ui_put "${UI_KEY}" "q"; ui_put "${C_MUTED}" " Quit"
+  ui_endl foot "${inner}"
+  UI_FRAME=()
+  for line in "${lines[@]:0:page}" "${foot[0]}"; do
+    UI_FRAME+=("${CB_SURFACE} ${line}${UI_RESET}${CB_SURFACE} ${UI_RESET}")
+  done
+  UI_BASE="${UI_BASE_MAIN}"
+}
+
+# Below the smallest layout: ask for a bigger terminal instead of drawing a
+# broken page.
+glv_page_small() {
+  local headline="Terminal too small" width inner top left i line text height
+  local -a lines=()
+  UI_BASE="${UI_BASE_MAIN}"
+  UI_FRAME=()
+  for ((i = 0; i < ROWS; i++)); do UI_FRAME+=("${UI_SPACES:0:COLS}"); done
+  if (( COLS >= 46 )); then
+    lines=("${headline}" "${COLS} × ${ROWS} now · ${GLV_MIN_COLS} × ${GLV_MIN_ROWS} needed"
+           "Enlarge the window, or press q to quit.")
+  else
+    lines=("${headline}" "${COLS} × ${ROWS} now" "${GLV_MIN_COLS} × ${GLV_MIN_ROWS} needed" "q quits")
+  fi
+  height=$((${#lines[@]} + 2))
+  if (( COLS >= 24 && ROWS >= height )); then
+    width=$(( COLS - 2 < 46 ? COLS - 2 : 46 ))
+    inner=$((width - 4))
+    UI_BODY=()
+    for text in "${lines[@]}"; do
+      ui_gap $(((inner - ${#text}) / 2))
+      if [[ "${text}" == "${headline}" ]]; then ui_put "${UI_BOLD}${C_WARN}" "${text}"
+      elif [[ "${text}" == *q* ]]; then ui_put "${C_MUTED}" "${text}"
+      else ui_put '' "${text}"; fi
+      ui_endl UI_BODY "${inner}"
+    done
+    ui_panel P_SMALL "${width}" "${height}" "" "" WARN
+    top=$(((ROWS - height) / 2))
+    left=$(((COLS - width) / 2))
+    for i in "${!P_SMALL[@]}"; do
+      UI_FRAME[top+i]="${UI_SPACES:0:left}${P_SMALL[i]}${UI_SPACES:0:COLS-left-width}"
+    done
+    return 0
+  fi
+  # Too small even for a box: plain lines, cut to what fits.
+  i=0
+  for line in "${headline}" "${COLS} × ${ROWS} now" "${GLV_MIN_COLS} × ${GLV_MIN_ROWS} needed" "q quits"; do
+    (( i < ROWS )) || break
+    line="${line:0:COLS}"
+    UI_FRAME[i]="${C_WARN}${line}${UI_RESET}${UI_SPACES:0:COLS-${#line}}"
+    i=$((i + 1))
+  done
+}
+
+glv_render() {
+  local start="${EPOCHREALTIME/[.,]/}"
+  glv_layout_class
+  case "${LAYOUT}" in
+    small) glv_page_small ;;
+    mini) glv_page_mini ;;
+    compact) glv_page_compact ;;
+    *) glv_page_full ;;
+  esac
+  ui_flush
+  GLV_FRAME_MS=$(( (${EPOCHREALTIME/[.,]/} - start) / 1000 ))
+}
+
+##############################################################################
+# Peer analysis: what each connection of the node is used for
+##############################################################################
+# What each connection of the node is used for.
+#
+# The connection list itself (address, port, round-trip time) comes from one
+# ss call on every collection, see glv_data_peers. This file adds the node's
+# own view of those connections:
+#
+#   cardano-node  its state dump, written to the log on SIGUSR1, and its log of
+#                 peers promoting or demoting it
+#   Amaru         its log of connections and of the peers that delivered
+#                 headers and blocks first
+#
+# plus the static peers of the topology file and a location for each address.
+# Reading the log can take a while, so that work runs as a background job that
+# prints records to a file; the page keeps updating and loads the records when
+# the job is done. The job starts on a key, never by itself, because for
+# cardano-node it sends the node a signal.
+
+declare -gA nodeConnUse=()    # "ip;remote port;local port" -> dup, out, in or idle
+declare -gA nodePeerTemp=()   # "ip;port" -> H or W on the node's outbound side
+declare -gA nodePeerScore=()  # "ip;port" -> headers first plus blocks fetched first
+declare -gA nodeRemoteTemp=() # "ip;remote port;local port" -> H, W or C on the peer's side
+declare -gA staticPeer=()     # resolved IP of a localRoots access point -> its label(s)
+declare -gA staticPeerPort=() # "ip;port" of a localRoots access point -> its label
+declare -gA staticPeerEntries=() # resolved IP -> number of access points using it
+declare -gA geoIP=()          # IP -> "City, CC"
+staticPeerList=()             # "address;port;label;ip,ip" per localRoots access point
+node_peer_state_available=false
+
+PEER_FILTER_DIR=all      # all | out | in | dup
+PEER_FILTER_STATE=any    # any | hot | warm
+PEER_FILTER_STATIC=all   # all | static
+PEER_SEARCH=''           # part of an address or port
+PEER_JOB_PID=''
+PEER_JOB_NOTE=''
+PEER_STATE_AT=''
+PEER_SELECTED=()
+PEER_COUNT=(0 0 0 0 0)   # round trips under 50, 100, 200 ms, above, unknown
+PEER_AVERAGE=''
+
+# ── the background job ───────────────────────────────────────────────────────
+# The functions down to glv_peers_static_capable are the log readers of
+# gLiveView 1, unchanged, and keep its variable names; glv_peers_job_run sets
+# those up. files/tests/gliveview-peer-analysis.sh loads them by name.
+
 resolvePeerAddress() {
   local address="$1" resolved=""
   local -a time_limit=()
@@ -1745,16 +2614,6 @@ resolvePeerAddress() {
   printf '%s' "${resolved}"
 }
 
-# Command    : getStaticPeers
-# Description: Read the node's static peers, the localRoots access points in
-#              its topology file, and resolve DNS names, for the Static peer
-#              filter. The topology the running node was started with is
-#              preferred over TOPOLOGY. Each access point is labelled with its
-#              description, pool, name or DNS name. Sets staticPeerList to one
-#              "address;port;label;ip,ip" entry each, staticPeerPort to the
-#              label by "ip;port", staticPeer to the label by IP, the labels
-#              joined when several access points share an address, and
-#              staticPeerEntries to the number of access points per address.
 getStaticPeers() {
   local topology_file="${TOPOLOGY}" prev_arg="" cmdline_arg address port label ips ip port_key
   local -a cmdline_args=()
@@ -1794,250 +2653,6 @@ getStaticPeers() {
     ' "${topology_file}" 2>/dev/null)
 }
 
-# Command    : staticPeerLabelFor [ip] [port]
-# Description: Set peerStaticLabel to the label of the static peer behind a
-#              connection: the access point with that address and port, else
-#              the one or more access points with that address. Empty for a
-#              peer that is not static, or an access point without a label.
-staticPeerLabelFor() {
-  local ip="${1#::ffff:}"
-  local port_key="${ip};$2"
-  if [[ -n ${staticPeerPort[${port_key}]+set} ]]; then
-    peerStaticLabel="${staticPeerPort[${port_key}]}"
-  else
-    peerStaticLabel="${staticPeer[${ip}]:-}"
-  fi
-}
-
-# Command    : peerConnection [ip] [remote port] [local port]
-# Description: Look up how a connection is used, from the node's own state.
-#              Sets peerConnUse (out, in, dup, idle or empty when unknown),
-#              peerConnOut and peerConnIn (H, W or empty when unknown) for
-#              the node's and the peer's side, and peerConnFmt for the CONN
-#              column. Only a side that uses the connection has a state.
-peerConnection() {
-  local ip="${1#::ffff:}" conn_key
-  conn_key="${ip};$2;${3:--}"
-  peerConnUse="${nodeConnUse[${conn_key}]:-}"
-  peerConnIn=""
-  case ${peerConnUse} in
-    in|dup) peerConnIn="${nodeRemoteTemp[${conn_key}]:-}"
-            [[ ${peerConnIn} = [HW] ]] || peerConnIn="" ;;
-  esac
-  conn_key="${ip};$2"
-  peerConnOut=""
-  case ${peerConnUse} in
-    out|dup) peerConnOut="${nodePeerTemp[${conn_key}]:-}" ;;
-  esac
-  case ${peerConnUse} in
-    dup) [[ -n ${peerConnIn} ]] && peerConnFmt="dup ${peerConnOut:--}/${peerConnIn}" || peerConnFmt="dup ${peerConnOut}" ;;
-    out) peerConnFmt="out ${peerConnOut}" ;;
-    in)  peerConnFmt="in ${peerConnIn}" ;;
-    *)   peerConnFmt="${peerConnUse}" ;;
-  esac
-  peerConnFmt="${peerConnFmt% }"
-}
-
-# Command    : peerConnAvailable
-# Description: Whether peer analysis has the node's connection data, for the
-#              CONN and SCORE columns and the Direction and State filters.
-peerConnAvailable() {
-  [[ ${node_peer_state_available} = true ]]
-}
-
-# Command    : peerScoreFor [ip] [remote port]
-# Description: Set peerScoreFmt for the SCORE column: the node's count for
-#              the peer's address and port, empty when the peer has none.
-peerScoreFor() {
-  local score_key="${1#::ffff:};$2"
-  peerScoreFmt="${nodePeerScore[${score_key}]:-0}"
-  [[ ${peerScoreFmt} = 0 ]] && peerScoreFmt=""
-  return 0
-}
-
-# Command    : peerMatchesFilter [ip] [remote port] [local port]
-# Description: Whether a connection matches peer_filter_dir and
-#              peer_filter_state. Outgoing and incoming include duplex
-#              connections, as the node's connection counters do. The state
-#              is the one on the selected side, unknown when that side's
-#              state is, or the hotter side for All and Duplex.
-peerMatchesFilter() {
-  local conn_state=""
-  [[ ${peer_filter_dir} = "all" && ${peer_filter_state} = "any" ]] && return 0
-  peerConnection "$1" "$2" "${3:-}"
-  case ${peer_filter_dir} in
-    out) [[ ${peerConnUse} = out || ${peerConnUse} = dup ]] || return 1
-         conn_state=${peerConnOut:--} ;;
-    in)  [[ ${peerConnUse} = in || ${peerConnUse} = dup ]] || return 1
-         conn_state=${peerConnIn:--} ;;
-    dup) [[ ${peerConnUse} = dup ]] || return 1 ;;
-  esac
-  if [[ -z ${conn_state} ]]; then
-    if [[ ${peerConnOut} = H || ${peerConnIn} = H ]]; then conn_state=H
-    elif [[ ${peerConnOut} = W || ${peerConnIn} = W ]]; then conn_state=W
-    else conn_state=-; fi
-  fi
-  case ${peer_filter_state} in
-    hot)  [[ ${conn_state} = H ]] ;;
-    warm) [[ ${conn_state} = W ]] ;;
-    *)    return 0 ;;
-  esac
-}
-
-# Command    : printPeerFilterBar
-# Description: Print the peer analysis filter rows, every choice listed and the
-#              active ones highlighted: Search [/] always, Peers [t] for a
-#              node with a topology file, and Direction [d] and State [s]
-#              with connection data.
-printPeerFilterBar() {
-  local option label search_fmt
-  local second_col=41
-  if node_has topology_file; then
-    printf "${VL} %-9s ${style_info}[t]${NC}" "Peers"
-    for option in all static; do
-      case ${option} in
-        all) label="All" ;; static) label="Static" ;;
-      esac
-      [[ ${option} = "${peer_filter_static}" ]] && printf "${style_values_3} %s ${NC}" "${label}" || printf " %s " "${label}"
-    done
-    mvPos ${line} ${second_col}
-    printf "%-6s ${style_info}[/]${NC}" "Search"
-  else
-    printf "${VL} %-9s ${style_info}[/]${NC}" "Search"
-  fi
-  if [[ -n ${peer_search} ]]; then
-    [[ ${#peer_search} -gt 16 ]] && search_fmt="${peer_search:0:14}.." || search_fmt="${peer_search}"
-    printf "${style_values_3} %s ${NC}" "${search_fmt}"
-  fi
-  closeRow
-  peerConnAvailable || return 0
-  printf "${VL} %-9s ${style_info}[d]${NC}" "Direction"
-  for option in all out in dup; do
-    case ${option} in
-      all) label="All" ;; out) label="Out" ;; in) label="In" ;; dup) label="Duplex" ;;
-    esac
-    [[ ${option} = "${peer_filter_dir}" ]] && printf "${style_values_3} %s ${NC}" "${label}" || printf " %s " "${label}"
-  done
-  mvPos ${line} ${second_col}
-  printf "%-6s ${style_info}[s]${NC}" "State"
-  for option in any hot warm; do
-    case ${option} in
-      any) label="Any" ;; hot) label="Hot" ;; warm) label="Warm" ;;
-    esac
-    [[ ${option} = "${peer_filter_state}" ]] && printf "${style_values_3} %s ${NC}" "${label}" || printf " %s " "${label}"
-  done
-  closeRow
-}
-
-# Command    : computePeerStats
-# Description: Select the analysed peers that match the IP search and the peer
-#              filters, and compute the RTT ranges, average and sorted list
-#              shown in peer analysis. Without connection data only the
-#              search and the Static filter apply. With the Static filter,
-#              static peers without a connection are listed after the others
-#              but not counted in the RTT figures; peerListCNT counts both.
-computePeerStats() {
-  local result rtt search="${peer_search,,}"
-  local entry entry_ip entry_ips entry_connected missing_note connected_key
-  local -a result_arr entry_arr selected=() missing=()
-  local -A connected_ip=()
-  if ! peerConnAvailable; then
-    peer_filter_dir="all"
-    peer_filter_state="any"
-  fi
-  peerCNT=0; peerCNT0=0; peerCNT1=0; peerCNT2=0; peerCNT3=0; peerCNT4=0
-  peerPCT1=0; peerPCT2=0; peerPCT3=0; peerPCT4=0
-  peerPCT1items=0; peerPCT2items=0; peerPCT3items=0; peerPCT4items=0
-  peerRTTSUM=0; peerRTTAVG=0; rttResultsSorted=""
-
-  for result in "${rttResults[@]}"; do
-    IFS=";" read -r -a result_arr <<< "${result}"
-    connected_key="${result_arr[1]#::ffff:}"
-    connected_ip[${connected_key}]=1
-    connected_key+=";${result_arr[2]}"
-    connected_ip[${connected_key}]=1
-    if [[ -n ${search} ]]; then
-      [[ "${result_arr[1],,}:${result_arr[2]}" == *"${search}"* ]] || continue
-    fi
-    # Static peers match by address: a peer that connects to the node can use
-    # another port than the one in the topology.
-    if [[ ${peer_filter_static} = "static" ]]; then
-      [[ -n ${staticPeer[${result_arr[1]#::ffff:}]+set} ]] || continue
-    fi
-    peerMatchesFilter "${result_arr[1]}" "${result_arr[2]}" "${result_arr[4]:-}" || continue
-    selected+=("${result}")
-    rtt=${result_arr[0]}
-      if [[ ${rtt} -lt 50    ]]; then peerCNT1=$((peerCNT1 + 1))
-    elif [[ ${rtt} -lt 100   ]]; then peerCNT2=$((peerCNT2 + 1))
-    elif [[ ${rtt} -lt 200   ]]; then peerCNT3=$((peerCNT3 + 1))
-    elif [[ ${rtt} -lt 99999 ]]; then peerCNT4=$((peerCNT4 + 1))
-    else peerCNT0=$((peerCNT0 + 1)); fi
-    [[ ${rtt} -lt 99999 ]] && peerRTTSUM=$((peerRTTSUM + rtt))
-  done
-
-  peerCNT=${#selected[@]}
-  [[ ${peerCNT} -gt 0 ]] && rttResultsSorted=$(printf '%s\n' "${selected[@]}" | sort -n)
-
-  # Static peers without a connection have no direction or state to filter on.
-  if [[ ${peer_filter_static} = "static" && ${peer_filter_dir} = "all" &&
-        ${peer_filter_state} = "any" ]]; then
-    for entry in "${staticPeerList[@]}"; do
-      IFS=";" read -r -a entry_arr <<< "${entry}" # address port label ips
-      entry_ips="${entry_arr[3]:-}"
-      entry_connected=N
-      for entry_ip in ${entry_ips//,/ }; do
-        # On an address that several access points share, only a connection
-        # on the entry's own port counts; otherwise any port does.
-        connected_key="${entry_ip};${entry_arr[1]}"
-        if [[ -n ${connected_ip[${connected_key}]+set} ]] ||
-           [[ ${staticPeerEntries[${entry_ip}]:-0} -le 1 && -n ${connected_ip[${entry_ip}]+set} ]]; then
-          entry_connected=Y
-        fi
-      done
-      [[ ${entry_connected} = Y ]] && continue
-      if [[ -n ${search} ]]; then
-        [[ "${entry_arr[0],,}:${entry_arr[1]} ${entry_ips,,}" == *"${search}"* ]] || continue
-      fi
-      # x: not connected, u: the name did not resolve. The list is split on
-      # whitespace, so the text is added when it is drawn.
-      [[ -n ${entry_ips} ]] && missing_note="x" || missing_note="u"
-      missing+=("99999;${entry_arr[0]};${entry_arr[1]};${missing_note}")
-    done
-  fi
-  peerListCNT=$((peerCNT + ${#missing[@]}))
-  if [[ ${#missing[@]} -gt 0 ]]; then
-    [[ -n ${rttResultsSorted} ]] && rttResultsSorted+=$'\n'
-    rttResultsSorted+="$(printf '%s\n' "${missing[@]}")"
-  fi
-
-  peerCNTreachable=$((peerCNT-peerCNT0))
-  if [[ ${peerCNTreachable} -gt 0 ]]; then
-    peerRTTAVG=$((peerRTTSUM / peerCNTreachable))
-    peerPCT1=$(echo "scale=4;(${peerCNT1}/${peerCNTreachable})*100" | bc -l)
-    peerPCT1items=$(printf %.0f "$(echo "scale=4;${peerPCT1}*${granularity_small}/100" | bc -l)")
-    peerPCT2=$(echo "scale=4;(${peerCNT2}/${peerCNTreachable})*100" | bc -l)
-    peerPCT2items=$(printf %.0f "$(echo "scale=4;${peerPCT2}*${granularity_small}/100" | bc -l)")
-    peerPCT3=$(echo "scale=4;(${peerCNT3}/${peerCNTreachable})*100" | bc -l)
-    peerPCT3items=$(printf %.0f "$(echo "scale=4;${peerPCT3}*${granularity_small}/100" | bc -l)")
-    peerPCT4=$(echo "scale=4;(${peerCNT4}/${peerCNTreachable})*100" | bc -l)
-    peerPCT4items=$(printf %.0f "$(echo "scale=4;${peerPCT4}*${granularity_small}/100" | bc -l)")
-  fi
-}
-
-# Command    : getNodePeerState
-# Description: Read the node's own view of its connections from its journal:
-#              cardano-node's state dump and log (getCnodePeerState), or
-#              Amaru's log (getAmaruPeerState). nodeConnUse, keyed by
-#              "ip;remote port;local port", holds who uses the connection:
-#              dup (both sides), out (the node's side), in (the peer's side)
-#              or idle (neither). Connections still negotiating or closing
-#              are left out. nodePeerTemp, keyed by the peer's "ip;port",
-#              holds H for the node's hot peers and W for its warm ones, and
-#              nodeRemoteTemp, keyed like nodeConnUse, the peer side's H, W or
-#              C. nodePeerScore, keyed by "ip;port", holds the headers the
-#              peer delivered first plus the blocks the node fetched from it
-#              first, the counts cardano-node ranks its hot peers by.
-#              IPv4-mapped IPv6 addresses are stored as plain IPv4.
 getNodePeerState() {
   local cgroup_path unit
   local -a journal_match=()
@@ -2068,19 +2683,6 @@ getNodePeerState() {
   esac
 }
 
-# Command    : getCnodePeerState [journalctl match...]
-# Description: On SIGUSR1, cardano-node writes its connection manager state
-#              (Net.ConnectionManager.Remote.State) and its peer selection
-#              state (Net.PeerSelection.Selection.DebugState) to its log. A
-#              signal stops a process that does not handle it, so
-#              getNodePeerState checks that the process is cardano-node.
-#              journald splits a line longer than its LineMax, 48 KiB by
-#              default, so a record runs until the next line that starts a
-#              trace. The peer side's state is not in the dump: the node's
-#              inbound governor logs a line whenever a peer promotes or
-#              demotes it (Net.InboundGovernor.Remote.PromotedToHotRemote and
-#              the like). readNodePeerLog follows those first, so that the
-#              dump decides which connections still exist.
 getCnodePeerState() {
   local since attempt dump="" record_type peer_key peer_value record key
   local -a kept=()
@@ -2157,20 +2759,6 @@ getCnodePeerState() {
   saveNodePeerLog "${kept[@]}"
 }
 
-# Command    : getAmaruPeerState [journalctl match...]
-# Description: Amaru logs, at INFO, each connection's handshake
-#              (manager.peer.handshake_completed), its own use of the
-#              connection (manager.peer.local_use_applied) and the peer's
-#              (peer_selection.peer.remote_use): none, maintenance (warm) or
-#              diffusion (hot). Once at the tip it also logs the rank at
-#              which each peer announced each header and delivered each block
-#              (amaru::blockperf). Only changes are logged, so
-#              readNodePeerLog follows them. Amaru knows a connection by the
-#              peer's address, and dials from its listen port by default, so
-#              the node's established connections in peers_in and peers_out
-#              from checkPeers are matched by remote address. SCORE counts
-#              the first deliveries among the last 180 headers and the last
-#              180 blocks, the window cardano-node keeps.
 getAmaruPeerState() {
   local record conn remote_addr ip port local_port peer_key local_temp remote_temp
   local -a fields=() kept=()
@@ -2254,21 +2842,6 @@ getAmaruPeerState() {
   saveNodePeerLog "${kept[@]}"
 }
 
-# Command    : readNodePeerLog [jq definitions] [grep patterns] [journalctl match...]
-# Description: Follow the node's log of its connections. The node logs only
-#              changes, so the current state needs every line since the node
-#              started. PEER_STATE_FILE keeps the state with the journal
-#              cursor it was read up to, and each analysis reads on from
-#              there. The whole log since the node started is read only for a
-#              new node process, or when the cursor no longer works. The
-#              patterns, one per line, select the log lines, and the jq
-#              definitions turn them into records: log_init is the empty
-#              state, log_restore($fields) adds a saved record, log_step($line)
-#              adds a log line and log_records lists the state as records,
-#              arrays whose first element is the record's kind. Sets
-#              node_log_records to the records as tab-separated lines, and
-#              node_log_run and node_log_cursor for saveNodePeerLog. A read
-#              that fails leaves the cursor empty and no records.
 readNodePeerLog() {
   local definitions="$1" patterns="$2" kind rest state_run="" cursor="" saved="" new_cursor status now elapsed pass line
   local -a read_from=() records=()
@@ -2335,11 +2908,6 @@ readNodePeerLog() {
   node_log_records=("${records[@]}")
 }
 
-# Command    : saveNodePeerLog [record...]
-# Description: Write what readNodePeerLog read to PEER_STATE_FILE for the
-#              next analysis: the node process, the journal cursor and the
-#              records to keep. A file that cannot be written only means that
-#              the next analysis reads the whole log again.
 saveNodePeerLog() {
   local state_tmp
   [[ -n ${node_log_cursor} ]] || return 0
@@ -2352,1023 +2920,2053 @@ saveNodePeerLog() {
   } > "${state_tmp}" && mv -f -- "${state_tmp}" "${PEER_STATE_FILE}" || rm -f -- "${state_tmp}"
 }
 
-# Command    : peerAnalysisStatus [text]
-# Description: Show what peer analysis is doing on its status row.
-peerAnalysisStatus() {
-  mvPos ${line} 1
-  printf "${VL} ${style_info}%-46s${NC}" "$1"
+
+# glv_peers_static_capable: whether this node has peers it was told to use.
+# cardano-node lists them in its topology file, Amaru gets them at start-up.
+glv_peers_static_capable() {
+  node_has topology_file || [[ "${NODE_IMPLEMENTATION:-}" == amaru ]]
 }
 
-checkNodeVersion() {
-  node_metric_has running_node_version || return
-  [[ ${running_node_version} = '?' ]] && return # ignore check if unable to fetch version from running node
-
-  IFS=$'\t' read -r node_version node_rev <<< "$(node_installed_version 2>/dev/null || printf '?\t?')"
-  unset IFS
-
-  if [[ ${node_version} != "${running_node_version}" ]] ||
-     { node_metric_has running_node_rev &&
-       [[ "${running_node_rev}" != "?" &&
-          ${node_rev} != "${running_node_rev}" ]]; }; then
-    clrScreen
-    printf "\n ${style_status_3}Node version mismatch${NC} - running version doesn't match found binary!"
-    printf "\n\n Forgot to restart node after upgrade?"
-    printf "\n\n Deployed version : ${node_version} (${node_rev}) => ${NODE_BINARY:-${CNODEBIN:-unknown}}"
-    printf "\n Running version  : ${running_node_version} (${running_node_rev})\n"
-    waitToProceed && clrScreen
+# glv_peers_static_amaru: Amaru's static peers are the --peer options it was
+# started with, on the command line or in AMARU_PEER. Fills staticPeerList the
+# way getStaticPeers does for a topology file; the host name is the label.
+glv_peers_static_amaru() {
+  local word previous='' value host port label ips
+  local -a arguments=() given=()
+  staticPeerList=()
+  [[ -n "${D_PID}" ]] || return 0
+  if [[ -r "/proc/${D_PID}/cmdline" ]]; then
+    mapfile -d '' -t arguments < "/proc/${D_PID}/cmdline"
+    for word in "${arguments[@]}"; do
+      case "${word}" in
+        --peer=*) given+=("${word#--peer=}"); previous='' ;;
+        --*) previous="${word}" ;;
+        *) [[ "${previous}" != --peer ]] || given+=("${word}") ;;
+      esac
+    done
   fi
-}
-
-glvCollectMetrics() {
-  if getNodeMetrics; then
-    return 0
+  if (( ${#given[@]} == 0 )) && [[ -r "/proc/${D_PID}/environ" ]]; then
+    while IFS= read -r -d '' word; do
+      [[ "${word}" != AMARU_PEER=* ]] || value="${word#AMARU_PEER=}"
+    done < "/proc/${D_PID}/environ"
+    # Several peers are separated by commas or spaces.
+    read -r -a given <<< "${value//,/ }"
   fi
-
-  # The failed collector has already reset availability. Populate arithmetic
-  # defaults without claiming that any sample exists.
-  common_parse_cardano_metrics ""
-  return 1
-}
-
-glvUpdateTipGap() {
-  local reference_slot calculated_gap native_gap
-
-  if node_metric_has tip_gap &&
-     node_metric_value_is_numeric "${tip_gap:-}"; then
-    native_gap="${tip_gap}"
-    LC_NUMERIC=C printf -v native_gap '%.0f' \
-      "$(awk -v gap="${native_gap}" 'BEGIN { print gap < 0 ? 0 : gap }')"
-    node_metric_set tip_gap "${native_gap}"
-    return 0
-  fi
-
-  if ! node_metric_has slotnum ||
-     [[ ! "${slotnum:-}" =~ ^[0-9]+$ ]] ||
-     [[ ! "${SHELLEY_TRANS_EPOCH:-}" =~ ^-?[0-9]+$ ]] ||
-     (( SHELLEY_TRANS_EPOCH < 0 )); then
-    node_metric_unset tip_gap
-    return 1
-  fi
-
-  reference_slot="$(getSlotTipRef 2>/dev/null || true)"
-  if [[ ! "${reference_slot}" =~ ^[0-9]+$ ]]; then
-    node_metric_unset tip_gap
-    return 1
-  fi
-  calculated_gap=$(( reference_slot - slotnum ))
-  (( calculated_gap < 0 )) && calculated_gap=0
-  node_metric_set tip_gap "${calculated_gap}"
-}
-
-# The adapter reports a running ledger replay as a sync phase while it
-# collects metrics.
-getBlockReplayStatus() {
-  unset block_replay_pct
-  node_has block_replay_log || return
-  if node_metric_has sync_progress; then
-    block_replay_pct="${sync_progress}"
-  fi
-}
-
-#####################################
-# Static variables/calculations     #
-#####################################
-check_peers="false"
-show_peers="false"
-show_peers_info="false"
-show_home_info="false"
-show_network_info="false"
-glvCollectMetrics || true
-curr_epoch=${epochnum:-0}
-if [[ "${NODE_IMPLEMENTATION}" == "cnode" ]]; then
-  getShelleyTransitionEpoch
-fi
-if [[ ${SHELLEY_TRANS_EPOCH:-0} -eq -1 ]]; then
-  clrScreen
-  printf "\n ${style_status_3}Failed${NC} to get shelley transition epoch, calculations will not work correctly!"
-  printf "\n\n Possible causes:"
-  printf "\n   - Node in startup mode"
-  printf "\n   - Shelley era not reached"
-  printf "\n After successful node boot or when sync to shelley era has been reached, calculations will be correct\n"
-  waitToProceed && clrScreen
-fi
-checkNodeVersion
-
-fail_count=0
-epoch_items_last=0
-# Frame buffer for the older renderer; without one, rows are drawn directly.
-GLV_LEGACY_FRAME_FILE="$(mktemp "${XDG_RUNTIME_DIR:-${TMPDIR:-/tmp}}/gLiveView.frame.XXXXXX" 2>/dev/null)" ||
-  GLV_LEGACY_FRAME_FILE=""
-glv_legacy_buffered=N
-GLV_LEGACY_PREV=()
-
-if [[ "${NODE_IMPLEMENTATION}" == "cnode" ]]; then
-  test_koios # KOIOS_API variable unset if check fails. Only tested once on startup.
-else
-  KOIOS_API=""
-fi
-pool_info_file=/dev/shm/pool_info
-[[ -n ${KOIOS_API} ]] && node_has forge && getPoolID
-
-node_has opcert && getOpCert
-
-glvLogoInit
-
-tput civis # Disable cursor
-stty -echo # Disable user input
-
-clrScreen
-tlines=$(tput lines) # set initial terminal lines
-tcols=$(tput cols)   # set initial terminal columns
-printf "${NC}"       # reset and set default color
-
-unset cpu_now cpu_last
-
-####################################
-# Mithril Signer Section Variables #
-####################################
-
-mithrilSignerVars() {
-  # mithril.env sourcing needed to have values in ${METRICS_SERVER_IP} and ${METRICS_SERVER_PORT}
-  . ${MITHRIL_HOME}/mithril.env
-  signerMetricsEnabled=$(grep -q "ENABLE_METRICS_SERVER=true" ${MITHRIL_HOME}/mithril.env && echo "true" || echo "false")
-  if [[ "${signerMetricsEnabled}" == "true" ]] ; then
-    mithrilSignerMetrics=$(curl -s "http://${METRICS_SERVER_IP}:${METRICS_SERVER_PORT}/metrics" 2>/dev/null | grep -v -E "HELP|TYPE" | sed 's/mithril_signer_//g')
-    SIGNER_METRICS_HTTP_RESPONSE=$(curl --write-out "%{http_code}" --silent --output /dev/null --connect-timeout 2 http://${METRICS_SERVER_IP}:${METRICS_SERVER_PORT}/metrics)
-    if [[ "$SIGNER_METRICS_HTTP_RESPONSE" -eq 200 ]] ; then
-      signerServiceStatus='online'
-    else
-      signerServiceStatus='offline'
-    fi
-    unset SIGNER_METRICS_HTTP_RESPONSE
-  fi
-}
-
-
-#####################################
-# MAIN LOOP                         #
-#####################################
-while true; do
-  tlines=$(tput lines) # update terminal lines
-  tcols=$(tput cols)   # update terminal columns
-  [[ ${width} -ge ${tcols} || ${line} -ge $((tlines - 1)) ]] && clrScreen
-  while [[ ${width} -ge ${tcols} ]]; do
-    mvPos 2 2
-    printf "${style_status_3}Terminal width too small!${NC}"
-    mvPos 4 2
-    printf "Please increase by ${style_info}$(( width - tcols + 1 ))${NC} columns"
-    mvPos 6 2
-    printf "${style_info}[esc/q] Quit${NC}"
-    waitForInput
-    tlines=$(tput lines) # update terminal lines
-    tcols=$(tput cols)   # update terminal columns
+  for word in "${given[@]}"; do
+    [[ -n "${word}" ]] || continue
+    if [[ "${word}" == \[*\]:* ]]; then host="${word%%]:*}"; host="${host#[}"; port="${word##*]:}"
+    elif [[ "${word}" == *:* && "${word}" != *:*:* ]]; then host="${word%:*}"; port="${word##*:}"
+    else host="${word}"; port=''; fi
+    label=''
+    [[ "${host}" =~ ^[0-9.]+$ || "${host}" == *:* ]] || label="${host}"
+    ips="$(resolvePeerAddress "${host}")"
+    staticPeerList+=("${host};${port};${label};${ips}")
   done
-  while [[ ${line} -gt ${tlines} ]]; do
-    mvPos 2 2
-    printf "${style_status_3}Terminal height too small!${NC}"
-    mvPos 4 2
-    printf "Please increase by ${style_info}$(( line - tlines + 2 ))${NC} lines"
-    mvPos 6 2
-    printf "${style_info}[esc/q] Quit${NC}"
-    waitForInput
-    tlines=$(tput lines) # update terminal lines
-    tcols=$(tput cols)   # update terminal columns
+}
+
+# What the log readers print as progress goes to the page's status line.
+peerAnalysisStatus() { printf '%s\n' "$1" > "${PEER_JOB_FILE}.status" 2>/dev/null || true; }
+
+# Asks ip-api.com for the city and country of addresses not looked up before,
+# 100 per request as the service allows. Prints one "g" record for each answer.
+glv_peers_geo_lookup() {
+  local start batch answer
+  local -a queue=("$@")
+  command -v curl >/dev/null 2>&1 && command -v jq >/dev/null 2>&1 || return 0
+  for ((start = 0; start < ${#queue[@]} && start < 1500; start += 100)); do
+    batch="$(printf '%s\n' "${queue[@]:start:100}" |
+      jq -Rnc '[inputs | {query: ., fields: "status,city,countryCode,query"}]')" || continue
+    answer="$(curl -s -f -m 10 http://ip-api.com/batch --data "${batch}")" || continue
+    jq -r '.[] | select(.status == "success" and (.query | type) == "string") |
+        ["g", .query, "\(.city // "?"), \(.countryCode // "?")"] | @tsv' <<< "${answer}" 2>/dev/null
+  done
+}
+
+# glv_peers_job_run: the whole analysis, run in a background subshell. Prints
+# records, one per line and tab separated: c, t, r and s for the four state
+# maps, S for a static peer, g for a location, and "ok" last.
+glv_peers_job_run() {
+  local entry rest address port local_port key now
+  local -a lookup=()
+  local -A queued=()
+  CNODE_PID="${D_PID}"
+  PEER_STATE_FILE="${GLV_PEER_STATE_FILE}"
+  ENABLE_NODE_PEER_STATE="${ENABLE_NODE_PEER_STATE:-Y}"
+  peers_in=''
+  peers_out=''
+  peerAnalysisStatus "Reading the node's connections…"
+  glv_data_peers
+  for entry in "${D_PEERS[@]}"; do
+    rest="${entry#*|}"; rest="${rest#*|}"
+    address="${rest%%|*}"; rest="${rest#*|}"
+    port="${rest%%|*}"; local_port="${rest#*|}"
+    if [[ "${address}" == *:* ]]; then key="[${address}]:${port}|:${local_port}"; else key="${address}:${port}|:${local_port}"; fi
+    peers_in+="${key} "
+    if [[ "${ENABLE_IP_GEOLOCATION:-Y}" == Y && -z "${geoIP[${address}]+known}" &&
+          -z "${queued[${address}]+queued}" ]] && ! isPrivateIP "${address}"; then
+      queued["${address}"]=1
+      lookup+=("${address}")
+    fi
   done
 
-  glvEndLegacyFrame # in case a frame was abandoned
-  # Redraw everything when the total height changed, unless frames are
-  # buffered: those clear the rows below a shorter frame themselves.
-  if [[ "${oldLine}" != "${line}" ]]; then
-    oldLine=$line
-    [[ -n ${GLV_LEGACY_FRAME_FILE} ]] || clrScreen
+  getNodePeerState
+  for key in "${!nodeConnUse[@]}"; do printf 'c\t%s\t%s\n' "${key}" "${nodeConnUse[${key}]}"; done
+  for key in "${!nodePeerTemp[@]}"; do printf 't\t%s\t%s\n' "${key}" "${nodePeerTemp[${key}]}"; done
+  for key in "${!nodeRemoteTemp[@]}"; do printf 'r\t%s\t%s\n' "${key}" "${nodeRemoteTemp[${key}]}"; done
+  for key in "${!nodePeerScore[@]}"; do printf 's\t%s\t%s\n' "${key}" "${nodePeerScore[${key}]}"; done
+
+  if glv_peers_static_capable; then
+    peerAnalysisStatus "Resolving the node's static peers…"
+    if node_has topology_file; then getStaticPeers; else glv_peers_static_amaru; fi
+    for entry in "${staticPeerList[@]}"; do printf 'S\t%s\n' "${entry}"; done
   fi
+  if (( ${#lookup[@]} > 0 )); then
+    peerAnalysisStatus "Looking up ${#lookup[@]} locations…"
+    glv_peers_geo_lookup "${lookup[@]}"
+  fi
+  printf -v now '%(%s)T' -1
+  printf 'ok\t%s\t%s\n' "${now}" "${node_peer_state_available}"
+}
 
-  line=1; mvPos 1 1 # reset position
+# glv_peers_job_start: starts the analysis unless one is running.
+glv_peers_job_start() {
+  [[ -z "${PEER_JOB_PID}" ]] || return 0
+  [[ -n "${D_PID}" ]] || { PEER_JOB_NOTE="The node is not running."; return 0; }
+  rm -f -- "${PEER_JOB_FILE}" "${PEER_JOB_FILE}.part" "${PEER_JOB_FILE}.status"
+  PEER_JOB_NOTE="Starting…"
+  (
+    glv_peers_job_run > "${PEER_JOB_FILE}.part" 2>/dev/null
+    mv -f -- "${PEER_JOB_FILE}.part" "${PEER_JOB_FILE}"
+  ) < /dev/null > /dev/null 2>&1 &
+  PEER_JOB_PID=$!
+}
 
-  # Gather some data
-  glvCollectMetrics && metrics_available=Y || metrics_available=N
-  node_refresh_process >/dev/null 2>&1 || true
-  CNODE_PID="${NODE_PID:-}"
-  if [[ -z ${CNODE_PID} || "${metrics_available}" != "Y" ]]; then
-    ((fail_count++))
-    if [[ ${RETRIES} -gt 0 && ${fail_count} -ge ${RETRIES} ]]; then
-      printf -v error_msg \
-        "${style_status_3}COULD NOT READ ${NODE_IMPLEMENTATION_NAME} METRICS AFTER ${RETRIES} ATTEMPTS!${NC}"
-      logln "ERROR" "${error_msg}"
-      myExit 1 "${error_msg}"
+# glv_peers_job_poll: shows the job's progress, and loads its records once it
+# is done. Never waits.
+glv_peers_job_poll() {
+  local kind first second ok=N
+  [[ -n "${PEER_JOB_PID}" ]] || return 0
+  if [[ ! -f "${PEER_JOB_FILE}" ]]; then
+    if kill -0 "${PEER_JOB_PID}" 2>/dev/null; then
+      [[ ! -r "${PEER_JOB_FILE}.status" ]] || read -r PEER_JOB_NOTE < "${PEER_JOB_FILE}.status" || true
+      return 0
     fi
-    clrScreen && mvPos 2 2
-    if [[ -z ${CNODE_PID} ]]; then
-      printf -v error_msg \
-        "${style_status_3}${NODE_IMPLEMENTATION_NAME} process unavailable, retrying (${fail_count}$([[ ${RETRIES} -gt 0 ]] && echo "/${RETRIES}"))!${NC}"
+    [[ -f "${PEER_JOB_FILE}" ]] || { PEER_JOB_PID=''; PEER_JOB_NOTE="The analysis stopped before it finished."; return 0; }
+  fi
+  nodeConnUse=(); nodePeerTemp=(); nodeRemoteTemp=(); nodePeerScore=()
+  staticPeer=(); staticPeerPort=(); staticPeerEntries=(); staticPeerList=()
+  while IFS=$'\t' read -r kind first second; do
+    case "${kind}" in
+      c) nodeConnUse["${first}"]="${second}" ;;
+      t) nodePeerTemp["${first}"]="${second}" ;;
+      r) nodeRemoteTemp["${first}"]="${second}" ;;
+      s) nodePeerScore["${first}"]="${second}" ;;
+      g) geoIP["${first}"]="${second}" ;;
+      S) staticPeerList+=("${first}")
+         # address;port;label;ip,ip
+         glv_peers_static_index "${first}" ;;
+      ok) ok=Y; PEER_STATE_AT="${first}"; node_peer_state_available="${second}" ;;
+    esac
+  done < "${PEER_JOB_FILE}"
+  rm -f -- "${PEER_JOB_FILE}" "${PEER_JOB_FILE}.status"
+  PEER_JOB_PID=''
+  PEER_JOB_NOTE=''
+  [[ "${ok}" == Y ]] || PEER_JOB_NOTE="The analysis did not finish."
+  glv_peers_geo_save
+}
+
+# glv_peers_static_index <address;port;label;ip,ip>: files one static peer
+# under each of its addresses, as getStaticPeers does.
+glv_peers_static_index() {
+  local entry="$1" port label ips ip port_key
+  entry="${entry#*;}"
+  port="${entry%%;*}"; entry="${entry#*;}"
+  label="${entry%%;*}"; ips="${entry#*;}"
+  for ip in ${ips//,/ }; do
+    port_key="${ip};${port}"
+    staticPeerPort["${port_key}"]="${label}"
+    staticPeerEntries["${ip}"]=$(( ${staticPeerEntries[${ip}]:-0} + 1 ))
+    if [[ -z "${staticPeer[${ip}]:-}" ]]; then
+      staticPeer["${ip}"]="${label}"
+    elif [[ -n "${label}" && " / ${staticPeer[${ip}]} / " != *" / ${label} / "* ]]; then
+      staticPeer["${ip}"]+=" / ${label}"
+    fi
+  done
+}
+
+# Locations are kept between runs, so each address is asked for once.
+glv_peers_geo_load() {
+  local ip place
+  [[ -r "${GLV_PEER_GEO_FILE}" ]] || return 0
+  while IFS=$'\t' read -r ip place; do
+    [[ -z "${ip}" ]] || geoIP["${ip}"]="${place}"
+  done < "${GLV_PEER_GEO_FILE}"
+}
+
+glv_peers_geo_save() {
+  local ip
+  (( ${#geoIP[@]} > 0 )) || return 0
+  for ip in "${!geoIP[@]}"; do printf '%s\t%s\n' "${ip}" "${geoIP[${ip}]}"; done > "${GLV_PEER_GEO_FILE}" 2>/dev/null || true
+}
+
+glv_peers_cleanup() {
+  [[ -z "${PEER_JOB_PID}" ]] || kill "${PEER_JOB_PID}" 2>/dev/null || true
+  rm -f -- "${PEER_JOB_FILE:-/nonexistent}" "${PEER_JOB_FILE:-/nonexistent}.part" "${PEER_JOB_FILE:-/nonexistent}.status"
+}
+
+# ── per frame, without a fork ────────────────────────────────────────────────
+# glv_peer_connection <ip> <remote port> <local port>: how the node says a
+# connection is used. Sets PC_USE (out, in, dup, idle or empty when unknown),
+# PC_OUT and PC_IN (H, W or empty) for the node's and the peer's side, and
+# PC_TEXT for the Conn column. Only a side that uses the connection has a state.
+glv_peer_connection() {
+  local ip="${1#::ffff:}" key
+  key="${ip};$2;${3:--}"
+  PC_USE="${nodeConnUse[${key}]:-}"
+  PC_IN=''
+  case "${PC_USE}" in
+    in|dup) PC_IN="${nodeRemoteTemp[${key}]:-}"
+            [[ "${PC_IN}" == [HW] ]] || PC_IN='' ;;
+  esac
+  key="${ip};$2"
+  PC_OUT=''
+  case "${PC_USE}" in
+    out|dup) PC_OUT="${nodePeerTemp[${key}]:-}" ;;
+  esac
+  case "${PC_USE}" in
+    dup) if [[ -n "${PC_IN}" ]]; then PC_TEXT="dup ${PC_OUT:--}/${PC_IN}"; else PC_TEXT="dup ${PC_OUT}"; fi ;;
+    out) PC_TEXT="out ${PC_OUT}" ;;
+    in)  PC_TEXT="in ${PC_IN}" ;;
+    *)   PC_TEXT="${PC_USE}" ;;
+  esac
+  PC_TEXT="${PC_TEXT% }"
+}
+
+# glv_peer_score <ip> <remote port>: sets PC_SCORE to the node's count for the
+# peer's address and port, empty when the peer has none.
+glv_peer_score() {
+  PC_SCORE="${nodePeerScore[${1#::ffff:};$2]:-0}"
+  [[ "${PC_SCORE}" != 0 ]] || PC_SCORE=''
+}
+
+# glv_peer_matches <ip> <remote port> <local port>: whether a connection passes
+# the direction and state filters. Out and in include duplex connections, as
+# the node's counters do. The state is the one on the chosen side, or the
+# hotter side for All and Duplex.
+glv_peer_matches() {
+  local state=''
+  [[ "${PEER_FILTER_DIR}" != all || "${PEER_FILTER_STATE}" != any ]] || return 0
+  glv_peer_connection "$1" "$2" "${3:-}"
+  case "${PEER_FILTER_DIR}" in
+    out) [[ "${PC_USE}" == out || "${PC_USE}" == dup ]] || return 1
+         state="${PC_OUT:--}" ;;
+    in)  [[ "${PC_USE}" == in || "${PC_USE}" == dup ]] || return 1
+         state="${PC_IN:--}" ;;
+    dup) [[ "${PC_USE}" == dup ]] || return 1 ;;
+  esac
+  if [[ -z "${state}" ]]; then
+    if [[ "${PC_OUT}" == H || "${PC_IN}" == H ]]; then state=H
+    elif [[ "${PC_OUT}" == W || "${PC_IN}" == W ]]; then state=W
+    else state=-; fi
+  fi
+  case "${PEER_FILTER_STATE}" in
+    hot)  [[ "${state}" == H ]] ;;
+    warm) [[ "${state}" == W ]] ;;
+    *)    return 0 ;;
+  esac
+}
+
+# glv_peers_select: the connections that pass the search and the filters, in
+# PEER_SELECTED as "rtt|ip|port|local port|note", with the round-trip classes
+# and the average over them. The note of a connection is the side its socket
+# suggests (in or out). With the Static filter, static peers without a
+# connection follow, noted x (not connected) or u (name did not resolve); they
+# are not part of the round-trip figures.
+glv_peers_select() {
+  local entry rest rtt side address port local_port key search="${PEER_SEARCH,,}" sum=0 reachable
+  local static_entry static_address static_port static_ips ip connected note
+  local -A seen=()
+  PEER_SELECTED=()
+  PEER_COUNT=(0 0 0 0 0)
+  PEER_AVERAGE=''
+  if [[ "${node_peer_state_available}" != true ]]; then
+    PEER_FILTER_DIR=all
+    PEER_FILTER_STATE=any
+  fi
+  for entry in "${D_PEERS[@]}"; do
+    rtt="${entry%%|*}"; rest="${entry#*|}"
+    side="${rest%%|*}"; rest="${rest#*|}"
+    address="${rest%%|*}"; rest="${rest#*|}"
+    port="${rest%%|*}"; local_port="${rest#*|}"
+    key="${address#::ffff:}"
+    seen["${key}"]=1
+    seen["${key};${port}"]=1
+    if [[ -n "${search}" ]]; then
+      [[ "${address,,}:${port}" == *"${search}"* ]] || continue
+    fi
+    # Static peers match by address: a peer that connects to the node can use
+    # another port than the one in the topology.
+    if [[ "${PEER_FILTER_STATIC}" == static ]]; then
+      [[ -n "${staticPeer[${key}]+set}" ]] || continue
+    fi
+    glv_peer_matches "${address}" "${port}" "${local_port}" || continue
+    PEER_SELECTED+=("${rtt}|${address}|${port}|${local_port}|${side}")
+    if (( rtt >= 999999 )); then PEER_COUNT[4]=$((PEER_COUNT[4] + 1))
     else
-      printf -v error_msg \
-        "${style_status_3}${NODE_IMPLEMENTATION_NAME} metrics endpoint unavailable, retrying (${fail_count}$([[ ${RETRIES} -gt 0 ]] && echo "/${RETRIES}"))!${NC}"
+      sum=$((sum + rtt))
+      if (( rtt < 500 )); then PEER_COUNT[0]=$((PEER_COUNT[0] + 1))
+      elif (( rtt < 1000 )); then PEER_COUNT[1]=$((PEER_COUNT[1] + 1))
+      elif (( rtt < 2000 )); then PEER_COUNT[2]=$((PEER_COUNT[2] + 1))
+      else PEER_COUNT[3]=$((PEER_COUNT[3] + 1)); fi
     fi
-    printf "%s" "${error_msg}"
-    logln "ERROR" "${error_msg}"
-    waitForInput && continue
-  elif [[ ${fail_count} -ne 0 ]]; then # was failed but now ok, re-check
-    checkNodeVersion
-    fail_count=0
-    node_has opcert && getOpCert
-  fi
+  done
+  reachable=$((${#PEER_SELECTED[@]} - PEER_COUNT[4]))
+  (( reachable == 0 )) || PEER_AVERAGE=$((sum / reachable / 10))
 
-  if [[ ${show_peers} = "false" ]]; then
-
-    mem_rss="$(ps -q ${CNODE_PID} -o rss=)"
-    read -ra cpu_now <<< "$(LC_NUMERIC=C awk '/cpu /{printf "%.f %.f", $2+$4,$2+$4+$5}' /proc/stat)"
-    if [[ ${#cpu_now[@]} -eq 2 ]]; then
-      cpu_delta_total=$(( cpu_now[1] - cpu_last[1] ))
-      if [[ ${#cpu_last[@]} -eq 2 && ${cpu_delta_total} -gt 0 ]]; then
-        cpu_util=$(bc -l <<< "100*((${cpu_now[0]}-${cpu_last[0]})/(${cpu_now[1]}-${cpu_last[1]}))")
-        if [[ ${cpu_util%.*} -gt 99 ]]; then
-          cpu_util=$(LC_NUMERIC=C printf "%.0f" "${cpu_util}")
-        elif [[ ${cpu_util%.*} -gt 9 ]]; then
-          cpu_util=$(LC_NUMERIC=C printf "%.1f" "${cpu_util}")
-        else
-          cpu_util=$(LC_NUMERIC=C printf "%.2f" "${cpu_util}")
-        fi
-      else
-        cpu_util="0.0"
+  # Static peers without a connection have no direction or state to filter on.
+  [[ "${PEER_FILTER_STATIC}" == static && "${PEER_FILTER_DIR}" == all &&
+     "${PEER_FILTER_STATE}" == any ]] || return 0
+  for static_entry in "${staticPeerList[@]}"; do
+    static_address="${static_entry%%;*}"; rest="${static_entry#*;}"
+    static_port="${rest%%;*}"; rest="${rest#*;}"
+    static_ips="${rest#*;}"
+    connected=N
+    for ip in ${static_ips//,/ }; do
+      # On an address that several access points share, only a connection on
+      # the entry's own port counts; otherwise any port does.
+      if [[ -n "${seen[${ip};${static_port}]+set}" ]] ||
+         { (( ${staticPeerEntries[${ip}]:-0} <= 1 )) && [[ -n "${seen[${ip}]+set}" ]]; }; then
+        connected=Y
       fi
-      cpu_last=("${cpu_now[@]}")
-    else
-      cpu_util="0.0"
+    done
+    [[ "${connected}" == N ]] || continue
+    if [[ -n "${search}" ]]; then
+      [[ "${static_address,,}:${static_port} ${static_ips,,}" == *"${search}"* ]] || continue
     fi
-    if node_has forge &&
-       node_metric_has forging_enabled &&
-       [[ ${forging_enabled} -eq 1 ]]; then
-      [[ ${nodemode} != "Core" ]] &&
-        nodemode="Core" &&
-        node_has opcert &&
-        getOpCert &&
-        clrScreen
-    else
-      [[ ${nodemode} != "Relay" ]] && clrScreen && nodemode="Relay"
-    fi
-    if [[ "${NODE_IMPLEMENTATION}" == "cnode" &&
-          ${SHELLEY_TRANS_EPOCH:-0} -eq -1 ]]; then # if Shelley transition epoch calc failed during start, try until successful
-      getShelleyTransitionEpoch
-      kes_expiration="---"
-    elif [[ ${nodemode} = "Core" ]] &&
-         node_metric_has kesperiod &&
-         node_metric_has remaining_kes_periods; then
-      kesExpiration
-    fi
-    if node_metric_has epochnum &&
-       [[ ${curr_epoch} -ne ${epochnum} ]]; then # only update on new epoch to save on processing
-      curr_epoch=${epochnum}
-      unset pool_info_last_upd
-    fi
-    if [[ ${nodemode} = "Core" ]]; then
-      if [[ -n ${KOIOS_API} && -n ${pool_id_bech32} ]]; then
-        if [[ -n ${pool_info_last_upd} && $(($(date -u +%s) - pool_info_last_upd)) -lt 3600 ]]; then
-          : # nothing to do, pool info already fetched, processed and under 1h old
-        elif [[ -f ${pool_info_file} ]]; then
-          parsePoolInfo
-          pool_info_last_upd=$(date -u +%s)
-          clrScreen
-        else
-          getPoolInfo & # background process to not stall UI
-        fi
-      fi
-    fi
+    note=x
+    [[ -n "${static_ips}" ]] || note=u
+    PEER_SELECTED+=("999999|${static_address}|${static_port}||${note}")
+  done
+}
+
+# glv_peer_label <ip> <port>: sets PEER_LABEL to the static peer's label, or
+# the location of the address, and PEER_LABEL_KIND to static, private, place
+# or none.
+glv_peer_label() {
+  local ip="${1#::ffff:}"
+  PEER_LABEL=''
+  PEER_LABEL_KIND=none
+  if [[ -n "${staticPeerPort[${ip};$2]+set}" ]]; then PEER_LABEL="${staticPeerPort[${ip};$2]}"
+  else PEER_LABEL="${staticPeer[${ip}]:-}"; fi
+  if [[ -n "${PEER_LABEL}" ]]; then PEER_LABEL_KIND=static; return 0; fi
+  if [[ -n "${staticPeer[${ip}]+set}" ]]; then PEER_LABEL="static peer"; PEER_LABEL_KIND=static; return 0; fi
+  if [[ "${ip}" =~ ^(10\.|127\.|192\.168\.|172\.(1[6-9]|2[0-9]|3[01])\.|169\.254\.|f[cd][0-9a-f]{2}:|fe80:|::1$) ]]; then
+    PEER_LABEL="private address"; PEER_LABEL_KIND=private; return 0
   fi
+  if [[ -n "${geoIP[${ip}]:-}" ]]; then PEER_LABEL="${geoIP[${ip}]}"; PEER_LABEL_KIND=place; fi
+}
 
-  glvUpdateTipGap >/dev/null 2>&1 || true
+##############################################################################
+# Pages beside the overview
+##############################################################################
+# The pages beside the overview: Chain, Peers, Production, System, Logs and
+# Node & network. Each page is given the width of the main area and fills it band by band; the last
+# panel takes what height is left and scrolls with PgUp and PgDn.
 
-  if [[ ${show_peers} = "false" &&
-        ${show_network_info} = "true" ]]; then
-    glvRenderNetworkPage
-    glvFrameFitsTerminal || continue
-    glvCommitFrame
-    waitForInput "networkInfo"
-    continue
+PAGE_SCROLL=0
+PAGE_TOTAL=0
+# Tab moves the focus from the list of pages to the list on the page, and
+# back. While the page has it, up and down scroll that list a line at a time.
+# PAGE_LIST_KEY names the panel that holds each page's list (the Node &
+# network page scrolls as a whole, so it has none to mark).
+PAGE_FOCUS=N
+PAGE_FOCUSABLE=('' N Y Y Y N Y Y)
+PAGE_LIST_KEY=('' '' recent peerlist schedule '' log '')
+LOG_LEVEL=0
+LOG_PAUSED=N       # Y keeps the lines that are loaded and reads no new ones
+LOG_PAUSED_AT=''
+LOG_FIND=''        # pattern for the time, the source and the message
+LOG_SHIFT=0        # columns a long line is moved to the left
+LOG_I_TIME=()
+LOG_I_LEVEL=()
+LOG_I_TAG=()
+LOG_I_TEXT=()
+LOG_LEVEL_NAMES=("all" "notices and up" "warnings and up" "errors")
+LOG_LEVEL_FLOOR=(0 2 3 4)
+
+# glv_page_window <rows on screen>: keeps PAGE_SCROLL inside the list and puts
+# the position in the footer when the list is longer than its panel.
+glv_page_window() {
+  local rows="$1" limit last
+  limit=$((PAGE_TOTAL - rows))
+  (( limit >= 0 )) || limit=0
+  (( PAGE_SCROLL <= limit )) || PAGE_SCROLL="${limit}"
+  (( PAGE_SCROLL >= 0 )) || PAGE_SCROLL=0
+  if (( PAGE_TOTAL > rows )); then
+    last=$((PAGE_SCROLL + rows))
+    GLV_FOOTER_NOTE="rows $((PAGE_SCROLL + 1))-${last} of ${PAGE_TOTAL}"
+    GLV_PAGE_KEYS=("${GLV_PAGE_KEYS[@]}" "PgUp/PgDn Page")
   fi
+}
 
-  # The availability-driven layout covers relays and alternate block
-  # producers. cnode producers retain their established extended renderer
-  # below because it also integrates cnode-only Koios and CNCLI state.
-  if [[ ${show_peers} = "false" &&
-        ${show_home_info} = "false" &&
-        ${check_peers} = "false" &&
-        ( ${NODE_IMPLEMENTATION} != "cnode" || ${nodemode} = "Relay" ) ]]; then
-    glvRenderCommonDashboard
-    glvFrameFitsTerminal || continue
-    glvCommitFrame
-    waitForInput
-    continue
-  fi
+# glv_cells_panel <output> <width> <title> <right> <cells> <columns> [rows]
+glv_cells_panel() {
+  local _cp_width="$2" _cp_columns="$6" _cp_rows="${7:-0}" _cp_inner=$(($2 - 4))
+  local -n _cp_cells="$5"
+  UI_BASE="${UI_BASE_MAIN}"
+  UI_BODY=()
+  (( _cp_rows > 0 )) || _cp_rows=$(( (${#_cp_cells[@]} + _cp_columns - 1) / _cp_columns ))
+  (( _cp_rows >= 1 )) || _cp_rows=1
+  ui_grid "$5" "${_cp_columns}" "${_cp_rows}" "${_cp_inner}" UI_BODY
+  ui_panel "$1" "${_cp_width}" $((_cp_rows + 2)) "$3" "$4"
+}
 
-  # Peer analysis draws its progress live; everything else is buffered.
-  [[ ${check_peers} = "true" ]] || glvBeginLegacyFrame
+# glv_rows_panel <output> <width> <height or 0> <title> <rows> [right title]
+# Rows are "label|value". The label column is as wide as its longest label.
+# A value too long for the panel is cut: a path keeps its end, which is the
+# part that tells files apart, and anything else keeps its start.
+glv_rows_panel() {
+  local _rp_width="$2" _rp_height="$3" _rp_inner=$(($2 - 4)) _rp_label=0 _rp_row _rp_value _rp_room
+  local -n _rp_rows="$5"
+  for _rp_row in "${_rp_rows[@]}"; do
+    _rp_value="${_rp_row%%|*}"
+    (( ${#_rp_value} <= _rp_label )) || _rp_label=${#_rp_value}
+  done
+  _rp_label=$((_rp_label + 2))
+  (( _rp_label <= _rp_inner * 3 / 5 )) || _rp_label=$((_rp_inner * 3 / 5))
+  _rp_room=$((_rp_inner - _rp_label))
+  UI_BASE="${UI_BASE_MAIN}"
+  UI_BODY=()
+  for _rp_row in "${_rp_rows[@]}"; do
+    _rp_value="${_rp_row#*|}"
+    if (( ${#_rp_value} > _rp_room && _rp_room > 1 )); then
+      # A path keeps its end, anything else its start.
+      if [[ "${_rp_value}" == /* ]]; then _rp_value="…${_rp_value: -$((_rp_room - 1))}"
+      else _rp_value="${_rp_value:0:_rp_room-1}…"; fi
+    fi
+    ui_putw "${C_MUTED}" $((_rp_label - 1)) "${_rp_row%%|*}"
+    ui_gap 1
+    ui_putw '' "${_rp_room}" "${_rp_value}"
+    ui_endl UI_BODY "${_rp_inner}"
+  done
+  (( _rp_height > 0 )) || _rp_height=$((${#UI_BODY[@]} + 2))
+  ui_panel "$1" "${_rp_width}" "${_rp_height}" "$4" "${6:-}"
+}
 
-  if glvLogoHeaderRows "${NODE_NAME}" "${NODE_IMPLEMENTATION_NAME}" "${nodemode}" "${NETWORK_NAME}" "${running_node_version}"; then
-    printf '%s\n' "${GLV_LOGO_HEADER[@]}"
-    line=$(( line + ${#GLV_LOGO_HEADER[@]} ))
+# glv_note_panel <output> <width> <height> <title> <text>: a panel of wrapped text.
+glv_note_panel() {
+  local _np_inner=$(($2 - 4)) _np_line
+  local -a _np_lines=()
+  UI_BASE="${UI_BASE_MAIN}"
+  UI_BODY=()
+  ui_wrap _np_lines "${_np_inner}" "$5"
+  for _np_line in "${_np_lines[@]}"; do
+    ui_putw "${C_MUTED}" "${_np_inner}" "${_np_line}"
+    ui_endl UI_BODY "${_np_inner}"
+  done
+  ui_panel "$1" "$2" "$3" "$4" ""
+}
+
+# ── 2 Chain ──────────────────────────────────────────────────────────────────
+# How the arrival times of the blocks seen so far are spread.
+glv_panel_spread() {
+  local width="$2" height="$3" inner=$(($2 - 4)) total=${#H_DELAY[@]} delay i bar room
+  local -a limit=(500 1000 2000 3000 5000 0) label=("≤ 0.5 s" "≤ 1 s" "≤ 2 s" "≤ 3 s" "≤ 5 s" "> 5 s")
+  local -a count=(0 0 0 0 0 0) colour=("${C_OK}" "${C_OK}" "${C_WARN}" "${C_WARN}" "${C_DANGER}" "${C_DANGER}")
+  UI_BASE="${UI_BASE_MAIN}"
+  UI_BODY=()
+  for delay in "${H_DELAY[@]}"; do
+    for i in 0 1 2 3 4 5; do
+      if (( limit[i] == 0 || delay <= limit[i] )); then count[i]=$((count[i] + 1)); break; fi
+    done
+  done
+  room=$((inner - 15))
+  for i in 0 1 2 3 4 5; do
+    ui_putw "${C_MUTED}" 8 "${label[i]}"
+    ui_putw '' 5 "${count[i]}" r
+    ui_gap 2
+    bar=0
+    (( total == 0 )) || bar=$((room * count[i] / total))
+    (( count[i] == 0 || bar >= 1 )) || bar=1
+    ui_put "${colour[i]}" "${UI_BARS:0:bar}"
+    ui_endl UI_BODY "${inner}"
+  done
+  UI_HELP=spread
+  ui_panel "$1" "${width}" "${height}" "Block delay spread" "${total} since start"
+}
+
+glv_view_chain() {
+  local width="$1" third=$(($1 / 3)) half=$(($1 / 2)) seen=0 record
+  local -a tip=() traffic=()
+  glv_panel_epoch "${width}"
+  glv_main_add P_EPOCH
+
+  glv_chain_cells tip
+  for record in "${D_ROWS[@]}"; do [[ "${record}" != B\|* ]] || seen=$((seen + 1)); done
+  glv_metric_cell traffic mempool_tx "Pending tx"
+  glv_metric_cell traffic mempool_bytes "Mempool" bytes
+  glv_metric_cell traffic tx_processed "Total tx" int
+  glv_metric_cell traffic blocks_served "Blocks served"
+  glv_metric_cell traffic blocks_late "Late blocks"
+  glv_cell traffic "Blocks seen" "${seen}"
+  # The chain cells end with the mempool figures, which have their own tile here.
+  tip=("${tip[@]:0:6}")
+  if (( width >= 105 )); then
+    UI_HELP=chain
+    glv_cells_panel P_A "${third}" "Tip" "" tip 1 6
+    UI_HELP=traffic
+    glv_cells_panel P_B "${third}" "Traffic" "" traffic 1 6
+    glv_panel_spread P_C $((width - 2 * third)) 8
+    glv_main_add P_A P_B P_C
   else
-    header_length=$(( ${#NODE_NAME} + ${#NODE_IMPLEMENTATION_NAME} + ${#nodemode} + ${#running_node_version} + ${#NETWORK_NAME} + 18 ))
-    [[ ${header_length} -gt ${width} ]] && header_padding=0 || header_padding=$(( (width - header_length) / 2 ))
-    printf "%${header_padding}s > ${style_values_2}%s${NC} [${style_info}%s${NC}] - ${style_info}%s - %s${NC} : ${style_values_1}%s${NC} < \n" \
-      "" "${NODE_NAME}" "${NODE_IMPLEMENTATION_NAME}" "${nodemode}" \
-      "${NETWORK_NAME}" "${running_node_version}" &&
-      ((line++))
+    UI_HELP=chain
+    glv_cells_panel P_A "${half}" "Tip" "" tip 1 6
+    glv_panel_spread P_C $((width - half)) 8
+    glv_main_add P_A P_C
+    UI_HELP=traffic
+    glv_cells_panel P_B "${width}" "Traffic" "" traffic 3 2
+    glv_main_add P_B
   fi
 
-  ## main section ##
-  printf "${tdivider}\n" && ((line++))
-  if node_metric_has uptimes; then
-    printf "${VL} Uptime: ${style_values_1}%s${NC}" "$(timeLeft "${uptimes}")"
-  else
-    printf "${VL} Uptime: ${style_values_4}unavailable${NC}"
+  glv_main_room
+  if (( GLV_ROOM >= 5 )); then
+    PAGE_TOTAL=${#D_ROWS[@]}
+    glv_page_window $((GLV_ROOM - 3))
+    glv_panel_recent "${width}" "${GLV_ROOM}" all "${PAGE_SCROLL}"
+    glv_main_add P_RECENT
   fi
-  mvPos ${line} $(( width - ${#title} - 2 - ${#CNODE_PORT} - 9 ))
-  printf "${VL} Port: ${style_values_2}${CNODE_PORT} "
-  mvPos ${line} $(( width - ${#title} - 2 ))
-  printf "${VL} ${style_title}${title}" && closeRow
-  printf "${m2divider}"
-  mvPos ${line} $(( width - ${#title} - 2 - ${#CNODE_PORT} - 9 ))
-  printf "${UR}"
-  printf "%0.s${HL}" $(seq $(( ${#CNODE_PORT} + 8 )))
-  printf "${UHL}"
-  printf "%0.s${HL}" $(seq $(( ${#title} + 2 )))
-  printf "${LVL}\n" && ((line++))
+}
 
-  if [[ ${check_peers} = "true" ]]; then
-    clrLine
-    printf "${VL} ${style_info}%-$((width-3))s${NC} ${VL}\n" "Peer analysis started... please wait!"
-    echo "${bdivider}"
-    checkPeers
-    peerNbr_start=1
-    mvPos ${line} 1
-    printf "${VL} ${style_info}%-46s${NC}" "Peer analysis done!" && closeRow
-    printf -v peer_analysis_date '%(%Y-%m-%d %H:%M:%S)T' -1
-    sleep 1
-    [[ ${#geoIP[@]} -gt 0 ]] && declare -p geoIP > "$0.geodb"
-  elif [[ ${show_peers} = "true" && ${show_peers_info} = "true" ]]; then
-    printf "${VL}${STANDOUT} INFO ${NC} One-shot peer analysis last run at ${style_values_1}%s" "${peer_analysis_date}" && closeRow
-    printf "${blank_line}\n" && ((line++))
-    printf "${VL} Runs a latency test on connections to the node." && closeRow
-    printf "${VL} Once the analysis is finished, RTTs(Round Trip Time) for each peer" && closeRow
-    printf "${VL} is display and grouped in ranges of 0-50, 50-100, 100-200, 200<." && closeRow
-    printf "${blank_line}\n" && ((line++))
-    printf "${VL} Connections ping type order(unless overridden in settings):" && closeRow
-    printf "${VL} 1. ${style_values_2}ss${NC} - Reads the RTT the kernel measures on the existing" && closeRow
-    printf "${VL}    connection. Instant, sends no traffic, works in both directions." && closeRow
-    printf "${VL} 2. ${style_values_2}cncli${NC} - Times a full Cardano handshake on a new connection" && closeRow
-    printf "${VL}    to the peer's port. Slower, fails on ephemeral inbound ports." && closeRow
-    printf "${VL} 3. ${style_values_2}tcptraceroute${NC} - Sends a TCP SYN to the peer's port." && closeRow
-    printf "${VL} 4. ${style_values_2}ping${NC} - fallback method using ICMP ping against IP." && closeRow
-    printf "${VL}    Only work if the FW of remote peer accepts ICMP traffic." && closeRow
-    printf "${blank_line}\n" && ((line++))
-    if node_has topology_file; then
-      printf "${VL} ${style_values_2}[t]${NC} peers - all, or static: the localRoots in topology.json," && closeRow
-      printf "${VL}    matched by address, DNS names resolved. Static peers show their" && closeRow
-      printf "${VL}    description, pool or name; unconnected ones are listed last." && closeRow
-    fi
-    printf "${VL} ${style_values_2}[/]${NC} search - part of an IP address or port; empty clears it." && closeRow
-    printf "${VL} The view is a snapshot: press [h] and [p] again to refresh it." && closeRow
-    printf "${blank_line}\n" && ((line++))
-    if [[ ${NODE_IMPLEMENTATION} = "cnode" ]]; then
-      printf "${VL} The node's own state, which it logs on SIGUSR1, and its log of" && closeRow
-      printf "${VL} peers promoting or demoting it add two columns and two filters:" && closeRow
+# ── 3 Peers ──────────────────────────────────────────────────────────────────
+# glv_filter_group <label> <key> <current> <value:Text>…: one filter with all
+# its choices, the active one highlighted.
+glv_filter_group() {
+  local current="$3" option
+  ui_put "${C_MUTED}" "$1 "
+  ui_put "${UI_KEY}" "$2"
+  shift 3
+  for option in "$@"; do
+    ui_gap 1
+    if [[ "${option%%:*}" == "${current}" ]]; then
+      UI_L+="${CB_SELECT}${UI_BOLD}${C_TEXT} ${option#*:} ${UI_BASE}"
+      UI_LW=$((UI_LW + ${#option} - ${#current} + 1))
     else
-      printf "${VL} The node's log of its connections and of the peers that delivered" && closeRow
-      printf "${VL} headers and blocks first adds two columns and two filters:" && closeRow
+      ui_put '' "${option#*:}"
     fi
-    printf "${VL} ${style_values_2}CONN${NC} - out (node fetches from peer), in (peer fetches from" && closeRow
-    printf "${VL}    node), dup (duplex, both) or idle, with the hot (H) or warm (W)" && closeRow
-    printf "${VL}    state; dup shows the node's side, then the peer's." && closeRow
-    printf "${VL} ${style_values_2}SCORE${NC} - headers the peer delivered first plus blocks fetched" && closeRow
-    printf "${VL}    from it first, of the last 180 headers and 180 blocks." && closeRow
-    printf "${VL} ${style_values_2}[d]${NC} direction - all, out or in (both include duplex), duplex." && closeRow
-    printf "${VL} ${style_values_2}[s]${NC} state - any, hot or warm, on the chosen direction's side." && closeRow
-  elif [[ ${show_peers} = "true" ]]; then
-    printPeerFilterBar
-    echo "${m3divider}" && ((line++))
-    printf "${VL}       RTT : Peers / Percent" && closeRow
+  done
+}
 
-    printf "${VL}    0-50ms : ${style_values_1}%5s${NC}   ${style_values_1}%.f${NC}%% ${style_status_1}" "${peerCNT1}" "${peerPCT1}"
-    mvPos ${line} ${bar_col_small}
-    for i in $(seq 0 $((granularity_small-1))); do
-      [[ $i -lt ${peerPCT1items} ]] && printf "${char_marked}" || printf "${NC}${char_unmarked}"
-    done
-    closeRow
+glv_view_peers() {
+  local width="$1" third=$(($1 / 3)) half=$(($1 / 2)) inner rows entry rest rtt address port local_port note
+  local bar room i colour text shown=0 arrangement reachable total state=N sides=N peer number label_width
+  local -a cells=() label=("< 50 ms" "< 100 ms" "< 200 ms" "200 ms +")
+  local -a tint=("${C_OK}" "${C_OK}" "${C_WARN}" "${C_DANGER}") part=()
 
-    printf "${VL}  50-100ms : ${style_values_1}%5s${NC}   ${style_values_1}%.f${NC}%% ${style_status_2}" "${peerCNT2}" "${peerPCT2}"
-    mvPos ${line} ${bar_col_small}
-    for i in $(seq 0 $((granularity_small-1))); do
-      [[ $i -lt ${peerPCT2items} ]] && printf "${char_marked}" || printf "${NC}${char_unmarked}"
-    done
-    closeRow
+  [[ "${node_peer_state_available}" != true ]] || state=Y
+  glv_peers_select
+  total=${#PEER_SELECTED[@]}
+  reachable=$((PEER_COUNT[0] + PEER_COUNT[1] + PEER_COUNT[2] + PEER_COUNT[3]))
 
-    printf "${VL} 100-200ms : ${style_values_1}%5s${NC}   ${style_values_1}%.f${NC}%% ${style_status_3}" "${peerCNT3}" "${peerPCT3}"
-    mvPos ${line} ${bar_col_small}
-    for i in $(seq 0 $((granularity_small-1))); do
-      [[ $i -lt ${peerPCT3items} ]] && printf "${char_marked}" || printf "${NC}${char_unmarked}"
-    done
-    closeRow
+  glv_metric_cell cells conn_outgoing "Out"
+  glv_metric_cell cells conn_incoming "In"
+  glv_metric_cell cells conn_duplex "Used both ways"
+  glv_metric_cell cells conn_bi_dir "Can go both ways"
+  glv_metric_cell cells conn_uni_dir "One way only"
+  glv_metric_cell cells conn_total "Connections"
+  glv_cell cells "Root peers" "${D_RAW[peerSelection_RootPeers]:-}"
+  if [[ -n "${D_RAW[peerSelection_KnownLocalRootPeers]:-}" ]]; then
+    glv_cell cells "Local roots" "${D_RAW[peerSelection_ActiveLocalRootPeers]:-?} of ${D_RAW[peerSelection_KnownLocalRootPeers]} active"
+  fi
+  glv_cell cells "Incoming idle" "${D_RAW[inboundGovernor_idle]:-}"
+  glv_cell cells "Incoming cold" "${D_RAW[inboundGovernor_cold]:-}"
 
-    printf "${VL}   200ms < : ${style_values_1}%5s${NC}   ${style_values_1}%.f${NC}%% ${style_status_4}" "${peerCNT4}" "${peerPCT4}"
-    mvPos ${line} ${bar_col_small}
-    for i in $(seq 0 $((granularity_small-1))); do
-      [[ $i -lt ${peerPCT4items} ]] && printf "${char_marked}" || printf "${NC}${char_unmarked}"
-    done
-    closeRow
-
-    echo "${m3divider}" && ((line++))
-
-    printf "${VL} Total / Undetermined : ${style_values_1}%s${NC} / " "${peerCNT}"
-    [[ ${peerCNT0} -eq 0 ]] && printf "${style_values_1}0${NC}" || printf "${style_values_4}%s${NC}" "${peerCNT0}"
-    mvPos ${line} $((two_col_second + 1))
-    if [[ ${peerRTTAVG} -ge 200 ]]; then printf "Average RTT : ${style_status_4}%s${NC} ms" "${peerRTTAVG}"
-    elif [[ ${peerRTTAVG} -ge 100 ]]; then printf "Average RTT : ${style_status_3}%s${NC} ms" "${peerRTTAVG}"
-    elif [[ ${peerRTTAVG} -ge 50  ]]; then printf "Average RTT : ${style_status_2}%s${NC} ms" "${peerRTTAVG}"
-    elif [[ ${peerRTTAVG} -ge 0   ]]; then printf "Average RTT : ${style_status_1}%s${NC} ms" "${peerRTTAVG}"
-    else printf "Average RTT : ${style_status_3}---${NC} ms"; fi
-    closeRow
-
-    if [[ -n ${rttResultsSorted} ]]; then
-      echo "${m3divider}" && ((line++))
-
-      if peerConnAvailable; then
-        printf "${VL}${style_info}   # %24s  RTT   CONN    SCORE Geolocation${NC}" "REMOTE PEER" && closeRow
-        peerLocationWidth=$((width-55))
-      else
-        printf "${VL}${style_info}   # %24s  RTT   Geolocation${NC}" "REMOTE PEER" && closeRow
-        peerLocationWidth=$((width-41))
-      fi
-
-      peerNbr=0
-      for peer in ${rttResultsSorted}; do
-        ((peerNbr++))
-        [[ ${peerNbr} -lt ${peerNbr_start} ]] && continue
-        IFS=";" read -a peerData <<< ${peer}; unset IFS
-        peerRTT="${peerData[0]}"
-        peerPORT="${peerData[2]}"
-        peerDIR="${peerData[3]}"
-        if [[ ${peerData[1]} = *:* ]]; then # IPv6
-          IFS=":" read -a ipv6IP <<< ${peerData[1]}
-          if [[ ${#ipv6IP[@]} -le 3 ]]; then
-            peerIP="[${peerData[1]}]"
-          else
-            peerIP="[${ipv6IP[0]}...${ipv6IP[-2]}:${ipv6IP[-1]}]"
-          fi
-        else
-          peerIP="${peerData[1]}"
-        fi
-        # A static peer without a connection shows its topology address.
-        [[ ${#peerIP} -gt 19 ]] && peerIP="${peerIP:0:17}.."
-        IFS=',' read -ra peerLocation <<< "${geoIP[${peerData[1]}]}"; unset IFS
-        peerLocationStyle="${style_values_4}"
-        staticPeerLabelFor "${peerData[1]}" "${peerData[2]}"
-        if [[ ${peerDIR} = "x" || ${peerDIR} = "u" ]]; then
-          [[ ${peerDIR} = "x" ]] && peerLocationFmt="Not connected" || peerLocationFmt="DNS failed"
-          peerLocationStyle="${style_status_3}"
-        elif [[ -n ${peerStaticLabel} ]]; then
-          # The topology's description, pool or DNS name of a static peer.
-          [[ ${#peerStaticLabel} -gt ${peerLocationWidth} ]] &&
-            peerStaticLabel="${peerStaticLabel:0:$((peerLocationWidth-2))}.."
-          peerLocationFmt="${peerStaticLabel}"
-          peerLocationStyle="${style_values_2}"
-        elif isPrivateIP ${peerData[1]}; then
-          peerLocationFmt="(Private IP)"
-        elif [[ ${#peerLocation[@]} -eq 2 ]]; then
-          peerLocationCity="${peerLocation[0]}"
-          peerLocationCC="${peerLocation[1]}"
-          [[ ${#peerLocationCity} -gt $((peerLocationWidth-4)) ]] && peerLocationCity="${peerLocationCity:0:$((peerLocationWidth-6))}.."
-          peerLocationFmt="${peerLocationCity},${peerLocationCC}"
-        else
-          peerLocationFmt="Unknown location"
-        fi
-        peerRTTfmt="${peerRTT}"
-          if [[ ${peerRTT} -lt 50    ]]; then peerRTTstyle="${style_status_1}"
-        elif [[ ${peerRTT} -lt 100   ]]; then peerRTTstyle="${style_status_2}"
-        elif [[ ${peerRTT} -lt 200   ]]; then peerRTTstyle="${style_status_3}"
-        elif [[ ${peerRTT} -lt 99999 ]]; then peerRTTstyle="${style_status_4}"
-        else peerRTTstyle=""; peerRTTfmt="---"; fi
-        # Peers in the same data centre answer within a millisecond.
-        [[ ${peerRTT} -eq 0 ]] && peerRTTfmt="<1"
-        printf "${VL} %3s %19s:%-5s ${peerRTTstyle}%-5s${NC} " "${peerNbr}" "${peerIP}" "${peerPORT}" "${peerRTTfmt}"
-        if peerConnAvailable; then
-          # Empty cells: the connection is unknown or still negotiating, or
-          # the peer delivered nothing first recently.
-          peerConnection "${peerData[1]}" "${peerData[2]}" "${peerData[4]:-}"
-          [[ ${peerConnFmt} = *H* ]] && peerConnStyle="${style_status_1}" || peerConnStyle="${style_values_1}"
-          peerScoreFor "${peerData[1]}" "${peerData[2]}"
-          printf "${peerConnStyle}%-7s${NC} ${style_values_1}%5s${NC} " "${peerConnFmt}" "${peerScoreFmt}"
-        fi
-        printf "${peerLocationStyle}%s" "$(alignLeft ${peerLocationWidth} "${peerLocationFmt}")"
-        closeRow
-        [[ ${peerNbr} -eq $((peerNbr_start+PEER_LIST_CNT-1)) ]] && break
-      done
-
-      [[ ${peerNbr_start} -gt 1 ]] && nav_str="< " || nav_str="  "
-      nav_str+="[${peerNbr_start}-${peerNbr}] of ${peerListCNT}"
-      [[ ${peerListCNT} -gt ${peerNbr} ]] && nav_str+=" >" || nav_str+="  "
-      printf "${VL}"
-      mvPos ${line} $((width-${#nav_str}-2))
-      printf "${style_values_3} %s ${NC}" "${nav_str}"
-      closeRow
-    else
-      echo "${m3divider}" && ((line++))
-      if [[ ${peer_filter_static} = "static" && ${#staticPeerList[@]} -eq 0 ]]; then
-        printf "${VL} ${style_info}No localRoots found in the node's topology file.${NC}" && closeRow
-      elif [[ ${#rttResults[@]} -eq 0 ]]; then
-        printf "${VL} ${style_info}The node had no connections to analyse.${NC}" && closeRow
-      else
-        printf "${VL} ${style_info}No peers match the filters or the search.${NC}" && closeRow
-      fi
-    fi
-  elif [[ ${show_home_info} = "true" ]]; then
-    printf "${VL}${STANDOUT} INFO ${NC} Monitoring ${style_values_2}%s${NC} through the Guild metrics adapter" \
-      "${NODE_IMPLEMENTATION_NAME}" &&
-      closeRow
-    if [[ "${NODE_IMPLEMENTATION}" == "amaru" ]]; then
-      printf "${VL} Source: Amaru OTLP metrics through the local Prometheus bridge." && closeRow
-    else
-      printf "${VL} Source: the node's native Prometheus endpoint." && closeRow
-    fi
-    printf "${blank_line}\n" && ((line++))
-    printf "${VL} ${style_values_2}CHAIN${NC} ledger position, epoch progress, tip gap and mempool." && closeRow
-    printf "${VL} ${style_values_2}CONNECTIONS${NC} connection direction and available peer states." && closeRow
-    printf "${VL} ${style_values_2}BLOCK PROPAGATION${NC} latest and historical block arrival delay." && closeRow
-    printf "${VL} ${style_values_2}NODE RESOURCE USAGE${NC} local CPU, resident memory and disk use." && closeRow
-    printf "${VL} ${style_values_2}BLOCK PRODUCTION${NC} KES and forging results when applicable." && closeRow
-    printf "${blank_line}\n" && ((line++))
-    printf "${VL} [v] toggles runtime, detailed propagation and node-specific data." && closeRow
-    printf "${VL} [n] shows static network, implementation and deployment details." && closeRow
-    if node_has peer_inspection; then
-      printf "${VL} [p] runs the one-shot peer analysis." && closeRow
-    fi
-    printf "${VL} Missing metrics and empty sections are hidden, not shown as zero." && closeRow
-    printf "${VL} ALERT and SYNC rows appear only while the node reports them." && closeRow
-    printf "${blank_line}\n" && ((line++))
-    printf "${VL} Detailed definitions and implementation-specific fields:" && closeRow
-    printf "${VL} https://cardano-community.github.io/guild-operators/Scripts/gliveview" && closeRow
+  # A node that reports one connection count has nothing for a tile of its
+  # own, so the round-trip tile sits beside the peers tile instead.
+  if (( ${#cells[@]} <= 1 )); then
+    arrangement=pair
+    glv_panel_peers "${half}"
+    inner=$((width - half - 4))
+  elif (( width >= 105 )); then
+    arrangement=three
+    glv_panel_peers "${third}"
+    UI_HELP=connections
+    glv_cells_panel P_B "${third}" "Connections" "" cells 1 5
+    inner=$((width - 2 * third - 4))
   else
-    if [[ "${NODE_IMPLEMENTATION}" != "cnode" ]]; then
-      # Defensive fallback; alternate-node home views normally take the shared
-      # frame path before the legacy producer renderer is reached.
-      glvEndLegacyFrame
-      glvRenderCommonDashboard
-      glvFrameFitsTerminal || continue
-      glvCommitFrame Y
-      waitForInput
-      continue
-    else
-    if [[ ${epochnum} -ge ${SHELLEY_TRANS_EPOCH} ]]; then
-      epoch_progress=$(echo "(${slot_in_epoch}/${EPOCH_LENGTH})*100" | bc -l)        # in Shelley era or Shelley only TestNet
-    else
-      epoch_progress=$(echo "(${slot_in_epoch}/${BYRON_EPOCH_LENGTH})*100" | bc -l)  # in Byron era
+    arrangement=stack
+    glv_panel_peers "${half}"
+    UI_HELP=connections
+    glv_cells_panel P_B $((width - half)) "Connections" "" cells 1 5
+    glv_main_add P_PEERS P_B
+    inner=$((width - 4))
+  fi
+  # Round trips of the connections listed below, so the filters apply here too.
+  UI_BASE="${UI_BASE_MAIN}"
+  UI_BODY=()
+  room=$((inner - 17))
+  for i in 0 1 2 3; do
+    ui_putw "${C_MUTED}" 10 "${label[i]}"
+    ui_putw '' 5 "${PEER_COUNT[i]}" r
+    ui_gap 2
+    bar=0
+    (( reachable == 0 )) || bar=$((room * PEER_COUNT[i] / reachable))
+    (( PEER_COUNT[i] == 0 || bar >= 1 )) || bar=1
+    ui_put "${tint[i]}" "${UI_BARS:0:bar}"
+    ui_endl UI_BODY "${inner}"
+  done
+  if [[ "${arrangement}" != stack ]]; then
+    ui_putw "${C_MUTED}" 10 "No figure"; ui_putw '' 5 "${PEER_COUNT[4]}" r
+    ui_endl UI_BODY "${inner}"
+  fi
+  text=''
+  [[ -z "${PEER_AVERAGE}" ]] || text="average ${PEER_AVERAGE} ms"
+  UI_HELP=roundtrip
+  case "${arrangement}" in
+    pair) ui_panel P_C $((inner + 4)) 7 "Round trip" "${text}"; glv_main_add P_PEERS P_C ;;
+    three) ui_panel P_C $((inner + 4)) 7 "Round trip" "${text}"; glv_main_add P_PEERS P_B P_C ;;
+    *) ui_panel P_C $((inner + 4)) 6 "Round trip" "${text}"; glv_main_add P_C ;;
+  esac
+
+  glv_main_room
+  (( GLV_ROOM >= 7 )) || return 0
+  inner=$((width - 4))
+  GLV_PAGE_KEYS=("a Analyse" "f Find")
+  UI_BASE="${UI_BASE_MAIN}"
+  UI_BODY=()
+
+  # The filters, on one line when it fits and on two when it does not.
+  if glv_peers_static_capable; then
+    glv_filter_group "Peers" t "${PEER_FILTER_STATIC}" all:All static:Static
+    ui_gap 3
+  fi
+  if [[ "${state}" == Y ]]; then
+    if (( inner < 100 )); then
+      ui_put "${C_MUTED}" "Find "; ui_put "${UI_KEY}" "f"; ui_gap 1
+      ui_putw "${UI_BOLD}" $((inner - UI_LW)) "${PEER_SEARCH}"
+      ui_endl UI_BODY "${inner}"
     fi
-    epoch_progress_1dec=$(LC_NUMERIC=C printf "%2.1f" "${epoch_progress}")
-    epoch_time_left=$(timeLeft "$(timeUntilNextEpoch)")
-    printf "${VL} Epoch ${style_values_1}%s${NC} [${style_values_1}%s%%${NC}], ${style_values_1}%s${NC} %-12s" "${epochnum}" "${epoch_progress_1dec}" "${epoch_time_left}" "remaining"
-    closeRow
-
-    epoch_items=$(( $(printf %.0f "${epoch_progress}") * granularity / 100 ))
-    if [[ -z ${epoch_bar} || ${epoch_items} -ne ${epoch_items_last} ]]; then
-      epoch_bar=""; epoch_items_last=${epoch_items}
-      for i in $(seq 0 $((granularity-1))); do
-        [[ $i -lt ${epoch_items} ]] && epoch_bar+=$(printf "${char_marked}") || epoch_bar+=$(printf "${NC}${char_unmarked}")
-      done
+    glv_filter_group "Direction" d "${PEER_FILTER_DIR}" all:All out:Out in:In dup:Duplex
+    ui_gap 3
+    glv_filter_group "State" s "${PEER_FILTER_STATE}" any:Any hot:Hot warm:Warm
+    if (( inner >= 100 )); then
+      ui_gap 3
+      ui_put "${C_MUTED}" "Find "; ui_put "${UI_KEY}" "f"; ui_gap 1
+      ui_putw "${UI_BOLD}" $((inner - UI_LW)) "${PEER_SEARCH}"
     fi
-    printf "${VL} ${style_values_1}${epoch_bar}${NC} ${VL}\n"; ((line++))
+  else
+    ui_put "${C_MUTED}" "Find "; ui_put "${UI_KEY}" "f"; ui_gap 1
+    ui_putw "${UI_BOLD}" $(( inner - UI_LW > 30 ? 30 : inner - UI_LW )) "${PEER_SEARCH}"
+  fi
+  ui_endl UI_BODY "${inner}"
 
-    printf "${blank_line}\n" && ((line++))
+  for entry in "${D_PEERS[@]}"; do [[ "${entry}" != *"|out|"* ]] || sides=Y; done
+  ui_putw "${C_MUTED}" 4 "#" r; ui_gap 1
+  ui_putw "${C_MUTED}" 27 "Remote peer"; ui_putw "${C_MUTED}" 9 "RTT" r; ui_gap 2
+  if [[ "${state}" == Y ]]; then
+    ui_putw "${C_MUTED}" 8 "Conn"; ui_putw "${C_MUTED}" 5 "Score" r; ui_gap 2
+  elif [[ "${sides}" == Y ]]; then
+    ui_putw "${C_MUTED}" 5 "Dir"
+  fi
+  label_width=$((inner - UI_LW))
+  ui_putw "${C_MUTED}" "${label_width}" "Location or static peer"
+  ui_endl UI_BODY "${inner}"
 
-    [[ ${slotnum} -eq 0 ]] && getBlockReplayStatus
-
-    reference_slot=$(getSlotTipRef)
-    tip_gap=$(( reference_slot - slotnum ))
-    (( tip_gap < 0 )) && tip_gap=0
-
-    # row 1 - three col view
-    printf "${VL} Block      : ${style_values_1}%-${three_col_value_width}s${NC}" "${blocknum}"
-    mvThreeSecond
-    printf "Slot       : ${style_values_1}%-${three_col_value_width}s${NC}" "${slotnum}"
-    mvThreeThird
-    if [[ ${slotnum} -eq 0 ]]; then
-      if [[ -n ${block_replay_pct} ]]; then
-        printf "DB Replay  : ${style_info}%-${three_col_value_width}s${NC}" "${block_replay_pct}%"
+  rows=$((GLV_ROOM - 2 - ${#UI_BODY[@]}))
+  PAGE_TOTAL="${total}"
+  glv_page_window "${rows}"
+  number="${PAGE_SCROLL}"
+  for entry in "${PEER_SELECTED[@]:PAGE_SCROLL:rows}"; do
+    number=$((number + 1))
+    rtt="${entry%%|*}"; rest="${entry#*|}"
+    address="${rest%%|*}"; rest="${rest#*|}"
+    port="${rest%%|*}"; rest="${rest#*|}"
+    local_port="${rest%%|*}"; note="${rest#*|}"
+    # A long IPv6 address keeps its ends, which tell hosts apart.
+    peer="${address}"
+    if [[ "${address}" == *:* ]]; then
+      IFS=: read -r -a part <<< "${address}"
+      if (( ${#part[@]} > 3 )); then peer="[${part[0]}…${part[-2]}:${part[-1]}]"; else peer="[${address}]"; fi
+    fi
+    peer+=":${port}"
+    (( ${#peer} <= 26 )) || peer="${peer:0:25}…"
+    ui_putw "${C_MUTED}" 4 "${number}" r; ui_gap 1
+    ui_putw '' 27 "${peer}"
+    if (( rtt >= 999999 )); then
+      ui_putw "${C_MUTED}" 9 "—" r
+    else
+      colour="${C_OK}"
+      if (( rtt >= 2000 )); then colour="${C_DANGER}"; elif (( rtt >= 1000 )); then colour="${C_WARN}"; fi
+      ui_putw "${colour}" 9 "$((rtt / 10)).$((rtt % 10)) ms" r
+    fi
+    ui_gap 2
+    if [[ "${state}" == Y ]]; then
+      if [[ "${note}" == [xu] ]]; then
+        ui_gap 15
       else
-        printf "Status     : ${style_info}%-${three_col_value_width}s${NC}" "starting"
+        glv_peer_connection "${address}" "${port}" "${local_port}"
+        colour=''
+        if [[ "${PC_TEXT}" == *H* ]]; then colour="${C_OK}"; elif [[ "${PC_USE}" == idle || -z "${PC_USE}" ]]; then colour="${C_MUTED}"; fi
+        ui_putw "${colour}" 8 "${PC_TEXT:-—}"
+        glv_peer_score "${address}" "${port}"
+        ui_putw "${C_NUM}" 5 "${PC_SCORE}" r
+        ui_gap 2
       fi
-    elif [[ ${SHELLEY_TRANS_EPOCH} -eq -1 ]]; then
-      printf "Status     : ${style_info}%-${three_col_value_width}s${NC}" "syncing"
-    elif [[ ${tip_gap} -le $(slotInterval) ]]; then
-      printf "Tip gap    : ${style_status_1}%-${three_col_value_width}s${NC}" "${tip_gap}"
-    elif [[ ${tip_gap} -le 600 ]]; then
-      printf "Tip gap    : ${style_status_2}%-${three_col_value_width}s${NC}" "${tip_gap}"
-    else
-      printf "Tip gap    : ${style_info}%-${three_col_value_width}s${NC}" "${tip_gap}"
+    elif [[ "${sides}" == Y ]]; then
+      colour="${C_ID}"
+      [[ "${note}" == out ]] || colour="${C_NUM}"
+      [[ "${note}" == [xu] ]] && ui_gap 5 || ui_putw "${colour}" 5 "${note}"
     fi
-    closeRow
-
-    # row 2
-    printf "${VL} Slot epoch : ${style_values_1}%-${three_col_value_width}s${NC}" "${slot_in_epoch}"
-    mvThreeSecond
-    printf "Density    : ${style_values_1}%-${three_col_value_width}s${NC}" "${density}"
-    mvThreeThird
-    printf "Forks      : ${style_values_1}%-${three_col_value_width}s${NC}" "${forks}"
-    closeRow
-
-    # row 3
-    printf "${VL} Total Tx   : ${style_values_1}%-${three_col_value_width}s${NC}" "${tx_processed}"
-    mvThreeSecond
-    printf "Pending Tx : ${style_values_1}%-${three_col_value_width}s${NC}" "${mempool_tx}"
-    mvThreeThird
-    mempool_tx_bytes=$((mempool_bytes/1024))
-    mempool_display="$(glv_text_pad "${three_col_value_width}" "${mempool_tx_bytes} KiB")"
-    printf "Mempool    : ${style_values_1}%s${NC}" "${mempool_display}"
-    closeRow
-
-    # divider line
-    printf "${VL}- ${style_info}CONNECTIONS${NC} "
-    printf "%0.s-" $(seq $((three_col_width-13)))
-    printf " ${style_values_4}Incoming ${arrow_left}${NC} "
-    printf "%0.s-" $(seq $((three_col_width-11)))
-    printf " ${style_values_4}Outgoing ${arrow_right}${NC} "
-    printf "%0.s-" $(seq $((three_col_width-10)))
-    closeRow
-
-    if [[ ${VERBOSE} = "Y" ]]; then
-      printf "${VL} Uni-Dir    : ${style_values_1}%-${three_col_value_width}s${NC}" "${conn_uni_dir}"
-      mvThreeThird
-      printf "Cold       : ${style_values_1}%-${three_col_value_width}s${NC}" "${peer_selection_cold}"
-      closeRow
-    fi
-
-    printf "${VL} Bi-Dir     : ${style_values_1}%-${three_col_value_width}s${NC}" "${conn_bi_dir}"
-    mvThreeSecond
-    printf "Warm       : ${style_values_1}%-${three_col_value_width}s${NC}" "${inbound_governor_warm}"
-    mvThreeThird
-    printf "Warm       : ${style_values_1}%-${three_col_value_width}s${NC}" "${peer_selection_warm}"
-    closeRow
-
-    printf "${VL} Duplex     : ${style_values_1}%-${three_col_value_width}s${NC}" "${conn_duplex}"
-    mvThreeSecond
-    printf "Hot        : ${style_values_1}%-${three_col_value_width}s${NC}" "${inbound_governor_hot}"
-    mvThreeThird
-    printf "Hot        : ${style_values_1}%-${three_col_value_width}s${NC}" "${peer_selection_hot}"
-    closeRow
-
-    echo "${propdivider}" && ((line++))
-
-    LC_NUMERIC=C printf -v block_delay_rounded "%.2f" ${block_delay}
-    [[ ${blocks_w1s} = 1.* ]] && blocks_w1s_pct=100 || LC_NUMERIC=C printf -v blocks_w1s_pct "%.2f" "$(bc -l <<<"(${blocks_w1s}*100)")"
-    [[ ${blocks_w3s} = 1.* ]] && blocks_w3s_pct=100 || LC_NUMERIC=C printf -v blocks_w3s_pct "%.2f" "$(bc -l <<<"(${blocks_w3s}*100)")"
-    [[ ${blocks_w5s} = 1.* ]] && blocks_w5s_pct=100 || LC_NUMERIC=C printf -v blocks_w5s_pct "%.2f" "$(bc -l <<<"(${blocks_w5s}*100)")"
-
-    if [[ ${VERBOSE} = "Y" ]]; then
-
-      # row 1
-      printf "${VL} Last Block : ${style_values_1}%s${NC}%-$((three_col_value_width - ${#block_delay_rounded}))s" "${block_delay_rounded}" "s"
-      mvThreeSecond
-      printf "Served     : ${style_values_1}%s${NC}" "${blocks_served}"
-      mvThreeThird
-      printf "Late (>5s) : ${style_values_1}%s${NC}" "${blocks_late}"
-      closeRow
-
-      # row 2
-      printf "${VL} Within 1s  : ${style_values_1}%s${NC}%-$((three_col_value_width - ${#blocks_w1s_pct}))s" "${blocks_w1s_pct}" "%"
-      mvThreeSecond
-      printf "Within 3s  : ${style_values_1}%s${NC}%-$((three_col_value_width - ${#blocks_w3s_pct}))s" "${blocks_w3s_pct}" "%"
-      mvThreeThird
-      printf "Within 5s  : ${style_values_1}%s${NC}%-$((three_col_value_width - ${#blocks_w5s_pct}))s" "${blocks_w5s_pct}" "%"
-      closeRow
-
-    else
-
-      # row 1
-      printf "${VL} Last Block : ${style_values_1}%s${NC}%-$((three_col_value_width - ${#block_delay_rounded}))s" "${block_delay_rounded}" "s"
-      closeRow
-
-    fi
-
-    echo "${resourcesdivider}" && ((line++))
-
-    LC_NUMERIC=C printf -v mem_rss_gb "%.1f" "$(bc -l <<<"(${mem_rss}/1048576)")"
-    [[ $(df -h ${CNODE_HOME}) =~ ([0-9.]+)% ]] && disk_usage=${BASH_REMATCH[1]} || disk_usage="?"
-
-    if [[ ${VERBOSE} = "Y" ]]; then
-
-      LC_NUMERIC=C printf -v mem_live_gb "%.1f" "$(bc -l <<<"(${mem_live}/1073741824)")"
-      LC_NUMERIC=C printf -v mem_heap_gb "%.1f" "$(bc -l <<<"(${mem_heap}/1073741824)")"
-
-      # row 1
-      printf "${VL} CPU (sys)  : ${style_values_1}%s${NC}%-$((three_col_value_width - ${#cpu_util}))s" "${cpu_util}" "%"
-      mvThreeSecond
-      printf "Mem (RSS)  : ${style_values_1}%s${NC}%-$((three_col_value_width - ${#mem_rss_gb}))s" "${mem_rss_gb}" "G"
-      mvThreeThird
-      printf "GC Minor   : ${style_values_1}%s${NC}" "${gc_minor}"
-      closeRow
-
-      # row 2
-      printf "${VL} Disk util  : ${style_values_1}%s${NC}%-$((three_col_value_width - ${#disk_usage}))s" "${disk_usage}" "%"
-      mvThreeSecond
-      printf "Mem (Live) : ${style_values_1}%s${NC}%-$((three_col_value_width - ${#mem_live_gb}))s" "${mem_live_gb}" "G"
-      mvThreeThird
-      printf "GC Major   : ${style_values_1}%s${NC}" "${gc_major}"
-      closeRow
-
-      # row 3
-      printf "${VL}"
-      mvThreeSecond
-      printf "Mem (Heap) : ${style_values_1}%s${NC}%-$((three_col_value_width - ${#mem_heap_gb}))s" "${mem_heap_gb}" "G"
-      closeRow
-
-    else
-
-      # row 1
-      printf "${VL} CPU (sys)  : ${style_values_1}%s${NC}%-$((three_col_value_width - ${#cpu_util}))s" "${cpu_util}" "%"
-      mvThreeSecond
-      printf "Mem (RSS)  : ${style_values_1}%s${NC}%-$((three_col_value_width - ${#mem_rss_gb}))s" "${mem_rss_gb}" "G"
-      mvThreeThird
-      printf "Disk util  : ${style_values_1}%s${NC}%-$((three_col_value_width - ${#disk_usage}))s" "${disk_usage}" "%"
-      closeRow
-
-    fi
-    fi
-
-    ## Core section ##
-    if node_has forge && [[ ${nodemode} = "Core" ]]; then
-      echo "${coredivider}" && ((line++))
-
-      printf "${VL} KES current|remaining|exp"
-      mvTwoSecond
-      printf ": ${style_values_1}%s${NC} | " "${kesperiod}"
-      if [[ ${remaining_kes_periods} -le 0 ]]; then
-        printf "${style_status_4}%s${NC}" "${remaining_kes_periods}"
-      elif [[ ${remaining_kes_periods} -le 8 ]]; then
-        printf "${style_status_3}%s${NC}" "${remaining_kes_periods}"
-      else
-        printf "${style_values_1}%s${NC}" "${remaining_kes_periods}"
-      fi
-      [[ ${kes_expiration} =~ (.+[0-9]+:[0-9]+):[0-9]+(.*) ]] && kes_expiration_nosec="${BASH_REMATCH[1]}${BASH_REMATCH[2]}" || kes_expiration_nosec="?"
-      printf " | ${style_values_1}%s${NC}" "${kes_expiration_nosec}"
-      closeRow
-
-      # OP Cert
-      if isNumber ${op_cert_chain}; then
-        op_cert_chain_fmt="${style_values_1}"
-        if isNumber ${op_cert_disk} && [[ ${op_cert_disk} -ge ${op_cert_chain} && ${op_cert_disk} -le $((op_cert_chain+1)) ]]; then op_cert_disk_fmt="${style_values_1}"; else op_cert_disk_fmt="${style_status_3}"; fi
-      else
-        op_cert_chain_fmt="${style_values_3}"
-        if isNumber ${op_cert_disk}; then op_cert_disk_fmt="${style_values_1}"; else op_cert_disk_fmt="${style_values_3}"; fi
-      fi
-      printf "${VL} OP Cert disk|chain"
-      mvTwoSecond
-      printf ": ${op_cert_disk_fmt}%s${NC} | ${op_cert_chain_fmt}%s${NC}" "${op_cert_disk}" "${op_cert_chain}"
-      closeRow
-
-      if [[ ${VERBOSE} = "Y" ]]; then
-        printf "${VL} Missed slot leader checks"
-        mvTwoSecond
-        LC_NUMERIC=C printf -v missed_slots_pct "%.4f" "$(bc -l <<<"(${missed_slots}/(${about_to_lead}+${missed_slots}))*100")"
-        printf ": ${style_values_1}%s${NC} (${style_values_1}%s${NC} %%)" "${missed_slots}" "${missed_slots_pct}"
-        closeRow
-      fi
-
-      if [[ -n ${p_active_stake} ]]; then
-
-        # row 1
-        printf "${VL} Blocks     : ${style_values_1}%s${NC}" "${p_block_count}"
-        mvThreeSecond
-        compactNumber $((p_active_stake/1000000))
-        printf "Act Stake  : ${style_values_1}%s${NC}%-$((three_col_value_width - ${#cn_value}))s" "${cn_value}" "${cn_suffix}"
-        mvThreeThird
-        compactNumber $((p_pledge/1000000))
-        printf "Pledge     : ${style_values_1}%s${NC}%-$((three_col_value_width - ${#cn_value}))s" "${cn_value}" "${cn_suffix}"
-        closeRow
-
-        # row 2
-        compactNumber $((p_fixed_cost/1000000))
-        printf "${VL} Fixed Fee  : ${style_values_1}%s${NC}%-$((three_col_value_width - ${#cn_value}))s" "${cn_value}" "${cn_suffix}"
-        mvThreeSecond
-        compactNumber $((p_live_stake/1000000))
-        printf "Live Stake : ${style_values_1}%s${NC}%-$((three_col_value_width - ${#cn_value}))s" "${cn_value}" "${cn_suffix}"
-        mvThreeThird
-        [[ ${p_live_pledge} -ge ${p_pledge} ]] && p_live_pledge_fmt="${style_values_1}" || p_live_pledge_fmt="${style_status_3}"
-        compactNumber $((p_live_pledge/1000000))
-        printf "Live Pledge: ${p_live_pledge_fmt}%s${NC}%-$((three_col_value_width - ${#cn_value}))s" "${cn_value}" "${cn_suffix}"
-        closeRow
-
-        # row 3
-        margin_fee=$(fractionToPCT ${p_margin})
-        ! validateDecimalNbr ${margin_fee} && margin_fee="?"
-        printf "${VL} Margin Fee : ${style_values_1}%s${NC}%-$((three_col_value_width - ${#margin_fee}))s" "${margin_fee}" "%"
-        mvThreeSecond
-        printf "Delegators : ${style_values_1}%-${three_col_value_width}s${NC}" "${p_live_delegators}"
-        mvThreeThird
-        printf "Saturation : ${style_values_1}%s${NC}%-$((three_col_value_width - ${#p_live_saturation}))s" "${p_live_saturation}" "%"
-        closeRow
-      fi
-
-      printf "${blockdivider}\n" && ((line++))
-
-      if [[ -f "${BLOCKLOG_DB}" ]]; then
-        invalid_cnt=0; missed_cnt=0; ghosted_cnt=0; stolen_cnt=0; confirmed_cnt=0; adopted_cnt=0; leader_cnt=0
-        for status_type in $(sqlite3 "${BLOCKLOG_DB}" "SELECT status, COUNT(status) FROM blocklog WHERE epoch=${epochnum} GROUP BY status;" 2>/dev/null); do
-          IFS='|' read -ra status <<< ${status_type}; unset IFS
-          case ${status[0]} in
-            invalid) invalid_cnt=${status[1]} ;;
-            missed) missed_cnt=${status[1]} ;;
-            ghosted) ghosted_cnt=${status[1]} ;;
-            stolen) stolen_cnt=${status[1]} ;;
-            confirmed) confirmed_cnt=${status[1]} ;;
-            adopted) adopted_cnt=${status[1]} ;;
-            leader) leader_cnt=${status[1]} ;;
+    case "${note}" in
+      x) ui_putw "${C_DANGER}" "${label_width}" "Not connected" ;;
+      u) ui_putw "${C_DANGER}" "${label_width}" "DNS name did not resolve" ;;
+      *)
+        glv_peer_label "${address}" "${port}"
+        if [[ "${port}" == "${local_port}" && "${port}" == "${CNODE_PORT:-}" &&
+              "${address}" =~ ^(127[.]|::1$) ]]; then
+          # Both ends are the node's own port on this host: the node has
+          # dialled itself, through a topology entry left pointing at it. It
+          # stays in the list on purpose, as a sign that the topology needs
+          # attention.
+          [[ "${PEER_LABEL_KIND}" == static ]] || PEER_LABEL=''
+          ui_putw "${C_WARN}" "${label_width}" "${PEER_LABEL:+${PEER_LABEL} · }this node itself"
+        else
+          case "${PEER_LABEL_KIND}" in
+            static) ui_putw "${C_ID}" "${label_width}" "${PEER_LABEL}" ;;
+            none) [[ -z "${PEER_STATE_AT}" ]] || ui_putw "${C_MUTED}" "${label_width}" "unknown location" ;;
+            *) ui_putw "${C_MUTED}" "${label_width}" "${PEER_LABEL}" ;;
           esac
-        done
-        adopted_cnt=$(( adopted_cnt + confirmed_cnt ))
-        lost_cnt=$(( invalid_cnt + missed_cnt + ghosted_cnt + stolen_cnt ))
-        leader_cnt=$(( leader_cnt + adopted_cnt + lost_cnt ))
-        leader_next=$(sqlite3 "${BLOCKLOG_DB}" "SELECT at FROM blocklog WHERE datetime(at) > datetime('now') ORDER BY slot ASC LIMIT 1;" 2>/dev/null)
-        IFS='|' read -ra epoch_stats <<< "$(sqlite3 "${BLOCKLOG_DB}" "SELECT epoch_slots_ideal, max_performance FROM epochdata WHERE epoch=${epochnum};" 2>/dev/null)"; unset IFS
-        if [[ ${#epoch_stats[@]} -eq 0 ]]; then epoch_stats=("-" "-"); else epoch_stats[1]="${epoch_stats[1]}%"; fi
-
-        [[ ${confirmed_cnt} -ne ${adopted_cnt} ]] && confirmed_fmt="${style_status_2}" || confirmed_fmt="${style_values_2}"
-
-        if [[ ${VERBOSE} = "Y" ]]; then
-
-          [[ ${invalid_cnt} -eq 0 ]] && invalid_fmt="${style_values_1}" || invalid_fmt="${style_status_3}"
-          [[ ${missed_cnt} -eq 0 ]] && missed_fmt="${style_values_1}" || missed_fmt="${style_status_3}"
-          [[ ${ghosted_cnt} -eq 0 ]] && ghosted_fmt="${style_values_1}" || ghosted_fmt="${style_status_3}"
-          [[ ${stolen_cnt} -eq 0 ]] && stolen_fmt="${style_values_1}" || stolen_fmt="${style_status_3}"
-
-          # row 1
-          printf "${VL} Leader     : ${style_values_1}%-${three_col_value_width}s${NC}" "${leader_cnt}"
-          mvThreeSecond
-          printf "Adopted    : ${style_values_1}%-${three_col_value_width}s${NC}" "${adopted_cnt}"
-          mvThreeThird
-          printf "Missed     : ${missed_fmt}%-${three_col_value_width}s${NC}" "${missed_cnt}"
-          closeRow
-
-          # row 2
-          printf "${VL} Ideal      : ${style_values_1}%-${three_col_value_width}s${NC}" "${epoch_stats[0]}"
-          mvThreeSecond
-          printf "Confirmed  : ${confirmed_fmt}%-${three_col_value_width}s${NC}" "${confirmed_cnt}"
-          mvThreeThird
-          printf "Ghosted    : ${ghosted_fmt}%-${three_col_value_width}s${NC}" "${ghosted_cnt}"
-          closeRow
-
-          # row 3
-          printf "${VL} Luck       : ${style_values_1}%-${three_col_value_width}s${NC}" "${epoch_stats[1]}"
-          mvThreeSecond
-          printf "Invalid    : ${invalid_fmt}%-${three_col_value_width}s${NC}" "${invalid_cnt}"
-          mvThreeThird
-          printf "Stolen     : ${stolen_fmt}%-${three_col_value_width}s${NC}" "${stolen_cnt}"
-          closeRow
-
-        else
-
-          [[ ${lost_cnt} -eq 0 ]] && lost_fmt="${style_values_1}" || lost_fmt="${style_status_3}"
-
-          # row 1
-          printf "${VL} Leader     : ${style_values_1}%-${three_col_value_width}s${NC}" "${leader_cnt}"
-          mvThreeSecond
-          printf "Luck       : ${style_values_1}%-${three_col_value_width}s${NC}" "${epoch_stats[1]}"
-          mvThreeThird
-          printf "Confirmed  : ${confirmed_fmt}%-${three_col_value_width}s${NC}" "${confirmed_cnt}"
-          closeRow
-
-          # row 2
-          printf "${VL} Ideal      : ${style_values_1}%-${three_col_value_width}s${NC}" "${epoch_stats[0]}"
-          mvThreeSecond
-          printf "Adopted    : ${style_values_1}%-${three_col_value_width}s${NC}" "${adopted_cnt}"
-          mvThreeThird
-          printf "Lost       : ${lost_fmt}%-${three_col_value_width}s${NC}" "${lost_cnt}"
-          closeRow
-
-        fi
-
-        if [[ -n ${leader_next} ]]; then
-          leader_time_left=$((  $(date -u -d ${leader_next} +%s) - $(printf '%(%s)T\n' -1) ))
-          if [[ ${leader_time_left} -gt 0 ]]; then
-            setSizeAndStyleOfProgressBar ${leader_time_left}
-            leader_time_left_fmt="$(timeLeft ${leader_time_left})"
-            leader_progress=$(echo "(1-(${leader_time_left}/${leader_bar_span}))*100" | bc -l)
-            leader_items=$(( ($(printf %.0f "${leader_progress}") * granularity_small) / 100 ))
-            printf "${VL} Next block : ${style_values_1}%-$((two_col_width-14))s${NC}" "${leader_time_left_fmt}"
-            mvPos ${line} ${bar_col_small}
-            if [[ -z ${leader_bar} || ${leader_items} -ne ${leader_items_last} ]]; then
-              leader_bar=""; leader_items_last=${leader_items}
-              for i in $(seq 0 $((granularity_small-1))); do
-                [[ $i -lt ${leader_items} ]] && leader_bar+=$(printf "${leader_bar_style}${char_marked}") || leader_bar+=$(printf "${NC}${char_unmarked}")
-              done
-            fi
-            printf "${leader_bar}" && closeRow
-          fi
-        fi
-      else
-        [[ ${isleader} -ne ${adopted} ]] && adopted_fmt="${style_status_2}" || adopted_fmt="${style_values_2}"
-        [[ ${didntadopt} -eq 0 ]] && invalid_fmt="${style_values_1}" || invalid_fmt="${style_status_3}"
-
-        printf "${VL} Leader : ${style_values_1}%-${three_col_value_width}s${NC}" "${isleader}"
-        mvThreeSecond
-        printf "Adopted : ${adopted_fmt}%-${three_col_value_width}s${NC}" "${adopted}"
-        mvThreeThird
-        printf "Invalid : ${invalid_fmt}%-${three_col_value_width}s${NC}" "${didntadopt}"
-        closeRow
-      fi
-    fi
-    if [[ "${NODE_IMPLEMENTATION}" == "cnode" &&
-          "${MITHRIL_SIGNER_ENABLED}" == "Y" ]]; then
-      # Mithril Signer Section
-      mithrilSignerVars
-      printf "${mithrildivider}\n" && ((line++))
-      get_metric_value() {
-        local metric_name="$1"
-        local metric_value
-        while IFS= read -r line; do
-            if [[ $line =~ ${metric_name}[[:space:]]+([0-9]+) ]]; then
-                metric_value="${BASH_REMATCH[1]}"
-                echo "$metric_value"
-                return
-            fi
-        done <<< "$mithrilSignerMetrics"
-      }
-      metrics=(
-          "runtime_cycle_total_since_startup"
-          "signer_registration_success_last_epoch"
-          "signer_registration_success_since_startup"
-          "signer_registration_total_since_startup"
-          "signature_registration_success_last_epoch"
-          "signature_registration_success_since_startup"
-          "signature_registration_total_since_startup"
-      )
-      cycle_total_VAL=$(get_metric_value "runtime_cycle_total_since_startup")
-      signer_reg_epoch_VAL=$(get_metric_value "signer_registration_success_last_epoch")
-      signer_reg_success_VAL=$(get_metric_value "signer_registration_success_since_startup")
-      signer_reg_total_VAL=$(get_metric_value "signer_registration_total_since_startup")
-      signatures_epoch_VAL=$(get_metric_value "signature_registration_success_last_epoch")
-      signatures_reg_success_VAL=$(get_metric_value "signature_registration_success_since_startup")
-      signatures_reg_total_VAL=$(get_metric_value "signature_registration_total_since_startup")
-      if [[ ${VERBOSE} = "Y" ]]; then
-        printf "${VL} Status     : ${style_values_2}%-${three_col_value_width}s${NC}" "$signerServiceStatus"
-        printf "           : Registered Epoch     : ${style_values_1}%-${three_col_value_width}s${NC}" "$signer_reg_epoch_VAL"
-        closeRow
-        printf "${VL} Cycles     : ${style_values_1}%-${three_col_value_width}s${NC}" "$cycle_total_VAL"
-        printf "           : Signing in Epoch     : ${style_values_2}%-${three_col_value_width}s${NC}" "$signatures_epoch_VAL"
-        closeRow
-        printf "${VL} Signatures : ${style_values_2}%-${three_col_value_width}s${NC}" "$signatures_reg_success_VAL"
-        printf "           : Total Signatures     : ${style_values_1}%-${three_col_value_width}s${NC}" "$signatures_reg_total_VAL"
-        closeRow
-        printf "${VL} Registered : ${style_values_1}%-${three_col_value_width}s${NC}" "$signer_reg_success_VAL"
-        printf "           : Registered Total     : ${style_values_1}%-${three_col_value_width}s${NC}" "$signer_reg_total_VAL"
-        closeRow
-      else
-        printf "${VL} Status     : ${style_values_2}%-${three_col_value_width}s${NC}" "$signerServiceStatus"
-        printf "           : Registered Epoch     : ${style_values_1}%-${three_col_value_width}s${NC}" "$signer_reg_epoch_VAL"
-        closeRow
-        printf "${VL} Cycles     : ${style_values_1}%-${three_col_value_width}s${NC}" "$cycle_total_VAL"
-        printf "           : Signing in Epoch     : ${style_values_2}%-${three_col_value_width}s${NC}" "$signatures_epoch_VAL"
-        closeRow
-        printf "${VL} Signatures : ${style_values_2}%-${three_col_value_width}s${NC}" "$signatures_reg_success_VAL"
-        printf "           : Total Signatures     : ${style_values_1}%-${three_col_value_width}s${NC}" "$signatures_reg_total_VAL"
-        closeRow
-      fi
-    fi
+        fi ;;
+    esac
+    ui_endl UI_BODY "${inner}"
+    shown=$((shown + 1))
+  done
+  if (( shown == 0 )); then
+    if ! command -v ss >/dev/null 2>&1; then text="The connection list needs the ss command, which is not installed."
+    elif [[ "${PEER_FILTER_STATIC}" == static ]] && (( ${#staticPeerList[@]} == 0 )); then
+      text="No static peers known for this node. Press a to read them."
+    elif (( ${#D_PEERS[@]} == 0 )); then text="The node has no connections."
+    else text="No peers match the filters or the search."; fi
+    ui_putw "${C_MUTED}" "${inner}" "${text}"
+    ui_endl UI_BODY "${inner}"
   fi
 
-
-
-  [[ ${check_peers} = "true" ]] && check_peers=false && show_peers=true && clrScreen && continue
-
-  echo "${bdivider}" && ((line++))
-  printf " TG Announcement/Support channel: ${style_info}t.me/CardanoKoios/9759${NC}\n\n" && line=$((line+2))
-
-  [[ -z ${oldLine} ]] && oldLine=$line
-
-  glvLegacyFrameFits || continue
-
-  if [[ ${show_peers} = "true" && ${show_peers_info} = "true" ]]; then
-    printf " ${style_info}[esc/q] Quit${NC} | ${style_info}[b] Back to Peer Analysis${NC}"
-    clrLine
-    glvFlushLegacyFrame
-    waitForInput "peersInfo"
-  elif [[ ${show_peers} = "true" ]]; then
-    printf " ${style_info}[esc/q] Quit${NC} | ${style_info}[h] Home${NC} | ${style_info}[i] Info${NC} | Left/Right : Navigate List"
-    clrLine
-    glvFlushLegacyFrame
-    waitForInput "peers"
-  elif [[ ${show_home_info} = "true" ]]; then
-    printf " ${style_info}[esc/q] Quit${NC} | ${style_info}[h] Home${NC}"
-    clrLine
-    glvFlushLegacyFrame
-    waitForInput "homeInfo"
+  # What the node itself says about each connection, and how old that is.
+  if [[ -n "${PEER_JOB_PID}" ]]; then
+    text="${PEER_JOB_NOTE:-working…}"
+  elif [[ -n "${PEER_JOB_NOTE}" ]]; then
+    text="${PEER_JOB_NOTE}"
+  elif [[ -z "${PEER_STATE_AT}" ]]; then
+    text="a reads the node's own view of each peer"
   else
-    [[ ${VERBOSE} = "Y" ]] && verbose_label="Compact" || verbose_label="Verbose"
-    printf " ${style_info}[esc/q] Quit${NC} | ${style_info}[i] Info${NC} | ${style_info}[n] Network${NC}"
-    if node_has peer_inspection; then
-      printf " | ${style_info}[p] Peer Analysis${NC}"
-    fi
-    printf " | ${style_info}[v] ${verbose_label}${NC}"
-    clrLine
-    glvFlushLegacyFrame
-    waitForInput
+    printf -v text '%(%H:%M:%S)T' "${PEER_STATE_AT}"
+    if [[ "${state}" == Y ]]; then text="node state from ${text}"
+    else text="read ${text} · ${D_IMPL} gave no per-peer state"; fi
   fi
+  if [[ -n "${PEER_SEARCH}" || "${PEER_FILTER_STATIC}${PEER_FILTER_DIR}${PEER_FILTER_STATE}" != allallany ]]; then
+    text="${total} of ${#D_PEERS[@]} · ${text}"
+  else
+    text="${total} · ${text}"
+  fi
+  [[ "${state}" != Y ]] || GLV_PAGE_KEYS+=("d Direction" "s State")
+  ! glv_peers_static_capable || GLV_PAGE_KEYS+=("t Static")
+  UI_HELP=peerlist
+  ui_panel P_LIST "${width}" "${GLV_ROOM}" "Connections · fastest first" "${text}"
+  glv_main_add P_LIST
+}
+
+# ── 4 Production ─────────────────────────────────────────────────────────────
+glv_schedule_time() {
+  if [[ -n "${BLOCKLOG_TZ:-}" ]]; then
+    TZ="${BLOCKLOG_TZ}" printf -v "$1" '%(%a %d %H:%M:%S)T' "$2"
+  else
+    printf -v "$1" '%(%a %d %H:%M:%S)T' "$2"
+  fi
+}
+
+glv_view_production() {
+  local width="$1" half=$(($1 / 2)) inner=$(($1 - 4)) text colour value days rows entry
+  local slot status at block epoch_height=0 schedule_height first=Y luck ideal
+  local -a keys=() epoch=() upcoming=() past=() ordered=()
+
+  if [[ "${D_ROLE}" != Core ]]; then
+    glv_main_room
+    UI_HELP=production
+    glv_note_panel P_A "${width}" "${GLV_ROOM}" "Production" \
+      "This node runs as a relay, so there is no block production to show. The page fills in when ${D_IMPL} runs with forging keys and reports that forging is enabled."
+    glv_main_add P_A
+    return 0
+  fi
+
+  glv_metric_cell keys kesperiod "KES period"
+  if node_metric_has remaining_kes_periods; then
+    glv_kes_colour colour
+    text="${remaining_kes_periods} periods"
+    if glv_is_int "${D_KES_SECONDS}"; then text+=" · $((D_KES_SECONDS / 86400)) days"; fi
+    glv_cell keys "KES left" "${text}" "${colour}"
+  fi
+  glv_cell keys "Expires" "${D_KES_EXPIRES}"
+  glv_opcert_text text colour
+  glv_cell keys "Op cert" "${text}" "${colour}"
+  glv_metric_cell keys opcert_start_kes "Cert from period"
+  glv_metric_cell keys missed_slots "Missed chk"
+  glv_production_cells epoch results
+  UI_HELP=keys
+  glv_cells_panel P_A "${half}" "Keys" "" keys 1 6
+  UI_HELP=results
+  glv_cells_panel P_B $((width - half)) "Epoch ${epochnum:-} so far" "" epoch 2 6
+  glv_main_add P_A P_B
+
+  if (( ${#D_EPOCHS[@]} > 0 )); then epoch_height=$((${#D_EPOCHS[@]} + 3)); fi
+  glv_main_room
+  schedule_height=$((GLV_ROOM - epoch_height))
+  if (( schedule_height < 6 )); then schedule_height="${GLV_ROOM}"; epoch_height=0; fi
+  (( schedule_height >= 5 )) || return 0
+
+  # Slots to come first, soonest on top, then the ones that have passed.
+  for entry in "${D_SCHEDULE[@]}"; do
+    at="${entry#*|}"; at="${at#*|}"; at="${at%%|*}"
+    if glv_is_int "${at}" && (( at > D_NOW )); then upcoming+=("${entry}"); else past=("${entry}" "${past[@]}"); fi
+  done
+  ordered=("${upcoming[@]}" "${past[@]}")
+  rows=$((schedule_height - 3))
+  PAGE_TOTAL=${#ordered[@]}
+  glv_page_window "${rows}"
+  UI_BASE="${UI_BASE_MAIN}"
+  UI_BODY=()
+  ui_putw "${C_MUTED}" 13 "Status"; ui_putw "${C_MUTED}" 16 "When"
+  ui_putw "${C_MUTED}" 9 "Slot" r; ui_putw "${C_MUTED}" 12 "Block" r
+  ui_endl UI_BODY "${inner}"
+  for entry in "${ordered[@]:PAGE_SCROLL:rows}"; do
+    slot="${entry%%|*}"; entry="${entry#*|}"
+    status="${entry%%|*}"; entry="${entry#*|}"
+    at="${entry%%|*}"; entry="${entry#*|}"
+    block="${entry%%|*}"
+    text=''
+    if glv_is_int "${at}" && (( at > D_NOW )); then
+      ui_fmt_duration text $((at - D_NOW))
+      text="in ${text}"
+      if [[ "${first}" == Y ]]; then
+        UI_BASE="${UI_BASE_SELECT}"
+        ui_putw "${UI_KEY}" 13 "▸ next"
+      else
+        ui_putw "${C_MUTED}" 13 "· scheduled"
+      fi
+      first=N
+      colour="${C_ACCENT}"
+    else
+      case "${status}" in
+        adopted|confirmed) ui_putw "${C_OK}" 13 "✓ ${status}"; colour="${C_OK}" ;;
+        leader) ui_putw "${C_WARN}" 13 "? no result"; colour="${C_WARN}"; text="not checked yet" ;;
+        *) ui_putw "${C_DANGER}" 13 "✗ ${status}"; colour="${C_DANGER}" ;;
+      esac
+    fi
+    value='—'
+    glv_is_int "${at}" && glv_schedule_time value "${at}"
+    ui_putw '' 16 "${value}"
+    ui_fmt_int value "${slot}"; ui_putw '' 9 "${value}" r
+    if glv_is_int "${block}" && (( block > 0 )); then
+      ui_fmt_int value "${block}"; ui_putw '' 12 "${value}" r
+    else
+      ui_putw "${C_MUTED}" 12 "—" r
+    fi
+    ui_gap 2
+    ui_putw "${colour}" $(( inner - 52 > 0 ? inner - 52 : 0 )) "${text}"
+    ui_endl UI_BODY "${inner}"
+    UI_BASE="${UI_BASE_MAIN}"
+  done
+  if (( ${#ordered[@]} == 0 )); then
+    if [[ -n "${D_SCHEDULE_EPOCH}" ]]; then
+      ui_putw "${C_MUTED}" "${inner}" "No leader slots for this pool in epoch ${epochnum:-}."
+    else
+      ui_putw "${C_MUTED}" "${inner}" "No leader schedule found in ${D_BLOCKLOG_DB}."
+    fi
+    ui_endl UI_BODY "${inner}"
+  fi
+  text="times in ${BLOCKLOG_TZ:-local time}"
+  (( D_NEXT_EPOCH_SLOTS == 0 )) || text="next epoch: ${D_NEXT_EPOCH_SLOTS} slots ready · ${text}"
+  UI_HELP=schedule
+  ui_panel P_C "${width}" "${schedule_height}" "Leader schedule" "${text}"
+  glv_main_add P_C
+
+  (( epoch_height > 0 )) || return 0
+  UI_BODY=()
+  ui_putw "${C_MUTED}" 10 "Epoch"; ui_putw "${C_MUTED}" 9 "Leader" r
+  ui_putw "${C_MUTED}" 10 "Adopted" r; ui_putw "${C_MUTED}" 9 "Ideal" r
+  ui_putw "${C_MUTED}" 10 "Luck" r
+  ui_endl UI_BODY "${inner}"
+  for entry in "${D_EPOCHS[@]}"; do
+    slot="${entry%%|*}"; entry="${entry#*|}"
+    status="${entry%%|*}"; entry="${entry#*|}"
+    block="${entry%%|*}"; ideal="${entry#*|}"
+    luck='—'
+    if ui_scale value "${ideal}" 2 && (( value > 0 )); then
+      value=$((status * 100000 / value))
+      luck="$((value / 10)).$((value % 10)) %"
+    fi
+    colour=''
+    [[ "${slot}" != "${epochnum:-}" ]] || colour="${UI_BOLD}"
+    ui_putw "${colour}" 10 "${slot}"; ui_putw '' 9 "${status}" r
+    ui_putw "${C_OK}" 10 "${block}" r; ui_putw '' 9 "${ideal:-—}" r
+    ui_putw '' 10 "${luck}" r
+    ui_endl UI_BODY "${inner}"
+  done
+  UI_HELP=epochs
+  ui_panel P_D "${width}" "${epoch_height}" "Epochs" "from the block log"
+  glv_main_add P_D
+}
+
+# ── 5 System ─────────────────────────────────────────────────────────────────
+glv_view_system() {
+  local width="$1" half=$(($1 / 2)) inner spark value text used name
+  local -a cells=() custom=()
+
+  # Host.
+  if (( width >= 90 )); then inner=$((half - 4)); else inner=$((width - 4)); fi
+  spark=$((inner - 23))
+  (( spark <= 40 )) || spark=40
+  UI_BASE="${UI_BASE_MAIN}"
+  UI_BODY=()
+  ui_fmt_tenths value "${D_CPU}"
+  ui_putw "${C_MUTED}" 12 "CPU (sys)"; ui_putw '' 9 "${value} %" r; ui_gap 2
+  ui_spark H_CPU "${spark}" "${C_ACCENT}" 1000; ui_endl UI_BODY "${inner}"
+  if glv_is_int "${D_HOST_MEM_TOTAL}" && glv_is_int "${D_HOST_MEM_FREE}" && (( D_HOST_MEM_TOTAL > 0 )); then
+    used=$(( (D_HOST_MEM_TOTAL - D_HOST_MEM_FREE) * 100 / D_HOST_MEM_TOTAL ))
+    ui_putw "${C_MUTED}" 12 "Memory used"; ui_putw '' 9 "${used} %" r; ui_gap 2
+    ui_bar "${spark}" $((spark * used / 100)) UI_HEAVY "${C_ACCENT}"; ui_endl UI_BODY "${inner}"
+    ui_fmt_bytes text $((D_HOST_MEM_TOTAL * 1024))
+    glv_cell cells "Memory" "${text}"
+    ui_fmt_bytes text $((D_HOST_MEM_FREE * 1024))
+    glv_cell cells "Available" "${text}"
+  fi
+  if [[ -n "${D_DISK}" ]]; then
+    ui_putw "${C_MUTED}" 12 "Disk util"; ui_putw '' 9 "${D_DISK} %" r; ui_gap 2
+    ui_bar "${spark}" $((spark * D_DISK / 100)) UI_HEAVY "${C_ACCENT}"; ui_endl UI_BODY "${inner}"
+  fi
+  (( D_CORES == 0 )) || glv_cell cells "Cores" "${D_CORES}"
+  glv_cell cells "Load 1 · 5 · 15 m" "${D_LOAD}"
+  while (( ${#UI_BODY[@]} < 3 )); do ui_endl UI_BODY "${inner}"; done
+  ui_grid cells 1 4 "${inner}" UI_BODY
+  UI_HELP=host
+  ui_panel P_A $((inner + 4)) 9 "Host" ""
+
+  # Node process.
+  cells=()
+  if (( width >= 90 )); then inner=$((width - half - 4)); fi
+  spark=$((inner - 23))
+  (( spark <= 40 )) || spark=40
+  UI_BODY=()
+  if [[ -n "${D_PCPU}" ]]; then
+    ui_fmt_tenths value "${D_PCPU}"
+    ui_putw "${C_MUTED}" 12 "CPU (node)"; ui_putw '' 9 "${value} %" r; ui_gap 2
+    ui_spark H_PCPU "${spark}" "${C_ACCENT}" 1000; ui_endl UI_BODY "${inner}"
+  fi
+  if [[ -n "${D_MEM}" ]]; then
+    ui_fmt_tenths value "${D_MEM}"
+    used=1
+    for name in "${H_MEM[@]}"; do (( name <= used )) || used="${name}"; done
+    ui_putw "${C_MUTED}" 12 "Mem (RSS)"; ui_putw '' 9 "${value} GiB" r; ui_gap 2
+    ui_spark H_MEM "${spark}" "${C_ACCENT}" "${used}"; ui_endl UI_BODY "${inner}"
+  fi
+  while (( ${#UI_BODY[@]} < 3 )); do ui_endl UI_BODY "${inner}"; done
+  glv_cell cells "PID" "${D_PID}"
+  if [[ -n "${D_UPTIME}" ]]; then
+    ui_fmt_duration text "${D_UPTIME}"
+    glv_cell cells "Uptime" "${text}"
+  fi
+  glv_cell cells "Threads" "${D_THREADS}"
+  glv_metric_cell cells mem_live "Live" bytes
+  glv_metric_cell cells mem_heap "Heap" bytes
+  glv_metric_cell cells gc_minor "GC minor"
+  glv_metric_cell cells gc_major "GC major"
+  if node_metric_has open_files; then
+    text="${open_files}"
+    if node_metric_has max_files; then text+=" of ${max_files}"; fi
+    glv_cell cells "Open files" "${text}"
+  fi
+  ui_grid cells 2 4 "${inner}" UI_BODY
+  UI_HELP=process
+  ui_panel P_B $((inner + 4)) 9 "${D_IMPL} process" ""
+  if (( width >= 90 )); then glv_main_add P_A P_B; else glv_main_add P_A; glv_main_add P_B; fi
+
+  # Whatever else the implementation reports about itself.
+  for name in "${NODE_CUSTOM_METRICS[@]}"; do
+    node_metric_has "${name}" || continue
+    value="${!name:-}"
+    [[ -z "${NODE_METRIC_UNIT[${name}]:-}" ]] || value+=" ${NODE_METRIC_UNIT[${name}]}"
+    glv_cell custom "${NODE_METRIC_LABEL[${name}]:-${name}}" "${value}"
+  done
+  glv_main_room
+  if (( ${#custom[@]} > 0 && GLV_ROOM >= 3 )); then
+    used=$(( width >= 110 ? 3 : 2 ))
+    spark=$(( (${#custom[@]} + used - 1) / used ))
+    (( spark + 2 <= GLV_ROOM )) || spark=$((GLV_ROOM - 2))
+    UI_HELP=custom
+    glv_cells_panel P_C "${width}" "${D_IMPL} metrics" "as its adapter reports them" custom "${used}" "${spark}"
+    glv_main_add P_C
+  fi
+}
+
+# ── 6 Logs ───────────────────────────────────────────────────────────────────
+# glv_log_parse <line>: sets LOG_TIME, LOG_SEVERITY (0 debug, 1 info, 2 notice,
+# 3 warning, 4 error), LOG_TAG
+# and LOG_TEXT for a JSON line (cardano-node) or a plain line (Amaru, Dingo).
+glv_log_parse() {
+  local line="$1" word
+  LOG_TIME=''; LOG_SEVERITY=1; LOG_TAG=''; LOG_TEXT="${line}"
+  if [[ "${line}" == '{"at":"'* ]]; then
+    [[ "${line}" =~ \"at\":\"[^T\"]*T([0-9:]{8}) ]] && LOG_TIME="${BASH_REMATCH[1]}"
+    [[ "${line}" =~ \"ns\":\"([^\"]*)\" ]] && LOG_TAG="${BASH_REMATCH[1]}"
+    word=''
+    [[ "${line}" =~ \"sev\":\"([^\"]*)\" ]] && word="${BASH_REMATCH[1]}"
+    LOG_TEXT="${line#*\"data\":}"
+    LOG_TEXT="${LOG_TEXT%%,\"sev\":*}"
+  elif [[ "${line}" =~ ^[0-9-]+T([0-9:]{8})[^[:space:]]*[[:space:]]+([A-Za-z]+)[[:space:]]+([^[:space:]]+):[[:space:]](.*)$ ]]; then
+    LOG_TIME="${BASH_REMATCH[1]}"
+    word="${BASH_REMATCH[2]}"
+    LOG_TAG="${BASH_REMATCH[3]}"
+    LOG_TEXT="${BASH_REMATCH[4]}"
+  else
+    word=''
+    [[ "${line}" =~ (ERROR|Error|error|WARN|Warning|warning) ]] && word="${BASH_REMATCH[1]}"
+  fi
+  case "${word,,}" in
+    debug|trace) LOG_SEVERITY=0 ;;
+    notice) LOG_SEVERITY=2 ;;
+    warn|warning) LOG_SEVERITY=3 ;;
+    error|critical|alert|emergency|fatal) LOG_SEVERITY=4 ;;
+    *) LOG_SEVERITY=1 ;;
+  esac
+}
+
+# glv_log_index: parses every loaded line once, so the page can filter and
+# draw from the parts on each frame without parsing again.
+glv_log_index() {
+  local index
+  LOG_I_TIME=(); LOG_I_LEVEL=(); LOG_I_TAG=(); LOG_I_TEXT=()
+  for index in "${!D_LOG[@]}"; do
+    glv_log_parse "${D_LOG[index]}"
+    LOG_I_TIME[index]="${LOG_TIME}"
+    LOG_I_LEVEL[index]="${LOG_SEVERITY}"
+    LOG_I_TAG[index]="${LOG_TAG}"
+    LOG_I_TEXT[index]="${LOG_TEXT}"
+  done
+}
+
+glv_view_logs() {
+  local width="$1" inner=$(($1 - 4)) rows index colour tag_width shown=0 tag text target
+  local pattern="${LOG_FIND}" hide=N literal=N matched title right=''
+  local -a kept=() note=()
+  glv_main_room
+  (( GLV_ROOM >= 4 )) || return 0
+  rows=$((GLV_ROOM - 2))
+  if [[ "${LOG_PAUSED}" == Y ]]; then GLV_PAGE_KEYS=("p Resume"); else GLV_PAGE_KEYS=("p Pause"); fi
+  GLV_PAGE_KEYS+=("f Find" "l Level" "←→ Sideways")
+
+  # A pattern that starts with ! hides what it matches. One that is not a
+  # valid expression is looked for as plain text.
+  if [[ "${pattern}" == '!'* ]]; then hide=Y; pattern="${pattern:1}"; fi
+  if [[ -n "${pattern}" ]]; then
+    { [[ '' =~ ${pattern} ]]; matched=$?; } 2>/dev/null
+    (( matched != 2 )) || literal=Y
+  fi
+  shopt -s nocasematch
+  # Newest first: walk back from the end, keeping what passes level and pattern.
+  for ((index = ${#D_LOG[@]} - 1; index >= 0; index--)); do
+    (( LOG_LEVEL == 0 || ${LOG_I_LEVEL[index]:-1} >= LOG_LEVEL_FLOOR[LOG_LEVEL] )) || continue
+    if [[ -n "${pattern}" ]]; then
+      target="${LOG_I_TIME[index]:-} ${LOG_I_TAG[index]:-} ${LOG_I_TEXT[index]:-}"
+      matched=N
+      if [[ "${literal}" == Y ]]; then
+        [[ "${target}" != *"${pattern}"* ]] || matched=Y
+      elif [[ "${target}" =~ ${pattern} ]]; then
+        matched=Y
+      fi
+      [[ "${matched}" != "${hide}" ]] || continue
+    fi
+    kept+=("${index}")
+  done
+  shopt -u nocasematch
+
+  PAGE_TOTAL=${#kept[@]}
+  glv_page_window "${rows}"
+  tag_width=$((inner / 4))
+  (( tag_width <= 36 )) || tag_width=36
+  UI_BASE="${UI_BASE_MAIN}"
+  UI_BODY=()
+  for index in "${kept[@]:PAGE_SCROLL:rows}"; do
+    case "${LOG_I_LEVEL[index]:-1}" in
+      0) colour="${C_MUTED}" ;;
+      3) colour="${C_WARN}" ;;
+      4) colour="${C_DANGER}" ;;
+      *) colour='' ;;
+    esac
+    tag="${LOG_I_TAG[index]:-}"
+    text="${LOG_I_TEXT[index]:-}"
+    if [[ -z "${LOG_I_TIME[index]:-}" ]]; then
+      ui_putw "${colour}" "${inner}" "${text:LOG_SHIFT}"
+    elif (( LOG_SHIFT > 0 )); then
+      # Moved sideways, the source and the message run on as one line.
+      text="${tag} ${text}"
+      ui_putw "${C_MUTED}" 9 "${LOG_I_TIME[index]}"
+      ui_putw "${colour}" $((inner - 9)) "${text:LOG_SHIFT}"
+    else
+      # The end of a long source name says more than its start.
+      (( ${#tag} <= tag_width )) || tag="…${tag: -$((tag_width - 1))}"
+      ui_putw "${C_MUTED}" 9 "${LOG_I_TIME[index]}"
+      ui_putw "${C_ID}" "${tag_width}" "${tag}"
+      ui_gap 1
+      ui_putw "${colour}" $((inner - 10 - tag_width)) "${text}"
+    fi
+    ui_endl UI_BODY "${inner}"
+    shown=$((shown + 1))
+  done
+  if (( shown == 0 )); then
+    if [[ -n "${D_LOG_NOTE}" ]]; then text="${D_LOG_NOTE}"
+    elif [[ -n "${LOG_FIND}" ]]; then text="No line among the last ${#D_LOG[@]} matches. Press f and answer with nothing to clear the pattern."
+    else text="No lines at this level among the last ${#D_LOG[@]}."; fi
+    ui_wrap note "${inner}" "${text}"
+    for text in "${note[@]}"; do
+      ui_putw "${C_MUTED}" "${inner}" "${text}"
+      ui_endl UI_BODY "${inner}"
+    done
+  fi
+
+  title="Log · ${NODE_SERVICE:-node}"
+  if [[ "${LOG_PAUSED}" == Y ]]; then
+    printf -v text '%(%H:%M:%S)T' "${LOG_PAUSED_AT:-0}"
+    title+=" · paused at ${text}"
+  fi
+  [[ -z "${LOG_FIND}" ]] || right="find ${LOG_FIND} · "
+  (( LOG_SHIFT == 0 )) || right+="moved ${LOG_SHIFT} columns · "
+  right+="${LOG_LEVEL_NAMES[LOG_LEVEL]} · newest first"
+  UI_HELP=log
+  ui_panel P_A "${width}" "${GLV_ROOM}" "${title}" "${right}"
+  glv_main_add P_A
+}
+
+# ── n Node & network ─────────────────────────────────────────────────────────
+# glv_column_add <column> <panel>: stacks a panel in a column of the page and
+# makes it known to help mode.
+glv_column_add() {
+  local -n _column="$1" _column_panel="$2"
+  [[ -z "${UI_PANEL_KEY[$2]:-}" ]] || UI_PANELS+=("${UI_PANEL_KEY[$2]}")
+  _column+=("${_column_panel[@]}")
+}
+
+# What is running and how it was started on the left, the network it is on
+# and that network's protocol parameters on the right. The page is taller
+# than most terminals, so the whole of it scrolls.
+glv_view_details() {
+  local width="$1" left_width right_width text name value group row i visible blank_left blank_right
+  local -a node=() network=() paths=() info=() rows=() left=() right=()
+
+  if (( width >= 110 )); then left_width=$((width / 2)); right_width=$((width - left_width))
+  else left_width="${width}"; right_width="${width}"; fi
+
+  text="${D_VERSION}"
+  if node_metric_has running_node_rev && [[ "${running_node_rev:-?}" != '?' ]]; then text+=" (${running_node_rev})"; fi
+  node+=("Implementation|${D_IMPL}" "Version|${text}" "Role|${D_ROLE}" "Service|${NODE_SERVICE:-unknown}"
+         "Process|${D_PID:-not running}")
+  if [[ -n "${D_UPTIME}" ]]; then
+    ui_fmt_duration text "${D_UPTIME}"
+    node+=("Uptime|${text}")
+  fi
+  node+=("gLiveView|${GLV_VERSION} · ${GLV_THEME:-default} theme · ${UI_COLOUR_DEPTH} colours"
+         "Refresh|every ${REFRESH_RATE} s")
+  UI_HELP=node
+  glv_rows_panel P_A "${left_width}" 0 "Node" node
+  glv_column_add left P_A
+
+  if (( ${#D_STARTUP[@]} > 0 )); then
+    UI_HELP=startup
+    glv_rows_panel P_A "${left_width}" 0 "Start-up options" D_STARTUP "command line and environment"
+    glv_column_add left P_A
+  fi
+
+  paths+=("Node home|${NODE_HOME}")
+  [[ -z "${NODE_CONFIG:-}" ]] || paths+=("Configuration|${NODE_CONFIG}")
+  [[ -z "${NODE_SOCKET:-}" ]] || paths+=("Node socket|${NODE_SOCKET}")
+  [[ -z "${D_METRICS_URL}" ]] || paths+=("Metrics endpoint|${D_METRICS_URL}")
+  [[ ! -f "${D_BLOCKLOG_DB}" ]] || paths+=("Block log|${D_BLOCKLOG_DB}")
+  if [[ -n "${POOL_NAME:-}" && "${POOL_NAME}" != CHANGE_ME ]]; then
+    paths+=("Pool folder|${POOL_FOLDER:-}/${POOL_NAME}")
+  fi
+  UI_HELP=paths
+  glv_rows_panel P_A "${left_width}" 0 "Paths" paths
+  glv_column_add left P_A
+
+  for name in "${NODE_INFO_METRICS[@]}"; do
+    node_metric_has "${name}" || continue
+    value="${!name:-}"
+    [[ -z "${NODE_METRIC_UNIT[${name}]:-}" ]] || value+=" ${NODE_METRIC_UNIT[${name}]}"
+    info+=("${NODE_METRIC_LABEL[${name}]:-${name}}|${value}")
+  done
+  if (( ${#info[@]} > 0 )); then
+    UI_HELP=nodeinfo
+    glv_rows_panel P_A "${left_width}" 0 "Reported by ${D_IMPL}" info
+    glv_column_add left P_A
+  fi
+
+  network+=("Network|${D_NETWORK}" "Network magic|${NWMAGIC:-unknown}" "Node port|${CNODE_PORT:-unknown}")
+  if glv_is_int "${EPOCH_LENGTH:-}"; then
+    ui_fmt_int text "${EPOCH_LENGTH}"
+    network+=("Epoch length|${text} slots")
+  fi
+  network+=("Slot length|${SLOT_LENGTH:-unknown} s" "Active slot coefficient|${ACTIVE_SLOTS_COEFF:-unknown}")
+  if glv_is_int "${SLOTS_PER_KES_PERIOD:-}"; then
+    ui_fmt_int text "${SLOTS_PER_KES_PERIOD}"
+    network+=("Slots per KES period|${text}" "Max KES evolutions|${MAX_KES_EVOLUTIONS:-unknown}")
+  fi
+  network+=("Shelley from epoch|${SHELLEY_TRANS_EPOCH:-unknown}")
+  UI_HELP=network
+  glv_rows_panel P_A "${right_width}" 0 "Network" network
+  glv_column_add right P_A
+
+  # Protocol parameters, one panel for each group, in the order they came.
+  if (( ${#D_PARAMS[@]} == 0 )); then
+    UI_HELP=params
+    glv_note_panel P_A "${right_width}" 3 "Protocol parameters" "${D_PARAMS_NOTE:-Reading the protocol parameters…}"
+    glv_column_add right P_A
+  else
+    group=''
+    for row in "${D_PARAMS[@]}" "|"; do
+      if [[ "${row%%|*}" != "${group}" ]]; then
+        if (( ${#rows[@]} > 0 )); then
+          UI_HELP=params
+          glv_rows_panel P_A "${right_width}" 0 "Protocol parameters · ${group}" rows "from ${D_PARAMS_SOURCE}"
+          glv_column_add right P_A
+        fi
+        group="${row%%|*}"
+        rows=()
+      fi
+      [[ -z "${group}" ]] || rows+=("${row#*|}")
+    done
+  fi
+
+  # One column on a narrow terminal, two side by side otherwise.
+  rows=()
+  if (( width >= 110 )); then
+    blank_left="${UI_SPACES:0:left_width}"
+    blank_right="${UI_SPACES:0:right_width}"
+    for ((i = 0; i < ${#left[@]} || i < ${#right[@]}; i++)); do
+      rows+=("${left[i]:-${blank_left}}${right[i]:-${blank_right}}")
+    done
+  else
+    rows=("${left[@]}" "${right[@]}")
+  fi
+  glv_main_room
+  visible="${GLV_ROOM}"
+  PAGE_TOTAL=${#rows[@]}
+  glv_page_window "${visible}"
+  MAIN+=("${rows[@]:PAGE_SCROLL:visible}")
+}
+
+# glv_view_build <width>: fills the main area for the selected page.
+glv_view_build() {
+  PAGE_TOTAL=0
+  GLV_PAGE_KEYS=()
+  case "${VIEW}" in
+    2) glv_view_chain "$1" ;;
+    3) glv_view_peers "$1" ;;
+    4) glv_view_production "$1" ;;
+    5) glv_view_system "$1" ;;
+    6) glv_view_logs "$1" ;;
+    *) glv_view_details "$1" ;;
+  esac
+}
+
+##############################################################################
+# Help mode
+##############################################################################
+# "?" keeps the page that is on screen, puts the focus
+# on one of its panels and opens a drawer under the page that says what that
+# panel's figures mean, what a good value looks like and, where the tool has a
+# threshold, how the current value does. The arrow keys move the focus. Where
+# a drawer does not fit (80 columns, short terminals) the help for the whole
+# page is one scrollable text instead.
+#
+# The texts only mention figures the node in front of the operator reports,
+# so the same help serves cardano-node, Amaru and Dingo.
+
+HELP=N
+HELP_MODE=off      # off, drawer or page; decided on every frame
+HELP_FOCUS=''      # help key of the focused panel
+HELP_SCROLL=0
+HELP_ENTRIES=()
+HELP_LINES=()
+HELP_PAGE_NAMES=('' Overview Chain Peers Production System Logs "Node & network")
+# The panels of each page, for the help that is one text for the whole page.
+HELP_PAGE_KEYS=('' "epoch chain propagation peers resources production recent"
+  "epoch chain traffic spread recent" "peers connections roundtrip peerlist"
+  "production keys results schedule epochs" "host process custom" "log"
+  "node startup paths nodeinfo network params")
+declare -A HELP_TITLE=(
+  [epoch]="Epoch" [chain]="Chain" [propagation]="Propagation" [peers]="Peers"
+  [resources]="Resources" [production]="Block production" [recent]="Recent blocks"
+  [events]="Events" [traffic]="Traffic" [spread]="Block delay spread"
+  [connections]="Connections" [roundtrip]="Round trip" [peerlist]="Connection list"
+  [keys]="Keys" [results]="Epoch so far" [schedule]="Leader schedule" [epochs]="Epochs"
+  [host]="Host" [process]="Node process" [custom]="Node's own metrics" [log]="Log"
+  [node]="Node" [network]="Network" [paths]="Paths" [nodeinfo]="Reported by the node"
+  [startup]="Start-up options" [params]="Protocol parameters"
+)
+
+# glv_help_mode <rows of the main area>: a drawer needs room above it.
+glv_help_mode() {
+  HELP_MODE=off
+  [[ "${HELP}" == Y ]] || return 0
+  if (( $1 < 30 )); then HELP_MODE=page; else HELP_MODE=drawer; fi
+}
+
+# glv_help_add <term> <text> [good] [current value] [ok|warn|bad]
+glv_help_add() { HELP_ENTRIES+=("$1|$2|${3:-}|${4:-}|${5:-}"); }
+
+# glv_help_entries <panel> [page]: fills HELP_ENTRIES for one panel. With
+# "page" the text is part of the help for a whole page, where the production
+# panel of the overview would repeat the Production page's own panels.
+glv_help_entries() {
+  local every='' value='' level='' scaled
+  HELP_ENTRIES=()
+  case "$1" in
+    epoch)
+      glv_help_add "Bar" \
+        "How far the node's ledger is into the epoch: its slot in the epoch against the epoch length."
+      glv_help_add "Time left" \
+        "Counted from the wall clock, so it is right even when the node is behind."
+      if [[ "${D_ROLE}" == Core ]]; then
+        glv_help_add "Marks" \
+          "One ▲ for each leader slot of your pool, placed where the slot falls on the bar. Green was adopted, the accent colour is still to come, amber has passed without a result yet, red was lost."
+      fi
+      glv_help_add "Sync or alert" \
+        "While the node reports a sync phase or an alert, that line takes the place of the marks."
+      ;;
+    chain)
+      glv_help_add "Block · Slot" \
+        "Height and slot of the node's tip, the newest block it has adopted."
+      [[ -z "${D_BLOCK_EVERY}" ]] || every=" On this network a block comes about every ${D_BLOCK_EVERY} s on average, so the gap moves all the time."
+      if [[ -n "${D_TIP_GAP}" ]]; then
+        glv_slots value "${D_TIP_GAP}"
+        if (( D_TIP_GAP <= 120 )); then level=ok; elif (( D_TIP_GAP <= 600 )); then level=warn; else level=bad; fi
+      fi
+      glv_help_add "Tip gap" \
+        "Slots between the tip and the slot the wall clock is in now. It climbs with the clock and drops when a block arrives.${every}" \
+        "Under 120 slots. A gap that keeps growing means the node is falling behind." "${value}" "${level}"
+      glv_help_add "Epoch slot" "Slot of the tip, counted from the start of the epoch."
+      if node_metric_has density; then
+        glv_help_add "Density" \
+          "Share of slots that hold a block, as the node measures it on its chain." \
+          "Close to the network's active slot coefficient, 5 % on mainnet." "${density} %"
+      fi
+      if node_metric_has forks; then
+        glv_help_add "Forks" \
+          "How often the node switched to another chain since it started. Short forks are normal: two pools sometimes make a block at almost the same time." \
+          "No fixed number. Watch for a rate far above what you usually see." "${forks}"
+      fi
+      if [[ "${VIEW}" == 1 ]]; then
+        glv_help_add "Pending tx · Mempool · Total tx" \
+          "Transactions waiting in this node's mempool, as a count and as bytes, and the transactions it has processed since it started."
+      fi
+      ;;
+    traffic)
+      glv_help_add "Pending tx · Mempool" \
+        "Transactions waiting in this node's mempool, as a count and as bytes."
+      if node_metric_has tx_processed; then
+        glv_help_add "Total tx" "Transactions this node has processed since it started."
+      fi
+      if node_metric_has blocks_served; then
+        glv_help_add "Blocks served" "Blocks this node handed to peers that asked for them."
+      fi
+      if node_metric_has blocks_late; then
+        glv_help_add "Late blocks" "Blocks that took longer than 5 s to arrive, since the node started." \
+          "Few. A count that grows steadily points at slow peers or a slow link." "${blocks_late}"
+      fi
+      glv_help_add "Blocks seen" \
+        "New tips gLiveView has seen since it was started. The list below and the delay spread are built from these."
+      ;;
+    spread)
+      glv_help_add "Rows" \
+        "The blocks seen since gLiveView started, sorted by how long each took to arrive: up to half a second, up to 1, 2, 3 and 5 seconds, and longer." \
+        "Nearly all in the first two rows. A filling last row means blocks arrive late."
+      ;;
+    propagation)
+      if node_metric_has block_delay; then
+        if ui_scale scaled "${block_delay}" 3; then
+          ui_fmt_delay value "${scaled}"
+          if (( scaled <= 1000 )); then level=ok; elif (( scaled <= 3000 )); then level=warn; else level=bad; fi
+        fi
+        glv_help_add "Last block" \
+          "Time from the start of the block's slot until this node had the block." \
+          "Under 1 s. Between 1 and 3 s now and then is fine. Over 5 s counts as late." "${value}" "${level}"
+        glv_help_add "Slowest · bars" \
+          "One bar for each block since gLiveView started, newest on the right: green up to 1 s, amber up to 3 s, red above. Slowest is the tallest of them."
+      fi
+      if node_metric_has blocks_w1s; then
+        value=''; level=''
+        if ui_scale scaled "${blocks_w1s}" 3; then
+          value="$((scaled / 10)).$((scaled % 10)) % within 1 s"
+          if (( scaled >= 900 )); then level=ok; else level=warn; fi
+        fi
+        glv_help_add "≤1s ≤3s ≤5s" \
+          "Share of all blocks since the node started that arrived within 1, 3 and 5 seconds." \
+          "As a rule of thumb, over 90 % within 1 s and over 99 % within 3 s." "${value}" "${level}"
+      fi
+      if node_metric_has blocks_late; then
+        glv_help_add "Late" "Blocks that took longer than 5 s." \
+          "Few. A count that grows steadily points at slow peers or a slow link." "${blocks_late}"
+      fi
+      if node_metric_has blocks_served; then
+        glv_help_add "Served" "Blocks this node handed to peers that asked for them."
+      fi
+      if (( ${#NODE_CUSTOM_METRICS[@]} > 0 )); then
+        glv_help_add "Other rows" \
+          "Figures ${D_IMPL} reports about itself, under the names its adapter gives them."
+      fi
+      if (( ${#HELP_ENTRIES[@]} == 0 )); then
+        glv_help_add "Propagation" "${D_IMPL} does not report how long blocks take to arrive."
+      fi
+      ;;
+    peers)
+      if node_metric_has peer_selection_hot; then
+        value="${peer_selection_hot} hot"; level=ok
+        [[ "${peer_selection_hot}" != 0 ]] || level=bad
+        glv_help_add "Outgoing" \
+          "Peers this node chose. Cold: known, not connected. Warm: connected and kept ready. Hot: connected and in use for headers and blocks." \
+          "Hot at the target in your node config: 20 in the stock relay config, your own relays on a core node." "${value}" "${level}"
+        if [[ -n "${D_BIG_HOT}" ]]; then
+          glv_help_add "Big ledger" \
+            "Relays of the largest pools, the ones that together hold most of the stake. The node picks them from the ledger and counts them apart from its other outgoing peers, with their own targets in the node config. They make it very likely that at least one peer is on the honest chain, which matters most while syncing."
+        fi
+        if node_metric_has inbound_governor_hot; then
+          glv_help_add "Incoming" \
+            "Peers that connected to this node. Hot: they fetch from it. Warm: they only hold the connection." \
+            "On a public relay, more than zero. Zero for a long time usually means the port cannot be reached."
+        fi
+        if node_metric_has conn_outgoing; then
+          glv_help_add "Conns" \
+            "The same peers counted as connections. Out is outgoing plus big ledger, hot and warm together. In is incoming, hot and warm together. Both are the connections used in both directions, so they are part of out and of in."
+        fi
+      else
+        if node_metric_has peer_active || node_metric_has peer_known; then
+          glv_help_add "Known · Established · Active" \
+            "Known: peers the node has heard of. Established: connected. Active: connected and in use." \
+            "Active above zero."
+        fi
+        if node_metric_has conn_outgoing || node_metric_has conn_incoming; then
+          glv_help_add "Outgoing · Incoming" \
+            "Connections this node opened, and connections other nodes opened to it."
+        fi
+        if node_metric_has conn_total; then
+          glv_help_add "Connections" "All connections ${D_IMPL} holds right now." "Above zero." "${conn_total}"
+        fi
+        if (( ${#HELP_ENTRIES[@]} == 0 )); then
+          glv_help_add "Peers" "${D_IMPL} does not report peer counters."
+        fi
+      fi
+      ;;
+    connections)
+      glv_help_add "Out · In" \
+        "Connections as the node counts them: the ones it uses to fetch from a peer, and the ones a peer uses to fetch from it."
+      if node_metric_has conn_duplex; then
+        glv_help_add "Used both ways" \
+          "Connections in use in both directions at once. They are part of Out and of In."
+        glv_help_add "Can go both ways · One way only" \
+          "What was agreed when the connection was made: either side may use it, or only the side that opened it."
+      fi
+      if [[ -n "${D_RAW[peerSelection_RootPeers]:-}" ]]; then
+        glv_help_add "Root peers · Local roots" \
+          "Root peers are the starting points the node knows from its topology and the ledger. Local roots are the peers you listed yourself in the topology file; the page shows how many of them are in use."
+      fi
+      if [[ -n "${D_RAW[inboundGovernor_cold]:-}" ]]; then
+        glv_help_add "Incoming idle · cold" \
+          "Peers that are connected to this node but do not use the connection right now."
+      fi
+      ;;
+    roundtrip)
+      glv_help_add "Classes" \
+        "Round-trip time of each connection in the list below, as the kernel measures it on the open connection. Nothing is sent to the peers. The filters of the list apply here too." \
+        "Most peers under 200 ms. A few far-away peers are useful; many slow ones delay blocks."
+      glv_help_add "No figure" "Connections the kernel has no measurement for yet."
+      ;;
+    peerlist)
+      glv_help_add "Tab" \
+        "Tab puts the focus on this list, so that up and down scroll it a line at a time. Tab or Esc gives the arrows back to the list of pages."
+      glv_help_add "Remote peer · RTT" \
+        "Every TCP connection of the node process, fastest first, with the kernel's round-trip time."
+      glv_help_add "a Analyse" \
+        "Reads the node's own view of each connection from its log, in the background. For cardano-node this sends the node a signal that makes it write its state to the log. The panel title shows how old that view is."
+      glv_help_add "Conn" \
+        "out: the node fetches from the peer. in: the peer fetches from the node. dup: both. idle: neither. H and W are hot and warm; dup shows the node's side, then the peer's."
+      glv_help_add "Score" \
+        "Headers the peer delivered first plus blocks fetched from it first, of the last 180 headers and 180 blocks." \
+        "Higher means the peer is more useful to this node."
+      glv_help_add "Location or static peer" \
+        "The label of a static peer from the topology file, else the city and country of the address from ip-api.com."
+      glv_help_add "This node itself" \
+        "A connection whose two ends are the node's own port on this host. The node has dialled itself, which happens when a static peer in its topology points at its own address. It is listed on purpose: it does no harm, but it takes the place of a real peer and shows that the topology was not finished." \
+        "None. Point the topology entry at the node it was meant for."
+      glv_help_add "Filters" \
+        "t shows only static peers, with the ones that are not connected listed last. d picks a direction, s a state. f finds part of an address or port; an empty answer clears it."
+      ;;
+    resources)
+      glv_help_cpu_host
+      if [[ -n "${D_PCPU}" ]]; then
+        glv_help_add "CPU (node)" \
+          "Processor use of the node process alone, in percent of one core, so it can pass 100 % on a host with several cores."
+      fi
+      glv_help_add "Mem (RSS)" \
+        "Memory the node process holds in RAM right now." \
+        "Well below the host's RAM, so the node never swaps."
+      if node_metric_has mem_live; then
+        glv_help_add "Live · heap" \
+          "From the Haskell runtime: data still in use after the last major collection, and the heap the runtime has reserved."
+      fi
+      glv_help_disk
+      if node_metric_has open_files; then
+        glv_help_add "Open files" "Files and sockets the node has open, against its limit."
+      fi
+      glv_help_add "Bars" "History since gLiveView started, newest on the right."
+      ;;
+    host)
+      glv_help_cpu_host
+      glv_help_add "Memory used · Memory · Available" \
+        "RAM of the host: the share in use, the total, and what programs could still get without swapping." \
+        "Available well above what the node may still grow by."
+      glv_help_disk
+      glv_help_add "Cores · Load" \
+        "Processor cores of the host, and the average number of processes wanting a core over the last 1, 5 and 15 minutes." \
+        "Load below the number of cores."
+      ;;
+    process)
+      glv_help_add "CPU (node)" \
+        "Processor use of the node process alone, in percent of one core, so it can pass 100 % on a host with several cores."
+      glv_help_add "Mem (RSS)" "Memory the node process holds in RAM right now."
+      glv_help_add "PID · Uptime · Threads" "The process number, how long it has run, and its threads."
+      if node_metric_has mem_live; then
+        glv_help_add "Live · Heap" \
+          "From the Haskell runtime: data still in use after the last major collection, and the heap the runtime has reserved."
+        glv_help_add "GC minor · major" \
+          "Memory collections since the node started. A major collection pauses the node briefly."
+      fi
+      if node_metric_has open_files; then
+        glv_help_add "Open files" "Files and sockets the node has open, against its limit."
+      fi
+      ;;
+    custom)
+      if (( ${#NODE_CUSTOM_METRICS[@]} > 0 )); then
+        glv_help_add "Rows" \
+          "Figures ${D_IMPL} reports about itself, under the names its adapter gives them. gLiveView shows them as they come and does not judge them."
+      fi
+      ;;
+    production)
+      if [[ "${D_ROLE}" != Core ]]; then
+        # The overview has no production panel on a relay; the page has a note.
+        [[ "${VIEW}" != 4 ]] ||
+          glv_help_add "Relay" "This node does not forge blocks, so there is nothing to explain here."
+      elif [[ "${2:-}" != page || "${VIEW}" == 1 ]]; then
+        glv_help_results
+        glv_help_keys
+      fi
+      ;;
+    results) [[ "${D_ROLE}" != Core ]] || glv_help_results ;;
+    keys) [[ "${D_ROLE}" != Core ]] || glv_help_keys ;;
+    schedule)
+      [[ "${D_ROLE}" == Core ]] || return 0
+      glv_help_add "Rows" \
+        "The leader slots of your pool this epoch, from the block log: the ones to come first, soonest on top, then the ones that have passed."
+      glv_help_add "Status" \
+        "next and scheduled are still to come. ✓ adopted or confirmed: the block is on the chain. ? no result: the slot has passed and the block log has not been updated for it yet. ✗ with missed, ghosted, stolen or invalid: the block was lost."
+      glv_help_add "Next epoch" \
+        "When the schedule of the next epoch has been calculated, the title says how many slots it holds."
+      ;;
+    epochs)
+      [[ "${D_ROLE}" == Core ]] || return 0
+      glv_help_add "Rows" \
+        "One row for each recent epoch in the block log: slots led, blocks adopted, the ideal number for the pool's stake, and leader against ideal as luck."
+      ;;
+    recent)
+      glv_help_add "Rows" \
+        "One row each time gLiveView sees a new tip. It looks every ${REFRESH_RATE} s, so two blocks in one look show as \"+1 more\"."
+      glv_help_add "Delay" "How long that block took to arrive, as in the Propagation panel."
+      glv_help_add "Notes" \
+        "fork switch: the node changed chain with this block. late: the block took over 5 s."
+      glv_help_events
+      ;;
+    events) glv_help_events ;;
+    log)
+      glv_help_add "Rows" \
+        "The newest 1,000 lines of the node's journal, newest first: time, where in the node the line comes from, and the message. Warnings are amber and errors red."
+      glv_help_add "p Pause" \
+        "Stops reading new lines, so the list holds still while you read. Press p again to follow the log."
+      glv_help_add "f Find" \
+        "Shows only the lines that match a pattern, in the time, the source or the message. Upper and lower case count the same. Start the pattern with ! to hide the matching lines instead. An empty answer clears it."
+      glv_help_add "l Level" "Cycles through all lines, notices and up, warnings and up, and errors."
+      glv_help_add "Tab · arrows" \
+        "Tab puts the focus on the log: its border turns double, and up and down then move through the lines one at a time. Tab or Esc gives the arrows back to the list of pages. PgUp and PgDn move half a screen either way, g goes to the newest line and G to the oldest. Left and right move a long line sideways so its end can be read."
+      ;;
+    node)
+      glv_help_add "Rows" \
+        "What is running: the implementation and its version, whether it forges blocks, its systemd service and process, and how gLiveView itself is set up."
+      ;;
+    network)
+      glv_help_add "Rows" \
+        "The constants of the network the node is on. Epoch and slot length give the length of an epoch in time; the KES rows say how long a KES key lasts before the operational certificate has to be renewed."
+      ;;
+    paths)
+      glv_help_add "Rows" \
+        "Where the deployment keeps its files, and the address gLiveView reads the node's metrics from."
+      ;;
+    startup)
+      glv_help_add "Rows" \
+        "How the node process was started: the options on its command line, and the settings in its environment that carry the node's own prefix. Values whose name suggests a key, token or password are hidden."
+      ;;
+    params)
+      glv_help_add "Rows" \
+        "The protocol parameters in force, grouped as network limits, economic values and governance values. Parameters this tool has no name for are listed under Other, so a new era shows up without an update."
+      glv_help_add "Source" \
+        "Asked from the node through its local socket where it has one, else from Koios. They are read when the page is opened and again when the epoch changes."
+      ;;
+    nodeinfo)
+      if (( ${#NODE_INFO_METRICS[@]} > 0 )); then
+        glv_help_add "Rows" "Facts ${D_IMPL} reports about itself through its adapter."
+      fi
+      ;;
+  esac
+}
+
+glv_help_cpu_host() {
+  local value level=ok
+  ui_fmt_tenths value "${D_CPU}"
+  (( D_CPU < 900 )) || level=warn
+  glv_help_add "CPU (sys)" \
+    "Processor use of the whole host, all cores together." \
+    "Room to spare. A host near 100 % delays block validation and forging." "${value} %" "${level}"
+}
+
+glv_help_disk() {
+  local level=ok
+  [[ -n "${D_DISK}" ]] || return 0
+  if (( D_DISK >= 95 )); then level=bad; elif (( D_DISK >= 85 )); then level=warn; fi
+  glv_help_add "Disk util" \
+    "How full the filesystem with the deployment folder is." "Under about 85 %." "${D_DISK} %" "${level}"
+}
+
+glv_help_results() {
+  if [[ -n "${D_SCHEDULE_EPOCH}" ]]; then
+    glv_help_add "Leader · Ideal · Luck" \
+      "Leader: slots your pool leads this epoch, from the leader schedule. Ideal: what its stake would give on average. Luck: leader against ideal."
+    glv_help_add "Adopted · Confirmed" \
+      "Adopted: blocks your node made and put on its chain. Confirmed: adopted blocks later verified to be on the chain."
+    glv_help_add "Missed · Ghosted · Stolen · Invalid" \
+      "Missed: the slot passed without a block from your node. Ghosted: the block was made but another block took its place, usually a propagation problem. Stolen: another pool led the same slot and won. Invalid: the node failed to make the block." \
+      "Missed, ghosted and invalid at 0. Stolen is chance."
+  else
+    glv_help_add "Leader · Adopted" \
+      "Counted by the node since it started: slots it led, and blocks it made and adopted. There is no leader schedule for this epoch yet, so nothing is known about slots to come."
+  fi
+}
+
+glv_help_keys() {
+  local value='' level='' remaining text colour
+  if node_metric_has remaining_kes_periods; then
+    value="${remaining_kes_periods} periods"; level=ok
+    if ui_scale remaining "${remaining_kes_periods}" 0; then
+      if (( remaining <= 5 )); then level=bad; elif (( remaining <= 15 )); then level=warn; fi
+    fi
+    glv_help_add "KES" \
+      "Periods left before the KES key expires and the operational certificate has to be renewed. A period is 36 hours on mainnet." \
+      "Renew well before it reaches 0. It turns amber at 15 periods and red at 5." "${value}" "${level}"
+  fi
+  glv_opcert_text text colour
+  level=''
+  if [[ "${colour}" == C_OK ]]; then level=ok; elif [[ "${colour}" == C_DANGER ]]; then level=bad; fi
+  glv_help_add "Op cert" \
+    "The counter of the certificate on disk and the last counter used on chain." \
+    "Equal, or disk one ahead after a renewal that has not made a block yet." "${text}" "${level}"
+  if node_metric_has missed_slots; then
+    glv_help_add "Missed chk" \
+      "Slot leader checks the node skipped, often during a pause for memory collection or a ledger snapshot." \
+      "A few are normal. Many in a row can cost a block." "${missed_slots}"
+  fi
+}
+
+glv_help_events() {
+  glv_help_add "Events" \
+    "Things that happened to the node while gLiveView was running: it went away or came back, restarted, an epoch started, it lost all hot peers, a sync phase changed, a block of yours was adopted, or it raised an alert. Fork switches and late blocks are listed too."
+}
+
+# glv_help_lines <panel> <width> [page]: the panel's help as typed lines in
+# HELP_LINES. The first character says what a line is: T a term (with the
+# current value and its verdict after tabs), X text, G the "Good:" text.
+glv_help_lines() {
+  local key="$1" width="$2" entry term text good value level line
+  local -a wrapped=()
+  HELP_LINES=()
+  glv_help_entries "${key}" "${3:-}"
+  for entry in "${HELP_ENTRIES[@]}"; do
+    term="${entry%%|*}"; entry="${entry#*|}"
+    text="${entry%%|*}"; entry="${entry#*|}"
+    good="${entry%%|*}"; entry="${entry#*|}"
+    value="${entry%%|*}"; level="${entry#*|}"
+    HELP_LINES+=("T${term}"$'\t'"${value}"$'\t'"${level}")
+    ui_wrap wrapped $((width - 2)) "${text}"
+    for line in "${wrapped[@]}"; do HELP_LINES+=("X${line}"); done
+    if [[ -n "${good}" ]]; then
+      ui_wrap wrapped $((width - 2)) "Good: ${good}"
+      for line in "${wrapped[@]}"; do HELP_LINES+=("G${line}"); done
+    fi
+  done
+}
+
+# glv_help_put <typed line> <width>: draws one help line into UI_BODY.
+glv_help_put() {
+  local line="$1" inner="$2" term value level colour word
+  case "${line:0:1}" in
+    H) ui_putw "${UI_BOLD}${C_ACCENT}" "${inner}" "${line:1}" ;;
+    T)
+      line="${line:1}"
+      term="${line%%$'\t'*}"; line="${line#*$'\t'}"
+      value="${line%%$'\t'*}"; level="${line#*$'\t'}"
+      ui_putw "${UI_BOLD}${C_ID}" $(( ${#term} < inner ? ${#term} : inner )) "${term}"
+      if [[ -n "${value}" ]] && (( UI_LW + ${#value} + 12 <= inner )); then
+        ui_gap 3
+        ui_put '' "${value}"
+        case "${level}" in
+          ok) colour="${C_OK}"; word="good" ;;
+          warn) colour="${C_WARN}"; word="watch" ;;
+          bad) colour="${C_DANGER}"; word="act" ;;
+          *) word='' ;;
+        esac
+        [[ -z "${word}" ]] || { ui_gap 2; ui_put "${colour}" "● ${word}"; }
+      fi ;;
+    G) ui_gap 2; ui_putw "${C_OK}" $((inner - 2)) "${line:1}" ;;
+    X) ui_gap 2; ui_putw '' $((inner - 2)) "${line:1}" ;;
+  esac
+  ui_endl UI_BODY "${inner}"
+}
+
+# glv_help_focus_move <1 or -1>: the next or the previous panel on the page.
+glv_help_focus_move() {
+  local count=${#UI_PANELS[@]} index=0 i
+  (( count > 0 )) || return 0
+  for i in "${!UI_PANELS[@]}"; do [[ "${UI_PANELS[i]}" != "${HELP_FOCUS}" ]] || index="${i}"; done
+  index=$(( (index + $1 + count) % count ))
+  HELP_FOCUS="${UI_PANELS[index]}"
+  HELP_SCROLL=0
+}
+
+# glv_help_drawer <width> <height>: the help for the focused panel, in P_DRAWER.
+glv_help_drawer() {
+  local width="$1" height="$2" inner=$(($1 - 4)) rows=$(($2 - 2)) limit line index=0 i right
+  glv_help_lines "${HELP_FOCUS}" "${inner}"
+  limit=$((${#HELP_LINES[@]} - rows))
+  (( limit >= 0 )) || limit=0
+  (( HELP_SCROLL <= limit )) || HELP_SCROLL="${limit}"
+  (( HELP_SCROLL >= 0 )) || HELP_SCROLL=0
+  UI_BASE="${UI_BASE_MAIN}"
+  UI_BODY=()
+  for line in "${HELP_LINES[@]:HELP_SCROLL:rows}"; do glv_help_put "${line}" "${inner}"; done
+  if (( ${#HELP_LINES[@]} == 0 )); then
+    ui_putw "${C_MUTED}" "${inner}" "There is nothing to explain about this panel on this node."
+    ui_endl UI_BODY "${inner}"
+  fi
+  for i in "${!UI_PANELS[@]}"; do [[ "${UI_PANELS[i]}" != "${HELP_FOCUS}" ]] || index=$((i + 1)); done
+  right="panel ${index} of ${#UI_PANELS[@]}"
+  (( HELP_SCROLL >= limit )) || right+=" · more below"
+  ui_panel P_DRAWER "${width}" "${height}" \
+    "? ${UI_PANEL_TITLE[${HELP_FOCUS}]:-${HELP_TITLE[${HELP_FOCUS}]:-Help}}" "${right}" ID
+}
+
+# glv_help_fullpage <width> <rows>: the help for every panel of the current
+# page as one scrollable text, appended to MAIN.
+glv_help_fullpage() {
+  local width="$1" height="$2" inner=$(($1 - 4)) visible=$(($2 - 2)) key limit line last
+  local -a all=()
+  for key in ${HELP_PAGE_KEYS[VIEW]}; do
+    glv_help_lines "${key}" "${inner}" page
+    (( ${#HELP_LINES[@]} > 0 )) || continue
+    (( ${#all[@]} == 0 )) || all+=("B")
+    all+=("H${HELP_TITLE[${key}]^^}" "${HELP_LINES[@]}")
+  done
+  limit=$((${#all[@]} - visible))
+  (( limit >= 0 )) || limit=0
+  (( HELP_SCROLL <= limit )) || HELP_SCROLL="${limit}"
+  (( HELP_SCROLL >= 0 )) || HELP_SCROLL=0
+  UI_BASE="${UI_BASE_MAIN}"
+  UI_BODY=()
+  for line in "${all[@]:HELP_SCROLL:visible}"; do glv_help_put "${line}" "${inner}"; done
+  last=$((HELP_SCROLL + visible))
+  (( last <= ${#all[@]} )) || last=${#all[@]}
+  ui_panel P_HELP "${width}" "${height}" "? ${HELP_PAGE_NAMES[VIEW]} page" \
+    "lines $((HELP_SCROLL + 1))-${last} of ${#all[@]}" ID
+  MAIN+=("${P_HELP[@]}")
+}
+
+##############################################################################
+# Start-up
+##############################################################################
+
+ui_locale_init || glv_die "no UTF-8 locale is available on this system."
+
+. "${PARENT}/env" monitor
+case $? in
+  1) glv_die "failed to initialise the node adapter. Check .deployment.json and env." ;;
+  3) glv_die "${NODE_IMPLEMENTATION} does not provide the metrics gLiveView needs." 3 ;;
+esac
+node_require metrics \
+  "${NODE_IMPLEMENTATION} does not expose a metrics interface supported by gLiveView." || exit $?
+
+[[ "${REFRESH_RATE:-}" =~ ^[1-9][0-9]*$ ]] || REFRESH_RATE=2
+
+if [[ -z "${GLV_THEME:-}" && -r "${PARENT}/cntools/.state/theme" ]]; then
+  read -r GLV_THEME < "${PARENT}/cntools/.state/theme" || GLV_THEME=''
+fi
+ui_theme "${GLV_THEME:-default}"
+
+# gum draws the command list. Without it the dashboard still runs.
+GUM=''
+for glv_candidate in "${NODE_HOME:-}/bin/gum" "${HOME:-}/.local/bin/gum" "$(type -P gum || true)"; do
+  if [[ -n "${glv_candidate}" && -x "${glv_candidate}" && ! -d "${glv_candidate}" ]]; then
+    GUM="${glv_candidate}"
+    break
+  fi
+done
+GLV_EXTRA_KEYS=()
+[[ -z "${GUM}" ]] || GLV_EXTRA_KEYS=("/ Command")
+
+# Peer analysis keeps the journal position it read up to, and the locations it
+# looked up, beside the script. The position file has the name and the format
+# gLiveView 1 used, so an existing one is carried on.
+GLV_PEER_STATE_FILE="${PARENT}/gLiveView.sh.peerstate"
+GLV_PEER_GEO_FILE="${PARENT}/gLiveView.sh.geo"
+PEER_JOB_FILE="${TMPDIR:-/tmp}/gLiveView.$$.peers"
+PARAMS_JOB_FILE="${TMPDIR:-/tmp}/gLiveView.$$.params"
+glv_peers_geo_load
+
+# ── terminal ─────────────────────────────────────────────────────────────────
+STTY_SAVED=''
+COLS=0
+ROWS=0
+
+# Reads the terminal size from standard input, which is the terminal. Asking
+# /dev/tty fails where there is no controlling terminal (under "su -c"), and
+# no resize signal arrives there either, so the main loop calls this on every
+# pass. A changed size redraws the whole screen.
+glv_size_check() {
+  local size='' rows cols
+  size="$(stty size 2>/dev/null)" || size="$(stty size 2>/dev/null < /dev/tty)" || size=''
+  rows="${size%% *}"
+  cols="${size##* }"
+  if [[ ! "${rows}" =~ ^[1-9][0-9]*$ || ! "${cols}" =~ ^[1-9][0-9]*$ ]]; then
+    rows="$(tput lines 2>/dev/null)" || rows=''
+    cols="$(tput cols 2>/dev/null)" || cols=''
+    [[ "${rows}" =~ ^[1-9][0-9]*$ && "${cols}" =~ ^[1-9][0-9]*$ ]] || { rows=24; cols=80; }
+  fi
+  [[ "${rows}" != "${ROWS}" || "${cols}" != "${COLS}" ]] || return 0
+  ROWS="${rows}"
+  COLS="${cols}"
+  ui_invalidate
+  printf '\e[2J'
+}
+
+glv_cleanup() {
+  glv_peers_cleanup
+  [[ -z "${PARAMS_JOB_PID:-}" ]] || kill "${PARAMS_JOB_PID}" 2>/dev/null || true
+  rm -f -- "${PARAMS_JOB_FILE:-/nonexistent}" "${PARAMS_JOB_FILE:-/nonexistent}.part"
+  printf '\e[?25h\e[?1049l'
+  [[ -z "${STTY_SAVED}" ]] || stty "${STTY_SAVED}" 2>/dev/null
+}
+
+# The command list is a gum filter. gum owns the terminal while it is open, so
+# the page pauses and is redrawn in full afterwards.
+glv_command_palette() {
+  local choice='' i
+  local -a rows=()
+  [[ -n "${GUM}" ]] || return 0
+  for i in 1 2 3 4 5 6 7; do
+    printf -v choice '%02d  ›  %s' "${i}" "${VIEW_NAMES[i]}"
+    rows+=("${choice}")
+  done
+  rows+=("08  •  Help: what the figures mean" "09  •  Redraw" "10  ✕  Quit")
+  printf '\e[2J\e[H\e[?25h'
+  stty "${STTY_SAVED}" 2>/dev/null
+  # The rows go in as arguments, so gum keeps the terminal as its input.
+  choice="$("${GUM}" filter --limit 1 --height 14 \
+    --width "$(( COLS < 64 ? COLS - 2 : 62 ))" --padding "1 2" --no-fuzzy \
+    --placeholder "Type to filter, Enter to run, Esc twice to close" \
+    --placeholder.foreground "${HEX_MUTED}" \
+    --prompt "› " --prompt.foreground "${HEX_ACCENT}" \
+    --indicator "▸ " --indicator.foreground "${HEX_ACCENT}" \
+    --match.foreground "${HEX_OK}" --text.foreground "${HEX_TEXT}" \
+    --cursor-text.foreground "${HEX_TEXT}" \
+    --cursor-text.background "${HEX_SURFACE}" -- "${rows[@]}")" || choice=''
+  stty -echo 2>/dev/null
+  printf '\e[?25l\e[2J'
+  ui_invalidate
+  case "${choice:0:2}" in
+    0[1-7]) glv_view_set "${choice:1:1}" ;;
+    08) HELP=Y; HELP_SCROLL=0 ;;
+    10) exit 0 ;;
+  esac
+}
+
+# glv_prompt <label> <current value>: asks for a line of text on the last row
+# and leaves it in GLV_INPUT. Returns 1 when the question was cancelled.
+glv_prompt() {
+  local status=0
+  GLV_INPUT="$2"
+  printf '\e[%d;1H\e[2K\e[?25h' "${ROWS}"
+  stty "${STTY_SAVED}" 2>/dev/null
+  if [[ -n "${GUM}" ]]; then
+    GLV_INPUT="$("${GUM}" input --prompt "$1 › " --value "$2" --width "$((COLS - ${#1} - 6))" \
+      --placeholder "empty clears it" --prompt.foreground "${HEX_ACCENT}" \
+      --cursor.foreground "${HEX_ACCENT}")" || status=1
+  else
+    IFS= read -r -p "$1 (empty clears it): " GLV_INPUT || status=1
+  fi
+  stty -echo 2>/dev/null
+  printf '\e[?25l\e[2J'
+  ui_invalidate
+  return "${status}"
+}
+
+# The keys of the Peers page: the analysis and its filters.
+glv_key_peers() {
+  case "$1" in
+    a) glv_peers_job_start ;;
+    f) if glv_prompt "Find address or port" "${PEER_SEARCH}"; then PEER_SEARCH="${GLV_INPUT}"; fi ;;
+    t) glv_peers_static_capable || return 1
+       if [[ "${PEER_FILTER_STATIC}" == all ]]; then PEER_FILTER_STATIC=static; else PEER_FILTER_STATIC=all; fi ;;
+    d) [[ "${node_peer_state_available}" == true ]] || return 1
+       case "${PEER_FILTER_DIR}" in all) PEER_FILTER_DIR=out ;; out) PEER_FILTER_DIR=in ;; in) PEER_FILTER_DIR=dup ;; *) PEER_FILTER_DIR=all ;; esac ;;
+    s) [[ "${node_peer_state_available}" == true ]] || return 1
+       case "${PEER_FILTER_STATE}" in any) PEER_FILTER_STATE=hot ;; hot) PEER_FILTER_STATE=warm ;; *) PEER_FILTER_STATE=any ;; esac ;;
+    *) return 1 ;;
+  esac
+  PAGE_SCROLL=0
+}
+
+# The keys of the Logs page: pause, find, level and moving a line sideways.
+glv_key_logs() {
+  case "$1" in
+    p) if [[ "${LOG_PAUSED}" == Y ]]; then
+         LOG_PAUSED=N
+         glv_data_logs
+       else
+         LOG_PAUSED=Y
+         printf -v LOG_PAUSED_AT '%(%s)T' -1
+       fi ;;
+    f) if glv_prompt "Find in log (start with ! to hide matches)" "${LOG_FIND}"; then LOG_FIND="${GLV_INPUT}"; PAGE_SCROLL=0; fi ;;
+    l) LOG_LEVEL=$(( (LOG_LEVEL + 1) % 4 )); PAGE_SCROLL=0 ;;
+    $'\e[C') LOG_SHIFT=$((LOG_SHIFT + 20)) ;;
+    $'\e[D') LOG_SHIFT=$(( LOG_SHIFT >= 20 ? LOG_SHIFT - 20 : 0 )) ;;
+    G|$'\e[F') PAGE_SCROLL=1000000 ;;
+    *) return 1 ;;
+  esac
+}
+
+# The keys of help mode: the focus moves from panel to panel, and the text
+# scrolls. Anything else falls through to the keys of every page.
+glv_key_help() {
+  local step=$((ROWS / 2))
+  case "$1" in
+    '?'|h|$'\e') HELP=N ;;
+    $'\e[C'|$'\t') [[ "${HELP_MODE}" != drawer ]] || glv_help_focus_move 1 ;;
+    $'\e[D'|$'\e[Z') [[ "${HELP_MODE}" != drawer ]] || glv_help_focus_move -1 ;;
+    $'\e[A'|k) HELP_SCROLL=$((HELP_SCROLL - 2)) ;;
+    $'\e[B'|j) HELP_SCROLL=$((HELP_SCROLL + 2)) ;;
+    $'\e[5~') HELP_SCROLL=$((HELP_SCROLL - step)) ;;
+    $'\e[6~'|' ') HELP_SCROLL=$((HELP_SCROLL + step)) ;;
+    $'\e[H'|g) HELP_SCROLL=0 ;;
+    *) return 1 ;;
+  esac
+}
+
+# glv_view_set <number>: switches page and fetches what only that page shows.
+# Help stays open and starts at the first panel of the new page.
+glv_view_set() {
+  (( $1 >= 1 && $1 <= 7 )) || return 0
+  VIEW="$1"
+  PAGE_SCROLL=0
+  PAGE_FOCUS=N
+  HELP_SCROLL=0
+  HELP_FOCUS=''
+  glv_data_view
+}
+
+glv_key() {
+  local step=$((ROWS / 2))
+  if [[ "${HELP}" == Y ]]; then
+    ! glv_key_help "$1" || return 0
+  elif (( VIEW == 3 )); then
+    ! glv_key_peers "$1" || return 0
+  elif (( VIEW == 6 )); then
+    ! glv_key_logs "$1" || return 0
+  fi
+  case "$1" in
+    q|Q) exit 0 ;;
+    [1-6]) glv_view_set "$1" ;;
+    n) glv_view_set 7 ;;
+    '?'|h) HELP=Y; HELP_SCROLL=0 ;;
+    # Tab gives the arrows to the list on the page, Tab or Esc gives them back.
+    $'\t')
+      [[ "${PAGE_FOCUSABLE[VIEW]}" == Y ]] || return 1
+      if [[ "${PAGE_FOCUS}" == Y ]]; then PAGE_FOCUS=N; else PAGE_FOCUS=Y; fi ;;
+    $'\e') [[ "${PAGE_FOCUS}" == Y ]] || return 1; PAGE_FOCUS=N ;;
+    $'\e[A'|k) if [[ "${PAGE_FOCUS}" == Y ]]; then PAGE_SCROLL=$((PAGE_SCROLL - 1)); else glv_view_set $((VIEW - 1)); fi ;;
+    $'\e[B'|j) if [[ "${PAGE_FOCUS}" == Y ]]; then PAGE_SCROLL=$((PAGE_SCROLL + 1)); else glv_view_set $((VIEW + 1)); fi ;;
+    $'\e[5~') PAGE_SCROLL=$((PAGE_SCROLL - step)) ;;
+    $'\e[6~'|' ') PAGE_SCROLL=$((PAGE_SCROLL + step)) ;;
+    $'\e[H'|g) PAGE_SCROLL=0; LOG_SHIFT=0 ;;
+    /) glv_command_palette ;;
+    r) ui_invalidate; printf '\e[2J' ;;
+    *) return 1 ;;
+  esac
+}
+
+# ── main loop ────────────────────────────────────────────────────────────────
+[[ -t 0 && -t 1 ]] || glv_die "gLiveView needs an interactive terminal."
+
+STTY_SAVED="$(stty -g)"
+trap glv_cleanup EXIT
+trap 'exit 130' INT TERM
+trap ':' WINCH
+stty -echo
+printf '\e[?1049h\e[?25l'
+glv_data_init
+
+glv_next_collect=0
+glv_next_tick=0
+while :; do
+  glv_size_check
+  glv_now="${EPOCHREALTIME/[.,]/}"
+  if (( glv_now >= glv_next_collect )); then
+    glv_data_collect
+    glv_next_collect=$((${EPOCHREALTIME/[.,]/} + REFRESH_RATE * 1000000))
+  else
+    glv_data_clock
+  fi
+  glv_render
+  glv_next_tick=$((${EPOCHREALTIME/[.,]/} + 1000000))
+  (( glv_next_tick <= glv_next_collect )) || glv_next_tick="${glv_next_collect}"
+
+  # Short waits, so a resize is picked up without waiting for the tick.
+  while :; do
+    glv_now="${EPOCHREALTIME/[.,]/}"
+    (( glv_now < glv_next_tick )) || break
+    glv_slice=$((glv_next_tick - glv_now))
+    (( glv_slice <= 200000 )) || glv_slice=200000
+    printf -v glv_timeout '%d.%06d' "$((glv_slice / 1000000))" "$((glv_slice % 1000000))"
+    if IFS= read -rsn1 -t "${glv_timeout}" glv_pressed; then
+      if [[ "${glv_pressed}" == $'\e' ]]; then
+        IFS= read -rsn2 -t 0.02 glv_rest || glv_rest=''
+        glv_pressed+="${glv_rest}"
+        # Page keys send one more character after the number.
+        if [[ "${glv_rest}" == '['[0-9] ]]; then
+          IFS= read -rsn1 -t 0.02 glv_rest || glv_rest=''
+          glv_pressed+="${glv_rest}"
+        fi
+      fi
+      ! glv_key "${glv_pressed}" || break
+    fi
+  done
 done

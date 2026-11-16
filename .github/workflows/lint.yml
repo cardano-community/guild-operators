@@ -42,8 +42,6 @@ jobs:
       run: bash files/tests/cnode-metrics.sh
     - name: gLiveView peer analysis tests
       run: bash files/tests/gliveview-peer-analysis.sh
-    - name: gLiveView legacy frame tests
-      run: bash files/tests/gliveview-legacy-frame.sh
     - name: Dingo metrics adapter tests
       run: bash files/tests/dingo-metrics.sh
     - name: Amaru metrics adapter tests

@@ -25,13 +25,79 @@ assert_eq() {
 }
 
 GLIVEVIEW="${REPO_ROOT}/scripts/common-helper-scripts/gLiveView.sh"
-for glv_function in getNodePeerState getCnodePeerState getAmaruPeerState readNodePeerLog saveNodePeerLog peerConnection \
-  peerConnAvailable peerScoreFor peerMatchesFilter computePeerStats waitForKeyOrResize \
-  resolvePeerAddress getStaticPeers staticPeerLabelFor; do
+for glv_function in getNodePeerState getCnodePeerState getAmaruPeerState readNodePeerLog saveNodePeerLog \
+  glv_peer_connection glv_peer_score glv_peer_matches glv_peers_select glv_peer_label \
+  resolvePeerAddress getStaticPeers; do
   glv_definition="$(sed -n "/^${glv_function}() {/,/^}/p" "${GLIVEVIEW}")"
   [[ -n "${glv_definition}" ]] || fail "gLiveView no longer defines ${glv_function}"
   eval "${glv_definition}"
 done
+
+# gLiveView lists the connections of one ss call, with round trips in tenths
+# of a millisecond, and filters them on every frame. The cases below state
+# peers as "rtt in ms;ip;port;side;local port" and read the selection back in
+# that form, so these adapters translate both ways around the real functions.
+peerConnAvailable() {
+  [[ ${node_peer_state_available} = true ]]
+}
+peerConnection() {
+  glv_peer_connection "$@"
+  peerConnUse="${PC_USE}"
+  peerConnOut="${PC_OUT}"
+  peerConnIn="${PC_IN}"
+  peerConnFmt="${PC_TEXT}"
+}
+peerScoreFor() {
+  glv_peer_score "$@"
+  peerScoreFmt="${PC_SCORE}"
+}
+staticPeerLabelFor() {
+  glv_peer_label "$@"
+  peerStaticLabel=""
+  [[ ${PEER_LABEL_KIND} != static ]] || peerStaticLabel="${PEER_LABEL}"
+}
+computePeerStats() {
+  local result rtt ip port side local_port entry note
+  local -a sorted=()
+  D_PEERS=()
+  if [[ ${#rttResults[@]} -gt 0 ]]; then
+    mapfile -t sorted < <(printf '%s\n' "${rttResults[@]}" | sort -n)
+  fi
+  for result in "${sorted[@]}"; do
+    IFS=';' read -r rtt ip port side local_port <<< "${result}"
+    [[ ${rtt} = 99999 ]] && rtt=999999 || rtt=$((rtt * 10))
+    [[ ${side} = o ]] && side=out || side=in
+    D_PEERS+=("${rtt}|${side}|${ip}|${port}|${local_port}")
+  done
+  PEER_FILTER_DIR="${peer_filter_dir}"
+  PEER_FILTER_STATE="${peer_filter_state}"
+  PEER_FILTER_STATIC="${peer_filter_static}"
+  PEER_SEARCH="${peer_search}"
+  glv_peers_select
+  peer_filter_dir="${PEER_FILTER_DIR}"
+  peer_filter_state="${PEER_FILTER_STATE}"
+  peerCNT=0
+  rttResultsSorted=""
+  for entry in "${PEER_SELECTED[@]}"; do
+    IFS='|' read -r rtt ip port local_port note <<< "${entry}"
+    if [[ ${note} = x || ${note} = u ]]; then
+      rttResultsSorted+="99999;${ip};${port};${note}"$'\n'
+      continue
+    fi
+    peerCNT=$((peerCNT + 1))
+    [[ ${rtt} = 999999 ]] && rtt=99999 || rtt=$((rtt / 10))
+    [[ ${note} = out ]] && note=o || note=i
+    rttResultsSorted+="${rtt};${ip};${port};${note};${local_port}"$'\n'
+  done
+  rttResultsSorted="${rttResultsSorted%$'\n'}"
+  peerListCNT=${#PEER_SELECTED[@]}
+  peerCNT1=${PEER_COUNT[0]}
+  peerCNT2=${PEER_COUNT[1]}
+  peerCNT3=${PEER_COUNT[2]}
+  peerCNT4=${PEER_COUNT[3]}
+  peerCNT0=${PEER_COUNT[4]}
+  peerRTTAVG="${PEER_AVERAGE:-0}"
+}
 
 peer_filter_dir="all"
 peer_filter_state="any"
@@ -45,6 +111,7 @@ declare -A nodeRemoteTemp=()
 declare -A staticPeer=()
 declare -A staticPeerPort=()
 declare -A staticPeerEntries=()
+declare -A geoIP=()
 staticPeerList=()
 node_peer_state_available=false
 
@@ -630,27 +697,5 @@ assert_eq "$(conn_cell 3.126.235.206 30000 3000)|$(conn_cell 3.248.56.78 3001 30
   "idle||0" "restarted Amaru drops the saved state"
 NODE_IMPLEMENTATION="cnode"
 PS_COMM="cardano-node"
-
-# Static views wait for a key, and redraw only when the terminal is resized.
-TERM_SIZE_CALLS="${TEST_ROOT}/tput.calls"
-CLEARED="${TEST_ROOT}/cleared"
-tput() {
-  printf '%s\n' "$1" >> "${TERM_SIZE_CALLS}"
-  # The size reported changes after the first lookup of each dimension.
-  if [[ $(grep -c "^$1\$" "${TERM_SIZE_CALLS}") -le 1 ]]; then printf '40\n'; else printf '41\n'; fi
-}
-clrScreen() {
-  : > "${CLEARED}"
-}
-key1=""
-{ waitForKeyOrResize; printf '%s|%s' "$?" "${key1}" > "${TEST_ROOT}/key"; } <<< "d"
-assert_eq "$(cat "${TEST_ROOT}/key")" "0|d" "key pressed on a static view"
-[[ ! -e "${CLEARED}" ]] || fail "a key press cleared the screen"
-
-: > "${TERM_SIZE_CALLS}"
-if sleep 2 | waitForKeyOrResize; then
-  fail "a resized terminal did not ask for a redraw"
-fi
-[[ -e "${CLEARED}" ]] || fail "a resized terminal was not cleared before redrawing"
 
 printf 'gliveview-peer-analysis: ok\n'

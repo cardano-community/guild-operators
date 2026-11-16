@@ -32,13 +32,6 @@ assert_eq() {
 node_has block_replay_log ||
   fail "cnode adapter does not advertise ledger replay progress"
 
-GLIVEVIEW="${REPO_ROOT}/scripts/common-helper-scripts/gLiveView.sh"
-for glv_function in getBlockReplayStatus glvFrameStatus glvFrameProgressBar; do
-  glv_definition="$(sed -n "/^${glv_function}() {/,/^}/p" "${GLIVEVIEW}")"
-  [[ -n "${glv_definition}" ]] || fail "gLiveView no longer defines ${glv_function}"
-  eval "${glv_definition}"
-done
-
 CNODEBIN="cardano-node"
 CNODE_PORT=3001
 CNODE_VNAME="preprod"
@@ -106,7 +99,7 @@ fi
 SERVICE_ACTIVE=0
 
 # During replay the node exports no tip; collection reports the replay as a
-# sync phase and both gLiveView layouts show it.
+# sync phase, which gLiveView shows in place of the epoch marks.
 METRICS_FIXTURE="${REPLAY_METRICS}"
 JOURNAL_FIXTURE="$(replay_json 26 98.94500316417778)"
 node_metric_reset_availability
@@ -114,25 +107,6 @@ node_adapter_collect_metrics || fail "metric collection failed during replay"
 node_metric_has sync_phase || fail "replay did not set a sync phase"
 assert_eq "${sync_phase}" "Ledger replay" "replay sync phase"
 assert_eq "${sync_progress}" "98.95" "replay sync progress"
-
-getBlockReplayStatus
-assert_eq "${block_replay_pct:-}" "98.95" "core layout DB Replay value"
-
-width=60
-VL="|"
-NC=""
-style_status_2=""
-style_status_3=""
-style_values_1=""
-granularity=10
-char_marked="#"
-char_unmarked="."
-glv_frame_reset
-glvFrameStatus
-assert_eq "${#GLV_FRAME_NEXT[@]}" "2" "relay layout replay rows"
-[[ "${GLV_FRAME_NEXT[0]}" == "| SYNC: Ledger replay [98.95%] "* ]] ||
-  fail "relay layout replay row: got '${GLV_FRAME_NEXT[0]}'"
-assert_eq "${GLV_FRAME_NEXT[1]}" "| #########. |" "relay layout replay bar"
 
 # Once the node has a tip, the journal is not read.
 : > "${JOURNAL_CALLS}"
@@ -143,7 +117,5 @@ if node_metric_has sync_phase || node_metric_has sync_progress; then
   fail "a synced node reported a ledger replay"
 fi
 [[ ! -s "${JOURNAL_CALLS}" ]] || fail "the journal was read for a node with a tip"
-getBlockReplayStatus
-assert_eq "${block_replay_pct:-}" "" "core layout DB Replay value after replay"
 
 printf 'cnode-metrics: ok\n'
