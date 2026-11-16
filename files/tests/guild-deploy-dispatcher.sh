@@ -900,6 +900,46 @@ for semantic_case in cnode-metrics dingo-capability amaru-capability extra-capab
   fi
 done
 
+# A deployment made before Amaru block production has forging=false in its
+# manifest. A later guild-deploy.sh run and the runtime branch update accept
+# both values.
+for amaru_forging in false true; do
+  amaru_forging_dir="amaru_forging_${amaru_forging}"
+  mkdir -p "${TEST_DIR}/${amaru_forging_dir}"
+  jq --arg service "${amaru_forging_dir}" --argjson forging "${amaru_forging}" '
+    .serviceName = $service |
+    .implementation = "amaru" |
+    .metricsProvider = "otel" |
+    .capabilities.n2c = false |
+    .capabilities.localCli = false |
+    .capabilities.forging = $forging
+  ' "${TEST_DIR}/existing/.deployment.json" \
+    > "${TEST_DIR}/${amaru_forging_dir}/.deployment.json"
+  (
+    unset CNODE_NAME CNODE_PATH NETWORK BRANCH G_ACCOUNT
+    NODE_IMPLEMENTATION="amaru"
+    NODE_PARENT="${TEST_DIR}"
+    NODE_NAME="amaru-forging-${amaru_forging}"
+    NETWORK_EXPLICIT="N"
+    NETWORK_PRESET="N"
+    BRANCH_EXPLICIT="N"
+    BRANCH_PRESET="N"
+    G_ACCOUNT_PRESET="N"
+    SUDO="N"
+    dispatcher_set_defaults
+    assert_eq "${NETWORK}" "preview"
+    assert_eq "${BRANCH}" "alpha"
+  ) || fail "dispatcher rejected an Amaru manifest with forging=${amaru_forging}"
+  (
+    NODE_HOME="${TEST_DIR}/${amaru_forging_dir}"
+    # shellcheck source=/dev/null
+    . "${REPO_ROOT}/scripts/common-helper-scripts/lib/deployment.library"
+    deployment_branch_exists() { return 0; }
+    deployment_set_branch "_alpha"
+  ) >/dev/null 2>&1 ||
+    fail "runtime branch update rejected an Amaru manifest with forging=${amaru_forging}"
+done
+
 mkdir -p "${TEST_DIR}/partial_dingo/scripts/adapters"
 printf '%s\n' \
   '#!/usr/bin/env bash' \

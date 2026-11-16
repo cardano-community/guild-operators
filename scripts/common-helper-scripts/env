@@ -150,7 +150,9 @@ if [[ -e "${_deployment_manifest}" || -L "${_deployment_manifest}" ]]; then
         .capabilities.n2c == false and
         .capabilities.localCli == false and
         .capabilities.metrics == true and
-        .capabilities.forging == false
+        # false in a manifest written before Amaru block production; the
+        # next guild-deploy.sh run writes true.
+        (.capabilities.forging | type == "boolean")
       )
     )
   ' "${_deployment_manifest}" >/dev/null 2>&1; then

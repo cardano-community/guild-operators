@@ -2,10 +2,10 @@
 
 !!! danger "Experimental rolling-release support"
     Amaru is under rapid development and ships a new public-beta build most
-    weeks. The Guild Operators profile runs Amaru as a relay only, on
-    `preprod`, `preview` and `mainnet`. Try it on a testnet first; running a
-    mainnet relay is at your own responsibility. Do not use it as a stake-pool
-    deployment.
+    weeks. The Guild Operators profile runs Amaru as a relay or as a block
+    producer on `preprod`, `preview` and `mainnet`. Try it on a testnet first;
+    running Amaru on mainnet, and producing blocks with it there in
+    particular, is at your own responsibility.
 
 !!! warning "Coming from an earlier Amaru deployment"
     Current Amaru releases refuse chain databases created by older releases,
@@ -98,6 +98,12 @@ The default layout below assumes `/opt/cardano/amaru`:
 │   ├── amaru-release.json
 │   └── otelcol.yaml
 ├── logs/
+├── priv/
+│   └── pool/
+│       └── <POOL_NAME>/   # block producers only
+│           ├── hot.skey       # online KES signing key
+│           ├── vrf.skey       # online VRF signing key
+│           └── op.cert        # operational certificate
 ├── runtime/
 ├── snapshots/             # downloaded bootstrap snapshots, reused on retry
 └── scripts/
@@ -141,6 +147,99 @@ bootstrap refuses to proceed if either already holds data, which prevents a
 partial or existing database from being overwritten automatically. The
 launcher treats a node as bootstrapped only when both directories contain
 data.
+
+## Relay and block-producer modes
+
+Role selection follows the established cnode behavior. Pool settings live in
+the common `scripts/env`, the same file CNTools and the other Guild scripts
+read, so they all see the same pool folder. The pool folder is
+`${POOL_FOLDER}/${POOL_NAME}`. Edit the User Variables section of
+`scripts/env` and set `POOL_NAME` to the pool subfolder below
+`$NODE_HOME/priv/pool`. To keep the online keys elsewhere, also set
+`POOL_FOLDER` to the folder that holds the pool subfolder:
+
+```bash
+POOL_NAME="my-pool"
+# Keys outside $NODE_HOME/priv/pool, here in /secure/online-keys/my-pool:
+# POOL_FOLDER="/secure/online-keys"
+```
+
+`amaru.sh` loads these values the same way `cnode.sh` does, so a value
+exported by the calling shell or container is honored unless `scripts/env`
+sets one. `amaru.env` holds no key settings.
+
+The expected filenames match the Guild cnode convention:
+
+| File | Purpose | Passed to Amaru as |
+| --- | --- | --- |
+| `hot.skey` | KES signing key | `AMARU_OPERATOR_KES` |
+| `vrf.skey` | VRF signing key | `AMARU_OPERATOR_VRF` |
+| `op.cert` | Operational certificate | `AMARU_OPERATOR_CERT` |
+
+- If none of these files is present, `amaru.sh run` starts a relay.
+- If all three are present and readable, it starts a block producer.
+- A partial set is treated as an operator error and startup stops with the
+  missing paths instead of silently falling back to a relay.
+
+`amaru.sh` owns the effective runtime role. It exports the three
+`AMARU_OPERATOR_*` variables only when the complete set is present. A value
+for one of them that is inherited from the shell or set in `amaru.env` is
+dropped with a warning, so the pool folder alone decides the role.
+
+Amaru loads the standard `cardano-cli` text-envelope formats, so an existing
+pool's operational hot keys do not need conversion. Copy only the three online
+files to the node. Keep the cold signing key and operational certificate
+counter offline; Amaru takes the cold verification key from the operational
+certificate. The KES and VRF signing files must be owned by the service user
+and have no group or other permissions; for example:
+
+```bash
+chmod 700 /opt/cardano/amaru/priv/pool/my-pool
+chmod 600 /opt/cardano/amaru/priv/pool/my-pool/{hot.skey,vrf.skey}
+chmod 644 /opt/cardano/amaru/priv/pool/my-pool/op.cert
+```
+
+At startup Amaru itself checks that the KES key is the hot key named in the
+operational certificate, verifies the certificate's cold-key signature, and
+compares the certificate counter with the chain it has adopted. It exits when
+one of these checks fails. Guild does not duplicate those protocol checks.
+The pool must already be registered and delegated on the selected network to
+have a chance of being elected as slot leader.
+
+Amaru reads the credential files only when it starts and does not re-read
+them on a signal, so `amaru.sh` has no `reload` command. To rotate the KES key
+or operational certificate, replace `hot.skey` and `op.cert` in place and
+restart the service:
+
+```bash
+/opt/cardano/amaru/scripts/amaru.sh restart
+```
+
+The node does not produce blocks while it restarts, so pick a moment without
+an upcoming leader slot. Use `restart` as well to change between relay and
+producer mode.
+
+`amaru.sh bootstrap` always forces relay mode and does not require hot keys.
+This permits state import before the operational credentials are copied. The
+generated systemd unit remains role-neutral: every service start repeats the
+same complete-key-set detection, so adding or removing the set changes the
+runtime role without regenerating the unit. `amaru.sh -d` reports the mode it
+detects at install time.
+
+A block producer normally connects only to the operator's own relays, so
+restrict its node-to-node port at the firewall. The template's peer settings
+are sized for a relay: Amaru's default peer mix also fills upstream slots with
+peers it discovers. `AMARU_PEERS_MIX` lists the sources Amaru takes upstream
+peers from, and a source that is left out is disabled. For a producer, list
+only your own relays in `AMARU_PEER`, keep only the `static` source, and set
+its floor and `AMARU_PEERS_MAX_UPSTREAM` to the number of relays. With two
+relays:
+
+```bash
+AMARU_PEER="relay1.example.com:3000,relay2.example.com:3000"
+AMARU_PEERS_MIX="static!2"
+AMARU_PEERS_MAX_UPSTREAM="2"
+```
 
 ## Bootstrap and service
 
@@ -197,7 +296,7 @@ implementation, network, service, or deployment root, run/bootstrap/install
 commands stop and require a corrected deployment instead of managing the
 wrong target.
 
-The default relay listener is TCP 3000 on `0.0.0.0`. `AMARU_PEERS_MAX_DOWNSTREAM`
+The default node-to-node listener is TCP 3000 on `0.0.0.0`. `AMARU_PEERS_MAX_DOWNSTREAM`
 also caps accepted inbound connections: 10 by default on the testnets, 50 on
 mainnet; raise it for a busier public relay. Outbound connections reuse the listen port as their source port
 when the operating system allows it, so firewall rules that match on source
@@ -220,10 +319,9 @@ Restart the service afterwards. A deployment refresh keeps an existing
 `amaru.env` unless `-s f` is used, which archives the old file under
 `scripts/archive/` first.
 
-Amaru provides no cardano-node-compatible node-to-client socket, and this
-profile does not enable Amaru's testnet block production. Its optional HTTP
-transaction submission endpoint, `AMARU_SUBMIT_API_LISTEN_ON`, is disabled
-because it has no built-in authentication or TLS.
+Amaru provides no cardano-node-compatible node-to-client socket. Its optional
+HTTP transaction submission endpoint, `AMARU_SUBMIT_API_LISTEN_ON`, is
+disabled because it has no built-in authentication or TLS.
 
 ## Moving a cnode relay to Amaru
 
@@ -231,8 +329,8 @@ An existing cnode relay on `mainnet`, `preprod` or `preview` can move to Amaru
 without changing its block producer, other relays, or firewall. Amaru is deployed in its
 own top-level folder next to cnode, catches up while cnode keeps serving, and
 then takes over cnode's port. cnode's folder and database stay untouched, so
-going back only means swapping the services again. Keep block producers on
-cnode.
+going back only means swapping the services again. These steps cover relays
+only.
 
 If the relay still uses the standard layout that `guild-deploy.sh` created,
 `migrate-from-cnode.sh` runs these steps for you. It reads the port, topology,
@@ -361,7 +459,7 @@ The adapter also handles scientific-notation values emitted through
 OpenTelemetry. The header shows Amaru's logo and name, or `[Amaru]` when it
 [falls back to text](../Scripts/gliveview.md).
 
-Amaru uses the same availability-driven relay dashboard as the other
+Amaru uses the same availability-driven dashboard as the other
 implementations. Compact mode presents the primary operational metrics,
 including the latest block delay, which gLiveView derives from Amaru's header
 and block-fetch timings. Verbose mode adds the share of recent blocks received
@@ -384,11 +482,20 @@ are bounded to preserve alignment. Normal refreshes update changed rows, with
 a periodic whole-frame row reconciliation that does not clear the terminal
 first. See the [gLiveView guide](../Scripts/gliveview.md) for display controls.
 
+On a block producer, gLiveView identifies the role as `Core` and adds a
+block-production section with the current KES period, the remaining KES
+periods, and the calculated KES expiry. Verbose mode adds the first and last
+KES period of the operational certificate. Amaru exports no forging flag, so
+the adapter recognizes a producer by the operational-certificate gauges that
+only Amaru's forge stage reports. They first appear once the node adopts a
+new tip after a start; until then the dashboard shows `Relay`. Amaru exports
+no leader-schedule or forged-block counters, so those rows are absent. On a
+relay the network-derived KES period stays on the Network page.
+
 Metrics absent from the current scrape are omitted rather than displayed as
-zero. This relay profile does not expose cnode block-production, KES,
-operational-certificate, CNCLI blocklog, Koios, Mithril signer, or interactive
-peer-analysis sections. Mithril helpers, db-sync, Ogmios, and other
-socket-dependent cnode tools remain undeployed. CNTools 14 is available through
+zero. CNCLI blocklog, Koios pool data and Mithril signer remain cnode-only.
+Mithril helpers, db-sync, Ogmios, and other socket-dependent cnode tools
+remain undeployed. CNTools 14 is available through
 the stable `scripts/cntools.sh` launcher. Use `cntools.sh -l` for Koios-backed
 online actions or `cntools.sh -o` for offline key and signing workflows; Amaru
 does not provide a compatible local query socket. See the

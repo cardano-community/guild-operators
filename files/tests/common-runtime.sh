@@ -61,7 +61,7 @@ write_deployment_manifest() {
         n2c: ($implementation != "amaru"),
         localCli: ($implementation != "amaru"),
         metrics: true,
-        forging: ($implementation == "cnode" or $implementation == "dingo")
+        forging: true
       }
     }' > "${node_root}/.deployment.json"
 }
@@ -271,7 +271,7 @@ install_runtime_fixture() {
         n2c: ($implementation != "amaru"),
         localCli: ($implementation != "amaru"),
         metrics: true,
-        forging: ($implementation == "cnode" or $implementation == "dingo")
+        forging: true
       }
     }' > "${node_root}/.deployment.json"
 }

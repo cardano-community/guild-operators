@@ -350,7 +350,9 @@ deployment_set_branch() (
         .capabilities.n2c == false and
         .capabilities.localCli == false and
         .capabilities.metrics == true and
-        .capabilities.forging == false)
+        # false in a manifest written before Amaru block production; the
+        # next guild-deploy.sh run writes true.
+        (.capabilities.forging | type == "boolean"))
     )
   ' "${manifest}" >/dev/null 2>&1; then
     printf "Cannot update deployment branch: %s is malformed or incomplete. Re-run guild-deploy.sh first.\n" \

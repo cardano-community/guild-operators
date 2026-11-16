@@ -244,13 +244,18 @@ AMARU_MAIN_UNIT="${AMARU_SERVICE}.service"
 AMARU_METRICS_UNIT="${AMARU_SERVICE}-metrics.service"
 mkdir -p \
   "${AMARU_SCRIPT_ROOT}/lib" \
+  "${AMARU_SCRIPT_ROOT}/adapters" \
   "${AMARU_NODE_ROOT}/files" \
   "${AMARU_UNIT_ROOT}" \
   "${AMARU_NODE_ROOT}/bin"
 cp "${REPO_ROOT}/scripts/amaru-helper-scripts/amaru.sh" \
   "${AMARU_SCRIPT_ROOT}/amaru.sh"
-cp "${REPO_ROOT}/scripts/common-helper-scripts/lib/systemd.library" \
-  "${AMARU_SCRIPT_ROOT}/lib/systemd.library"
+# The launcher reads the pool settings from the common env on install.
+cp "${REPO_ROOT}/scripts/common-helper-scripts/env" "${AMARU_SCRIPT_ROOT}/env"
+cp "${REPO_ROOT}"/scripts/common-helper-scripts/lib/*.library \
+  "${AMARU_SCRIPT_ROOT}/lib/"
+cp "${REPO_ROOT}/scripts/amaru-helper-scripts/amaru.adapter" \
+  "${AMARU_SCRIPT_ROOT}/adapters/amaru.adapter"
 chmod 0755 "${AMARU_SCRIPT_ROOT}/amaru.sh"
 
 cat > "${AMARU_NODE_ROOT}/.deployment.json" <<JSON
@@ -269,7 +274,7 @@ cat > "${AMARU_NODE_ROOT}/.deployment.json" <<JSON
     "n2c": false,
     "localCli": false,
     "metrics": true,
-    "forging": false
+    "forging": true
   }
 }
 JSON

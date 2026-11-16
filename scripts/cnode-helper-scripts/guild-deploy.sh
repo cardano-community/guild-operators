@@ -2434,7 +2434,9 @@ dispatcher_set_defaults() {
           .capabilities.n2c == false and
           .capabilities.localCli == false and
           .capabilities.metrics == true and
-          .capabilities.forging == false)
+          # false in a manifest written before Amaru block production; the
+          # next guild-deploy.sh run writes true.
+          (.capabilities.forging | type == "boolean"))
       )
     ' "${DEPLOYMENT_FILE}" >/dev/null 2>&1; then
       err_exit "Deployment metadata is malformed, incomplete, or unsupported: ${DEPLOYMENT_FILE}"
@@ -3137,7 +3139,7 @@ dispatcher_capability_default() {
   case "${NODE_IMPLEMENTATION}:${capability}" in
     cnode:n2c|cnode:local_cli|cnode:metrics|cnode:forging) printf 'true' ;;
     dingo:n2c|dingo:local_cli|dingo:metrics|dingo:forging) printf 'true' ;;
-    amaru:metrics) printf 'true' ;;
+    amaru:metrics|amaru:forging) printf 'true' ;;
     *) printf 'false' ;;
   esac
 }

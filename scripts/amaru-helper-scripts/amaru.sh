@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Guild Operators launcher for an experimental Amaru relay.
+# Guild Operators launcher for an experimental Amaru node.
 set -euo pipefail
 
 AMARU_SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
@@ -17,6 +17,44 @@ _manifest_file="${GUILD_NODE_HOME}/.deployment.json"
 amaru_manifest_value() {
   local key="$1"
   jq -er --arg key "${key}" '.[$key] // empty' "${_manifest_file}" 2>/dev/null
+}
+
+amaru_load_pool_settings() {
+  local common_env="${AMARU_SCRIPT_DIR}/env"
+  local output="" i
+  local -a variables=(
+    POOL_FOLDER POOL_NAME
+    POOL_HOTKEY_SK_FILENAME POOL_VRF_SK_FILENAME POOL_OPCERT_FILENAME
+  )
+  local -a values=()
+
+  if [[ ! -r "${common_env}" ]]; then
+    printf 'ERROR: common env file is missing: %s\n' "${common_env}" >&2
+    printf 'Re-run guild-deploy.sh for this deployment to restore it.\n' >&2
+    return 1
+  fi
+  # shellcheck disable=SC2016  # expanded by the child shell
+  if ! output="$(
+    "${BASH}" -c '
+      set +eu
+      . "$1" definitions >/dev/null || exit 1
+      shift
+      for var in "$@"; do printf "%s\n" "${!var}"; done
+      printf "end\n"
+    ' amaru-common-env "${common_env}" "${variables[@]}"
+  )"; then
+    printf 'ERROR: failed to load the pool settings from %s\n' "${common_env}" >&2
+    return 1
+  fi
+  mapfile -t values <<< "${output}"
+  if (( ${#values[@]} != ${#variables[@]} + 1 )) ||
+     [[ "${values[${#variables[@]}]}" != "end" ]]; then
+    printf 'ERROR: unexpected pool settings from %s\n' "${common_env}" >&2
+    return 1
+  fi
+  for i in "${!variables[@]}"; do
+    printf -v "${variables[i]}" '%s' "${values[i]}"
+  done
 }
 
 _manifest_implementation=""
@@ -55,7 +93,9 @@ if [[ "${_manifest_required}" == "Y" ]]; then
     (.capabilities.n2c == false) and
     (.capabilities.localCli == false) and
     (.capabilities.metrics == true) and
-    (.capabilities.forging == false)
+    # false in a manifest written before Amaru block production; the next
+    # guild-deploy.sh run writes true.
+    (.capabilities.forging | type == "boolean")
   ' "${_manifest_file}" >/dev/null 2>&1; then
     printf 'ERROR: deployment manifest is malformed, incomplete, unsupported, or not finalized: %s\n' \
       "${_manifest_file}" >&2
@@ -156,13 +196,17 @@ fi
 : "${AMARU_BIN:=${GUILD_NODE_HOME}/bin/amaru}"
 : "${AMARU_OTELCOL_BIN:=${GUILD_NODE_HOME}/bin/otelcol-contrib}"
 : "${AMARU_OTELCOL_CONFIG:=${GUILD_NODE_HOME}/files/otelcol.yaml}"
+case "${command_name}" in
+  run|-d|install) amaru_load_pool_settings || exit 1 ;;
+esac
+AMARU_RUNTIME_ROLE="relay"
 
 amaru_usage() {
   cat <<EOF
 Usage: $(basename "$0") [command]
 
 Commands:
-  run                 Run the relay in the foreground (default)
+  run                 Run in the foreground (default)
   metrics             Run the Amaru OTLP-to-Prometheus bridge in the foreground
   bootstrap           Download and import the three trusted bootstrap snapshots
   -d, install         Install and enable (but do not start) the systemd service
@@ -173,10 +217,16 @@ Commands:
   version             Print the installed Amaru version
   -h, --help          Show this help
 
-Amaru support is experimental and relay-only. Bootstrap must complete before
-the service can start. Running "run" from an interactive terminal (with the
-service stopped) shows Amaru's built-in dashboard; set AMARU_TUI_OFF=true to
-keep plain log output.
+Amaru support, including block production, is experimental. Bootstrap must
+complete before the service can start. Running "run" from an interactive
+terminal (with the service stopped) shows Amaru's built-in dashboard; set
+AMARU_TUI_OFF=true to keep plain log output.
+
+The pool folder is POOL_FOLDER/POOL_NAME from scripts/env, the same file
+CNTools reads. A complete operational hot-key set in the pool folder (KES
+signing key, VRF signing key and operational certificate) enables block
+production; otherwise Amaru runs as a relay. Amaru reads these files only at
+startup, so restart the service after a KES rotation.
 EOF
 }
 
@@ -249,6 +299,85 @@ amaru_require_metrics_bridge() {
   fi
 }
 
+amaru_secret_file_is_private() {
+  local file="$1"
+  local permissions owner
+  permissions="$(
+    stat -Lc '%a' "${file}" 2>/dev/null ||
+      stat -f '%Lp' "${file}" 2>/dev/null
+  )" || return 1
+  owner="$(
+    stat -Lc '%u' "${file}" 2>/dev/null ||
+      stat -f '%u' "${file}" 2>/dev/null
+  )" || return 1
+  [[ "${permissions}" =~ ^[0-7]{3,4}$ ]] || return 1
+  [[ "${owner}" == "$(id -u)" ]] || return 1
+  (( (8#${permissions} & 077) == 0 ))
+}
+
+amaru_configure_runtime_role() {
+  local mode="${1:-run}"
+  local pool_dir kes_file vrf_file opcert_file
+  local present=0
+  local file variable
+  local -a missing=()
+
+  # The pool folder alone selects the role. Operator variables inherited from
+  # the shell or amaru.env are dropped, and named so a node that was expected
+  # to forge does not quietly start as a relay.
+  for variable in AMARU_OPERATOR_KES AMARU_OPERATOR_VRF AMARU_OPERATOR_CERT; do
+    if [[ -n "${!variable:-}" ]]; then
+      printf 'WARN: ignoring %s from the environment; the launcher reads block-producer credentials only from the pool folder (POOL_FOLDER/POOL_NAME in scripts/env)\n' \
+        "${variable}" >&2
+    fi
+  done
+  unset AMARU_OPERATOR_KES AMARU_OPERATOR_VRF AMARU_OPERATOR_CERT
+  AMARU_RUNTIME_ROLE="relay"
+
+  # Snapshot import never forges and should not require online hot keys.
+  [[ "${mode}" == "bootstrap" ]] && return 0
+
+  pool_dir="${POOL_FOLDER}/${POOL_NAME}"
+  if [[ ! "${pool_dir}" =~ ^/[A-Za-z0-9._/+@:-]+$ ]]; then
+    printf 'ERROR: the pool folder (POOL_FOLDER/POOL_NAME) must be an absolute deployment-safe path: %s\n' \
+      "${pool_dir}" >&2
+    return 1
+  fi
+  kes_file="${pool_dir}/${POOL_HOTKEY_SK_FILENAME}"
+  vrf_file="${pool_dir}/${POOL_VRF_SK_FILENAME}"
+  opcert_file="${pool_dir}/${POOL_OPCERT_FILENAME}"
+
+  for file in "${kes_file}" "${vrf_file}" "${opcert_file}"; do
+    [[ -e "${file}" ]] && ((present += 1))
+  done
+  (( present == 0 )) && return 0
+
+  for file in "${kes_file}" "${vrf_file}" "${opcert_file}"; do
+    [[ -f "${file}" && -r "${file}" ]] || missing+=("${file}")
+  done
+  if (( ${#missing[@]} > 0 )); then
+    printf 'ERROR: the pool folder contains an incomplete Amaru block-producer credential set. Missing or unreadable:\n' >&2
+    printf '  %s\n' "${missing[@]}" >&2
+    return 1
+  fi
+
+  if ! amaru_secret_file_is_private "${kes_file}"; then
+    printf 'ERROR: KES signing key must be owned by uid %s with no group/other permissions: %s\n' \
+      "$(id -u)" "${kes_file}" >&2
+    return 1
+  fi
+  if ! amaru_secret_file_is_private "${vrf_file}"; then
+    printf 'ERROR: VRF signing key must be owned by uid %s with no group/other permissions: %s\n' \
+      "$(id -u)" "${vrf_file}" >&2
+    return 1
+  fi
+
+  export AMARU_OPERATOR_KES="${kes_file}"
+  export AMARU_OPERATOR_VRF="${vrf_file}"
+  export AMARU_OPERATOR_CERT="${opcert_file}"
+  AMARU_RUNTIME_ROLE="producer"
+}
+
 amaru_install_service() {
   command -v "${SYSTEMCTL_BIN}" >/dev/null 2>&1 || {
     printf 'ERROR: systemd is required to install the service\n' >&2
@@ -304,7 +433,7 @@ EOF
 )"
   unit_content="$(cat <<EOF
 [Unit]
-Description=Guild Operators Amaru experimental relay (${AMARU_NETWORK})
+Description=Guild Operators Amaru experimental node (${AMARU_NETWORK})
 Documentation=https://github.com/pragma-org/amaru
 Wants=network-online.target time-sync.target ${metrics_unit_name}
 After=network-online.target time-sync.target ${metrics_unit_name}
@@ -342,8 +471,8 @@ EOF
     "${AMARU_SCRIPT_DIR}/amaru.sh" || return 1
   systemd_daemon_reload || return 1
   systemd_enable_units "${metrics_unit_name}" "${unit_name}" || return 1
-  printf 'Installed %s and %s. Run bootstrap before starting the node.\n' \
-    "${metrics_unit_name}" "${unit_name}"
+  printf 'Installed %s and %s for Amaru %s mode. Run bootstrap before starting the node.\n' \
+    "${metrics_unit_name}" "${unit_name}" "${AMARU_RUNTIME_ROLE}"
 }
 
 amaru_remove_service() {
@@ -361,6 +490,7 @@ amaru_remove_service() {
 case "${command_name}" in
   run)
     amaru_require_supported_profile
+    amaru_configure_runtime_role run
     if ! amaru_state_populated "${AMARU_DB_CHAIN}" ||
        ! amaru_state_populated "${AMARU_DB_LEDGER}"; then
       printf 'ERROR: Amaru is not bootstrapped. Run %s bootstrap first.\n' "$0" >&2
@@ -375,6 +505,7 @@ case "${command_name}" in
     ;;
   bootstrap)
     amaru_require_supported_profile
+    amaru_configure_runtime_role bootstrap
     cd -- "${GUILD_NODE_HOME}"
     # Bootstrap telemetry is not consumed by gLiveView and the managed
     # collector is intentionally not running yet. Keep console logging, but do
@@ -386,6 +517,7 @@ case "${command_name}" in
     ;;
   -d|install)
     amaru_require_supported_profile
+    amaru_configure_runtime_role run
     amaru_install_service
     ;;
   remove)
