@@ -378,7 +378,9 @@ case "${command_name}" in
     cd -- "${GUILD_NODE_HOME}"
     # Bootstrap telemetry is not consumed by gLiveView and the managed
     # collector is intentionally not running yet. Keep console logging, but do
-    # not make Amaru repeatedly export to an absent OTLP endpoint.
+    # not make Amaru repeatedly export to an absent OTLP endpoint. Amaru
+    # 10.11.20261112 and later never export during bootstrap; earlier releases
+    # can, and read this older name.
     export AMARU_WITH_OPEN_TELEMETRY=false
     exec "${AMARU_BIN}" node bootstrap "$@"
     ;;

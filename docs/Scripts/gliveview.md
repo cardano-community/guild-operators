@@ -575,7 +575,7 @@ Its connection to the local OpenTelemetry collector is left out of the list.
 Amaru has no topology file, so the Static filter is not offered.
 
 This needs Amaru's default text log, as the Guild profile sets it:
-`AMARU_LOG` with `amaru=info` and `AMARU_WITH_JSON_TRACES=false`.
+`AMARU_LOG` with `amaru=info` and `AMARU_LOG_JSON=false`.
 
 #### Filters
 

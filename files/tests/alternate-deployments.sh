@@ -1220,8 +1220,9 @@ run_alternate_profile_test() (
     grep -F "AMARU_DB_CHAIN=\"${NODE_HOME}/chain\"" "${config_env}" >/dev/null
     grep -F "AMARU_DB_LEDGER=\"${NODE_HOME}/ledger\"" "${config_env}" >/dev/null
     grep -F 'AMARU_DB_CHAIN_AUTOMATIC_MIGRATION="true"' "${config_env}" >/dev/null
-    grep -F 'AMARU_WITH_OPEN_TELEMETRY="metrics"' "${config_env}" >/dev/null
-    if grep -Eq '^AMARU_(CHAIN_DIR|LEDGER_DIR|LISTEN_ADDRESS|PEER_ADDRESS|UPSTREAM_PEERS|DOWNSTREAM_PEERS|MAX_EXTRA_LEDGER_SNAPSHOTS|PID_FILE)=' \
+    grep -F 'AMARU_LOG_OTLP="metrics"' "${config_env}" >/dev/null
+    grep -F 'AMARU_LOG_JSON="false"' "${config_env}" >/dev/null
+    if grep -Eq '^AMARU_(CHAIN_DIR|LEDGER_DIR|LISTEN_ADDRESS|PEER_ADDRESS|UPSTREAM_PEERS|DOWNSTREAM_PEERS|MAX_EXTRA_LEDGER_SNAPSHOTS|PID_FILE|WITH_JSON_TRACES|WITH_OPEN_TELEMETRY)=' \
       "${config_env}"; then
       fail "Amaru config uses deprecated environment variable names"
     fi
@@ -1578,7 +1579,7 @@ run_alternate_profile_test() (
       '    printf "%s\n%s\n%s\n" "${AMARU_DB_CHAIN}" "${AMARU_DB_LEDGER}" "${AMARU_WITH_OPEN_TELEMETRY:-unset}" > "${AMARU_STATE_CAPTURE}"' \
       '    ;;' \
       '  run)' \
-      '    printf "%s\n" "${AMARU_WITH_OPEN_TELEMETRY:-unset}" > "${AMARU_TELEMETRY_CAPTURE}"' \
+      '    printf "%s\n" "${AMARU_LOG_OTLP:-unset}" > "${AMARU_TELEMETRY_CAPTURE}"' \
       '    ;;' \
       'esac' \
       > "${NODE_HOME}/bin/amaru"
