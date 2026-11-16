@@ -46,6 +46,8 @@ jobs:
       run: bash files/tests/dingo-metrics.sh
     - name: Amaru metrics adapter tests
       run: bash files/tests/amaru-metrics.sh
+    - name: Amaru leaderlog tests
+      run: bash files/tests/amaru-leaderlog.sh
   jsonlint:
     name: JSON and YAML Check
     runs-on: ubuntu-latest

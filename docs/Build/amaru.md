@@ -97,6 +97,8 @@ The default layout below assumes `/opt/cardano/amaru`:
 ├── files/
 │   ├── amaru-release.json
 │   └── otelcol.yaml
+├── guild-db/
+│   └── blocklog/          # created by amaru-leaderlog.sh on a block producer
 ├── logs/
 ├── priv/
 │   └── pool/
@@ -112,6 +114,7 @@ The default layout below assumes `/opt/cardano/amaru`:
     ├── cntools.sh          # public launcher
     ├── cntools/            # modular CNTools tree
     ├── lib/
+    ├── amaru-leaderlog.sh
     ├── amaru.env
     ├── amaru.sh
     ├── gLiveView.sh
@@ -323,6 +326,70 @@ Amaru provides no cardano-node-compatible node-to-client socket. Its optional
 HTTP transaction submission endpoint, `AMARU_SUBMIT_API_LISTEN_ON`, is
 disabled because it has no built-in authentication or TLS.
 
+## Leader schedule
+
+`amaru-leaderlog.sh` calculates the pool's leader schedule on a block producer
+with Amaru's own `amaru pool schedule inspect` command and stores it in the
+Guild blocklog database, the SQLite format that `cncli.sh` maintains for
+cnode. Amaru takes the stake distribution and the epoch nonce from the chain
+and ledger stores of the running node, so no CNCLI, Koios call, or second
+chain sync is involved. It needs Amaru 10.11.20261112 or later.
+
+Run it on the block producer, because the calculation needs the VRF signing
+key. The script uses the pool folder selected in `scripts/env`, as described
+under [Relay and block-producer modes](#relay-and-block-producer-modes). It
+reads the pool id from `pool.id` in that folder when the file exists and
+otherwise derives it from the operational certificate. `POOL_ID` and
+`POOL_VRF_SKEY` in the User Variables section of the script override both.
+
+```bash
+/opt/cardano/amaru/scripts/amaru-leaderlog.sh -d
+sudo systemctl start amaru-leaderlog.service
+```
+
+`-d` installs and enables `<service-name>-leaderlog.service` and does not
+start it. The unit is bound to the node unit, so from then on it starts and
+stops together with the node. `systemd status` and `systemd remove` show and
+remove the unit; removal leaves the database in place. On a relay, where the
+pool folder holds no VRF key, `-d` stops without installing anything.
+
+The service waits until the node follows the tip, then:
+
+- calculates the schedule of the current epoch, once after a start and once
+  after every epoch change;
+- calculates the schedule of the next epoch as soon as its nonce is final.
+  That is `4k/f` slots before the epoch boundary, to which the script adds a
+  ten-minute margin: just under two days before the boundary on mainnet and
+  preprod, and about nine and a half hours on preview.
+
+A schedule that is already stored is calculated again after a restart and kept
+when the leader slots are unchanged, so block statuses recorded for those
+slots survive. `SLEEP_RATE` sets how often the service checks the node, 60
+seconds by default. One calculation is a separate, short-lived `amaru` process
+at the lowest CPU priority.
+
+To calculate at once and overwrite what is stored, for the current epoch and,
+when its nonce is final, the next one:
+
+```bash
+/opt/cardano/amaru/scripts/amaru-leaderlog.sh leaderlog force
+```
+
+The database is `${NODE_HOME}/guild-db/blocklog/blocklog.db`; `BLOCKLOG_DIR`
+in `scripts/env` moves it and `BLOCKLOG_TZ` sets the time zone of the stored
+slot times. Each scheduled slot is a `blocklog` row with status `leader`, and
+`epochdata` holds the stake, ideal slot count, and luck of the epoch. The
+epoch nonce column stays empty because Amaru does not report it. CNTools reads
+the same file for its **Blocks** menu. Nothing updates the status of a slot
+after it has passed yet, so every slot stays `leader`.
+
+The upcoming leader slots are sensitive operational information. They are in
+the database and in the service journal, so control who can read both.
+
+The script needs `sqlite3`, `bc`, `xxd`, `b2sum`, and `jq`. Select `-s p` once
+on a deployment made before the script existed to install the missing
+packages.
+
 ## Moving a cnode relay to Amaru
 
 An existing cnode relay on `mainnet`, `preprod` or `preview` can move to Amaru
@@ -493,7 +560,9 @@ no leader-schedule or forged-block counters, so those rows are absent. On a
 relay the network-derived KES period stays on the Network page.
 
 Metrics absent from the current scrape are omitted rather than displayed as
-zero. CNCLI blocklog, Koios pool data and Mithril signer remain cnode-only.
+zero. The blocklog comes from `amaru-leaderlog.sh`, see
+[Leader schedule](#leader-schedule). Koios pool data and Mithril signer remain
+cnode-only.
 Mithril helpers, db-sync, Ogmios, and other socket-dependent cnode tools
 remain undeployed. CNTools 14 is available through
 the stable `scripts/cntools.sh` launcher. Use `cntools.sh -l` for Koios-backed

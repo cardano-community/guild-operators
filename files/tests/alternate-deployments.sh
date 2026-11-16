@@ -1197,6 +1197,25 @@ run_alternate_profile_test() (
     fail "${implementation} left temporary release metadata after failed replacement"
   fi
 
+  if [[ "${implementation}" == "amaru" ]]; then
+    # A refresh replaces the leaderlog code and keeps the operator settings
+    # above the template boundary.
+    local leaderlog_script="${NODE_HOME}/scripts/amaru-leaderlog.sh"
+    [[ -x "${leaderlog_script}" ]] ||
+      fail "Amaru deployment did not install an executable leaderlog script"
+    sed -i 's|^#SLEEP_RATE=60 |SLEEP_RATE=30 |' "${leaderlog_script}"
+    printf '# stale-leaderlog-code\n' >> "${leaderlog_script}"
+    "${install_payloads_function}" >/dev/null 2>&1 ||
+      fail "Amaru payload refresh failed"
+    grep -q '^SLEEP_RATE=30 ' "${leaderlog_script}" ||
+      fail "Amaru payload refresh discarded the leaderlog operator settings"
+    if grep -q '^# stale-leaderlog-code$' "${leaderlog_script}"; then
+      fail "Amaru payload refresh kept stale leaderlog code"
+    fi
+    [[ -x "${leaderlog_script}" ]] ||
+      fail "Amaru payload refresh left the leaderlog script without execute permission"
+  fi
+
   if [[ "${implementation}" == "dingo" ]]; then
     assert_file "${NODE_HOME}/files/dingo.yaml"
     grep -F "network: \"${network}\"" "${NODE_HOME}/files/dingo.yaml" >/dev/null
