@@ -24,7 +24,7 @@ cntools_blocklog_cleanup() {
 }
 
 cntools_blocklog_prepare() {
-  local schema=''
+  local schema='' problem=''
   CNTOOLS_BLOCKLOG_ERROR=''; CNTOOLS_BLOCKLOG_DATA='[]'
   command -v sqlite3 >/dev/null 2>&1 || { cntools_blocklog_error 'Install sqlite3 to read the CNCLI block log.'; return 1; }
   [[ "${CNTOOLS_BLOCKLOG_DB:-}" == /* && -f "${CNTOOLS_BLOCKLOG_DB}" &&
@@ -33,7 +33,10 @@ cntools_blocklog_prepare() {
     return 1
   }
   if [[ -z "${CNTOOLS_BLOCKLOG_WORK}" ]]; then
-    cntools_log_private_directory_safe "${CNTOOLS_TMP_DIR:-}" || { cntools_blocklog_error 'The CNTools temporary directory is unsafe.'; return 1; }
+    cntools_log_private_directory_safe "${CNTOOLS_TMP_DIR:-}" || {
+      cntools_log_temporary_directory_problem_into problem "${CNTOOLS_TMP_DIR:-}"
+      cntools_blocklog_error "${problem}"; return 1
+    }
     CNTOOLS_BLOCKLOG_WORK="$(umask 077; mktemp -d "${CNTOOLS_TMP_DIR}/.cntools-blocklog.XXXXXX")" || return 1
   fi
   # Only real base tables are accepted. Optional epochdata can be absent in old

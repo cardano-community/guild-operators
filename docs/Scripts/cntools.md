@@ -244,8 +244,12 @@ locations.
 Temporary transaction bodies, signing snapshots and witnesses are created in
 private `.cntools-transaction-action.*` workspaces beneath `TMP_DIR`. If it is
 not configured in `env`, CNTools uses `/tmp/<deployment-name>`. These workspaces
-are cleaned when the action finishes or is cancelled. Saved unsigned or signed
-packages are kept separately under `${NODE_HOME}/scripts/cntools/.transactions/`;
+are cleaned when the action finishes or is cancelled. `TMP_DIR` must belong to
+you and must not be writable by group or others. The Guild scripts create it
+that way, even under umask 0002, and repair `/tmp/<deployment-name>` if it is
+group writable. Any other existing `TMP_DIR` is left as it is, and CNTools
+shows the `chmod go-w` command to fix it. Saved unsigned or signed packages
+are kept separately under `${NODE_HOME}/scripts/cntools/.transactions/`;
 their paths are displayed when saved. They survive temporary-file cleanup and
 are preserved by script deployments.
 

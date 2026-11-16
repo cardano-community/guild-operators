@@ -19,6 +19,31 @@ cntools_log_private_directory_safe() {
   (( (permissions & 0022) == 0 ))
 }
 
+# Explain why a temporary directory fails the private-directory checks, with
+# the fix for the usual case: a folder made group writable by umask 0002.
+cntools_log_temporary_directory_problem_into() {
+  local _cntools_output_name="${1:-}"
+  local _cntools_directory="${2:-}"
+  local _cntools_directory_mode=""
+
+  [[ "${_cntools_output_name}" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || return 2
+  local -n _cntools_problem_ref="${_cntools_output_name}"
+  if [[ -z "${_cntools_directory}" || "${_cntools_directory}" != /* ]]; then
+    _cntools_problem_ref="The CNTools temporary directory (TMP_DIR in env) must be an absolute path."
+  elif [[ -L "${_cntools_directory%/}" || ! -d "${_cntools_directory}" ]]; then
+    _cntools_problem_ref="The CNTools temporary directory ${_cntools_directory} is missing or a symbolic link. Set TMP_DIR in env to a folder you own."
+  elif [[ ! -O "${_cntools_directory}" ]]; then
+    _cntools_problem_ref="The CNTools temporary directory ${_cntools_directory} belongs to another user. Set TMP_DIR in env to a folder you own."
+  elif [[ ! -w "${_cntools_directory}" || ! -x "${_cntools_directory}" ]]; then
+    _cntools_problem_ref="The CNTools temporary directory ${_cntools_directory} is not writable. Fix it with: chmod u+rwx ${_cntools_directory@Q}"
+  elif cntools_filesystem_mode_into _cntools_directory_mode "${_cntools_directory}" &&
+       (( (8#${_cntools_directory_mode} & 0022) != 0 )); then
+    _cntools_problem_ref="The CNTools temporary directory ${_cntools_directory} is writable by other users. Fix it with: chmod go-w ${_cntools_directory@Q}"
+  else
+    _cntools_problem_ref="The CNTools temporary directory ${_cntools_directory} sits in a folder that other users can change. Set TMP_DIR in env to a private folder."
+  fi
+}
+
 cntools_log_init() {
   local log_file="${CNTOOLS_LOG:-}"
   local log_parent=""
@@ -125,6 +150,7 @@ cntools_http_secret_file_create() {
   local _cntools_temporary_directory="${CNTOOLS_TMP_DIR:-}"
   local _cntools_secret_file=""
   local _cntools_previous_umask=""
+  local _cntools_problem=""
 
   [[ "${_cntools_output_name}" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || return 2
   local -n _cntools_output_ref="${_cntools_output_name}"
@@ -133,7 +159,12 @@ cntools_http_secret_file_create() {
   export -n CNTOOLS_KOIOS_TOKEN KOIOS_API_TOKEN 2>/dev/null || return 1
   unset KOIOS_API_TOKEN 2>/dev/null || return 1
   cntools_log_private_directory_safe \
-    "${_cntools_temporary_directory}" || return 1
+    "${_cntools_temporary_directory}" || {
+    cntools_log_temporary_directory_problem_into _cntools_problem \
+      "${_cntools_temporary_directory}"
+    cntools_log ERROR "${_cntools_problem}" || true
+    return 1
+  }
 
   _cntools_previous_umask="$(umask)"
   umask 077

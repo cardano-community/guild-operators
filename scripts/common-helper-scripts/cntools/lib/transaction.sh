@@ -131,6 +131,7 @@ cntools_transaction_temp_directory_ensure() {
   local directory=""
   local previous_umask=""
   local mode=""
+  local problem=""
 
   if [[ -n "${CNTOOLS_TRANSACTION_TEMP_DIR}" ]]; then
     cntools_transaction_directory_safe \
@@ -143,8 +144,8 @@ cntools_transaction_temp_directory_ensure() {
     return 0
   fi
   if ! cntools_transaction_directory_safe "${base}"; then
-    cntools_transaction_set_error \
-      "The CNTools temporary directory must be owned, writable, and protected from group or public writes."
+    cntools_log_temporary_directory_problem_into problem "${base}"
+    cntools_transaction_set_error "${problem}"
     return 1
   fi
   previous_umask="$(umask)"

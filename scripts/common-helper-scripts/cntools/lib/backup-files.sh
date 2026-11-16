@@ -92,7 +92,7 @@ cntools_backup_directory_safe() {
 }
 
 cntools_backup_environment() {
-  local tool='' version=''
+  local tool='' version='' problem=''
   for tool in tar gzip sha256sum jq cp mv find sort cmp head cat env; do
     type -P "${tool}" >/dev/null || { cntools_backup_error "Backup requires ${tool}."; return 1; }
   done
@@ -103,7 +103,8 @@ cntools_backup_environment() {
     cntools_backup_error 'GNU coreutils mv is required for no-overwrite publication.'; return 1;
   }
   cntools_backup_directory_safe "${CNTOOLS_TMP_DIR:-}" || {
-    cntools_backup_error 'The configured temporary directory must be owned, writable and protected from other users changing its contents.'; return 1;
+    cntools_log_temporary_directory_problem_into problem "${CNTOOLS_TMP_DIR:-}"
+    cntools_backup_error "${problem}"; return 1;
   }
   cntools_backup_cleanup
   CNTOOLS_BACKUP_ERROR=''; CNTOOLS_BACKUP_RESULT=''

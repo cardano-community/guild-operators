@@ -4,9 +4,12 @@ set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd -P)"
 TEST_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/guild-common-runtime.XXXXXX")"
+# The default TMP_DIR is /tmp/<deployment folder name>, so the TMP_DIR tests
+# use a deployment name derived from the unique TEST_ROOT.
+TMP_DIR_TEST_NAME="${TEST_ROOT##*/}-tmpdir"
 
 cleanup() {
-  rm -rf -- "${TEST_ROOT}"
+  rm -rf -- "${TEST_ROOT}" "/tmp/${TMP_DIR_TEST_NAME}"
 }
 trap cleanup EXIT
 
@@ -1284,8 +1287,90 @@ EOF
   assert_no_bundle_staging "successful bundle update"
 )
 
+# Issue 1930: under umask 0002 (the Ubuntu default for regular users) the
+# temporary folder must still pass the CNTools private-directory checks.
+run_tmp_dir_umask_tests() (
+  local default_dir="/tmp/${TMP_DIR_TEST_NAME}"
+  local custom_dir="${TEST_ROOT}/custom-tmp"
+  local link_target="${TEST_ROOT}/link-target"
+  local mode="" physical="" problem=""
+  local cntools_dir="${REPO_ROOT}/scripts/common-helper-scripts/cntools"
+
+  # Bash 5.3 on macOS can crash when a subshell that ran a function with
+  # `local LC_ALL=C` (the transaction checks do) exits without a locale set.
+  export LC_ALL=C
+  # shellcheck source=/dev/null
+  . "${REPO_ROOT}/scripts/common-helper-scripts/lib/env.library"
+  for library in lib/filesystem.sh core/log.sh lib/backup-files.sh lib/transaction.sh; do
+    # shellcheck source=/dev/null
+    . "${cntools_dir}/${library}"
+  done
+  umask 0002
+
+  cntools_accepts() {
+    local directory="$1"
+    local context="$2"
+    # macOS links /tmp to /private/tmp; CNTools checks the physical folder.
+    physical="$(cd -- "${directory}" && pwd -P)"
+    cntools_log_private_directory_safe "${physical}" ||
+      fail "${context}: block log and Koios token check refused ${physical}"
+    cntools_backup_directory_safe "${physical}" ||
+      fail "${context}: backup check refused ${physical}"
+    cntools_transaction_directory_safe "${physical}" ||
+      fail "${context}: transaction check refused ${physical}"
+  }
+
+  # A new default folder is created without group or other write.
+  TMP_DIR="${default_dir}"
+  prepareTmpDir "${default_dir}" || fail "default TMP_DIR was not created"
+  cntools_filesystem_mode_into mode "${default_dir}"
+  assert_eq "${mode}" "755" "new default TMP_DIR mode under umask 0002"
+  cntools_accepts "${default_dir}" "new default TMP_DIR"
+
+  # A default folder left group writable by an earlier run is tightened.
+  chmod 0775 "${default_dir}"
+  prepareTmpDir "${default_dir}" || fail "existing default TMP_DIR was refused"
+  cntools_filesystem_mode_into mode "${default_dir}"
+  assert_eq "${mode}" "755" "existing default TMP_DIR mode"
+  cntools_accepts "${default_dir}" "tightened default TMP_DIR"
+
+  # A TMP_DIR set in env is created private, but never changed once it exists.
+  TMP_DIR="${custom_dir}/nested"
+  prepareTmpDir "${default_dir}" || fail "custom TMP_DIR was not created"
+  cntools_filesystem_mode_into mode "${custom_dir}/nested"
+  assert_eq "${mode}" "755" "new custom TMP_DIR mode under umask 0002"
+  cntools_filesystem_mode_into mode "${custom_dir}"
+  assert_eq "${mode}" "755" "new custom TMP_DIR parent mode under umask 0002"
+  chmod 0775 "${custom_dir}/nested"
+  prepareTmpDir "${default_dir}" || fail "existing custom TMP_DIR was refused"
+  cntools_filesystem_mode_into mode "${custom_dir}/nested"
+  assert_eq "${mode}" "775" "existing custom TMP_DIR was changed"
+  physical="$(cd -- "${custom_dir}/nested" && pwd -P)"
+  ! cntools_log_private_directory_safe "${physical}" ||
+    fail "CNTools accepted a group-writable TMP_DIR"
+  cntools_log_temporary_directory_problem_into problem "${physical}"
+  [[ "${problem}" == *"${physical} is writable by other users. Fix it with: chmod go-w '${physical}'" ]] ||
+    fail "temporary directory problem lacks the folder or the fix: ${problem}"
+
+  # A default path that is a symbolic link is never followed by chmod.
+  rmdir -- "${default_dir}"
+  mkdir -p -- "${link_target}"
+  chmod 0775 "${link_target}"
+  ln -s -- "${link_target}" "${default_dir}"
+  TMP_DIR="${default_dir}"
+  prepareTmpDir "${default_dir}" || fail "linked default TMP_DIR was refused"
+  cntools_filesystem_mode_into mode "${link_target}"
+  assert_eq "${mode}" "775" "chmod followed a linked default TMP_DIR"
+  rm -f -- "${default_dir}"
+
+  grep -q 'prepareTmpDir "/tmp/$(basename "${CNODE_HOME}")"' \
+    "${REPO_ROOT}/scripts/common-helper-scripts/lib/env.library" ||
+    fail "set_default_vars does not prepare the default TMP_DIR"
+)
+
 run_manifest_tests
 run_missing_and_malformed_manifest_tests
+run_tmp_dir_umask_tests
 
 install_runtime_fixture cnode mainnet prometheus
 install_runtime_fixture dingo preprod prometheus
