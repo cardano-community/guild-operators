@@ -15,6 +15,7 @@
 #REFRESH_RATE=2                           # Seconds between metric collections; clocks and countdowns move every second
 #GLV_THEME=""                             # default or hydra-after-dark (default: the theme chosen in CNTools)
 #GLV_COLORS=""                            # truecolor, 256 or none (default: truecolor when COLORTERM announces it, else 256)
+#SHOW_NODE_LOGO=Y                         # Show the node's logo under the title in the full side rail (N to hide)
 #ENABLE_IP_GEOLOCATION=Y                  # Peer analysis asks ip-api.com for the city and country of peer addresses (N to disable)
 #ENABLE_NODE_PEER_STATE=Y                 # Peer analysis reads the node's own view of its peers from its journal: cardano-node's log and state dump (SIGUSR1), or Amaru's log (N to disable)
 
@@ -684,6 +685,20 @@ glv_data_init() {
   D_PEERS=()
   D_STARTUP=()
   D_STARTUP_PID=''
+  D_BIN_PID=''
+  D_BIN_AT=0
+  D_BIN_KEY=''
+  D_BIN_SOURCE=''
+  D_BIN_FILE=''
+  D_BIN_DELETED=N
+  D_BIN_SIZE=''
+  D_BIN_MTIME=''
+  D_BIN_VERSION=''
+  D_BIN_REV=''
+  D_BIN_BUILD=''
+  D_BIN_PIN=''
+  D_BIN_TAG=''
+  D_BIN_MANIFEST=''
   D_PARAMS=()
   D_PARAMS_SOURCE=''
   D_PARAMS_NOTE=''
@@ -721,7 +736,10 @@ glv_data_init() {
   D_IDEAL=''
   D_LUCK=''
   D_SCHEDULE_EPOCH=''
-  D_BLOCKLOG_DB="${BLOCKLOG_DB:-${NODE_HOME}/guild-db/blocklog/blocklog.db}"
+  # The cnode adapter sets BLOCKLOG_DB; the others leave BLOCKLOG_DIR from
+  # env as it is, so fall back to it the way CNTools does.
+  D_BLOCKLOG_DB="${BLOCKLOG_DB:-${BLOCKLOG_DIR:-${NODE_HOME}/guild-db/blocklog}/blocklog.db}"
+  D_RESULTS=N
   # Average seconds between blocks: slot length over the active slot coefficient.
   local coefficient=0
   if ui_scale coefficient "${ACTIVE_SLOTS_COEFF:-}" 4 && (( coefficient > 0 )) && glv_is_int "${SLOT_LENGTH:-}"; then
@@ -891,13 +909,16 @@ glv_data_opcert() {
 }
 
 # The leader schedule and its results for the current epoch. CNCLI writes
-# these rows for cardano-node; the Amaru leader log is planned to write the
-# same ones, so nothing here asks which node produced them.
+# these rows for cardano-node and amaru-leaderlog.sh for Amaru, so nothing
+# here asks which node produced them. Only CNCLI's validation records block
+# results so far: D_RESULTS is Y once any slot has a status other than
+# leader, and until then the views show passed slots instead of results.
 glv_data_blocklog() {
   local kind first second third fourth fifth total=0
   D_SCHEDULE=()
   D_STATUS=()
   D_EPOCHS=()
+  D_RESULTS=N
   D_IDEAL=''
   D_LUCK=''
   D_NEXT_AT=''
@@ -917,6 +938,7 @@ glv_data_blocklog() {
       N) glv_is_int "${first}" && D_NEXT_AT="${first}" ;;
       I) D_IDEAL="${first}" ;;
       H) D_EPOCHS+=("${first}|${second}|${third}|${fourth}") ;;
+      V) [[ "${first}" != 1 ]] || D_RESULTS=Y ;;
     esac
   done < <(sqlite3 "${D_BLOCKLOG_DB}" "
     SELECT 'S', slot_in_epoch, status, CAST(strftime('%s', at) AS INTEGER), block, slot
@@ -928,7 +950,8 @@ glv_data_blocklog() {
     SELECT 'H', b.epoch, COUNT(*),
            SUM(CASE WHEN b.status IN ('adopted','confirmed') THEN 1 ELSE 0 END),
            IFNULL((SELECT e.epoch_slots_ideal FROM epochdata e WHERE e.epoch=b.epoch LIMIT 1), '')
-      FROM blocklog b GROUP BY b.epoch ORDER BY b.epoch DESC LIMIT 6;" 2>/dev/null)
+      FROM blocklog b GROUP BY b.epoch ORDER BY b.epoch DESC LIMIT 6;
+    SELECT 'V', EXISTS(SELECT 1 FROM blocklog WHERE status <> 'leader');" 2>/dev/null)
   D_SCHEDULE_EPOCH="${epochnum}"
   D_STATUS[total]="${total}"
   if [[ "${D_IDEAL}" =~ ^[0-9]+([.][0-9]+)?$ ]]; then
@@ -1096,6 +1119,144 @@ glv_data_startup() {
   done < "/proc/${D_PID}/environ"
 }
 
+# glv_binary_parse <implementation> <version output> <version var> <revision
+# var> <build var>: the version, the short revision and the build platform
+# from what the node binary prints about itself:
+#   cardano-node 11.2.0 - linux-x86_64 - ghc-9.6 / git rev dac0d7ab...
+#   Amaru 10.11.20261029 (23031e0)
+#   v0.90.5 (commit 62f1a84)                         (dingo version)
+# The locals carry a prefix because the results are written through namerefs.
+glv_binary_parse() {
+  local -n _bp_version="$3" _bp_rev="$4" _bp_build="$5"
+  local _bp_text="$2" _bp_re
+  _bp_version=''
+  _bp_rev=''
+  _bp_build=''
+  case "$1" in
+    cnode)
+      _bp_re='cardano-node ([^ ]+) - ([^ ]+) - ([^[:space:]]+)'
+      if [[ "${_bp_text}" =~ ${_bp_re} ]]; then
+        _bp_version="${BASH_REMATCH[1]}"
+        _bp_build="${BASH_REMATCH[2]} · ${BASH_REMATCH[3]}"
+      fi
+      _bp_re='git rev ([0-9a-f]{7,40})'
+      [[ ! "${_bp_text}" =~ ${_bp_re} ]] || _bp_rev="${BASH_REMATCH[1]:0:8}"
+      ;;
+    amaru)
+      _bp_re='[Aa]maru v?([0-9][^[:space:]]*)( \(([0-9a-f]{7,40})\))?'
+      if [[ "${_bp_text}" =~ ${_bp_re} ]]; then
+        _bp_version="${BASH_REMATCH[1]}"
+        _bp_rev="${BASH_REMATCH[3]:0:8}"
+      fi
+      ;;
+    dingo)
+      _bp_re='^v?([0-9][^[:space:]]*)( \(commit ([0-9a-f]{7,40})\))?'
+      if [[ "${_bp_text}" =~ ${_bp_re} ]]; then
+        _bp_version="${BASH_REMATCH[1]}"
+        _bp_rev="${BASH_REMATCH[3]:0:8}"
+      fi
+      ;;
+  esac
+}
+
+# The program file the node process runs, for the Binary panel: its path, size
+# and date, the version it reports, and the release pin of the deployment.
+# The file is looked at every 10 s while the page is open, and the binary is
+# only run again when the file or the process changes.
+glv_data_binary() {
+  local file='' deleted=N stat_line key output name manifest
+  [[ -n "${D_PID}" ]] || return 0
+  (( D_COLLECTED_AT - D_BIN_AT >= 10 )) || [[ "${D_BIN_PID}" != "${D_PID}" ]] || return 0
+  D_BIN_AT="${D_COLLECTED_AT}"
+  D_BIN_PID="${D_PID}"
+  if file="$(readlink "/proc/${D_PID}/exe" 2>/dev/null)" && [[ -n "${file}" ]]; then
+    # A binary replaced while the process runs is shown with this suffix.
+    if [[ "${file}" == *' (deleted)' ]]; then deleted=Y; file="${file% (deleted)}"; fi
+    D_BIN_SOURCE=process
+  else
+    case "${NODE_IMPLEMENTATION:-}" in
+      amaru) name=amaru ;;
+      dingo) name=dingo ;;
+      *) name=cardano-node ;;
+    esac
+    file="${NODE_BINARY:-${NODE_HOME}/bin/${name}}"
+    D_BIN_SOURCE=configured
+  fi
+  D_BIN_FILE="${file}"
+  D_BIN_DELETED="${deleted}"
+  stat_line="$(stat -L -c '%s %Y' -- "${file}" 2>/dev/null)" || stat_line=''
+  read -r D_BIN_SIZE D_BIN_MTIME <<< "${stat_line}"
+  key="${D_PID}|${file}|${stat_line}"
+  [[ "${key}" != "${D_BIN_KEY}" ]] || return 0
+  D_BIN_KEY="${key}"
+  output=''
+  if [[ -n "${stat_line}" && -x "${file}" ]]; then
+    case "${NODE_IMPLEMENTATION:-}" in
+      dingo) output="$(timeout 5 "${file}" version 2>/dev/null | head -n 3)" ;;
+      *) output="$(timeout 5 "${file}" --version 2>/dev/null | head -n 3)" ;;
+    esac
+  fi
+  glv_binary_parse "${NODE_IMPLEMENTATION:-cnode}" "${output}" D_BIN_VERSION D_BIN_REV D_BIN_BUILD
+  D_BIN_PIN=''
+  D_BIN_TAG=''
+  manifest="${NODE_HOME}/files/${NODE_IMPLEMENTATION:-cnode}-release.json"
+  if [[ -r "${manifest}" ]] && command -v jq >/dev/null 2>&1; then
+    { IFS= read -r D_BIN_PIN; IFS= read -r D_BIN_TAG; } < <(jq -r '(.version // ""), (.releaseTag // "")' "${manifest}" 2>/dev/null)
+    D_BIN_MANIFEST="${manifest##*/}"
+  fi
+}
+
+# glv_binary_state <text var> <colour var>: the binary on disk against the
+# running process. A file replaced after the process started means the node
+# runs the old one until it restarts.
+glv_binary_state() {
+  local -n _bs_text="$1" _bs_colour="$2"
+  local _bs_start='' _bs_running="${D_VERSION#v}"
+  _bs_colour=''
+  if [[ -z "${D_BIN_VERSION}" ]]; then
+    _bs_text='version not readable'
+    _bs_colour="${C_MUTED}"
+    return 0
+  fi
+  _bs_text="${D_BIN_VERSION}${D_BIN_REV:+ (${D_BIN_REV})}"
+  glv_is_int "${D_UPTIME}" && _bs_start=$((D_NOW - D_UPTIME))
+  if [[ "${D_BIN_DELETED}" == Y ]] ||
+     { glv_is_int "${D_BIN_MTIME}" && glv_is_int "${_bs_start}" && (( D_BIN_MTIME > _bs_start + 2 )); }; then
+    _bs_text+=' · restart to run it'
+    _bs_colour="${C_WARN}"
+  elif [[ -n "${_bs_running}" && "${_bs_running}" != '?' && "${D_BIN_VERSION#v}" != "${_bs_running}" ]]; then
+    _bs_text+=" · running ${D_VERSION}"
+    _bs_colour="${C_WARN}"
+  else
+    _bs_text+=' · same as running'
+  fi
+}
+
+# glv_binary_pin <text var> <colour var>: the version the deployment's release
+# manifest pins, against the running version.
+glv_binary_pin() {
+  local -n _pin_text="$1" _pin_colour="$2"
+  local _pin_running="${D_VERSION#v}"
+  _pin_text=''
+  _pin_colour=''
+  [[ -n "${D_BIN_PIN}" ]] || return 0
+  if [[ "${D_BIN_PIN}" == latest ]]; then
+    _pin_text="latest release, from ${D_BIN_MANIFEST}"
+    _pin_colour="${C_MUTED}"
+    return 0
+  fi
+  _pin_text="${D_BIN_PIN}"
+  [[ -z "${D_BIN_TAG}" || "${D_BIN_TAG}" == "${D_BIN_PIN}" ]] || _pin_text+=" (${D_BIN_TAG})"
+  if [[ -z "${_pin_running}" || "${_pin_running}" == '?' ]]; then
+    _pin_text+=" from ${D_BIN_MANIFEST}"
+  elif [[ "${D_BIN_PIN#v}" == "${_pin_running}" ]]; then
+    _pin_text+=' · met'
+  else
+    _pin_text+=" · running ${D_VERSION}"
+    _pin_colour="${C_WARN}"
+  fi
+}
+
 # The protocol parameters, as "group|label|value" rows on standard output:
 # from the node through its socket where it has one, else from Koios. Runs
 # as a background job because either can take a moment.
@@ -1191,7 +1352,7 @@ glv_params_job_poll() {
 # What only the page on screen needs.
 glv_data_view() {
   case "${VIEW:-1}" in
-    7) glv_data_startup; glv_params_job_start; glv_params_job_poll ;;
+    7) glv_data_startup; glv_data_binary; glv_params_job_start; glv_params_job_poll ;;
     3) glv_data_peers; glv_peers_job_poll ;;
     5) glv_data_system ;;
     6) glv_data_logs ;;
@@ -1518,7 +1679,10 @@ glv_panel_epoch() {
       (( position < inner )) || position=$((inner - 1))
       case "${status}" in
         adopted|confirmed) colour="${C_OK}" ;;
-        leader) if (( ${entry%%|*} >= slot_in_epoch )); then colour="${C_ACCENT}"; else colour="${C_WARN}"; fi ;;
+        leader)
+          if (( ${entry%%|*} >= slot_in_epoch )); then colour="${C_ACCENT}"
+          elif [[ "${D_RESULTS}" == Y ]]; then colour="${C_WARN}"
+          else colour="${C_MUTED}"; fi ;;
         *) colour="${C_DANGER}" ;;
       esac
       glyph[position]='▲'
@@ -1762,13 +1926,39 @@ glv_panel_resources() {
   ui_panel P_RES "${width}" 7 "Resources" ""
 }
 
+# glv_schedule_split <passed variable> <to come variable>: this epoch's leader
+# slots that have passed and that are still to come, by the wall clock. The
+# locals carry a prefix because the results are written through namerefs.
+glv_schedule_split() {
+  local -n _split_passed="$1" _split_coming="$2"
+  local _split_entry _split_at
+  _split_passed=0
+  _split_coming=0
+  for _split_entry in "${D_SCHEDULE[@]}"; do
+    _split_at="${_split_entry#*|}"; _split_at="${_split_at#*|}"; _split_at="${_split_at%%|*}"
+    if glv_is_int "${_split_at}" && (( _split_at > D_NOW )); then
+      _split_coming=$((_split_coming + 1))
+    else
+      _split_passed=$((_split_passed + 1))
+    fi
+  done
+}
+
 glv_production_cells() {
-  local colour text total lost
+  local colour text total lost passed coming
   if [[ -n "${D_SCHEDULE_EPOCH}" ]]; then
     total="${D_STATUS[total]:-0}"
     glv_cell "$1" "Leader" "${total}"
     glv_cell "$1" "Ideal" "${D_IDEAL}"
     [[ -z "${D_LUCK}" ]] || glv_cell "$1" "Luck" "$((D_LUCK / 10)).$((D_LUCK % 10)) %"
+  fi
+  if [[ -n "${D_SCHEDULE_EPOCH}" && "${D_RESULTS}" != Y ]]; then
+    # Nothing records block results in the block log yet, so a count of
+    # adopted blocks would always read 0.
+    glv_schedule_split passed coming
+    glv_cell "$1" "Passed" "${passed}"
+    glv_cell "$1" "To come" "${coming}"
+  elif [[ -n "${D_SCHEDULE_EPOCH}" ]]; then
     glv_cell "$1" "Adopted" "$(( ${D_STATUS[adopted]:-0} + ${D_STATUS[confirmed]:-0} ))" C_OK
     glv_cell "$1" "Confirmed" "${D_STATUS[confirmed]:-0}" C_OK
     for text in missed ghosted stolen invalid; do
@@ -2011,22 +2201,94 @@ glv_next_block() {
   ui_put "${C_MUTED}" "${value}"; ui_endl "${list}" "${inner}"
 }
 
+# glv_logo_init: the node's logo for the full rail, from its adapter: one
+# string per row and an "r;g;b" colour per row, as gLiveView 1 drew them in
+# its header. GLV_LOGO stays empty when SHOW_NODE_LOGO is N (false in
+# gLiveView 1), the adapter has no logo, or a row does not fit the rail.
+GLV_LOGO=()
+GLV_LOGO_SGR=()
+glv_logo_init() {
+  local index r g b palette sgr
+  GLV_LOGO=()
+  GLV_LOGO_SGR=()
+  case "${SHOW_NODE_LOGO:-Y}" in
+    [Nn]|[Nn][Oo]|[Ff][Aa][Ll][Ss][Ee]) return 0 ;;
+  esac
+  declare -p NODE_IMPLEMENTATION_LOGO NODE_IMPLEMENTATION_LOGO_RGB >/dev/null 2>&1 || return 0
+  (( ${#NODE_IMPLEMENTATION_LOGO[@]} > 0 &&
+     ${#NODE_IMPLEMENTATION_LOGO[@]} == ${#NODE_IMPLEMENTATION_LOGO_RGB[@]} )) || return 0
+  for index in "${!NODE_IMPLEMENTATION_LOGO[@]}"; do
+    IFS=';' read -r r g b <<< "${NODE_IMPLEMENTATION_LOGO_RGB[index]}"
+    if [[ ! "${r}" =~ ^[0-9]{1,3}$ || ! "${g}" =~ ^[0-9]{1,3}$ || ! "${b}" =~ ^[0-9]{1,3}$ ]] ||
+       (( r > 255 || g > 255 || b > 255 || ${#NODE_IMPLEMENTATION_LOGO[index]} > GLV_RAIL_W - 2 )); then
+      GLV_LOGO=()
+      GLV_LOGO_SGR=()
+      return 0
+    fi
+    case "${UI_COLOUR_DEPTH}" in
+      rgb) printf -v sgr '\e[38;2;%d;%d;%dm' "$((10#${r}))" "$((10#${g}))" "$((10#${b}))" ;;
+      none) sgr='' ;;
+      *)
+        ui_colour_256 palette "$((10#${r}))" "$((10#${g}))" "$((10#${b}))"
+        printf -v sgr '\e[38;5;%dm' "${palette}"
+        ;;
+    esac
+    GLV_LOGO+=("${NODE_IMPLEMENTATION_LOGO[index]}")
+    GLV_LOGO_SGR+=("${sgr}")
+  done
+}
+
+# glv_role_badge [width]: the node's role as a badge on the line being built,
+# RELAY on the identifier blue and BLOCK PRODUCER on the number gold, so the
+# two never look alike. Without a width it is the label with a space either
+# side. Without colours the label stands in brackets.
+glv_role_badge() {
+  local label='RELAY' background="${CB_ID}" width
+  if [[ "${D_ROLE}" == Core ]]; then label='BLOCK PRODUCER'; background="${CB_NUM}"; fi
+  width="${1:-$(( ${#label} + 2 ))}"
+  if [[ "${UI_COLOUR_DEPTH}" == none ]]; then
+    ui_putw '' "${width}" "[${label}]"
+  else
+    ui_putw "${background}${C_SURFACE}${UI_BOLD}" "${width}" " ${label}"
+  fi
+}
+
+# glv_identity_lines <array> <width>: the node's name, its role badge, the
+# implementation with its version, and the network with the uptime, which
+# drops its seconds when the line would not fit otherwise.
+glv_identity_lines() {
+  local width="$2" value uptime badge="$2"
+  (( badge <= GLV_RAIL_W - 2 )) || badge=$((GLV_RAIL_W - 2))
+  ui_putw "${UI_BOLD}" "${width}" "${D_NAME}"; ui_endl "$1" "${width}"
+  glv_role_badge "${badge}"; ui_endl "$1" "${width}"
+  ui_putw "${C_MUTED}" "${width}" "${D_IMPL} ${D_VERSION}"; ui_endl "$1" "${width}"
+  value="${D_NETWORK}"
+  if [[ -n "${D_UPTIME}" ]]; then
+    ui_fmt_duration uptime "${D_UPTIME}"
+    (( ${#value} + 6 + ${#uptime} <= width )) || uptime="${uptime%:*}"
+    value+=" · up ${uptime}"
+  fi
+  ui_putw "${C_MUTED}" "${width}" "${value}"; ui_endl "$1" "${width}"
+}
+
 # glv_rail <height>: the full rail, RAIL lines of GLV_RAIL_W columns. Sections
-# leave in this order when the terminal is short: next block, more, vitals.
+# leave in this order when the terminal is short: logo, next block, more,
+# vitals.
 glv_rail() {
   local height="$1" inner=$((GLV_RAIL_W - 2)) value i line needed
-  local -a head=() vitals=() views=() more=() next=() body=()
+  local show_logo=N show_vitals=N show_more=N show_next=N
+  local -a title=() logo=() head=() vitals=() views=() more=() next=() body=()
   UI_BASE="${UI_BASE_RAIL}"
 
-  ui_put "${UI_BOLD}${C_ACCENT}" "Koios gLiveView"; ui_put "${C_MUTED}" " ${GLV_VERSION}"; ui_endl head "${inner}"
-  ui_endl head "${inner}"
-  ui_putw "${UI_BOLD}" "${inner}" "${D_NAME}"; ui_endl head "${inner}"
-  ui_putw "${C_MUTED}" "${inner}" "${D_ROLE,,} · ${D_IMPL}"; ui_endl head "${inner}"
-  ui_putw "${C_MUTED}" "${inner}" "${D_VERSION} · ${D_NETWORK}"; ui_endl head "${inner}"
-  if [[ -n "${D_UPTIME}" ]]; then
-    ui_fmt_duration value "${D_UPTIME}"
-    ui_put "${C_MUTED}" "up ${value}"; ui_endl head "${inner}"
+  ui_put "${UI_BOLD}${C_ACCENT}" "Koios gLiveView"; ui_put "${C_MUTED}" " ${GLV_VERSION}"; ui_endl title "${inner}"
+  ui_endl title "${inner}"
+  if (( ${#GLV_LOGO[@]} > 0 )); then
+    for i in "${!GLV_LOGO[@]}"; do
+      ui_put "${GLV_LOGO_SGR[i]}" "${GLV_LOGO[i]}"; ui_endl logo "${inner}"
+    done
+    ui_endl logo "${inner}"
   fi
+  glv_identity_lines head "${inner}"
 
   ui_endl vitals "${inner}"
   ui_put "${C_MUTED}" "VITALS"; ui_endl vitals "${inner}"
@@ -2065,18 +2327,28 @@ glv_rail() {
     glv_next_block next "${inner}"
   fi
 
-  needed=$((${#head[@]} + ${#views[@]}))
-  body=("${head[@]}")
+  # Decide by importance what fits, then stack the sections in rail order.
+  needed=$((${#title[@]} + ${#head[@]} + ${#views[@]}))
   if (( needed + ${#vitals[@]} <= height )); then
-    body+=("${vitals[@]}")
+    show_vitals=Y
     needed=$((needed + ${#vitals[@]}))
   fi
-  body+=("${views[@]}")
   if (( needed + ${#more[@]} <= height )); then
-    body+=("${more[@]}")
+    show_more=Y
     needed=$((needed + ${#more[@]}))
   fi
-  if (( needed + ${#next[@]} <= height )); then body+=("${next[@]}"); fi
+  if (( needed + ${#next[@]} <= height )); then
+    show_next=Y
+    needed=$((needed + ${#next[@]}))
+  fi
+  if (( ${#logo[@]} > 0 && needed + ${#logo[@]} <= height )); then show_logo=Y; fi
+  body=("${title[@]}")
+  [[ "${show_logo}" == N ]] || body+=("${logo[@]}")
+  body+=("${head[@]}")
+  [[ "${show_vitals}" == N ]] || body+=("${vitals[@]}")
+  body+=("${views[@]}")
+  [[ "${show_more}" == N ]] || body+=("${more[@]}")
+  [[ "${show_next}" == N ]] || body+=("${next[@]}")
   while (( ${#body[@]} < height )); do ui_endl body "${inner}"; done
   UI_BASE="${UI_BASE_MAIN}"
 
@@ -2306,8 +2578,9 @@ glv_page_compact() {
 
   UI_BASE="${UI_BASE_MAIN}"
   glv_status status colour
-  text="${D_ROLE,,} · ${D_IMPL} ${D_VERSION} · ${D_NETWORK}"
+  text="· ${D_IMPL} ${D_VERSION} · ${D_NETWORK}"
   ui_gap 2
+  glv_role_badge; ui_gap 1
   ui_put "${UI_BOLD}" "${D_NAME}"; ui_gap 1
   ui_putw "${C_MUTED}" $(( width - UI_LW - ${#status} - 6 )) "${text}"
   ui_gap $((width - UI_LW - ${#status} - 4))
@@ -2378,7 +2651,12 @@ glv_page_compact() {
       fi
       glv_opcert_text text colour
       glv_cell cells "Op cert" "${text}" "${colour}"
-      if [[ -n "${D_SCHEDULE_EPOCH}" ]]; then
+      if [[ -n "${D_SCHEDULE_EPOCH}" && "${D_RESULTS}" != Y ]]; then
+        glv_schedule_split value text
+        glv_cell cells "Leader" "${D_STATUS[total]:-0}"
+        glv_cell cells "Passed" "${value}"
+        glv_cell cells "To come" "${text}"
+      elif [[ -n "${D_SCHEDULE_EPOCH}" ]]; then
         glv_cell cells "Leader" "${D_STATUS[total]:-0}"
         glv_cell cells "Adopted" "$(( ${D_STATUS[adopted]:-0} + ${D_STATUS[confirmed]:-0} ))" C_OK
         value=$(( ${D_STATUS[missed]:-0} + ${D_STATUS[ghosted]:-0} + ${D_STATUS[stolen]:-0} + ${D_STATUS[invalid]:-0} ))
@@ -2440,14 +2718,7 @@ glv_page_mini() {
   ui_put "${UI_BOLD}${C_ACCENT}" "Koios gLiveView"; ui_put "${C_MUTED}" " ${GLV_VERSION}"; ui_endl lines "${inner}"
   ui_putw "${colour}" "${inner}" "● ${status}"; ui_endl lines "${inner}"
   ui_endl lines "${inner}"
-  ui_putw "${UI_BOLD}" "${inner}" "${D_NAME}"; ui_endl lines "${inner}"
-  ui_putw "${C_MUTED}" "${inner}" "${D_ROLE,,} · ${D_IMPL} ${D_VERSION}"; ui_endl lines "${inner}"
-  value="${D_NETWORK}"
-  if [[ -n "${D_UPTIME}" ]]; then
-    ui_fmt_duration value "${D_UPTIME}"
-    value="${D_NETWORK} · up ${value}"
-  fi
-  ui_putw "${C_MUTED}" "${inner}" "${value}"; ui_endl lines "${inner}"
+  glv_identity_lines lines "${inner}"
 
   if node_metric_has epochnum && node_metric_has slot_in_epoch &&
      glv_is_int "${slot_in_epoch:-}" && glv_is_int "${EPOCH_LENGTH:-}" && (( EPOCH_LENGTH > 0 )); then
@@ -3322,12 +3593,15 @@ glv_cells_panel() {
 }
 
 # glv_rows_panel <output> <width> <height or 0> <title> <rows> [right title]
+# [colours]: <colours> names an array with a colour for the value of the row
+# with the same index; an empty entry keeps the default.
 # Rows are "label|value". The label column is as wide as its longest label.
 # A value too long for the panel is cut: a path keeps its end, which is the
 # part that tells files apart, and anything else keeps its start.
 glv_rows_panel() {
-  local _rp_width="$2" _rp_height="$3" _rp_inner=$(($2 - 4)) _rp_label=0 _rp_row _rp_value _rp_room
-  local -n _rp_rows="$5"
+  local _rp_width="$2" _rp_height="$3" _rp_inner=$(($2 - 4)) _rp_label=0 _rp_row _rp_value _rp_room _rp_index=0
+  local -a _rp_none=()
+  local -n _rp_rows="$5" _rp_colours="${7:-_rp_none}"
   for _rp_row in "${_rp_rows[@]}"; do
     _rp_value="${_rp_row%%|*}"
     (( ${#_rp_value} <= _rp_label )) || _rp_label=${#_rp_value}
@@ -3346,8 +3620,9 @@ glv_rows_panel() {
     fi
     ui_putw "${C_MUTED}" $((_rp_label - 1)) "${_rp_row%%|*}"
     ui_gap 1
-    ui_putw '' "${_rp_room}" "${_rp_value}"
+    ui_putw "${_rp_colours[_rp_index]:-}" "${_rp_room}" "${_rp_value}"
     ui_endl UI_BODY "${_rp_inner}"
+    _rp_index=$((_rp_index + 1))
   done
   (( _rp_height > 0 )) || _rp_height=$((${#UI_BODY[@]} + 2))
   ui_panel "$1" "${_rp_width}" "${_rp_height}" "$4" "${6:-}"
@@ -3756,7 +4031,12 @@ glv_view_production() {
     else
       case "${status}" in
         adopted|confirmed) ui_putw "${C_OK}" 13 "✓ ${status}"; colour="${C_OK}" ;;
-        leader) ui_putw "${C_WARN}" 13 "? no result"; colour="${C_WARN}"; text="not checked yet" ;;
+        leader)
+          if [[ "${D_RESULTS}" == Y ]]; then
+            ui_putw "${C_WARN}" 13 "? no result"; colour="${C_WARN}"; text="not checked yet"
+          else
+            ui_putw "${C_MUTED}" 13 "· passed"; colour="${C_MUTED}"; text="no block results recorded"
+          fi ;;
         *) ui_putw "${C_DANGER}" 13 "✗ ${status}"; colour="${C_DANGER}" ;;
       esac
     fi
@@ -3791,7 +4071,9 @@ glv_view_production() {
   (( epoch_height > 0 )) || return 0
   UI_BODY=()
   ui_putw "${C_MUTED}" 10 "Epoch"; ui_putw "${C_MUTED}" 9 "Leader" r
-  ui_putw "${C_MUTED}" 10 "Adopted" r; ui_putw "${C_MUTED}" 9 "Ideal" r
+  # Without block results every epoch would show 0 adopted.
+  [[ "${D_RESULTS}" != Y ]] || ui_putw "${C_MUTED}" 10 "Adopted" r
+  ui_putw "${C_MUTED}" 9 "Ideal" r
   ui_putw "${C_MUTED}" 10 "Luck" r
   ui_endl UI_BODY "${inner}"
   for entry in "${D_EPOCHS[@]}"; do
@@ -3806,7 +4088,8 @@ glv_view_production() {
     colour=''
     [[ "${slot}" != "${epochnum:-}" ]] || colour="${UI_BOLD}"
     ui_putw "${colour}" 10 "${slot}"; ui_putw '' 9 "${status}" r
-    ui_putw "${C_OK}" 10 "${block}" r; ui_putw '' 9 "${ideal:-—}" r
+    [[ "${D_RESULTS}" != Y ]] || ui_putw "${C_OK}" 10 "${block}" r
+    ui_putw '' 9 "${ideal:-—}" r
     ui_putw '' 10 "${luck}" r
     ui_endl UI_BODY "${inner}"
   done
@@ -4057,8 +4340,8 @@ glv_column_add() {
 # and that network's protocol parameters on the right. The page is taller
 # than most terminals, so the whole of it scrolls.
 glv_view_details() {
-  local width="$1" left_width right_width text name value group row i visible blank_left blank_right
-  local -a node=() network=() paths=() info=() rows=() left=() right=()
+  local width="$1" left_width right_width text name value group row i visible blank_left blank_right colour
+  local -a node=() network=() paths=() info=() rows=() left=() right=() binary=() binary_colours=() started=()
 
   if (( width >= 110 )); then left_width=$((width / 2)); right_width=$((width - left_width))
   else left_width="${width}"; right_width="${width}"; fi
@@ -4077,22 +4360,47 @@ glv_view_details() {
   glv_rows_panel P_A "${left_width}" 0 "Node" node
   glv_column_add left P_A
 
+  if [[ -n "${D_BIN_FILE}" ]]; then
+    text="${D_BIN_FILE}"
+    [[ "${D_BIN_SOURCE}" != configured ]] || text+=" (configured)"
+    binary+=("File|${text}"); binary_colours+=('')
+    glv_binary_state text colour
+    binary+=("On disk|${text}"); binary_colours+=("${colour}")
+    if [[ -n "${D_BIN_BUILD}" ]]; then binary+=("Build|${D_BIN_BUILD}"); binary_colours+=(''); fi
+    if glv_is_int "${D_BIN_SIZE}" && glv_is_int "${D_BIN_MTIME}"; then
+      ui_fmt_bytes text "${D_BIN_SIZE}"
+      printf -v value '%(%F %H:%M)T' "${D_BIN_MTIME}"
+      binary+=("Size, date|${text} · ${value}"); binary_colours+=('')
+    fi
+    glv_binary_pin text colour
+    if [[ -n "${text}" ]]; then binary+=("Release pin|${text}"); binary_colours+=("${colour}"); fi
+    UI_HELP=binary
+    glv_rows_panel P_A "${left_width}" 0 "Binary" binary "" binary_colours
+    glv_column_add left P_A
+  fi
+
   if (( ${#D_STARTUP[@]} > 0 )); then
     UI_HELP=startup
     glv_rows_panel P_A "${left_width}" 0 "Start-up options" D_STARTUP "command line and environment"
     glv_column_add left P_A
   fi
 
-  paths+=("Node home|${NODE_HOME}")
-  [[ -z "${NODE_CONFIG:-}" ]] || paths+=("Configuration|${NODE_CONFIG}")
-  [[ -z "${NODE_SOCKET:-}" ]] || paths+=("Node socket|${NODE_SOCKET}")
-  [[ -z "${D_METRICS_URL}" ]] || paths+=("Metrics endpoint|${D_METRICS_URL}")
+  # Where the deployment keeps its files, leaving out what the start-up
+  # options already show, such as cardano-node's --config and --socket-path.
+  for row in "${D_STARTUP[@]}"; do started+=("${row#*|}"); done
+  for row in "Node home|${NODE_HOME}" "Configuration|${NODE_CONFIG:-}" "Node socket|${NODE_SOCKET:-}" \
+             "Metrics endpoint|${D_METRICS_URL}"; do
+    value="${row#*|}"
+    [[ -n "${value}" ]] || continue
+    for text in "${started[@]}"; do [[ "${text}" != "${value}" ]] || continue 2; done
+    paths+=("${row}")
+  done
   [[ ! -f "${D_BLOCKLOG_DB}" ]] || paths+=("Block log|${D_BLOCKLOG_DB}")
   if [[ -n "${POOL_NAME:-}" && "${POOL_NAME}" != CHANGE_ME ]]; then
     paths+=("Pool folder|${POOL_FOLDER:-}/${POOL_NAME}")
   fi
-  UI_HELP=paths
-  glv_rows_panel P_A "${left_width}" 0 "Paths" paths
+  UI_HELP=deployment
+  glv_rows_panel P_A "${left_width}" 0 "Deployment" paths
   glv_column_add left P_A
 
   for name in "${NODE_INFO_METRICS[@]}"; do
@@ -4199,7 +4507,7 @@ HELP_PAGE_NAMES=('' Overview Chain Peers Production System Logs "Node & network"
 HELP_PAGE_KEYS=('' "epoch chain propagation peers resources production recent"
   "epoch chain traffic spread recent" "peers connections roundtrip peerlist"
   "production keys results schedule epochs" "host process custom" "log"
-  "node startup paths nodeinfo network params")
+  "node binary startup deployment nodeinfo network params")
 declare -A HELP_TITLE=(
   [epoch]="Epoch" [chain]="Chain" [propagation]="Propagation" [peers]="Peers"
   [resources]="Resources" [production]="Block production" [recent]="Recent blocks"
@@ -4207,7 +4515,7 @@ declare -A HELP_TITLE=(
   [connections]="Connections" [roundtrip]="Round trip" [peerlist]="Connection list"
   [keys]="Keys" [results]="Epoch so far" [schedule]="Leader schedule" [epochs]="Epochs"
   [host]="Host" [process]="Node process" [custom]="Node's own metrics" [log]="Log"
-  [node]="Node" [network]="Network" [paths]="Paths" [nodeinfo]="Reported by the node"
+  [node]="Node" [binary]="Binary" [network]="Network" [deployment]="Deployment" [nodeinfo]="Reported by the node"
   [startup]="Start-up options" [params]="Protocol parameters"
 )
 
@@ -4233,9 +4541,12 @@ glv_help_entries() {
         "How far the node's ledger is into the epoch: its slot in the epoch against the epoch length."
       glv_help_add "Time left" \
         "Counted from the wall clock, so it is right even when the node is behind."
-      if [[ "${D_ROLE}" == Core ]]; then
+      if [[ "${D_ROLE}" == Core && "${D_RESULTS}" == Y ]]; then
         glv_help_add "Marks" \
           "One ▲ for each leader slot of your pool, placed where the slot falls on the bar. Green was adopted, the accent colour is still to come, amber has passed without a result yet, red was lost."
+      elif [[ "${D_ROLE}" == Core ]]; then
+        glv_help_add "Marks" \
+          "One ▲ for each leader slot of your pool, placed where the slot falls on the bar. The accent colour is still to come, grey has passed. The block log holds no block results for this node, so the marks do not say whether a block was made."
       fi
       glv_help_add "Sync or alert" \
         "While the node reports a sync phase or an alert, that line takes the place of the marks."
@@ -4473,15 +4784,25 @@ glv_help_entries() {
       [[ "${D_ROLE}" == Core ]] || return 0
       glv_help_add "Rows" \
         "The leader slots of your pool this epoch, from the block log: the ones to come first, soonest on top, then the ones that have passed."
-      glv_help_add "Status" \
-        "next and scheduled are still to come. ✓ adopted or confirmed: the block is on the chain. ? no result: the slot has passed and the block log has not been updated for it yet. ✗ with missed, ghosted, stolen or invalid: the block was lost."
+      if [[ "${D_RESULTS}" == Y ]]; then
+        glv_help_add "Status" \
+          "next and scheduled are still to come. ✓ adopted or confirmed: the block is on the chain. ? no result: the slot has passed and the block log has not been updated for it yet. ✗ with missed, ghosted, stolen or invalid: the block was lost."
+      else
+        glv_help_add "Status" \
+          "next and scheduled are still to come. · passed: the slot has passed. Nothing records block results in the block log for this node yet, CNCLI's validation does that on cardano-node, so gLiveView cannot tell whether the block was made."
+      fi
       glv_help_add "Next epoch" \
         "When the schedule of the next epoch has been calculated, the title says how many slots it holds."
       ;;
     epochs)
       [[ "${D_ROLE}" == Core ]] || return 0
-      glv_help_add "Rows" \
-        "One row for each recent epoch in the block log: slots led, blocks adopted, the ideal number for the pool's stake, and leader against ideal as luck."
+      if [[ "${D_RESULTS}" == Y ]]; then
+        glv_help_add "Rows" \
+          "One row for each recent epoch in the block log: slots led, blocks adopted, the ideal number for the pool's stake, and leader against ideal as luck."
+      else
+        glv_help_add "Rows" \
+          "One row for each recent epoch in the block log: slots led, the ideal number for the pool's stake, and leader against ideal as luck. The block log holds no block results for this node, so there is no column of adopted blocks."
+      fi
       ;;
     recent)
       glv_help_add "Rows" \
@@ -4511,9 +4832,18 @@ glv_help_entries() {
       glv_help_add "Rows" \
         "The constants of the network the node is on. Epoch and slot length give the length of an epoch in time; the KES rows say how long a KES key lasts before the operational certificate has to be renewed."
       ;;
-    paths)
+    binary)
+      glv_help_add "File" \
+        "The program file the node process runs, as the process sees it. A deployment keeps its own binaries in its bin folder; a path elsewhere, such as ~/.local/bin, means the node runs a shared copy."
+      glv_help_add "On disk" \
+        "The version that file reports, against the version the node reports while it runs. After an upgrade the new binary is on disk while the old one keeps running: the row then says to restart." \
+        "same as running."
+      glv_help_add "Release pin" \
+        "The version the deployment's release manifest asks for. latest means each deployment takes the newest release."
+      ;;
+    deployment)
       glv_help_add "Rows" \
-        "Where the deployment keeps its files, and the address gLiveView reads the node's metrics from."
+        "Where the deployment keeps its files, and the address gLiveView reads the node's metrics from. A path the start-up options already show is not repeated here."
       ;;
     startup)
       glv_help_add "Rows" \
@@ -4551,7 +4881,12 @@ glv_help_disk() {
 }
 
 glv_help_results() {
-  if [[ -n "${D_SCHEDULE_EPOCH}" ]]; then
+  if [[ -n "${D_SCHEDULE_EPOCH}" && "${D_RESULTS}" != Y ]]; then
+    glv_help_add "Leader · Ideal · Luck" \
+      "Leader: slots your pool leads this epoch, from the leader schedule. Ideal: what its stake would give on average. Luck: leader against ideal."
+    glv_help_add "Passed · To come" \
+      "Leader slots of this epoch that have passed and that are still to come. Nothing records block results in the block log for this node yet, CNCLI's validation does that on cardano-node, so there are no adopted or lost counts."
+  elif [[ -n "${D_SCHEDULE_EPOCH}" ]]; then
     glv_help_add "Leader · Ideal · Luck" \
       "Leader: slots your pool leads this epoch, from the leader schedule. Ideal: what its stake would give on average. Luck: leader against ideal."
     glv_help_add "Adopted · Confirmed" \
@@ -4721,6 +5056,7 @@ if [[ -z "${GLV_THEME:-}" && -r "${PARENT}/cntools/.state/theme" ]]; then
   read -r GLV_THEME < "${PARENT}/cntools/.state/theme" || GLV_THEME=''
 fi
 ui_theme "${GLV_THEME:-default}"
+glv_logo_init
 
 # gum draws the command list. Without it the dashboard still runs.
 GUM=''
@@ -4768,10 +5104,33 @@ glv_size_check() {
   printf '\e[2J'
 }
 
+# The terminal or tmux window title names the node and its role, so a tab
+# shows it without switching to it. The title in use goes on the terminal's
+# title stack first and comes back on exit; a terminal without a title stack
+# keeps gLiveView's title until the shell sets its own.
+GLV_TITLE_SHOWN=''
+GLV_TITLE_PUSHED=N
+glv_title_update() {
+  local role=relay title
+  [[ "${D_ROLE}" != Core ]] || role='block producer'
+  # ASCII only: a terminal or tmux without a UTF-8 locale, as under su,
+  # shows other characters as "_".
+  title="gLiveView - ${D_NAME} - ${role}"
+  title="${title//[[:cntrl:]]/}"
+  [[ "${title}" != "${GLV_TITLE_SHOWN}" ]] || return 0
+  if [[ "${GLV_TITLE_PUSHED}" == N ]]; then
+    printf '\e[22;0t'
+    GLV_TITLE_PUSHED=Y
+  fi
+  printf '\e]2;%s\a' "${title}"
+  GLV_TITLE_SHOWN="${title}"
+}
+
 glv_cleanup() {
   glv_peers_cleanup
   [[ -z "${PARAMS_JOB_PID:-}" ]] || kill "${PARAMS_JOB_PID}" 2>/dev/null || true
   rm -f -- "${PARAMS_JOB_FILE:-/nonexistent}" "${PARAMS_JOB_FILE:-/nonexistent}.part"
+  [[ "${GLV_TITLE_PUSHED}" == N ]] || printf '\e[23;0t'
   printf '\e[?25h\e[?1049l'
   [[ -z "${STTY_SAVED}" ]] || stty "${STTY_SAVED}" 2>/dev/null
 }
@@ -4941,6 +5300,7 @@ while :; do
   glv_now="${EPOCHREALTIME/[.,]/}"
   if (( glv_now >= glv_next_collect )); then
     glv_data_collect
+    glv_title_update
     glv_next_collect=$((${EPOCHREALTIME/[.,]/} + REFRESH_RATE * 1000000))
   else
     glv_data_clock

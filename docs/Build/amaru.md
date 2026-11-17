@@ -506,63 +506,40 @@ Run the dashboard after both services are active:
 ```
 
 The shared adapter normalizes Amaru's common chain, epoch, density, fork,
-mempool, served-block, version, uptime, and process measurements. Uptime is
-derived from local timing for the active node process. Amaru 10.11.20261105
-and later export the connection-manager gauges, shown as incoming, outgoing,
-and unidirectional connections. Amaru exports no peer-set metrics. With older
-releases, gLiveView counts the node process's established TCP sessions
-instead. Press `p` for peer analysis: round-trip
-times, and each connection's use and hot or warm state on both sides, with the
-peers that delivered headers and blocks first, read from Amaru's log in the
-journal. See the [gLiveView guide](../Scripts/gliveview.md#connection-use-peer-states-and-scores).
+mempool, served-block, version, uptime, and process measurements. Amaru
+10.11.20261105 and later export the connection-manager gauges, shown as
+incoming, outgoing, and unidirectional connections. Amaru exports no peer-set
+metrics. With older releases, gLiveView counts the node process's established
+TCP sessions instead. On the Peers page, `a` adds each connection's use and
+hot or warm state on both sides, with the peers that delivered headers and
+blocks first, read from Amaru's log in the journal. See the
+[gLiveView guide](../Scripts/gliveview.md#connection-use-peer-states-and-scores).
 
 Epoch progress is calculated from Amaru's latest locally validated epoch and
 epoch slot. While the node is catching up this is local-ledger epoch progress,
-not a network synchronization percentage. The common CHAIN section displays
-the local block and slot together with a timing-derived Tip gap; it does not
-display a separate reference tip.
+not a network synchronization percentage. The chain figures show the local
+block and slot together with a timing-derived tip gap. The latest block delay
+is derived from Amaru's header and block-fetch timings, and the System page
+lists Amaru's own samples in the `Amaru metrics` panel. The full rail shows
+Amaru's logo under the title on terminals 110 columns and wider. See the
+[Amaru section of the gLiveView guide](../Scripts/gliveview.md#amaru) for
+every figure.
 
-The adapter also handles scientific-notation values emitted through
-OpenTelemetry. The header shows Amaru's logo and name, or `[Amaru]` when it
-[falls back to text](../Scripts/gliveview.md).
-
-Amaru uses the same availability-driven dashboard as the other
-implementations. Compact mode presents the primary operational metrics,
-including the latest block delay, which gLiveView derives from Amaru's header
-and block-fetch timings. Verbose mode adds the share of recent blocks received
-within 1, 3, and 5 seconds, runtime, and Amaru-specific samples, including:
-
-- process CPU usage and disk read/write rates;
-- open file descriptors and their limit;
-- mempool synchronization time and accepted/rejected insertions;
-- rejected consensus headers;
-- the latest header delay, fetch wait, block fetch, and header-forwarding
-  durations.
-
-Each item is shown only if the installed Amaru release exports the underlying
-sample. Amaru does not expose managed-runtime garbage-collection metrics; the
-collector's own runtime telemetry is not treated as node telemetry.
-
-Press `n` to open the common Network page for static node, network, service,
-deployment-path, and metrics-endpoint metadata. Dashboard and metadata values
-are bounded to preserve alignment. Normal refreshes update changed rows, with
-a periodic whole-frame row reconciliation that does not clear the terminal
-first. See the [gLiveView guide](../Scripts/gliveview.md) for display controls.
-
-On a block producer, gLiveView identifies the role as `Core` and adds a
-block-production section with the current KES period, the remaining KES
-periods, and the calculated KES expiry. Verbose mode adds the first and last
-KES period of the operational certificate. Amaru exports no forging flag, so
-the adapter recognizes a producer by the operational-certificate gauges that
-only Amaru's forge stage reports. They first appear once the node adopts a
-new tip after a start; until then the dashboard shows `Relay`. Amaru exports
-no leader-schedule or forged-block counters, so those rows are absent. On a
-relay the network-derived KES period stays on the Network page.
+On a block producer, gLiveView shows the `BLOCK PRODUCER` badge and the
+remaining KES periods, the KES expiry and the operational certificate in the
+Block production panel and on the Production page. Amaru exports no forging
+flag, so the adapter recognizes a producer by the operational-certificate
+gauges that only Amaru's forge stage reports. They first appear once the node
+adopts a new tip after a start; until then the dashboard shows `RELAY`. Amaru
+exports no leader-schedule or forged-block counters. The leader slots, ideal
+slots and luck come from the block log that `amaru-leaderlog.sh` keeps, see
+[Leader schedule](#leader-schedule). Nothing records block results for Amaru
+yet, so gLiveView shows how many leader slots have passed and how many are to
+come instead of adopted and lost blocks. On a relay the network-derived KES
+period is on the Node & network page.
 
 Metrics absent from the current scrape are omitted rather than displayed as
-zero. The blocklog comes from `amaru-leaderlog.sh`, see
-[Leader schedule](#leader-schedule). Koios pool data and Mithril signer remain
-cnode-only.
+zero.
 Mithril helpers, db-sync, Ogmios, and other socket-dependent cnode tools
 remain undeployed. CNTools 14 is available through
 the stable `scripts/cntools.sh` launcher. Use `cntools.sh -l` for Koios-backed

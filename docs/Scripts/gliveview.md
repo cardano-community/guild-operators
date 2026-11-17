@@ -143,10 +143,11 @@ implementation can expose a different subset.
 
 | Label | Meaning |
 | --- | --- |
+| Logo | The node implementation's logo under the title, in the full rail of terminals 110 columns and wider. It is the first thing the rail leaves out on a short terminal, and `SHOW_NODE_LOGO=N` hides it. |
 | Name | `NODE_NAME` when set, otherwise the name of the deployment folder. |
-| Role | `relay` or `core`. cnode and Dingo derive producer mode from the live forging metric; Amaru from the operational-certificate gauges that only a block producer exports. |
-| Version and network | Version reported by the running process or its build metric, and the configured network. |
-| up | Elapsed time for the current node process, not host uptime. |
+| Role | A badge under the name: `RELAY` on blue, or `BLOCK PRODUCER` on gold. The compact layout starts its top line with the same badge. cnode and Dingo derive producer mode from the live forging metric; Amaru from the operational-certificate gauges that only a block producer exports. Without colours the badge reads `[RELAY]` or `[BLOCK PRODUCER]`. |
+| Implementation and version | The node implementation, and the version reported by the running process or its build metric. |
+| Network and up | The configured network, and the elapsed time for the current node process, not host uptime. The seconds are left out when the line would not fit the rail. |
 | Sync | The tip gap, or the sync phase while the node reports one. |
 | Peers | Outgoing and incoming connections as the node counts them. |
 | Blocks | How long the last block took to arrive. |
@@ -154,13 +155,20 @@ implementation can expose a different subset.
 | Host, Node | Processor use of the host, and processor and memory use of the node process. |
 | Next block | On a producer with a leader schedule: the countdown to the next leader slot. This is sensitive operational information; control who can view the terminal. |
 
+The terminal title, which a terminal tab or tmux window shows, names the node
+and its role while gLiveView runs, for example `gLiveView - bp1 - block
+producer`. gLiveView saves the previous title on the terminal's title stack
+and restores it on exit, as xterm-compatible terminals and tmux do. A
+terminal without a title stack keeps gLiveView's title until the shell sets
+its own.
+
 ### Epoch
 
 | Label | Meaning |
 | --- | --- |
 | Bar | The latest locally processed slot's position within the epoch. It is local ledger progress, not network synchronization progress. |
 | Time left | Counted from the wall clock. |
-| Marks | On a producer with a leader schedule, one mark per leader slot: adopted, still to come, passed without a result yet, or lost. |
+| Marks | On a producer with a leader schedule, one mark per leader slot: adopted, still to come, passed without a result yet, or lost. While the block log holds no block results, a passed slot is grey. |
 | Alert | Shown only while the node reports a condition that needs operator action, such as a halted or stuck ledger, the operator's own pool equivocating, or invalid forging keys. |
 | Sync | Shown only while the node reports bootstrap or catch-up progress, such as Dingo's Mithril download or ledger import, or cardano-node's ledger replay after a restart, with its percentage and rate. |
 
@@ -217,14 +225,26 @@ Shown on a producer, in the overview and on the Production page.
 | Label | Meaning |
 | --- | --- |
 | Leader, Ideal, Luck | With a leader schedule: slots the pool leads this epoch, the number its stake would give on average, and one against the other. |
+| Passed, To come | With a leader schedule but no block results in the block log: leader slots of this epoch that have passed and that are still to come. |
 | Adopted, Confirmed | Blocks the node made and put on its chain, and the adopted blocks later verified to be on the chain. |
 | Missed, Ghosted, Stolen, Invalid | The slot passed without a block; the block was made but another took its place; another pool led the same slot and won; the node failed to make the block. |
 | KES | Remaining KES periods. Amber at 15, red at 5. |
 | Op cert | The certificate counter on disk and the last one used on chain. It is marked wrong unless the disk counter equals the chain counter or exceeds it by one. |
 | Missed chk | Leadership checks the node skipped. Sustained growth can indicate CPU, I/O, GC, or timekeeping pressure. |
 
+Block results are written to the block log by CNCLI's validation on
+cardano-node. Until the block log holds any result, gLiveView shows `Passed`
+and `To come` in place of the adopted and lost counts, marks passed slots as
+`· passed` on the Production page, and leaves the adopted column out of the
+epoch history, so none of them reads 0 while the pool is making blocks.
+
 Without a leader schedule the panel shows the node's own counters since it
 started.
+
+gLiveView reads the block log at `BLOCKLOG_DB` when an adapter sets it, as the
+cnode adapter does, otherwise at `blocklog.db` in `BLOCKLOG_DIR` from `env`,
+and by default at `guild-db/blocklog/blocklog.db` in the deployment folder,
+the same file CNTools reads.
 
 ## Node-specific metrics
 
@@ -343,7 +363,11 @@ operational-certificate gauges, so the adapter treats their presence as
 producer mode. They first appear once the node adopts a new tip after a
 start. An Amaru producer shows its remaining KES periods in the Block
 production panel. Amaru exports no leader-schedule or forged-block counters,
-so those figures need a leader schedule in the blocklog.
+so the Production figures come from the leader schedule that
+`amaru-leaderlog.sh` stores in the block log, see
+[Leader schedule](../Build/amaru.md#leader-schedule). Nothing records block
+results for Amaru yet, so gLiveView shows passed and upcoming leader slots
+rather than adopted and lost blocks.
 
 Amaru's own terminal dashboard runs inside the node process and is therefore
 only available when `amaru.sh run` is started from an interactive terminal.
@@ -405,8 +429,9 @@ terminals and scrolls as a whole.
 | Panel | Rows |
 | --- | --- |
 | Node | Implementation, version and revision, role, service, process, uptime, and how gLiveView is set up |
+| Binary | The program file the node process runs, the version and build it reports, its size and date, and the release pin of the deployment. When the file was replaced after the node started, as after an upgrade, `On disk` turns amber and says to restart. `File` shows whether the node runs the deployment's own binary or a shared copy elsewhere |
 | Start-up options | The options on the node's command line, and the settings in its environment that carry the node's own prefix (`AMARU_`, `DINGO_`, `CARDANO_`). A setting whose name suggests a key, token or password shows as `hidden` |
-| Paths | Node home, configuration, node socket, metrics endpoint, block log, pool folder |
+| Deployment | Node home, configuration, node socket and metrics endpoint where the start-up options do not already show them, and the block log and pool folder when they exist |
 | Reported by the node | Adapter-supplied static metadata, such as Dingo's Go runtime and stake snapshot or Amaru's build platform and host memory |
 | Network | Network name and magic, node port, epoch and slot length, active slot coefficient, KES constants |
 | Protocol parameters | The parameters in force, grouped as Network, Economic and Governance. A parameter gLiveView has no name for is listed under Other |
@@ -603,15 +628,17 @@ tracker](https://github.com/cardano-community/guild-operators/issues).
 #REFRESH_RATE=2                           # Seconds between metric collections
 #GLV_THEME=""                             # default | hydra-after-dark
 #GLV_COLORS=""                            # truecolor | 256 | none
+#SHOW_NODE_LOGO=Y                         # Show the node's logo in the full rail
 #ENABLE_IP_GEOLOCATION=Y                  # Geolocate peer addresses
 #ENABLE_NODE_PEER_STATE=Y                 # Read peer data from the node's journal
 ```
 
-A script update keeps the variables you already have. The ones gLiveView 1
-used and gLiveView 2 does not (`REPAINT_RATE`, `LEGACY_MODE`,
-`SHOW_NODE_LOGO`, `RETRIES`, `PEER_LIST_CNT`, `THEME`, `LATENCY_TOOLS`,
-`CNCLI_CONNECT_ONLY`, `HIDE_DUPLICATE_IPS`, `VERBOSE`, `GLV_LOG`) stay in the
-file and have no effect.
+A script update keeps the variables you already have. `SHOW_NODE_LOGO` from
+gLiveView 1 still works, and `false` hides the logo as `N` does. The ones
+gLiveView 1 used and gLiveView 2 does not (`REPAINT_RATE`, `LEGACY_MODE`,
+`RETRIES`, `PEER_LIST_CNT`, `THEME`, `LATENCY_TOOLS`, `CNCLI_CONNECT_ONLY`,
+`HIDE_DUPLICATE_IPS`, `VERBOSE`, `GLV_LOG`) stay in the file and have no
+effect.
 
 ## Upstream metric references
 

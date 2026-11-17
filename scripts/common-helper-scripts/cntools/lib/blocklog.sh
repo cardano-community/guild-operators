@@ -1,10 +1,15 @@
 #!/usr/bin/env bash
-# Read-only CNCLI journal snapshots. No env helpers, node queries or migrations.
+# Read-only snapshots of the block log: CNCLI's journal on cardano-node, the
+# schedule from amaru-leaderlog.sh on Amaru. No env helpers, node queries or
+# migrations.
 # shellcheck disable=SC2034
 CNTOOLS_BLOCKLOG_WORK=''
 CNTOOLS_BLOCKLOG_ERROR=''
 CNTOOLS_BLOCKLOG_DATA='[]'
 CNTOOLS_BLOCKLOG_HAS_EPOCHDATA=N
+# N while no slot has a status other than leader: nothing records block results
+# for this node, as on Amaru, whose leader log stores the schedule only.
+CNTOOLS_BLOCKLOG_HAS_RESULTS=Y
 CNTOOLS_BLOCKLOG_EPOCH_STATS='{}'
 
 cntools_blocklog_error() {
@@ -24,12 +29,12 @@ cntools_blocklog_cleanup() {
 }
 
 cntools_blocklog_prepare() {
-  local schema='' problem=''
+  local schema='' results='' problem=''
   CNTOOLS_BLOCKLOG_ERROR=''; CNTOOLS_BLOCKLOG_DATA='[]'
-  command -v sqlite3 >/dev/null 2>&1 || { cntools_blocklog_error 'Install sqlite3 to read the CNCLI block log.'; return 1; }
+  command -v sqlite3 >/dev/null 2>&1 || { cntools_blocklog_error 'Install sqlite3 to read the block log.'; return 1; }
   [[ "${CNTOOLS_BLOCKLOG_DB:-}" == /* && -f "${CNTOOLS_BLOCKLOG_DB}" &&
      ! -L "${CNTOOLS_BLOCKLOG_DB}" && -r "${CNTOOLS_BLOCKLOG_DB}" ]] || {
-    cntools_blocklog_error "No readable CNCLI block log at ${CNTOOLS_BLOCKLOG_DB:-unset}. Configure BLOCKLOG_DIR or initialize CNCLI block monitoring first."
+    cntools_blocklog_error "No readable block log at ${CNTOOLS_BLOCKLOG_DB:-unset}. Configure BLOCKLOG_DIR, or start the leader schedule first: CNCLI on cardano-node, amaru-leaderlog.sh on Amaru."
     return 1
   }
   if [[ -z "${CNTOOLS_BLOCKLOG_WORK}" ]]; then
@@ -48,9 +53,13 @@ cntools_blocklog_prepare() {
     'epochdata', EXISTS(SELECT 1 FROM main.sqlite_master WHERE name='epochdata' AND type='table')
       AND (SELECT count(*) FROM pragma_table_info('epochdata') WHERE name IN
         ('epoch','pool_id','epoch_slots_ideal','max_performance'))=4);" || return 1
-  jq -e '.blocklog == 1' <<< "${schema}" >/dev/null || { cntools_blocklog_error 'The block log does not contain a supported CNCLI blocklog table.'; return 1; }
+  jq -e '.blocklog == 1' <<< "${schema}" >/dev/null || { cntools_blocklog_error 'The block log does not contain a supported blocklog table.'; return 1; }
   CNTOOLS_BLOCKLOG_HAS_EPOCHDATA=N
   if jq -e '.epochdata == 1' <<< "${schema}" >/dev/null; then CNTOOLS_BLOCKLOG_HAS_EPOCHDATA=Y; fi
+  cntools_blocklog_sql results "SELECT json_object('results',
+    EXISTS(SELECT 1 FROM main.blocklog WHERE status <> 'leader'));" || return 1
+  CNTOOLS_BLOCKLOG_HAS_RESULTS=N
+  if jq -e '.results == 1' <<< "${results}" >/dev/null; then CNTOOLS_BLOCKLOG_HAS_RESULTS=Y; fi
 }
 
 # SQL is internal, with bounded, normalized decimal inputs only. SQLite opens
@@ -74,7 +83,7 @@ cntools_blocklog_sql() {
   if (( status != 0 )); then
     IFS= read -r -n 4096 detail < "${CNTOOLS_BLOCKLOG_WORK}/error" || true
     cntools_log ERROR "Block log query status=${status}: ${detail}" || true
-    cntools_blocklog_error 'Could not read the CNCLI block log. Check permissions, database locks and the CNTools log.'
+    cntools_blocklog_error 'Could not read the block log. Check permissions, database locks and the CNTools log.'
     return 1
   fi
   _blocklog_output="$(< "${CNTOOLS_BLOCKLOG_WORK}/result")"

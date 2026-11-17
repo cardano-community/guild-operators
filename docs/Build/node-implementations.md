@@ -249,15 +249,11 @@ All three profiles install the same canonical `gLiveView.sh`. The selected
 adapter translates its native metric names into a normalized availability
 registry. gLiveView then renders only the metrics observed in the latest
 successful scrape; it does not turn an unsupported or missing sample into a
-zero. All relay profiles use one common availability-driven layout. Its CHAIN
-section places local Block and Slot beside a normalized Tip gap and does not
-show the calculated reference slot as a separate value.
-
-Compact mode presents the primary common operational signals. Verbose mode
-adds available connection, propagation, runtime, and live
-implementation-specific measurements. Static node, network, deployment, and
-runtime metadata is available from the `[n] Network` page instead of occupying
-the live dashboard.
+zero. All profiles use the same pages, and the layout follows the size of
+the terminal. The chain figures place the local block and slot beside a
+normalized tip gap and do not show the calculated reference slot as a
+separate value. Static node, network, deployment, and runtime metadata is on
+the Node & network page (`n`) instead of the live pages.
 
 Compatible aggregate peer-set and process measurements use common fields.
 Dingo additionally contributes availability-gated Go runtime, database, cache,
@@ -270,8 +266,9 @@ terminal layout. Each refresh updates only rows whose content changed. A
 periodic whole-frame reconciliation redraws rows without clearing the terminal
 first, so stale content is corrected without an avoidable blank-screen repaint.
 
-The dashboard header always identifies the connected implementation:
-`cardano-node`, `Dingo`, or `Amaru`. cnode and Dingo expose native Prometheus
+The rail always identifies the connected implementation: `cardano-node`,
+`Dingo`, or `Amaru`, with its logo under the title when the full rail has room
+for it. cnode and Dingo expose native Prometheus
 endpoints. Amaru emits OTLP; its documented `:8889` endpoint is supplied by
 Amaru's reference OpenTelemetry Collector configuration rather than the node
 binary. The Guild deployment installs a minimal, host-safe form of that
@@ -285,8 +282,9 @@ process is a producer. The launcher selects the live role from the complete
 operational hot-key set. gLiveView confirms it from Dingo's `forging_enabled`
 metric and, for Amaru, from the operational-certificate gauges that only its
 forge stage exports. Such a producer uses the common KES and block-production
-display. CNCLI blocklog, Koios pool
-and Mithril signer sections remain cnode-only, and interactive peer analysis is
+display. The leader schedule comes from the block log, which CNCLI keeps for
+cnode and `amaru-leaderlog.sh` for Amaru; only CNCLI also records block
+results. The node's own view of each connection in peer analysis is
 available for cnode and Amaru. See the
 [gLiveView guide](../Scripts/gliveview.md) for the displayed metric groups.
 
@@ -301,6 +299,7 @@ available for cnode and Amaru. See the
 | cardano-cli local queries | Yes | Not exposed through the profile | No compatible node-to-client socket |
 | db-sync, Ogmios, standalone Mithril helpers | Existing support | Not deployed | Not deployed |
 | Block production | Yes | Experimental on preprod/preview, not on mainnet | Experimental |
+| Leader schedule in the block log | CNCLI, with block results | No | `amaru-leaderlog.sh`, schedule only |
 
 Dingo samples carry an upstream `network` label; the shared parser accepts
 labelled and unlabelled Prometheus samples. Amaru samples pass through

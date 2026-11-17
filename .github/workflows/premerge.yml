@@ -50,6 +50,8 @@ jobs:
       run: bash files/tests/amaru-metrics.sh
     - name: Test Amaru leaderlog
       run: bash files/tests/amaru-leaderlog.sh
+    - name: Test gLiveView views
+      run: bash files/tests/gliveview-views.sh
     - name: Test cnode pre-release networks
       run: bash files/tests/cnode-prerelease-networks.sh
     - name: Test binary layout migration

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Compact, manually refreshed CNCLI block history in local/light/offline modes.
+# Compact, manually refreshed block history in local/light/offline modes.
 # shellcheck disable=SC2034
 
 cntools_blocks_interact() {
@@ -21,10 +21,20 @@ cntools_blocks_status_into() {
   case "$3" in
     confirmed) _blocks_status=Confirmed; _blocks_role=success ;;
     adopted) _blocks_status='Adopted · awaiting confirmation'; _blocks_role=success ;;
-    leader) _blocks_status='Leader · scheduled / not yet validated'; _blocks_role=accent ;;
+    leader)
+      if [[ "${CNTOOLS_BLOCKLOG_HAS_RESULTS:-Y}" == Y ]]; then _blocks_status='Leader · scheduled / not yet validated'
+      else _blocks_status='Leader · no block results recorded'; fi
+      _blocks_role=accent ;;
     missed|ghosted|stolen|invalid) _blocks_status="${3^}"; _blocks_role=danger ;;
     *) _blocks_status="Unknown · $3" ;;
   esac
+}
+
+# A row that says why adopted and lost counts are missing: nothing records
+# block results in this block log yet.
+cntools_blocks_results_note() {
+  [[ "${CNTOOLS_BLOCKLOG_HAS_RESULTS:-Y}" != Y ]] || return 0
+  cntools_table_pair 'Block results' 'Not recorded · only CNCLI validation on cardano-node records them' warning
 }
 
 cntools_blocks_summary_rows() {
@@ -37,11 +47,12 @@ cntools_blocks_summary_rows() {
       cntools_blocks_number_pair "${key}" "${value}"
     fi
   # Failure and unknown counts appear only when they occurred.
-  done < <(jq -r '[["Scheduled slots",.scheduled],["Ideal blocks",.ideal],["Luck",.luck],
+  done < <(jq -r --arg results "${CNTOOLS_BLOCKLOG_HAS_RESULTS:-Y}" '[["Scheduled slots",.scheduled],["Ideal blocks",.ideal],["Luck",.luck],
     ["Adopted (incl. confirmed)",.adopted],["Confirmed",.confirmed],["Pending validation",.pending],
     ["Missed",.missed],["Ghosted",.ghosted],["Stolen",.stolen],["Invalid",.invalid],["Unknown status",.unknown]][]
     | select(.[1]!=null)
     | select((.[0]|IN("Missed","Ghosted","Stolen","Invalid","Unknown status")|not) or .[1]!=0)
+    | select($results=="Y" or (.[0]|IN("Adopted (incl. confirmed)","Confirmed","Pending validation")|not))
     | map(tostring) | join("\u001f")' <<< "${record}")
 }
 
@@ -52,14 +63,16 @@ cntools_blocks_epoch_rows() {
     [[ -n "${key}" ]] || continue
     if [[ "${key}" == Luck ]]; then cntools_table_pair Luck "$(cntools_number_format "${value}")%" number
     else cntools_blocks_number_pair "${key}" "${value}"; fi
-  done < <(jq -r --argjson stats "${stats}" '
+  # Without block results every slot is pending, which Scheduled slots shows.
+  done < <(jq -r --argjson stats "${stats}" --arg results "${CNTOOLS_BLOCKLOG_HAS_RESULTS:-Y}" '
     def count(s): map(select(.status==s))|length;
     [["Confirmed",count("confirmed")],["Adopted · awaiting confirmation",count("adopted")],
      ["Pending validation",count("leader")],["Missed",count("missed")],["Ghosted",count("ghosted")],
      ["Stolen",count("stolen")],["Invalid",count("invalid")],
      ["Unknown status",(map(select(.status|IN("confirmed","adopted","leader","missed","ghosted","stolen","invalid")|not))|length)],
      ["Ideal blocks",$stats.ideal],["Luck",$stats.luck]][]
-    | select(.[1]!=null and .[1]!=0) | map(tostring) | join("\u001f")' <<< "${snapshot}")
+    | select(.[1]!=null and .[1]!=0)
+    | select($results=="Y" or .[0]!="Pending validation") | map(tostring) | join("\u001f")' <<< "${snapshot}")
 }
 
 cntools_blocks_record_rows() {
@@ -85,8 +98,9 @@ cntools_blocks_record_rows() {
 cntools_blocks_help() {
   cntools_ui_action_begin 'Status guide' '/ Blocks / Status guide'
   {
-    cntools_table_pair Source 'Local CNCLI block log · last recorded validation state'
+    cntools_table_pair Source 'Local block log · last recorded validation state'
     cntools_table_pair Leader 'Scheduled slot; may be in the future or awaiting validation.' accent
+    cntools_table_pair 'Block results' 'Recorded by CNCLI validation on cardano-node. Amaru records the schedule only.'
     cntools_table_pair Adopted 'Created locally; includes blocks later confirmed.' success
     cntools_table_pair Confirmed 'Confirmed on chain by CNCLI at its configured confirmation depth.' success
     cntools_table_pair Missed 'No recorded block produced in the scheduled slot.' warning
@@ -94,7 +108,7 @@ cntools_blocks_help() {
     cntools_table_pair Stolen 'Another pool produced the valid block for that slot.' warning
     cntools_table_pair Invalid 'Block creation failed. Inspect CNCLI / node logs for the reason.' danger
     cntools_table_pair Ideal 'Expected block count from active stake; omitted if pool statistics are ambiguous.'
-    cntools_table_pair Luck 'Assigned schedule relative to ideal blocks, as recorded by CNCLI.'
+    cntools_table_pair Luck 'Assigned schedule relative to ideal blocks, as recorded in the block log.'
   } | cntools_table_render 'Block status' || return 1
   cntools_ui_wait
 }
@@ -127,7 +141,7 @@ cntools_blocks_prompt_in_view() {
 # 3 = the error is shown and acknowledged; callers keep their current view.
 cntools_blocks_load() {
   local kind="$1" value="$2"
-  if ! cntools_ui_spin_function 'Reading CNCLI block history…' "cntools_blocklog_${kind,,}" "${value}"; then
+  if ! cntools_ui_spin_function 'Reading block history…' "cntools_blocklog_${kind,,}" "${value}"; then
     cntools_ui_render_status error "${CNTOOLS_BLOCKLOG_ERROR:-Could not read block history.}"
     cntools_ui_wait
     return 3
@@ -151,7 +165,8 @@ cntools_blocks_epoch_view() {
       if (( total > 0 )); then
         cntools_table_pair Showing "$(cntools_number_format "$((page*5+1))")–$(cntools_number_format "$((page*5+5 <= total ? page*5+5 : total))") of $(cntools_number_format "${total}")"
       fi
-      cntools_table_pair Source 'CNCLI block log · manually refreshed'
+      cntools_table_pair Source 'Block log · manually refreshed'
+      cntools_blocks_results_note
     } | cntools_table_render 'Epoch' || return 1
     last=$((page*5+5)); (( last <= total )) || last="${total}"
     for ((index=page*5;index<last;index++)); do
@@ -196,9 +211,9 @@ cntools_blocks_wizard() {
   local kind="$1" count=10 epoch='' snapshot='' page=0 total=0 index=0 last=0 choice='' record='' status=0 requested=''
   local -a options=()
   cntools_ui_action_begin "${kind}" "/ Blocks / ${kind}"
-  # Quick opens the history straight away (its Source row names the CNCLI
+  # Quick opens the history straight away (its Source row names the block
   # log), so the note is shown only where a prompt follows.
-  cntools_flow_quick || cntools_ui_render_status info 'Read-only local CNCLI history, not a live chain query. CNCLI / logMonitor must maintain the journal for production statuses to stay current.'
+  cntools_flow_quick || cntools_ui_render_status info 'Read-only local block log, not a live chain query. On cardano-node, CNCLI / logMonitor must maintain it for production statuses to stay current; on Amaru, amaru-leaderlog.sh records the schedule only.'
   if [[ "${kind}" == Epoch ]]; then
     cntools_blocks_load Summary 1 || return $?
     # An empty journal has no latest epoch to open.
@@ -223,7 +238,8 @@ cntools_blocks_wizard() {
     cntools_ui_action_begin Summary '/ Blocks / Summary'
     total="$(jq 'length' <<< "${snapshot}")" || return 1
     {
-      cntools_table_pair Source 'CNCLI block log · Refresh to update'
+      cntools_table_pair Source 'Block log · Refresh to update'
+      cntools_blocks_results_note
       if (( total > 0 )); then
         cntools_table_pair 'Recorded epochs' "$(cntools_number_format "$((page*5+1))")–$(cntools_number_format "$((page*5+5 <= total ? page*5+5 : total))") of $(cntools_number_format "${total}")"
       fi

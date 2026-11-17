@@ -48,6 +48,8 @@ jobs:
       run: bash files/tests/amaru-metrics.sh
     - name: Amaru leaderlog tests
       run: bash files/tests/amaru-leaderlog.sh
+    - name: gLiveView view tests
+      run: bash files/tests/gliveview-views.sh
   jsonlint:
     name: JSON and YAML Check
     runs-on: ubuntu-latest

@@ -96,7 +96,7 @@ Dates follow `BLOCKLOG_TZ` in `env`, defaulting to UTC.
 | Vote | Manage DRep keys, registration and delegation, browse proposals, cast DRep votes and manage Catalyst registration/QR/snapshot checks. |
 | Transaction | Review and sign portable packages, or submit completed packages and supported external signed transactions. |
 | Backup & Restore | Create full or public-only backups and restore without overwriting existing folders. |
-| Blocks | Read block-production summaries and epoch details from the configured CNCLI blocklog. |
+| Blocks | Read block-production summaries and epoch details from the configured blocklog (CNCLI on cardano-node, `amaru-leaderlog.sh` on Amaru). |
 | Settings | Choose the Quick or Detailed flow style, set transaction defaults and, with `-a`, choose a theme. |
 | Update | Check availability, read changes and refresh the deployment through Guild Deploy. |
 | Advanced (`-a`) | Manage native assets and policies, create multisig identities, clear asset metadata cache and explicitly delete private keys. |

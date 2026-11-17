@@ -769,9 +769,13 @@ recovery; it is never activated automatically.
 
 ## Block production history
 
-**Blocks → Summary / Epoch** reads the configured CNCLI blocklog database.
-It shows available production results and epoch details without altering the
+**Blocks → Summary / Epoch** reads the configured blocklog database. It
+shows available production results and epoch details without altering the
 database or controlling the node. Quick opens the last 10 epochs (Summary) or
 the latest epoch (Epoch); **Change epoch count** and **Choose epoch** change
-the view. Set up the blocklog collector separately
-using the [CNCLI guide](cncli.md).
+the view. Set up the blocklog collector separately: on cardano-node with the
+[CNCLI guide](cncli.md), on Amaru with `amaru-leaderlog.sh`, see
+[Leader schedule](../Build/amaru.md#leader-schedule). Amaru's leader log
+records the schedule only, so until a block log holds any block result the
+views list the leader slots and a **Block results** row says they are not
+recorded, instead of counting every slot as adopted 0 or pending validation.

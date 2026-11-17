@@ -309,45 +309,38 @@ The adapter reads Dingo's native Prometheus endpoint, using the relay port,
 metrics address, and metrics port from the deployed `dingo.yaml`, and accepts
 the `network="<network>"` label that Dingo adds to its metric samples. Common
 chain, epoch, density, mempool, connection, propagation, process, and runtime
-measurements are mapped into the shared gLiveView interface. The header shows
-Dingo's logo and name, or `[Dingo]` when it
-[falls back to text](../Scripts/gliveview.md).
+measurements are mapped into the shared gLiveView pages. The full rail shows
+Dingo's logo under the title on terminals 110 columns and wider.
 
-Dingo uses the same availability-driven dashboard as the other
-implementations. Its native tip-gap measurement is normalized into the common
-CHAIN section alongside the local block and slot; a separate reference-tip
-field is not shown. Compact mode presents the primary operational metrics,
-including aggregate known, established, and active peer sets when exported.
-Verbose mode adds available connection, propagation, Go runtime, open-file,
-database-size, cache-efficiency, mempool-fill, and block-adoption detail.
-Internal error counters are shown only when nonzero. An ALERT row appears for
-conditions that need operator action, such as a halted or stuck ledger, the
-operator's own pool equivocating, or invalid forging keys. Metrics absent from
-the current scrape are omitted instead of displayed as zero.
+Dingo's native tip-gap measurement is normalized into the chain figures
+alongside the local block and slot. The Peers panel shows Dingo's outbound
+peer sets and connection counts, and the System page lists Go runtime,
+database size, cache efficiency, mempool fill, inbound peer budgets and block
+adoption in the `Dingo metrics` panel. Internal error counters are shown only
+when nonzero. An alert line appears for conditions that need
+operator action, such as a halted or stuck ledger, the operator's own pool
+equivocating, or invalid forging keys. Metrics absent from the current scrape
+are omitted instead of displayed as zero.
 
-gLiveView can also follow `dingo.sh bootstrap`: while it runs, a SYNC row shows
-the Mithril phase, its progress, and the download or copy rate.
+gLiveView can also follow `dingo.sh bootstrap`: while it runs, a sync line
+shows the Mithril phase, its progress, and the download or copy rate.
 
-Press `n` to open the Network page. Dingo's Go runtime version, epoch length,
-and Shelley start time appear there with the common node, network, service,
-deployment-path, and metrics-endpoint metadata rather than in the live
-dashboard.
+Press `n` to open the Node & network page. Dingo's Go runtime version, epoch
+length, and Shelley start time appear there with the node, network, service,
+deployment-path, and metrics-endpoint metadata rather than on the live pages.
+See the [Dingo section of the gLiveView guide](../Scripts/gliveview.md#dingo)
+for every figure.
 
-The common renderer bounds and formats values to preserve column alignment.
-Normal refreshes update only changed rows, with a periodic whole-frame row
-reconciliation that does not clear the terminal first. See the
-[gLiveView guide](../Scripts/gliveview.md) for compact and verbose contents
-and display controls.
-
-When Dingo reports forging enabled, gLiveView identifies the role as `Core` and
-adds an availability-driven block-production section. Current and remaining
+When Dingo reports forging enabled, gLiveView shows the `BLOCK PRODUCER`
+badge and the block-production figures Dingo exports: current and remaining
 KES periods, calculated KES expiry, credential validity, scheduled and won
-leader slots, forged/adopted outcomes, and lost leader slots are shown when
-exported. Verbose mode adds the operational-certificate counters on disk and
-on chain, leadership checks, non-leader and failed-forge counters,
-operational-certificate KES bounds, and Dingo-specific forge diagnostics. CNCLI blocklog, Koios pool data and Mithril signer
-remain cnode-only, and interactive peer analysis is not available for Dingo,
-which exports no per-peer connection data.
+leader slots, forged and adopted outcomes, lost leader slots, and the
+operational-certificate counters on disk and on chain. Dingo keeps no block
+log, so the Production page has no list of leader slots. The Peers page lists
+Dingo's connections with their round trips, and peer analysis adds their
+locations. Dingo logs no per-peer state and its deployment names no static
+peers, so the Conn and Score columns and the Static filter are not
+available.
 
 The Dingo adapter exposes `${NODE_HOME}/bin/cardano-cli` and
 `$NODE_HOME/sockets/dingo.socket` for future CNTools local-mode actions. To use
