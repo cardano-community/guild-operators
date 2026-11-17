@@ -122,7 +122,8 @@ systemd     Install, remove, or show operational CNCLI unit status (scope defaul
 sync        Start CNCLI chainsync process that connects to cardano-node to sync blocks stored in SQLite DB (deployed as service)
 leaderlog   One-time leader schedule calculation for current epoch, then continuously monitors and calculates schedule for coming epochs, 1.5 days before epoch boundary on the mainnet (deployed as service)
   force     Manually force leaderlog calculation and overwrite even if already done, exits after leaderlog is calculated
-validate    Continuously monitor and confirm that the blocks made actually was accepted and adopted by chain (deployed as service)
+validate    Continuously monitor and confirm that the blocks made actually was accepted and adopted by chain, and name the battle
+            a lost block was in: slot battle (stolen), height battle or fork (ghosted) (deployed as service)
   all       One-time re-validation of all blocks in blocklog db
   epoch     One-time re-validation of blocks in blocklog db for the specified epoch
 epochdata   Recalculate leaderlogs to populate blocklog epoch history after sync and validation
@@ -149,10 +150,56 @@ Best and easiest viewed in CNTools and `gLiveView` but the blocklog database is 
     - Luck      : Leader slots assigned vs ideal slots for this epoch
     - Adopted   : Block created successfully
     - Confirmed : Block created validated to be on-chain with the certainty set in `cncli.sh` for `CONFIRM_BLOCK_CNT`
-    - Missed    : Scheduled at slot but no record of it in CNCLI DB and no other pool has made a block for this slot
-    - Ghosted   : Block created but marked as orphaned and no other pool has made a valid block for this slot -> height battle or block propagation issue
-    - Stolen    : Another pool has a valid block registered on-chain for the same slot
-    - Invalid   : Pool failed to create block, base64 encoded error message can be decoded with `echo <base64 hash> | base64 -d | jq -r`
+    - Missed       : Scheduled at slot but no block was made, and no other pool has made a block for this slot. The reason is kept when the node logged one, such as NodeCannotForge
+    - Stolen       : Slot battle, another pool led the same slot and its block is on-chain
+    - Height battle: Another pool's block in a nearby slot, built on the same parent as ours, won the height. One of the two blocks did not reach the other pool in time
+    - Ghosted      : Block created but it is not on-chain, and no other pool made a block for the same slot or on the same parent. Usually our block was built on a block that lost a fork
+    - Invalid      : Pool failed to create a valid block, see the node's journal around the slot
+
+#### Battles and block details
+
+When our block is not on the final chain, `validate` looks at the block that
+won instead and names the battle:
+
+| Status | What happened | How it is found in the CNCLI DB |
+| --- | --- | --- |
+| `stolen` | Slot battle: another pool led the same slot | Another pool's block that is not orphaned has our slot |
+| `heightbattle` | Height battle: another pool's block in a different slot was built on the same parent as ours | The block on the chain at our height has our parent |
+| `ghosted` | Our block was built on a block that lost a fork, or lost for another reason | Our parent is orphaned |
+
+A height battle won by a block in a **later** slot means the next leader had
+not received our block yet. One won by a block in an **earlier** slot means
+that block reached our node after we forged, which the details below show.
+
+`validate` writes what it found to the `blockdetail` table of the blocklog DB
+(schema 2), one row per decided slot: the reason, our block's hash, height
+and parent, the block that won with its slot, pool and leader VRF, and the
+blocks before and after on the final chain. CNTools shows them under
+**Show block details**, and gLiveView in a note on each lost slot of the
+Production page.
+
+With read access to the node's journal, `validate` also records:
+
+- blocks the node forged that CNCLI never saw. They are classified the same
+  way instead of being reported as missed;
+- why a slot was not forged, from the node's `Forge.Loop` traces;
+- how long after its slot started our block was forged;
+- when the header of each competing block, and of the blocks before and
+  after ours, first reached our node, from `ChainSync.Client.DownloadedHeader`.
+  When no header was logged, the time the block was fetched
+  (`BlockFetch.Client.CompletedBlockFetch`) is used instead. The header is
+  what propagates: a node fetches the body of a fork only once it wants that
+  chain, sometimes many seconds later.
+
+The unit installed by `cncli.sh -d` runs `validate` with the `systemd-journal`
+group for that read access. When you run it by hand, add your user to that
+group. Without journal access, validation works as before from the CNCLI DB
+alone. Pool tickers come from Koios when it is available.
+
+All times are as this node saw them. The node cannot see when its own block
+reached other pools; a shared measurement such as
+[openblockperf](https://github.com/cardano-foundation/openblockperf) may add
+that later.
 
 === "CNTools"
     Open CNTools and select `[b] Blocks` to open the block viewer.  
@@ -232,7 +279,7 @@ Best and easiest viewed in CNTools and `gLiveView` but the blocklog database is 
 
 === "gLiveView"
 
-    Currently shows a block summary for current epoch. For full block details use CNTools for now. Invalid, missing, ghosted and stolen blocks only shown in case of a non-zero value.
+    The Production page shows a block summary for the current epoch and lists its leader slots, with a note on each lost one: the pool that won, how far apart the slots were and when the winning block reached the node. Invalid, missed, ghosted, stolen and height battle counts are shown in red when not zero. For every block detail, use CNTools.
 
       ```
       │--------------------------------------------------------------│

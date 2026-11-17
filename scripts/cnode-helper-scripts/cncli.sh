@@ -47,7 +47,8 @@ usage() {
 		sync        Start CNCLI chainsync process that connects to cardano-node to sync blocks stored in SQLite DB (deployed as service)
 		leaderlog   One-time leader schedule calculation for current epoch, then continously monitors and calculates schedule for coming epochs, 1.5 days before epoch boundary on MainNet (deployed as service)
 		  force     Manually force leaderlog calculation and overwrite even if already done, exits after leaderlog is calculated
-		validate    Continously monitor and confirm that the blocks made actually was accepted and adopted by chain (deployed as service)
+		validate    Continously monitor and confirm that the blocks made actually was accepted and adopted by chain, and name the battle
+		            a lost block was in: slot battle (stolen), height battle or fork (ghosted) (deployed as service)
 		  all       One-time re-validation of all blocks in blocklog db
 		  epoch     One-time re-validation of blocks in blocklog db for the specified epoch
 		epochdata   Manually re-calculate leaderlog to load stakepool history into epochdata table of blocklog db. Needs completion of cncli.sh sync and cncli.sh validate processes.
@@ -193,6 +194,7 @@ cncli_install_systemd_unit() {
 			RestartSec=120
 			User=${USER}
 			WorkingDirectory=${CNODE_HOME}/scripts
+			SupplementaryGroups=systemd-journal
 			ExecStartPre=/bin/sleep 5
 			ExecStart=/bin/bash -l -c "exec ${CNODE_HOME}/scripts/cncli.sh validate"
 			KillSignal=SIGINT
@@ -294,32 +296,13 @@ cncli_manage_systemd() {
 
 ######################################
 
+# The schema is shared with amaru-leaderlog.sh and lives in the common env library.
 createBlocklogDB() {
-  if ! mkdir -p "${BLOCKLOG_DIR}" 2>/dev/null; then echo "ERROR: failed to create directory to store blocklog: ${BLOCKLOG_DIR}" && return 1; fi
-  if [[ ! -f ${BLOCKLOG_DB} ]]; then # create a fresh DB with latest schema
-    sqlite3 ${BLOCKLOG_DB} <<-EOF
-			CREATE TABLE blocklog (id INTEGER PRIMARY KEY AUTOINCREMENT, slot INTEGER NOT NULL UNIQUE, at TEXT NOT NULL UNIQUE, epoch INTEGER NOT NULL, block INTEGER NOT NULL DEFAULT 0, slot_in_epoch INTEGER NOT NULL DEFAULT 0, hash TEXT NOT NULL DEFAULT '', size INTEGER NOT NULL DEFAULT 0, status TEXT NOT NULL);
-			CREATE UNIQUE INDEX idx_blocklog_slot ON blocklog (slot);
-			CREATE INDEX idx_blocklog_epoch ON blocklog (epoch);
-			CREATE INDEX idx_blocklog_status ON blocklog (status);
-			CREATE TABLE epochdata (id INTEGER PRIMARY KEY AUTOINCREMENT, epoch INTEGER NOT NULL, epoch_nonce TEXT NOT NULL, pool_id TEXT NOT NULL, sigma TEXT NOT NULL, d REAL NOT NULL, epoch_slots_ideal INTEGER NOT NULL, max_performance REAL NOT NULL, active_stake TEXT NOT NULL, total_active_stake TEXT NOT NULL, UNIQUE(epoch,pool_id));
-			CREATE INDEX idx_epochdata_epoch ON epochdata (epoch);
-			CREATE INDEX idx_epochdata_pool_id ON epochdata (pool_id);
-      CREATE TABLE validationlog (id INTEGER PRIMARY KEY AUTOINCREMENT, event TEXT NOT NULL, at TEXT NOT NULL UNIQUE, env TEXT NOT NULL, final_chunk INTEGER, initial_chunk INTEGER);
-			CREATE TABLE replaylog (id INTEGER PRIMARY KEY AUTOINCREMENT, event TEXT NOT NULL, at TEXT NOT NULL UNIQUE, env TEXT NOT NULL, slot INTEGER, tip INTEGER);
-      CREATE TABLE statistics (id INTEGER PRIMARY KEY AUTOINCREMENT, event TEXT NOT NULL, start INTEGER, end INTEGER, env TEXT NOT NULL);
-			PRAGMA user_version = 1;
-			EOF
-    echo "SQLite blocklog DB created: ${BLOCKLOG_DB}"
-  else
-    if [[ $(sqlite3 ${BLOCKLOG_DB} "PRAGMA user_version;") -eq 0 ]]; then # Upgrade from schema version 0 to 1
-      sqlite3 ${BLOCKLOG_DB} <<-EOF
-				ALTER TABLE epochdata ADD active_stake TEXT NOT NULL DEFAULT '0';
-				ALTER TABLE epochdata ADD total_active_stake TEXT NOT NULL DEFAULT '0';
-				PRAGMA user_version = 1;
-				EOF
-    fi
+  if ! declare -F blocklogCreateDB >/dev/null; then
+    echo "ERROR: the common env library is older than this cncli.sh, re-run guild-deploy.sh to update the scripts"
+    return 1
   fi
+  blocklogCreateDB
 }
 
 cncliDBinSync() { # getNodeMetrics expected to have been already run
@@ -676,6 +659,17 @@ cncliValidate() {
   createBlocklogDB || exit 1 # create db if needed
   getNodeMetrics
   if ! getShelleyTransitionEpoch; then echo "ERROR: failed to calculate shelley transition epoch" && exit 1; fi
+  # The node's journal adds what CNCLI can't see: blocks the node forged that
+  # never reached CNCLI, why a slot was not forged, how long forging took and
+  # when competing blocks arrived. Validation works without it.
+  CNCLI_NODE_UNIT="${NODE_SERVICE:-${CNODE_VNAME}}"
+  if blocklogJournalReadable "${CNCLI_NODE_UNIT}"; then
+    CNCLI_JOURNAL=Y
+  else
+    CNCLI_JOURNAL=N
+    echo "WARN: the journal of ${CNCLI_NODE_UNIT} is not readable by ${USER}: forge and arrival times, and blocks forged but never seen by CNCLI, are not recorded."
+    echo "      Add ${USER} to the systemd-journal group, or re-install the CNCLI units with 'cncli.sh -d', which run validate with that group."
+  fi
   if [[ -n ${subarg} ]]; then
     if ! cncliDBinSync; then # verify that cncli DB is still in sync
       echo "CNCLI DB out of sync :( [$(printf "%2.4f %%" ${cncli_sync_prog})] ... check cncli sync service!"
@@ -722,57 +716,251 @@ cncliValidate() {
   fi
 }
 
-validateBlock() {
-  [[ ${block_status} = invalid ]] && return
-  if [[ ${block_status} = leader || ${block_status} = adopted ]]; then
-    [[ ${block_slot} -gt ${slotnum} ]] && return # block in the future, skip
-    block_data_raw="$(sqlite3 "${CNCLI_DB}" "SELECT block_number, hash, block_size, orphaned, node_vrf_vkey FROM chain WHERE slot_number = ${block_slot};")"
-    slot_cnt=0; slot_ok_cnt=0; slot_stolen_cnt=0; block_data=()
-    for block in ${block_data_raw}; do
-      IFS='|' read -ra block_data_tmp <<< ${block}
-      if [[ ${block_data_tmp[4]} = "${pool_vrf_vkey_cbox_hex}" ]]; then
-        ((slot_cnt++))
-        [[ ${block_data_tmp[3]} -eq 0 ]] && ((slot_ok_cnt++)) && block_data=( "${block_data_tmp[@]}" ) # non orphaned block found for our pool, set as block_data
-        [[ ${#block_data[@]} -eq 0 ]] && block_data=( "${block_data_tmp[@]}" ) # block found but orphaned and block_data empty, set block_data to this block for now
-      else
-        [[ ${block_data_tmp[3]} -eq 0 ]] && ((slot_stolen_cnt++))
-      fi
-    done
-    if [[ $((block_slot + CONFIRM_SLOT_CNT)) -lt ${slotnum} ]]; then # block old enough to validate
-      if [[ ${slot_cnt} -eq 0 ]]; then # no block found in db for this slot with our vrf vkey
-        if [[ ${slot_stolen_cnt} -eq 0 ]]; then # no other pool has a valid block for this slot either
-          echo "MISSED: Leader for slot '${block_slot}' but not found in cncli db and no other pool has made a valid block for this slot"
-          new_status="missed"
-        else # another pool has a valid block for this slot in cncli db
-          echo "STOLEN: Leader for slot '${block_slot}' but \"stolen\" by another pool due to bad luck (lower VRF output) :("
-          new_status="stolen"
-        fi
-        sqlite3 "${BLOCKLOG_DB}" "UPDATE blocklog SET status = '${new_status}' WHERE slot = ${block_slot};"
-      else # block found for this slot with a match for our vrf vkey
-        [[ $((blocknum-block_data[0])) -lt ${CONFIRM_BLOCK_CNT} ]] && return # To make sure enough blocks has been built on top before validating
-        if [[ ${slot_ok_cnt} -gt 0 ]]; then # our block not marked as orphaned :)
-          echo "CONFIRMED: Leader for slot '${block_slot}' and match found in CNCLI DB for this slot with pool's VRF public key"
-          [[ ${slot_cnt} -gt 1 ]] && echo "           WARNING!! Adversarial fork created, multiple blocks created for the same slot by the same pool :("
-          new_status="confirmed"
-        else # our block marked as orphaned :(
-          if [[ ${slot_stolen_cnt} -eq 0 ]]; then # no other pool has a valid block for this slot either
-            echo "GHOSTED: Leader for slot '${block_slot}' and block adopted but later orphaned. No other pool with a confirmed block for this slot, height battle or block propagation issue!"
-            new_status="ghosted"
-          else # another pool has a valid block for this slot in cncli db
-            echo "STOLEN: Leader for slot '${block_slot}' but \"stolen\" by another pool due to bad luck (lower VRF output) :("
-            new_status="stolen"
-          fi
-        fi
-        sqlite3 "${BLOCKLOG_DB}" "UPDATE blocklog SET status = '${new_status}', slot_in_epoch = $(getSlotInEpochFromSlot ${block_slot} ${block_epoch}), block = ${block_data[0]}, at = '$(getDateFromSlot ${block_slot})', hash = '${block_data[1]}', size = ${block_data[2]} WHERE slot = ${block_slot};"
-      fi
-    else # Not old enough to confirm but slot time has passed
-      if [[ ${block_status} = leader && ${slot_cnt} -gt 0 ]]; then # Leader status and block found in cncli db, update block data and set status adopted
-        echo "ADOPTED: Leader for slot '${block_slot}' and adopted by chain, waiting for confirmation"
-        sqlite3 "${BLOCKLOG_DB}" "UPDATE blocklog SET status = 'adopted', slot_in_epoch = $(getSlotInEpochFromSlot ${block_slot} ${block_epoch}), block = ${block_data[0]}, at = '$(getDateFromSlot ${block_slot})', hash = '${block_data[1]}', size = ${block_data[2]} WHERE slot = ${block_slot};"
-        return
-      fi
+# Rows of the CNCLI chain table, as
+# 0 block_number | 1 slot | 2 hash | 3 prev_hash | 4 node_vkey | 5 leader_vrf_0 | 6 orphaned | 7 node_vrf_vkey | 8 block_size
+# $1 = the rest of the query after FROM chain
+cncliChainRows() {
+  sqlite3 -cmd ".timeout 5000" "${CNCLI_DB}" "SELECT block_number, slot_number, hash, prev_hash, node_vkey, leader_vrf_0, orphaned, node_vrf_vkey, block_size FROM chain $1;" 2>/dev/null
+}
+
+# $1 = name of an array for the first row, $2 = the rest of the query after FROM chain
+cncliChainRow() {
+  local -n _chain_row="$1"
+  _chain_row=()
+  IFS='|' read -ra _chain_row < <(cncliChainRows "$2 LIMIT 1") || true
+}
+
+# Pool id of a block issuer: bech32 when the bech32 tool is installed, else hex.
+# $1 = node_vkey (cold verification key in hex)
+cncliPoolOf() {
+  local hex bech
+  [[ ${CNCLI_POOLS@a} == *A* ]] || declare -gA CNCLI_POOLS=()
+  if [[ -z ${CNCLI_POOLS[$1]+set} ]]; then
+    CNCLI_POOLS[$1]=''
+    if hex=$(blocklogPoolIdFromVkey "$1"); then
+      bech=$(blocklogPoolBech32 "${hex}") || bech=''
+      CNCLI_POOLS[$1]="${bech:-${hex}}"
     fi
   fi
+  printf '%s' "${CNCLI_POOLS[$1]}"
+}
+
+# What the node logged for one led slot (cardano-node Forge.Loop traces).
+# Sets forge_kind (the last trace that tells why a block was or wasn't made,
+# empty when the node only forged), forge_hash, forge_parent, forge_block and
+# forge_ms (milliseconds after the slot started).
+cncliForgeRecord() {
+  local slot="$1" start
+  forge_kind=''; forge_hash=''; forge_parent=''; forge_block=''; forge_ms=''
+  [[ ${CNCLI_JOURNAL} = Y ]] || return 0
+  start=$(blocklogSlotStartMs "${slot}") || return 0
+  IFS='|' read -r forge_kind forge_hash forge_parent forge_block forge_ms < <(
+    blocklogJournalWindow "${CNCLI_NODE_UNIT}" $(( start / 1000 - 5 )) $(( start / 1000 + 60 )) |
+      grep -F '"ns":"Forge.Loop.' | grep -F "\"slot\":${slot}" | sed 's/^[^{]*//' |
+      jq -rs --argjson slot "${slot}" --argjson start "${start}" '
+        def ms: (.at | capture("^(?<s>[^.Z]+)(\\.(?<f>[0-9]+))?Z$")) as $t
+          | (($t.s + "Z") | fromdateiso8601) * 1000 + ((($t.f // "") + "000")[0:3] | tonumber);
+        map(select(.data.slot? == $slot)) as $events
+        | ($events | map(select(.ns == "Forge.Loop.ForgedBlock")) | first) as $forged
+        | [ ($events | map(.ns | sub("^Forge\\.Loop\\."; ""))
+              | map(select(IN("NodeIsLeader","ForgedBlock","AdoptedBlock","StartLeadershipCheck","NodeNotLeader",
+                  "BlockContext","LedgerState","LedgerView","ForgeTickedLedgerState","ForgingMempoolSnapshot") | not))
+              | last // ""),
+            ($forged.data.block // ""), ($forged.data.blockPrev // ""), ($forged.data.blockNo // ""),
+            (if $forged then (($forged | ms) - $start) else "" end) ]
+        | map(tostring) | join("|")' 2>/dev/null)
+}
+
+# When each block's header first reached the node, in milliseconds after the
+# block's own slot started (ChainSync.Client.DownloadedHeader), or else when
+# its body was fetched (BlockFetch.Client.CompletedBlockFetch). The header is
+# what propagates: a node fetches the body of a fork only once it wants that
+# chain, which can be many seconds later. A block our node forged is neither.
+# $1 = from (unix seconds), $2 = until (unix seconds), $3.. = block hashes
+# Sets BLOCK_ARRIVAL[hash]
+cncliArrivals() {
+  local from="$1" to="$2" hash ms byron_slots
+  local -a patterns=()
+  shift 2
+  declare -gA BLOCK_ARRIVAL=()
+  [[ ${CNCLI_JOURNAL} = Y ]] || return 0
+  for hash in "$@"; do [[ ${hash} =~ ^[0-9a-f]{64}$ ]] && patterns+=(-e "${hash}"); done
+  (( ${#patterns[@]} > 0 )) || return 0
+  byron_slots=$(( SHELLEY_TRANS_EPOCH * BYRON_EPOCH_LENGTH ))
+  while IFS='|' read -r hash ms; do
+    [[ ${hash} =~ ^[0-9a-f]{64}$ && ${ms} =~ ^-?[0-9]+$ ]] && BLOCK_ARRIVAL[${hash}]="${ms}"
+  done < <(
+    blocklogJournalWindow "${CNCLI_NODE_UNIT}" "${from}" "${to}" |
+      grep -F "${patterns[@]}" | grep -E 'DownloadedHeader|CompletedBlockFetch' | sed 's/^[^{]*//' |
+      jq -rs --argjson base $(( byron_slots * BYRON_SLOT_LENGTH + SHELLEY_GENESIS_START_SEC * 1000 )) \
+        --argjson byron "${byron_slots}" --argjson slot_ms $(( SLOT_LENGTH * 1000 )) '
+        def ms: (.at | capture("^(?<s>[^.Z]+)(\\.(?<f>[0-9]+))?Z$")) as $t
+          | (($t.s + "Z") | fromdateiso8601) * 1000 + ((($t.f // "") + "000")[0:3] | tonumber);
+        (map(select(.ns == "ChainSync.Client.DownloadedHeader" and (.data.slot | type) == "number")
+           | {block: .data.block, ms: (ms - ($base + (.data.slot - $byron) * $slot_ms)), header: true}) +
+         map(select(.ns == "BlockFetch.Client.CompletedBlockFetch" and (.data.delay | type) == "number")
+           | {block: .data.block, ms: (.data.delay * 1000 | round), header: false}))
+        | group_by(.block)[]
+        | (map(select(.header)) | if length > 0 then . else null end) as $headers
+        | "\(.[0].block)|\(($headers // .) | map(.ms) | min | round)"' 2>/dev/null)
+}
+
+# Record the blockdetail row of block_slot: our block, the block that won the
+# slot or height, the blocks before and after it on the final chain, and when
+# our node saw them. Uses our_* and winner from validateBlock.
+# $1 = reason
+cncliSaveDetail() {
+  local reason="$1" role from to first last slot_ms slot pool
+  local -a prev=() next=() pools=()
+  local -A stored=() rows=()
+  local -A detail=([slot]="${block_slot}" [reason]="${reason}" [source]=cncli)
+  declare -gA BLOCK_ARRIVAL=()
+  blocklogLoadDetail stored "${block_slot}"
+  if [[ -n ${our_hash} ]]; then
+    detail[hash]="${our_hash}"
+    detail[parent]="${our_parent}"
+    detail[block]="${our_height}"
+    [[ -z ${our_vrf} ]] || detail[vrf]="${our_vrf}"
+  fi
+  [[ -z ${forge_ms} ]] || detail[forge_ms]="${forge_ms}"
+  # The blocks around ours on the final chain: by height when we forged, else by slot.
+  if [[ ${our_height} =~ ^[0-9]+$ ]]; then
+    cncliChainRow prev "WHERE block_number = $(( our_height - 1 )) AND orphaned = 0"
+    cncliChainRow next "WHERE block_number = $(( our_height + 1 )) AND orphaned = 0"
+  else
+    cncliChainRow prev "WHERE slot_number < ${block_slot} AND orphaned = 0 ORDER BY slot_number DESC"
+    cncliChainRow next "WHERE slot_number > ${block_slot} AND orphaned = 0 ORDER BY slot_number"
+  fi
+  rows[winner]="${winner[*]:+${winner[0]}|${winner[1]}|${winner[2]}|$(cncliPoolOf "${winner[4]}")|${winner[5]}}"
+  rows[prev]="${prev[*]:+${prev[0]}|${prev[1]}|${prev[2]}|$(cncliPoolOf "${prev[4]}")|}"
+  rows[next]="${next[*]:+${next[0]}|${next[1]}|${next[2]}|$(cncliPoolOf "${next[4]}")|}"
+  first="${block_slot}"; last="${block_slot}"
+  for role in winner prev next; do
+    IFS='|' read -r _ slot _ pool _ <<< "${rows[${role}]}"
+    [[ ${slot} =~ ^[0-9]+$ ]] || continue
+    (( slot < first )) && first="${slot}"
+    (( slot > last )) && last="${slot}"
+    pools+=("${pool}")
+  done
+  if slot_ms=$(blocklogSlotStartMs "${first}"); then
+    from=$(( slot_ms / 1000 - 5 ))
+    slot_ms=$(blocklogSlotStartMs "${last}")
+    to=$(( slot_ms / 1000 + 120 ))
+    (( to - from <= 3600 )) || to=$(( from + 3600 ))
+    cncliArrivals "${from}" "${to}" "${winner[2]:-}" "${prev[2]:-}" "${next[2]:-}"
+  fi
+  blocklogPoolTickers "${pools[@]}"
+  for role in winner prev next; do
+    blocklogFillRole detail stored "${role}" "${rows[${role}]}"
+  done
+  blocklogSaveDetail detail || echo "WARN: failed to save the block details of slot ${block_slot}"
+}
+
+validateBlock() {
+  local -a row=() block_data=() stolen_data=() winner=() canon=()
+  local our_hash='' our_parent='' our_height='' our_vrf='' parent_on_chain='' new_status reason
+  local -A stored=()
+  [[ ${block_status} = invalid ]] && return
+  [[ ${block_status} = leader || ${block_status} = adopted ]] || return
+  [[ ${block_slot} -gt ${slotnum} ]] && return # block in the future, skip
+  slot_cnt=0; slot_ok_cnt=0; slot_stolen_cnt=0
+  while IFS='|' read -ra row; do
+    (( ${#row[@]} >= 9 )) || continue
+    if [[ ${row[7]} = "${pool_vrf_vkey_cbox_hex}" ]]; then
+      ((slot_cnt++))
+      if [[ ${row[6]} -eq 0 ]]; then
+        ((slot_ok_cnt++)); block_data=( "${row[@]}" ) # non orphaned block found for our pool, set as block_data
+      elif [[ ${#block_data[@]} -eq 0 ]]; then
+        block_data=( "${row[@]}" ) # block found but orphaned and block_data empty, set block_data to this block for now
+      fi
+    elif [[ ${row[6]} -eq 0 ]]; then
+      ((slot_stolen_cnt++)); stolen_data=( "${row[@]}" )
+    fi
+  done < <(cncliChainRows "WHERE slot_number = ${block_slot}")
+
+  # What the node logged when it led the slot, read once and kept in blockdetail.
+  blocklogLoadDetail stored "${block_slot}"
+  if [[ ${stored[hash]:-} =~ ^[0-9a-f]{64}$ ]]; then
+    forge_kind="${stored[reason]:-}"; forge_hash="${stored[hash]}"; forge_parent="${stored[parent]:-}"
+    forge_block="${stored[block]:-}"; forge_ms="${stored[forge_ms]:-}"
+    [[ ${forge_kind} = ForgedInvalidBlock ]] || forge_kind=''
+  else
+    cncliForgeRecord "${block_slot}"
+    # An older run read why the slot was missed, before the journal rotated.
+    [[ -n ${forge_kind} || ${stored[reason]:-} == slot_battle ]] || forge_kind="${stored[reason]:-}"
+  fi
+  if [[ ${#block_data[@]} -gt 0 ]]; then
+    our_height="${block_data[0]}"; our_hash="${block_data[2]}"; our_parent="${block_data[3]}"; our_vrf="${block_data[5]}"
+  elif [[ ${forge_hash} =~ ^[0-9a-f]{64}$ ]]; then # forged, but CNCLI never saw the block
+    our_height="${forge_block}"; our_hash="${forge_hash}"; our_parent="${forge_parent}"
+  fi
+
+  if [[ $((block_slot + CONFIRM_SLOT_CNT)) -ge ${slotnum} ]]; then # Not old enough to confirm but slot time has passed
+    if [[ ${block_status} = leader && ${slot_cnt} -gt 0 ]]; then # Leader status and block found in cncli db, update block data and set status adopted
+      echo "ADOPTED: Leader for slot '${block_slot}' and adopted by chain, waiting for confirmation"
+      sqlite3 "${BLOCKLOG_DB}" "UPDATE blocklog SET status = 'adopted', slot_in_epoch = $(getSlotInEpochFromSlot ${block_slot} ${block_epoch}), block = ${block_data[0]}, at = '$(getDateFromSlot ${block_slot})', hash = '${block_data[2]}', size = ${block_data[8]} WHERE slot = ${block_slot};"
+    fi
+    if [[ -n ${our_hash} && -z ${stored[hash]:-} ]]; then # keep what the journal said while it still has it
+      local -A early=([slot]="${block_slot}" [source]=cncli [reason]="${forge_kind}" [hash]="${our_hash}" [parent]="${our_parent}" [block]="${our_height}" [forge_ms]="${forge_ms}")
+      [[ -z ${our_vrf} ]] || early[vrf]="${our_vrf}"
+      blocklogSaveDetail early || true
+    fi
+    return
+  fi
+
+  if [[ ${slot_cnt} -eq 0 && ${forge_kind} = ForgedInvalidBlock ]]; then
+    echo "INVALID: Leader for slot '${block_slot}' but the node forged an invalid block, see its journal around $(getDateFromSlot ${block_slot})"
+    sqlite3 "${BLOCKLOG_DB}" "UPDATE blocklog SET status = 'invalid' WHERE slot = ${block_slot};"
+    cncliSaveDetail ForgedInvalidBlock
+    return
+  fi
+
+  if [[ -z ${our_hash} ]]; then # we didn't forge a block for this slot, or the node's journal can't tell
+    if [[ ${slot_stolen_cnt} -eq 0 ]]; then # no other pool has a valid block for this slot either
+      echo "MISSED: Leader for slot '${block_slot}' but not found in cncli db and no other pool has made a valid block for this slot${forge_kind:+ (node: ${forge_kind})}"
+      new_status="missed"; reason="${forge_kind}"
+    else # another pool has a valid block for this slot in cncli db
+      echo "STOLEN: Leader for slot '${block_slot}' but \"stolen\" by another pool due to bad luck (lower VRF output) :("
+      new_status="stolen"; reason="slot_battle"; winner=( "${stolen_data[@]}" )
+    fi
+    sqlite3 "${BLOCKLOG_DB}" "UPDATE blocklog SET status = '${new_status}' WHERE slot = ${block_slot};"
+    cncliSaveDetail "${reason}"
+    return
+  fi
+
+  # We forged a block: wait until enough blocks are built on top before deciding.
+  [[ ${our_height} =~ ^[0-9]+$ && $((blocknum - our_height)) -lt ${CONFIRM_BLOCK_CNT} ]] && return
+  if [[ ${slot_ok_cnt} -gt 0 ]]; then # our block not marked as orphaned :)
+    echo "CONFIRMED: Leader for slot '${block_slot}' and match found in CNCLI DB for this slot with pool's VRF public key"
+    [[ ${slot_cnt} -gt 1 ]] && echo "           WARNING!! Adversarial fork created, multiple blocks created for the same slot by the same pool :("
+    new_status="confirmed"; reason=''
+  else # our block is not on the final chain :(
+    if [[ ${our_height} =~ ^[0-9]+$ ]]; then
+      cncliChainRow canon "WHERE block_number = ${our_height} AND orphaned = 0"
+    fi
+    if [[ ${our_parent} =~ ^[0-9a-f]{64}$ ]]; then
+      parent_on_chain=$(sqlite3 "${CNCLI_DB}" "SELECT CASE WHEN SUM(orphaned = 0) > 0 THEN 'Y' WHEN COUNT(*) > 0 THEN 'N' ELSE '' END FROM chain WHERE hash = '${our_parent}';" 2>/dev/null)
+    fi
+    blocklogClassifyLost "$( [[ ${slot_stolen_cnt} -gt 0 ]] && echo Y || echo N )" "${our_parent}" "${canon[3]:-}" "${parent_on_chain}"
+    new_status="${BLOCKLOG_STATUS}"; reason="${BLOCKLOG_REASON}"
+    case ${new_status} in
+      stolen)
+        echo "STOLEN: Leader for slot '${block_slot}' but \"stolen\" by another pool due to bad luck (lower VRF output) :("
+        winner=( "${stolen_data[@]}" ) ;;
+      heightbattle)
+        echo "HEIGHT BATTLE: Leader for slot '${block_slot}' but another pool's block in slot ${canon[1]} on the same parent won height ${our_height} :("
+        winner=( "${canon[@]}" ) ;;
+      *)
+        if [[ ${slot_cnt} -eq 0 ]]; then
+          echo "GHOSTED: Leader for slot '${block_slot}' and block forged but never seen by CNCLI, and no other pool has a confirmed block for this slot"
+        else
+          echo "GHOSTED: Leader for slot '${block_slot}' and block adopted but later orphaned. No other pool with a confirmed block for this slot${reason:+, it was built on a block that lost a fork}"
+        fi
+        winner=( "${canon[@]}" ) ;;
+    esac
+  fi
+  sqlite3 "${BLOCKLOG_DB}" "UPDATE blocklog SET status = '${new_status}', slot_in_epoch = $(getSlotInEpochFromSlot ${block_slot} ${block_epoch}), block = ${our_height:-0}, at = '$(getDateFromSlot ${block_slot})', hash = '${our_hash}', size = ${block_data[8]:-0} WHERE slot = ${block_slot};"
+  cncliSaveDetail "${reason}"
 }
 
 #################################
@@ -892,12 +1080,14 @@ getBlocklogMetrics() {
   missed_total=0
   ghosted_total=0
   stolen_total=0
+  heightbattle_total=0
   invalid_total=0
   adopted_max_consec=0
   confirmed_max_consec=0
   missed_max_consec=0
   ghosted_max_consec=0
   stolen_max_consec=0
+  heightbattle_max_consec=0
   invalid_max_consec=0
 
   [[ -z "${CNCLI_DIR}" ]] && CNCLI_DIR="${CNODE_HOME}/guild-db/cncli"
@@ -916,13 +1106,14 @@ getBlocklogMetrics() {
         missed) missed_total=${status[1]} ;;
         ghosted) ghosted_total=${status[1]} ;;
         stolen) stolen_total=${status[1]} ;;
+        heightbattle) heightbattle_total=${status[1]} ;;
         confirmed) confirmed_total=${status[1]} ;;
         adopted) adopted_total=${status[1]} ;;
         leader) leader=${status[1]} ;;
       esac
     done
     adopted_total=$(( adopted_total + confirmed_total ))
-    leader=$(( leader + adopted_total + invalid_total + missed_total + ghosted_total + stolen_total ))
+    leader=$(( leader + adopted_total + invalid_total + missed_total + ghosted_total + stolen_total + heightbattle_total ))
     next_leader_time_utc=$(sqlite3 "${BLOCKLOG_DB}" "SELECT STRFTIME('%s', at) FROM blocklog WHERE datetime(at) > datetime('now') ORDER BY slot ASC LIMIT 1;" 2>/dev/null)
     if [[ -z ${next_leader_time_utc} ]]; then
       next_leader_time_utc=0
@@ -942,6 +1133,7 @@ getBlocklogMetrics() {
         missed) missed_max_consec=${consecutive[1]} ;;
         ghosted) ghosted_max_consec=${consecutive[1]} ;;
         stolen) stolen_max_consec=${consecutive[1]} ;;
+        heightbattle) heightbattle_max_consec=${consecutive[1]} ;;
         confirmed) confirmed_max_consec=${consecutive[1]} ;;
         adopted) adopted_max_consec=${consecutive[1]} ;;
       esac
@@ -964,12 +1156,14 @@ getBlocklogMetrics() {
   export CNCLI_METRIC_cntools_cncli_blocks_metrics_missed_total=${missed_total}
   export CNCLI_METRIC_cntools_cncli_blocks_metrics_ghosted_total=${ghosted_total}
   export CNCLI_METRIC_cntools_cncli_blocks_metrics_stolen_total=${stolen_total}
+  export CNCLI_METRIC_cntools_cncli_blocks_metrics_heightbattle_total=${heightbattle_total}
   export CNCLI_METRIC_cntools_cncli_blocks_metrics_invalid_total=${invalid_total}
   export CNCLI_METRIC_cntools_cncli_blocks_metrics_adopted_max_consec=${adopted_max_consec}
   export CNCLI_METRIC_cntools_cncli_blocks_metrics_confirmed_max_consec=${confirmed_max_consec}
   export CNCLI_METRIC_cntools_cncli_blocks_metrics_missed_max_consec=${missed_max_consec}
   export CNCLI_METRIC_cntools_cncli_blocks_metrics_ghosted_max_consec=${ghosted_max_consec}
   export CNCLI_METRIC_cntools_cncli_blocks_metrics_stolen_max_consec=${stolen_max_consec}
+  export CNCLI_METRIC_cntools_cncli_blocks_metrics_heightbattle_max_consec=${heightbattle_max_consec}
   export CNCLI_METRIC_cntools_cncli_blocks_metrics_invalid_max_consec=${invalid_max_consec}
   export CNCLI_METRIC_cntools_cncli_blocks_metrics_error=${cncli_error_code}
 

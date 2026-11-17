@@ -347,11 +347,18 @@ otherwise derives it from the operational certificate. `POOL_ID` and
 sudo systemctl start amaru-leaderlog.service
 ```
 
-`-d` installs and enables `<service-name>-leaderlog.service` and does not
-start it. The unit is bound to the node unit, so from then on it starts and
-stops together with the node. `systemd status` and `systemd remove` show and
-remove the unit; removal leaves the database in place. On a relay, where the
-pool folder holds no VRF key, `-d` stops without installing anything.
+`-d` installs and enables `<service-name>-leaderlog.service` and
+`<service-name>-validate.service`, see [Block validation](#block-validation),
+and does not start them. Start the second one too:
+
+```bash
+sudo systemctl start amaru-validate.service
+```
+
+Both units are bound to the node unit, so from then on they start and stop
+together with the node. `systemd status` and `systemd remove` show and remove
+them; removal leaves the database in place. On a relay, where the pool folder
+holds no VRF key, `-d` stops without installing anything.
 
 The service waits until the node follows the tip, then:
 
@@ -380,8 +387,51 @@ in `scripts/env` moves it and `BLOCKLOG_TZ` sets the time zone of the stored
 slot times. Each scheduled slot is a `blocklog` row with status `leader`, and
 `epochdata` holds the stake, ideal slot count, and luck of the epoch. The
 epoch nonce column stays empty because Amaru does not report it. CNTools reads
-the same file for its **Blocks** menu. Nothing updates the status of a slot
-after it has passed yet, so every slot stays `leader`.
+the same file for its **Blocks** menu. A recalculated schedule keeps the
+result of every slot that stays in it.
+
+## Block validation
+
+`amaru-leaderlog.sh validate` gives each passed leader slot a result, with the
+statuses that `cncli.sh validate` uses on cardano-node: `adopted`, `confirmed`,
+`missed`, `stolen`, `heightbattle`, `ghosted` and `invalid`. Explanations
+are in the [CNCLI guide](../Scripts/cncli.md#battles-and-block-details). The
+service installed by `-d` runs it and checks every `SLEEP_RATE` seconds.
+
+It reads three sources:
+
+- **The node's journal.** Amaru logs every led slot: `forged` with the block
+  hash and parent, `missed_slot` with a reason such as `woke_late` or
+  `tip_ahead`, and `forge_failed`. Its `blockperf` traces say when the header
+  of each block was first announced to the node, in milliseconds after that
+  block's slot started. When no header was logged, the time its body arrived
+  is used instead.
+  The validate unit runs with the `systemd-journal` group to read them. A
+  manual run needs a user in that group.
+- **Amaru's chain database**, through `amaru dev chain best-chain` and
+  `amaru dev chain ancestors`. It opens read-only beside the running node,
+  takes about 0.2 seconds, and holds the last k blocks, forks included: about
+  12 hours on mainnet and preprod, about 2.4 hours on preview. The `dev`
+  commands are a debugging interface of Amaru that may change between
+  releases.
+- **Koios**, when it is available. It names the pool of each competing block,
+  gives tickers, and answers for slots older than the chain database holds.
+
+A slot is decided `CONFIRM_SLOT_CNT` slots after it passed (600 by default),
+and a forged block once `CONFIRM_BLOCK_CNT` blocks are built on it (15 by
+default). Both are user variables of the script. What the journal said is
+kept in the `blockdetail` table when first read, so a later re-validation
+still has it after the journal has rotated:
+
+```bash
+/opt/cardano/amaru/scripts/amaru-leaderlog.sh validate all
+/opt/cardano/amaru/scripts/amaru-leaderlog.sh validate 1234
+```
+
+All times are as this node saw them. The node cannot see when its own block
+reached other pools; a shared measurement such as
+[openblockperf](https://github.com/cardano-foundation/openblockperf) may add
+that later.
 
 The upcoming leader slots are sensitive operational information. They are in
 the database and in the service journal, so control who can read both.
@@ -533,10 +583,11 @@ gauges that only Amaru's forge stage reports. They first appear once the node
 adopts a new tip after a start; until then the dashboard shows `RELAY`. Amaru
 exports no leader-schedule or forged-block counters. The leader slots, ideal
 slots and luck come from the block log that `amaru-leaderlog.sh` keeps, see
-[Leader schedule](#leader-schedule). Nothing records block results for Amaru
-yet, so gLiveView shows how many leader slots have passed and how many are to
-come instead of adopted and lost blocks. On a relay the network-derived KES
-period is on the Node & network page.
+[Leader schedule](#leader-schedule), and the block results from
+[Block validation](#block-validation). Until the block log holds any result,
+gLiveView shows how many leader slots have passed and how many are to come
+instead of adopted and lost blocks. On a relay the network-derived KES period
+is on the Node & network page.
 
 Metrics absent from the current scrape are omitted rather than displayed as
 zero.

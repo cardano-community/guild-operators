@@ -46,6 +46,7 @@ FAKE_BIN="${TEST_ROOT}/bin"
 POOL_DIR="${NODE_ROOT}/priv/pool/TESTPOOL"
 LEADERLOG="${SCRIPT_ROOT}/amaru-leaderlog.sh"
 LEADERLOG_UNIT="${SERVICE}-leaderlog.service"
+VALIDATE_UNIT="${SERVICE}-validate.service"
 BLOCKLOG_DB_FILE="${NODE_ROOT}/guild-db/blocklog/blocklog.db"
 SERVICE_LOG="${TEST_ROOT}/service.log"
 mkdir -p \
@@ -219,17 +220,15 @@ calls_for_epoch() {
   grep -c -- "--epoch $1 " "${STATE_ROOT}/amaru-calls" || true
 }
 
-# The blocklog database is shared with the cnode tooling, so the schema must
-# stay the one cncli.sh creates.
-schema_of() {
-  grep -E '^[[:space:]]*(CREATE (TABLE|UNIQUE INDEX|INDEX)|ALTER TABLE|PRAGMA user_version)' "$1" |
-    sed -E 's/^[[:space:]]+//' | sort -u
-}
-assert_eq "$(schema_of "${REPO_ROOT}/scripts/amaru-helper-scripts/amaru-leaderlog.sh")" \
-  "$(schema_of "${REPO_ROOT}/scripts/cnode-helper-scripts/cncli.sh")" \
-  "blocklog schema differs from cncli.sh"
+# The blocklog database is shared with the cnode tooling: both scripts create
+# it through the common env library and keep no schema of their own.
+for script in scripts/amaru-helper-scripts/amaru-leaderlog.sh scripts/cnode-helper-scripts/cncli.sh; do
+  grep -Fq 'blocklogCreateDB' "${REPO_ROOT}/${script}" || fail "${script} does not use the shared blocklog schema"
+  ! grep -Eq '^[[:space:]]*CREATE (TABLE|UNIQUE INDEX|INDEX)' "${REPO_ROOT}/${script}" ||
+    fail "${script} has a blocklog schema of its own"
+done
 
-for arguments in "" "leaderlog now" "systemd" "systemd install all" "-d all" "sync"; do
+for arguments in "" "leaderlog now" "validate now" "validate all 1" "systemd" "systemd install all" "-d all" "sync"; do
   # shellcheck disable=SC2086
   run_leaderlog ${arguments}
   assert_eq "${status}" "1" "exit status for arguments '${arguments}'"
@@ -281,16 +280,31 @@ for expected in \
   grep -Fxq -- "${expected}" "${unit_file}" ||
     fail "leaderlog unit lacks '${expected}': $(< "${unit_file}")"
 done
-grep -Fxq "enable ${LEADERLOG_UNIT}" "${SYSTEMCTL_LOG}" ||
-  fail "unit install did not enable the leaderlog service"
+validate_unit_file="${UNIT_ROOT}/${VALIDATE_UNIT}"
+[[ -f "${validate_unit_file}" ]] || fail "validate unit was not installed"
+for expected in \
+  "BindsTo=${SERVICE}.service" \
+  "User=$(id -un)" \
+  "SupplementaryGroups=systemd-journal" \
+  "ExecStart=${LEADERLOG} validate" \
+  "SyslogIdentifier=${SERVICE}-validate" \
+  "ReadWritePaths=${NODE_ROOT}" \
+  "WantedBy=${SERVICE}.service"; do
+  grep -Fxq -- "${expected}" "${validate_unit_file}" ||
+    fail "validate unit lacks '${expected}': $(< "${validate_unit_file}")"
+done
+! grep -Fq "SupplementaryGroups" "${unit_file}" ||
+  fail "the leaderlog unit does not read the journal and needs no extra group"
+grep -Fxq "enable ${LEADERLOG_UNIT} ${VALIDATE_UNIT}" "${SYSTEMCTL_LOG}" ||
+  fail "unit install did not enable the leaderlog and validate services: $(< "${SYSTEMCTL_LOG}")"
 if grep -Eq '^(start|restart) ' "${SYSTEMCTL_LOG}"; then
   fail "unit install unexpectedly started a service"
 fi
 : > "${SYSTEMCTL_LOG}"
 run_leaderlog systemd status
 assert_eq "${status}" "0" "unit status: ${output}"
-grep -Fxq -- "--no-pager status ${LEADERLOG_UNIT}" "${SYSTEMCTL_LOG}" ||
-  fail "unit status did not inspect the leaderlog service"
+grep -Fxq -- "--no-pager status ${LEADERLOG_UNIT} ${VALIDATE_UNIT}" "${SYSTEMCTL_LOG}" ||
+  fail "unit status did not inspect the leaderlog and validate services"
 [[ ! -e "${BLOCKLOG_DB_FILE}" ]] || fail "systemd management created the blocklog database"
 
 # Nothing is calculated while the node is away from the tip.
@@ -346,7 +360,8 @@ for report in \
 done
 assert_eq "$(db 'SELECT (SELECT COUNT(*) FROM epochdata) + (SELECT COUNT(*) FROM blocklog);')" "0" \
   "rows after failed calculations"
-assert_eq "$(db 'PRAGMA user_version;')" "1" "blocklog schema version"
+assert_eq "$(db 'PRAGMA user_version;')" "2" "blocklog schema version"
+assert_eq "$(db "SELECT COUNT(*) FROM sqlite_master WHERE name = 'blockdetail';")" "1" "blockdetail table"
 mv "${STATE_ROOT}/schedule.keep" "${STATE_ROOT}/schedule-${EPOCH}.json"
 
 # The current epoch, before the nonce of the next one is final.
@@ -445,9 +460,11 @@ run_leaderlog systemd status
 assert_eq "${status}" "0" "unit status without the pool: ${output}"
 run_leaderlog systemd remove
 assert_eq "${status}" "0" "unit removal: ${output}"
-[[ ! -e "${unit_file}" ]] || fail "leaderlog unit was not removed"
+[[ ! -e "${unit_file}" && ! -e "${validate_unit_file}" ]] || fail "leaderlog or validate unit was not removed"
 grep -Fxq "disable --now ${LEADERLOG_UNIT}" "${SYSTEMCTL_LOG}" ||
   fail "unit removal did not disable the leaderlog service"
+grep -Fxq "disable --now ${VALIDATE_UNIT}" "${SYSTEMCTL_LOG}" ||
+  fail "unit removal did not disable the validate service"
 [[ -f "${BLOCKLOG_DB_FILE}" ]] || fail "unit removal deleted the blocklog database"
 
 printf 'amaru leaderlog tests passed\n'

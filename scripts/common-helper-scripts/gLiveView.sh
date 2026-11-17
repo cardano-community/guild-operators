@@ -752,6 +752,7 @@ glv_data_init() {
   D_ROWS=()
   D_SCHEDULE=()
   declare -gA D_STATUS=()
+  declare -gA D_DETAIL=()
 }
 
 glv_data_stamp() { printf -v "$1" '%(%H:%M:%S)T' -1; }
@@ -910,13 +911,15 @@ glv_data_opcert() {
 
 # The leader schedule and its results for the current epoch. CNCLI writes
 # these rows for cardano-node and amaru-leaderlog.sh for Amaru, so nothing
-# here asks which node produced them. Only CNCLI's validation records block
-# results so far: D_RESULTS is Y once any slot has a status other than
-# leader, and until then the views show passed slots instead of results.
+# here asks which node produced them. Results come from their validate
+# services: D_RESULTS is Y once any slot has a status other than leader, and
+# until then the views show passed slots instead of results. D_DETAIL holds,
+# per slot, what blockdetail says about the battle a block was in.
 glv_data_blocklog() {
   local kind first second third fourth fifth total=0
   D_SCHEDULE=()
   D_STATUS=()
+  D_DETAIL=()
   D_EPOCHS=()
   D_RESULTS=N
   D_IDEAL=''
@@ -939,6 +942,7 @@ glv_data_blocklog() {
       I) D_IDEAL="${first}" ;;
       H) D_EPOCHS+=("${first}|${second}|${third}|${fourth}") ;;
       V) [[ "${first}" != 1 ]] || D_RESULTS=Y ;;
+      D) glv_is_int "${first}" && D_DETAIL["${first}"]="${second}|${third}|${fourth}|${fifth}" ;;
     esac
   done < <(sqlite3 "${D_BLOCKLOG_DB}" "
     SELECT 'S', slot_in_epoch, status, CAST(strftime('%s', at) AS INTEGER), block, slot
@@ -951,7 +955,11 @@ glv_data_blocklog() {
            SUM(CASE WHEN b.status IN ('adopted','confirmed') THEN 1 ELSE 0 END),
            IFNULL((SELECT e.epoch_slots_ideal FROM epochdata e WHERE e.epoch=b.epoch LIMIT 1), '')
       FROM blocklog b GROUP BY b.epoch ORDER BY b.epoch DESC LIMIT 6;
-    SELECT 'V', EXISTS(SELECT 1 FROM blocklog WHERE status <> 'leader');" 2>/dev/null)
+    SELECT 'V', EXISTS(SELECT 1 FROM blocklog WHERE status <> 'leader');
+    SELECT 'D', d.slot, d.reason, IFNULL(d.forge_ms, ''), IFNULL(d.winner_slot, ''),
+           CASE WHEN d.winner_ticker <> '' THEN d.winner_ticker ELSE d.winner_pool END, IFNULL(d.winner_ms, ''),
+           CASE WHEN d.winner_vrf <> '' AND d.vrf <> '' THEN d.winner_vrf < d.vrf ELSE '' END
+      FROM blockdetail d JOIN blocklog b ON b.slot = d.slot WHERE b.epoch=${epochnum};" 2>/dev/null)
   D_SCHEDULE_EPOCH="${epochnum}"
   D_STATUS[total]="${total}"
   if [[ "${D_IDEAL}" =~ ^[0-9]+([.][0-9]+)?$ ]]; then
@@ -1945,7 +1953,7 @@ glv_schedule_split() {
 }
 
 glv_production_cells() {
-  local colour text total lost passed coming
+  local colour text total lost passed coming value
   if [[ -n "${D_SCHEDULE_EPOCH}" ]]; then
     total="${D_STATUS[total]:-0}"
     glv_cell "$1" "Leader" "${total}"
@@ -1961,10 +1969,11 @@ glv_production_cells() {
   elif [[ -n "${D_SCHEDULE_EPOCH}" ]]; then
     glv_cell "$1" "Adopted" "$(( ${D_STATUS[adopted]:-0} + ${D_STATUS[confirmed]:-0} ))" C_OK
     glv_cell "$1" "Confirmed" "${D_STATUS[confirmed]:-0}" C_OK
-    for text in missed ghosted stolen invalid; do
+    for text in missed ghosted stolen heightbattle invalid; do
       colour=''
       (( ${D_STATUS[${text}]:-0} == 0 )) || colour=C_DANGER
-      glv_cell "$1" "${text^}" "${D_STATUS[${text}]:-0}" "${colour}"
+      glv_status_label value "${text}"
+      glv_cell "$1" "${value^}" "${D_STATUS[${text}]:-0}" "${colour}"
     done
   else
     glv_metric_cell "$1" isleader "Leader"
@@ -2659,7 +2668,7 @@ glv_page_compact() {
       elif [[ -n "${D_SCHEDULE_EPOCH}" ]]; then
         glv_cell cells "Leader" "${D_STATUS[total]:-0}"
         glv_cell cells "Adopted" "$(( ${D_STATUS[adopted]:-0} + ${D_STATUS[confirmed]:-0} ))" C_OK
-        value=$(( ${D_STATUS[missed]:-0} + ${D_STATUS[ghosted]:-0} + ${D_STATUS[stolen]:-0} + ${D_STATUS[invalid]:-0} ))
+        value=$(( ${D_STATUS[missed]:-0} + ${D_STATUS[ghosted]:-0} + ${D_STATUS[stolen]:-0} + ${D_STATUS[heightbattle]:-0} + ${D_STATUS[invalid]:-0} ))
         colour=''
         (( value == 0 )) || colour=C_DANGER
         glv_cell cells "Lost" "${value}" "${colour}"
@@ -3950,6 +3959,84 @@ glv_view_peers() {
 }
 
 # ── 4 Production ─────────────────────────────────────────────────────────────
+# glv_status_label <variable> <status>: a block log status as people say it.
+glv_status_label() {
+  case "$2" in
+    heightbattle) printf -v "$1" '%s' "height battle" ;;
+    *) printf -v "$1" '%s' "$2" ;;
+  esac
+}
+
+# glv_ms_text <variable> <milliseconds>: "0.12 s", "2.60 s", "14 s"
+glv_ms_text() {
+  if (( $2 < 10000 )); then
+    printf -v "$1" '%d.%02d s' $(( $2 / 1000 )) $(( ($2 % 1000) / 10 ))
+  else
+    printf -v "$1" '%d s' $(( $2 / 1000 ))
+  fi
+}
+
+# glv_block_note <variable> <slot> <status>: one line on what happened to a
+# leader slot, from the block details the validation recorded. Times are as
+# this node saw them.
+glv_block_note() {
+  local -n _bn_note="$1"
+  # The locals carry a prefix because the note is written through a nameref.
+  local _bn_slot="$2" _bn_status="$3" _bn_reason _bn_forge _bn_win_slot _bn_who _bn_win_ms _bn_lower _bn_gap _bn_into _bn_text=''
+  _bn_note=''
+  [[ -n "${D_DETAIL[${_bn_slot}]+set}" ]] || return 0
+  IFS='|' read -r _bn_reason _bn_forge _bn_win_slot _bn_who _bn_win_ms _bn_lower <<< "${D_DETAIL[${_bn_slot}]}"
+  if [[ "${_bn_who}" =~ ^pool1 ]]; then _bn_who="${_bn_who:0:12}…"
+  elif [[ "${_bn_who}" =~ ^[0-9a-f]{56}$ ]]; then _bn_who="${_bn_who:0:8}…"
+  elif [[ -z "${_bn_who}" ]]; then _bn_who="another pool"; fi
+  case "${_bn_status}" in
+    heightbattle)
+      glv_is_int "${_bn_win_slot}" || return 0
+      _bn_gap=$((_bn_win_slot - _bn_slot))
+      if (( _bn_gap > 0 )); then
+        _bn_note="${_bn_who} ${_bn_gap} s later, same parent"
+      else
+        _bn_note="${_bn_who} $((-_bn_gap)) s earlier"
+        if glv_is_int "${_bn_win_ms}"; then
+          _bn_into=$((_bn_win_ms + _bn_gap * 1000))
+          glv_ms_text _bn_text "${_bn_into#-}"
+          if (( _bn_into > 0 )); then _bn_note+=", reached us ${_bn_text} into our slot"
+          else _bn_note+=", reached us ${_bn_text} before our slot"; fi
+        else
+          _bn_note+=", same parent"
+        fi
+      fi ;;
+    stolen)
+      _bn_note="slot battle with ${_bn_who}"
+      case "${_bn_lower}" in
+        1) _bn_note+=", their VRF lower" ;;
+        0) _bn_note+=", our VRF lower" ;;
+      esac ;;
+    ghosted) [[ "${_bn_reason}" != fork ]] || _bn_note="built on a block that lost a fork" ;;
+    missed|invalid)
+      case "${_bn_reason}" in
+        '') ;;
+        woke_late) _bn_note="node woke late" ;;
+        tip_ahead) _bn_note="chain tip already past the slot" ;;
+        ocert_expired) _bn_note="op cert expired" ;;
+        ocert_not_yet_valid) _bn_note="op cert not yet valid" ;;
+        parent_not_stored) _bn_note="parent block not stored" ;;
+        ledger_tip_changed) _bn_note="ledger tip changed while forging" ;;
+        not_led) _bn_note="node found it was not leader" ;;
+        NodeCannotForge) _bn_note="node could not forge" ;;
+        BlockFromFuture) _bn_note="block from the future, check the clock" ;;
+        SlotIsImmutable) _bn_note="slot already immutable" ;;
+        NoLedgerState|NoLedgerView) _bn_note="no ledger state for the slot" ;;
+        ForgedInvalidBlock) _bn_note="node forged an invalid block" ;;
+        *) _bn_note="${_bn_reason//_/ }" ;;
+      esac ;;
+  esac
+  if glv_is_int "${_bn_forge}"; then
+    glv_ms_text _bn_text "${_bn_forge}"
+    _bn_note+="${_bn_note:+ · }forged in ${_bn_text}"
+  fi
+}
+
 glv_schedule_time() {
   if [[ -n "${BLOCKLOG_TZ:-}" ]]; then
     TZ="${BLOCKLOG_TZ}" printf -v "$1" '%(%a %d %H:%M:%S)T' "$2"
@@ -4008,7 +4095,7 @@ glv_view_production() {
   glv_page_window "${rows}"
   UI_BASE="${UI_BASE_MAIN}"
   UI_BODY=()
-  ui_putw "${C_MUTED}" 13 "Status"; ui_putw "${C_MUTED}" 16 "When"
+  ui_putw "${C_MUTED}" 16 "Status"; ui_putw "${C_MUTED}" 16 "When"
   ui_putw "${C_MUTED}" 9 "Slot" r; ui_putw "${C_MUTED}" 12 "Block" r
   ui_endl UI_BODY "${inner}"
   for entry in "${ordered[@]:PAGE_SCROLL:rows}"; do
@@ -4022,22 +4109,23 @@ glv_view_production() {
       text="in ${text}"
       if [[ "${first}" == Y ]]; then
         UI_BASE="${UI_BASE_SELECT}"
-        ui_putw "${UI_KEY}" 13 "▸ next"
+        ui_putw "${UI_KEY}" 16 "▸ next"
       else
-        ui_putw "${C_MUTED}" 13 "· scheduled"
+        ui_putw "${C_MUTED}" 16 "· scheduled"
       fi
       first=N
       colour="${C_ACCENT}"
     else
+      glv_block_note text "${entry##*|}" "${status}"
       case "${status}" in
-        adopted|confirmed) ui_putw "${C_OK}" 13 "✓ ${status}"; colour="${C_OK}" ;;
+        adopted|confirmed) ui_putw "${C_OK}" 16 "✓ ${status}"; colour="${C_MUTED}" ;;
         leader)
           if [[ "${D_RESULTS}" == Y ]]; then
-            ui_putw "${C_WARN}" 13 "? no result"; colour="${C_WARN}"; text="not checked yet"
+            ui_putw "${C_WARN}" 16 "? no result"; colour="${C_WARN}"; text="not checked yet"
           else
-            ui_putw "${C_MUTED}" 13 "· passed"; colour="${C_MUTED}"; text="no block results recorded"
+            ui_putw "${C_MUTED}" 16 "· passed"; colour="${C_MUTED}"; text="no block results recorded"
           fi ;;
-        *) ui_putw "${C_DANGER}" 13 "✗ ${status}"; colour="${C_DANGER}" ;;
+        *) glv_status_label value "${status}"; ui_putw "${C_DANGER}" 16 "✗ ${value}"; colour='' ;;
       esac
     fi
     value='—'
@@ -4050,7 +4138,7 @@ glv_view_production() {
       ui_putw "${C_MUTED}" 12 "—" r
     fi
     ui_gap 2
-    ui_putw "${colour}" $(( inner - 52 > 0 ? inner - 52 : 0 )) "${text}"
+    ui_putw "${colour}" $(( inner - 55 > 0 ? inner - 55 : 0 )) "${text}"
     ui_endl UI_BODY "${inner}"
     UI_BASE="${UI_BASE_MAIN}"
   done
@@ -4786,10 +4874,14 @@ glv_help_entries() {
         "The leader slots of your pool this epoch, from the block log: the ones to come first, soonest on top, then the ones that have passed."
       if [[ "${D_RESULTS}" == Y ]]; then
         glv_help_add "Status" \
-          "next and scheduled are still to come. ✓ adopted or confirmed: the block is on the chain. ? no result: the slot has passed and the block log has not been updated for it yet. ✗ with missed, ghosted, stolen or invalid: the block was lost."
+          "next and scheduled are still to come. ✓ adopted or confirmed: the block is on the chain. ? no result: the slot has passed and the block log has not been updated for it yet. ✗ with missed, ghosted, stolen, height battle or invalid: the block was lost."
+        glv_help_add "Battles" \
+          "stolen: another pool led the same slot and its block won, a slot battle. height battle: another pool's block in a nearby slot was built on the same parent and won, so one of the two blocks did not reach the other pool in time. Winner later: the next leader had not received our block. Winner earlier: its block reached us after we forged. ghosted: our block was built on a block that lost a fork, or lost for another reason."
+        glv_help_add "Note" \
+          "What the validation recorded: the pool that won, how many seconds apart the slots were, when its header reached this node, why a slot was missed, and how long after its slot started our block was forged. All times are as this node saw them. How fast our own block reached other pools can't be seen from here; a shared measurement such as openblockperf could add that later."
       else
         glv_help_add "Status" \
-          "next and scheduled are still to come. · passed: the slot has passed. Nothing records block results in the block log for this node yet, CNCLI's validation does that on cardano-node, so gLiveView cannot tell whether the block was made."
+          "next and scheduled are still to come. · passed: the slot has passed. Nothing records block results in the block log for this node yet, so gLiveView cannot tell whether the block was made. The validate service records them: cncli.sh on cardano-node, amaru-leaderlog.sh on Amaru."
       fi
       glv_help_add "Next epoch" \
         "When the schedule of the next epoch has been calculated, the title says how many slots it holds."
@@ -4885,15 +4977,15 @@ glv_help_results() {
     glv_help_add "Leader · Ideal · Luck" \
       "Leader: slots your pool leads this epoch, from the leader schedule. Ideal: what its stake would give on average. Luck: leader against ideal."
     glv_help_add "Passed · To come" \
-      "Leader slots of this epoch that have passed and that are still to come. Nothing records block results in the block log for this node yet, CNCLI's validation does that on cardano-node, so there are no adopted or lost counts."
+      "Leader slots of this epoch that have passed and that are still to come. Nothing records block results in the block log for this node yet, so there are no adopted or lost counts. The validate service records them: cncli.sh on cardano-node, amaru-leaderlog.sh on Amaru."
   elif [[ -n "${D_SCHEDULE_EPOCH}" ]]; then
     glv_help_add "Leader · Ideal · Luck" \
       "Leader: slots your pool leads this epoch, from the leader schedule. Ideal: what its stake would give on average. Luck: leader against ideal."
     glv_help_add "Adopted · Confirmed" \
       "Adopted: blocks your node made and put on its chain. Confirmed: adopted blocks later verified to be on the chain."
-    glv_help_add "Missed · Ghosted · Stolen · Invalid" \
-      "Missed: the slot passed without a block from your node. Ghosted: the block was made but another block took its place, usually a propagation problem. Stolen: another pool led the same slot and won. Invalid: the node failed to make the block." \
-      "Missed, ghosted and invalid at 0. Stolen is chance."
+    glv_help_add "Missed · Ghosted · Stolen · Height battle · Invalid" \
+      "Missed: the slot passed without a block from your node. Stolen: another pool led the same slot and won, a slot battle. Height battle: another pool's block in a nearby slot on the same parent won, so one of the two did not reach the other in time. Ghosted: the block was built on a block that lost a fork, or lost for another reason. Invalid: the node failed to make the block. The schedule list below says more about each." \
+      "Missed, ghosted and invalid at 0. Stolen is chance; height battles that repeat point at slow block propagation."
   else
     glv_help_add "Leader · Adopted" \
       "Counted by the node since it started: slots it led, and blocks it made and adopted. There is no leader schedule for this epoch yet, so nothing is known about slots to come."

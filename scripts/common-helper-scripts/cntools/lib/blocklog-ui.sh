@@ -25,7 +25,9 @@ cntools_blocks_status_into() {
       if [[ "${CNTOOLS_BLOCKLOG_HAS_RESULTS:-Y}" == Y ]]; then _blocks_status='Leader · scheduled / not yet validated'
       else _blocks_status='Leader · no block results recorded'; fi
       _blocks_role=accent ;;
-    missed|ghosted|stolen|invalid) _blocks_status="${3^}"; _blocks_role=danger ;;
+    stolen) _blocks_status='Stolen · slot battle'; _blocks_role=danger ;;
+    heightbattle) _blocks_status='Height battle'; _blocks_role=danger ;;
+    missed|ghosted|invalid) _blocks_status="${3^}"; _blocks_role=danger ;;
     *) _blocks_status="Unknown · $3" ;;
   esac
 }
@@ -34,7 +36,7 @@ cntools_blocks_status_into() {
 # block results in this block log yet.
 cntools_blocks_results_note() {
   [[ "${CNTOOLS_BLOCKLOG_HAS_RESULTS:-Y}" != Y ]] || return 0
-  cntools_table_pair 'Block results' 'Not recorded · only CNCLI validation on cardano-node records them' warning
+  cntools_table_pair 'Block results' 'Not recorded · the validate service of cncli.sh (cardano-node) or amaru-leaderlog.sh (Amaru) records them' warning
 }
 
 cntools_blocks_summary_rows() {
@@ -49,9 +51,9 @@ cntools_blocks_summary_rows() {
   # Failure and unknown counts appear only when they occurred.
   done < <(jq -r --arg results "${CNTOOLS_BLOCKLOG_HAS_RESULTS:-Y}" '[["Scheduled slots",.scheduled],["Ideal blocks",.ideal],["Luck",.luck],
     ["Adopted (incl. confirmed)",.adopted],["Confirmed",.confirmed],["Pending validation",.pending],
-    ["Missed",.missed],["Ghosted",.ghosted],["Stolen",.stolen],["Invalid",.invalid],["Unknown status",.unknown]][]
+    ["Missed",.missed],["Ghosted",.ghosted],["Stolen",.stolen],["Height battles",.heightbattle],["Invalid",.invalid],["Unknown status",.unknown]][]
     | select(.[1]!=null)
-    | select((.[0]|IN("Missed","Ghosted","Stolen","Invalid","Unknown status")|not) or .[1]!=0)
+    | select((.[0]|IN("Missed","Ghosted","Stolen","Height battles","Invalid","Unknown status")|not) or .[1]!=0)
     | select($results=="Y" or (.[0]|IN("Adopted (incl. confirmed)","Confirmed","Pending validation")|not))
     | map(tostring) | join("\u001f")' <<< "${record}")
 }
@@ -68,12 +70,51 @@ cntools_blocks_epoch_rows() {
     def count(s): map(select(.status==s))|length;
     [["Confirmed",count("confirmed")],["Adopted · awaiting confirmation",count("adopted")],
      ["Pending validation",count("leader")],["Missed",count("missed")],["Ghosted",count("ghosted")],
-     ["Stolen",count("stolen")],["Invalid",count("invalid")],
-     ["Unknown status",(map(select(.status|IN("confirmed","adopted","leader","missed","ghosted","stolen","invalid")|not))|length)],
+     ["Stolen",count("stolen")],["Height battles",count("heightbattle")],["Invalid",count("invalid")],
+     ["Unknown status",(map(select(.status|IN("confirmed","adopted","leader","missed","ghosted","stolen","heightbattle","invalid")|not))|length)],
      ["Ideal blocks",$stats.ideal],["Luck",$stats.luck]][]
     | select(.[1]!=null and .[1]!=0)
     | select($results=="Y" or .[0]!="Pending validation") | map(tostring) | join("\u001f")' <<< "${snapshot}")
 }
+
+# Battle and timing rows of a record from its block details. Times are in
+# milliseconds after the start of each block's own slot, as this node saw them.
+CNTOOLS_BLOCKS_DETAIL_JQ='
+  def secs: ((. / 10 | floor) / 100 | tostring) + " s";
+  def who($ticker; $pool): if ($ticker // "") != "" then $ticker elif ($pool // "") != "" then $pool else "another pool" end;
+  def reason_text: {"woke_late": "The node woke late for the slot", "tip_ahead": "The chain tip was already past the slot",
+    "ocert_expired": "The operational certificate had expired", "ocert_not_yet_valid": "The operational certificate was not yet valid",
+    "parent_not_stored": "The parent block was not stored", "ledger_tip_changed": "The ledger tip changed while forging",
+    "not_led": "The node found it was not the leader", "NodeCannotForge": "The node could not forge",
+    "BlockFromFuture": "Block from the future: check the clock", "SlotIsImmutable": "The slot was already immutable",
+    "NoLedgerState": "No ledger state for the slot", "NoLedgerView": "No ledger state for the slot",
+    "ForgedInvalidBlock": "The node forged an invalid block"}[.] // gsub("_"; " ");
+  def gap($from; $to): ($to - $from) | if . > 0 then "\(.) s later" elif . < 0 then "\(-.) s earlier" else "same slot" end;
+  def battle($slot; $status; $d):
+    if $status == "heightbattle" and $d.winner_slot != null then
+      [["Battle", "Height battle: \(who($d.winner_ticker; $d.winner_pool)) won with slot \($d.winner_slot), \(gap($slot; $d.winner_slot)), on the same parent"]]
+    elif $status == "stolen" then
+      [["Battle", "Slot battle with \(who($d.winner_ticker; $d.winner_pool))" +
+        (if $d.vrf_lower == 1 then ", their VRF was lower" elif $d.vrf_lower == 0 then ", our VRF was lower" else "" end)]]
+    elif $status == "ghosted" and $d.reason == "fork" then [["Battle", "Our block was built on a block that lost a fork"]]
+    elif ($status == "missed" or $status == "invalid") and ($d.reason // "") != "" then [["Reason", ($d.reason | reason_text)]]
+    else [] end;
+  def around($label; $slot; $at; $ticker; $pool; $ms):
+    if $at == null then [] else
+      [[$label, "Slot \($at), \(gap($slot; $at)) · \(who($ticker; $pool))" + (if $ms != null then " · reached us \($ms | secs) after its slot" else "" end)]]
+    end;
+  def timings($slot; $status; $d):
+    (if $d.forge_ms != null then [["Our block forged", "\($d.forge_ms | secs) after the slot started"]] else [] end) +
+    (if $d.winner_ms != null and ($status == "heightbattle" or $status == "stolen" or $status == "ghosted") then
+      [["Their block arrived", "\($d.winner_ms | secs) after its slot" +
+        (if $d.winner_slot != null and $d.winner_slot < $slot then
+          (($d.winner_ms + ($d.winner_slot - $slot) * 1000) | if . > 0 then ", \(secs) into our slot" else ", \(-. | secs) before our slot" end)
+         else "" end)]] else [] end) +
+    around("Previous block"; $slot; $d.prev_slot; $d.prev_ticker; $d.prev_pool; $d.prev_ms) +
+    around("Next block"; $slot; $d.next_slot; $d.next_ticker; $d.next_pool; $d.next_ms) +
+    (if $d.forge_ms != null or $d.winner_ms != null or $d.prev_ms != null or $d.next_ms != null then
+      [["Times", "As this node saw them. When our block reached other pools is not measured here."]] else [] end);
+'
 
 cntools_blocks_record_rows() {
   local record="$1" detail="$2" key='' value='' status='' role='' date=''
@@ -85,13 +126,19 @@ cntools_blocks_record_rows() {
         cntools_timestamp_datetime_into date "${value}" || date=Unavailable
         cntools_table_pair 'Scheduled at' "${date}" ;;
       'Block hash') cntools_table_pair "${key}" "${value}" identifier ;;
+      Battle|Reason|'Our block forged'|'Their block arrived'|'Previous block'|'Next block'|Times)
+        cntools_table_pair "${key}" "${value}" ;;
       *) cntools_blocks_number_pair "${key}" "${value}" ;;
     esac
-  done < <(jq -r --arg detail "${detail}" '([["Status",.status],["Scheduled at",.timestamp]] +
+  done < <(jq -r --arg detail "${detail}" "${CNTOOLS_BLOCKS_DETAIL_JQ}"'
+    .slot as $slot | .status as $status | (.detail // {}) as $d |
+    ([["Status",.status],["Scheduled at",.timestamp]] +
     (if .block>0 then [["Block",.block]] else [] end) +
+    battle($slot; $status; $d) +
     (if $detail=="Y" then [["Slot",.slot],["Slot in epoch",.slot_in_epoch]] +
       (if .size>0 then [["Size (bytes)",.size]] else [] end) +
-      (if (.hash|test("^[0-9a-fA-F]{64}$")) then [["Block hash",.hash]] else [] end)
+      (if (.hash|test("^[0-9a-fA-F]{64}$")) then [["Block hash",.hash]] else [] end) +
+      timings($slot; $status; $d)
      else [] end))[] | select(.[1]!=null) | map(tostring | gsub("[\u0000-\u001f\u007f]";" ")) | join("\u001f")' <<< "${record}")
 }
 
@@ -100,12 +147,13 @@ cntools_blocks_help() {
   {
     cntools_table_pair Source 'Local block log · last recorded validation state'
     cntools_table_pair Leader 'Scheduled slot; may be in the future or awaiting validation.' accent
-    cntools_table_pair 'Block results' 'Recorded by CNCLI validation on cardano-node. Amaru records the schedule only.'
+    cntools_table_pair 'Block results' 'Recorded by the validate service: cncli.sh on cardano-node, amaru-leaderlog.sh on Amaru.'
     cntools_table_pair Adopted 'Created locally; includes blocks later confirmed.' success
-    cntools_table_pair Confirmed 'Confirmed on chain by CNCLI at its configured confirmation depth.' success
-    cntools_table_pair Missed 'No recorded block produced in the scheduled slot.' warning
-    cntools_table_pair Ghosted 'Our block was orphaned; no other valid block in the same slot.' warning
-    cntools_table_pair Stolen 'Another pool produced the valid block for that slot.' warning
+    cntools_table_pair Confirmed 'On chain at the configured confirmation depth.' success
+    cntools_table_pair Missed 'No block produced in the scheduled slot; the reason is shown when the node logged one.' warning
+    cntools_table_pair Stolen 'Slot battle: another pool led the same slot and its block won.' warning
+    cntools_table_pair 'Height battle' 'Another pool built on the same parent in a nearby slot and won: one of the two blocks did not reach the other pool in time.' warning
+    cntools_table_pair Ghosted 'Our block is not on the chain: built on a block that lost a fork, or lost for another reason.' warning
     cntools_table_pair Invalid 'Block creation failed. Inspect CNCLI / node logs for the reason.' danger
     cntools_table_pair Ideal 'Expected block count from active stake; omitted if pool statistics are ambiguous.'
     cntools_table_pair Luck 'Assigned schedule relative to ideal blocks, as recorded in the block log.'
@@ -213,7 +261,7 @@ cntools_blocks_wizard() {
   cntools_ui_action_begin "${kind}" "/ Blocks / ${kind}"
   # Quick opens the history straight away (its Source row names the block
   # log), so the note is shown only where a prompt follows.
-  cntools_flow_quick || cntools_ui_render_status info 'Read-only local block log, not a live chain query. On cardano-node, CNCLI / logMonitor must maintain it for production statuses to stay current; on Amaru, amaru-leaderlog.sh records the schedule only.'
+  cntools_flow_quick || cntools_ui_render_status info 'Read-only local block log, not a live chain query. The validate service keeps block results current: cncli.sh on cardano-node, amaru-leaderlog.sh on Amaru.'
   if [[ "${kind}" == Epoch ]]; then
     cntools_blocks_load Summary 1 || return $?
     # An empty journal has no latest epoch to open.

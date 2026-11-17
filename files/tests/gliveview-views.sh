@@ -58,6 +58,7 @@ glv_load() {
 glv_load "${GLIVEVIEW}" ui_colour_256 ui_colour ui_theme ui_put ui_gap ui_putw ui_endl ui_scale \
   ui_fmt_duration glv_is_int glv_logo_init glv_role_badge glv_identity_lines glv_rail glv_title_update \
   glv_data_init glv_data_blocklog glv_cell glv_schedule_split glv_production_cells \
+  glv_status_label glv_ms_text glv_block_note \
   glv_binary_parse glv_binary_state glv_binary_pin
 eval "$(grep -E '^(GLV_RAIL_W|VIEW_KEYS|VIEW_NAMES|GLV_VERSION|UI_RESET|UI_BOLD|UI_L|UI_LW|GLV_TITLE_SHOWN|GLV_TITLE_PUSHED)=' "${GLIVEVIEW}")"
 printf -v UI_SPACES '%500s' ''
@@ -293,6 +294,44 @@ if command -v sqlite3 >/dev/null 2>&1; then
   if printf '%s\n' "${cells[@]}" | grep -Eq '^(Passed|To come)\|'; then
     fail "passed and upcoming counts are shown beside block results: ${cells[*]}"
   fi
+
+  # Block details (schema 2) give each lost slot a note.
+  eval "$(awk '/^blocklogDetailSchema\(\) \{/{f=1} f{print} f&&/^}$/{exit}' "${REPO_ROOT}/scripts/common-helper-scripts/lib/env.library")"
+  sqlite3 "${db}" "$(blocklogDetailSchema)
+    UPDATE blocklog SET status='heightbattle', block=42 WHERE slot=1000;
+    INSERT INTO blocklog (slot,at,epoch,slot_in_epoch,status) VALUES
+      (900,'$(printf '%(%FT%T)T+00:00' $((now - 7200)))',100,9,'stolen'),
+      (800,'$(printf '%(%FT%T)T+00:00' $((now - 9000)))',100,8,'missed'),
+      (700,'$(printf '%(%FT%T)T+00:00' $((now - 9900)))',100,7,'confirmed');
+    INSERT INTO blockdetail (slot,reason,forge_ms,vrf,winner_slot,winner_pool,winner_ticker,winner_ms,winner_vrf) VALUES
+      (1000,'height_battle',120,'',998,'pool1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq','ABCD',2600,''),
+      (900,'slot_battle',NULL,'ff',900,'pool1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq','',NULL,'0a'),
+      (800,'woke_late',NULL,'',NULL,'','',NULL,''),
+      (700,'',110,'',NULL,'','',NULL,'');"
+  glv_data_blocklog
+  glv_block_note text 1000 heightbattle
+  assert_eq "${text}" "ABCD 2 s earlier, reached us 0.60 s into our slot · forged in 0.12 s" "height battle note"
+  sqlite3 "${db}" "UPDATE blockdetail SET winner_slot=1003, winner_ticker='' WHERE slot=1000;"
+  glv_data_blocklog
+  glv_block_note text 1000 heightbattle
+  assert_eq "${text}" "pool1qqqqqqq… 3 s later, same parent · forged in 0.12 s" "height battle note, winner later"
+  glv_block_note text 900 stolen
+  assert_eq "${text}" "slot battle with pool1qqqqqqq…, their VRF lower" "slot battle note"
+  glv_block_note text 800 missed
+  assert_eq "${text}" "node woke late" "missed note"
+  glv_block_note text 700 confirmed
+  assert_eq "${text}" "forged in 0.11 s" "confirmed note"
+  glv_block_note text 600 missed
+  assert_eq "${text}" "" "a slot without details has no note"
+  cells=()
+  glv_production_cells cells results
+  printf '%s\n' "${cells[@]}" | grep -qx 'Height battle|1|C_DANGER' || fail "height battles are counted: ${cells[*]}"
+  printf '%s\n' "${cells[@]}" | grep -qx 'Stolen|1|C_DANGER' || fail "slot battles are counted: ${cells[*]}"
+
+  # A block log without the blockdetail table still reads.
+  sqlite3 "${db}" "DROP TABLE blockdetail;"
+  glv_data_blocklog
+  assert_eq "${D_STATUS[total]}|${#D_DETAIL[@]}" "6|0" "schema 1 block log"
 else
   printf 'gliveview-views: sqlite3 is not installed, block log reads skipped\n'
 fi
@@ -331,5 +370,53 @@ rows="$(cntools_blocks_epoch_rows "${snapshot}" '{}')"
 grep -qx 'Pending validation=3' <<< "${rows}" || fail "CNTools epoch view with results: ${rows}"
 cntools_blocks_status_into status role leader
 assert_eq "${status}" 'Leader · scheduled / not yet validated' "CNTools slot status with results"
+cntools_blocks_status_into status role heightbattle
+assert_eq "${status}|${role}" 'Height battle|danger' "CNTools height battle status"
+record='{"epoch":100,"ideal":2.5,"luck":120,"scheduled":3,"adopted":1,"confirmed":1,"pending":0,"missed":0,"ghosted":0,"stolen":0,"heightbattle":1,"invalid":0,"unknown":0}'
+rows="$(cntools_blocks_summary_rows "${record}")"
+grep -qx 'Height battles=1' <<< "${rows}" || fail "CNTools summary hides height battles: ${rows}"
+rows="$(cntools_blocks_epoch_rows '[{"status":"heightbattle"},{"status":"confirmed"}]' '{}')"
+grep -qx 'Height battles=1' <<< "${rows}" || fail "CNTools epoch view hides height battles: ${rows}"
+grep -q '^Unknown status=' <<< "${rows}" && fail "CNTools counts a height battle as an unknown status: ${rows}"
+cntools_timestamp_datetime_into() { local -n _date_out="$1"; _date_out="$2"; }
+record='{"slot":1070,"epoch":100,"status":"heightbattle","block":107,"timestamp":1,"slot_in_epoch":70,"size":0,"hash":"",
+  "detail":{"reason":"height_battle","forge_ms":120,"winner_slot":1068,"winner_pool":"pool1xyz","winner_ticker":"ABC","winner_ms":2600,
+  "vrf_lower":null,"prev_slot":1063,"prev_pool":"pool1p","prev_ticker":"","prev_ms":900,"next_slot":1077,"next_pool":"pool1n","next_ticker":"NXT","next_ms":null}}'
+rows="$(cntools_blocks_record_rows "${record}" N)"
+grep -qx 'Battle=Height battle: ABC won with slot 1068, 2 s earlier, on the same parent' <<< "${rows}" ||
+  fail "CNTools block list has no battle row: ${rows}"
+grep -q '^Previous block=' <<< "${rows}" && fail "CNTools block list shows details: ${rows}"
+rows="$(cntools_blocks_record_rows "${record}" Y)"
+for expected in 'Our block forged=0.12 s after the slot started' \
+  'Their block arrived=2.6 s after its slot, 0.6 s into our slot' \
+  'Previous block=Slot 1063, 7 s earlier · pool1p · reached us 0.9 s after its slot' \
+  'Next block=Slot 1077, 7 s later · NXT'; do
+  grep -qxF "${expected}" <<< "${rows}" || fail "CNTools block details lack '${expected}': ${rows}"
+done
+
+# CNTools reads the details with the block log's own query.
+if command -v sqlite3 >/dev/null 2>&1; then
+  cntools_log() { :; }
+  cntools_log_private_directory_safe() { :; }
+  cntools_run_command_timeout() { shift 3; "$@"; }
+  cntools_number_normalize_into() { local -n _normalized="$1"; _normalized="$2"; }
+  . "${REPO_ROOT}/scripts/common-helper-scripts/cntools/lib/blocklog.sh"
+  CNTOOLS_TMP_DIR="${TEST_ROOT}"
+  CNTOOLS_BLOCKLOG_DB="${TEST_ROOT}/cntools-blocklog.db"
+  sqlite3 "${CNTOOLS_BLOCKLOG_DB}" "
+    CREATE TABLE blocklog (id INTEGER PRIMARY KEY AUTOINCREMENT, slot INTEGER NOT NULL UNIQUE, at TEXT NOT NULL UNIQUE, epoch INTEGER NOT NULL, block INTEGER NOT NULL DEFAULT 0, slot_in_epoch INTEGER NOT NULL DEFAULT 0, hash TEXT NOT NULL DEFAULT '', size INTEGER NOT NULL DEFAULT 0, status TEXT NOT NULL);
+    INSERT INTO blocklog (slot,at,epoch,slot_in_epoch,status,block) VALUES
+      (1070,'2026-11-17T10:00:00+00:00',100,70,'heightbattle',107), (1080,'2026-11-17T10:00:10+00:00',100,80,'confirmed',108);"
+  cntools_blocklog_epoch 100 || fail "CNTools epoch read of a schema 1 block log: ${CNTOOLS_BLOCKLOG_ERROR}"
+  assert_eq "${CNTOOLS_BLOCKLOG_HAS_DETAIL}|$(jq -c '[.[].detail]' <<< "${CNTOOLS_BLOCKLOG_DATA}")" 'N|[null,null]' "CNTools without block details"
+  sqlite3 "${CNTOOLS_BLOCKLOG_DB}" "$(blocklogDetailSchema)
+    INSERT INTO blockdetail (slot,reason,forge_ms,vrf,winner_slot,winner_pool,winner_ticker,winner_ms,winner_vrf,prev_slot,prev_ms)
+      VALUES (1070,'height_battle',120,'aa',1068,'pool1xyz','ABC',2600,'bb',1063,900);"
+  cntools_blocklog_epoch 100 || fail "CNTools epoch read with block details: ${CNTOOLS_BLOCKLOG_ERROR}"
+  assert_eq "$(jq -c '.[0].detail | [.reason, .forge_ms, .winner_slot, .winner_ticker, .winner_ms, .vrf_lower, .prev_slot, .next_slot]' <<< "${CNTOOLS_BLOCKLOG_DATA}")|$(jq -c '.[1].detail' <<< "${CNTOOLS_BLOCKLOG_DATA}")" \
+    '["height_battle",120,1068,"ABC",2600,0,1063,null]|null' "CNTools block details"
+  cntools_blocklog_summary 1 || fail "CNTools summary with height battles: ${CNTOOLS_BLOCKLOG_ERROR}"
+  assert_eq "$(jq -c '.[0] | [.heightbattle, .unknown]' <<< "${CNTOOLS_BLOCKLOG_DATA}")" '[1,0]' "CNTools summary counts height battles"
+fi
 
 printf 'gliveview-views: all checks passed\n'

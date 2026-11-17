@@ -227,16 +227,35 @@ Shown on a producer, in the overview and on the Production page.
 | Leader, Ideal, Luck | With a leader schedule: slots the pool leads this epoch, the number its stake would give on average, and one against the other. |
 | Passed, To come | With a leader schedule but no block results in the block log: leader slots of this epoch that have passed and that are still to come. |
 | Adopted, Confirmed | Blocks the node made and put on its chain, and the adopted blocks later verified to be on the chain. |
-| Missed, Ghosted, Stolen, Invalid | The slot passed without a block; the block was made but another took its place; another pool led the same slot and won; the node failed to make the block. |
+| Missed, Ghosted, Stolen, Height battle, Invalid | The slot passed without a block; the block was built on a block that lost a fork, or lost for another reason; another pool led the same slot and won (slot battle); another pool's block in a nearby slot on the same parent won (height battle); the node failed to make the block. |
 | KES | Remaining KES periods. Amber at 15, red at 5. |
 | Op cert | The certificate counter on disk and the last one used on chain. It is marked wrong unless the disk counter equals the chain counter or exceeds it by one. |
 | Missed chk | Leadership checks the node skipped. Sustained growth can indicate CPU, I/O, GC, or timekeeping pressure. |
 
-Block results are written to the block log by CNCLI's validation on
-cardano-node. Until the block log holds any result, gLiveView shows `Passed`
-and `To come` in place of the adopted and lost counts, marks passed slots as
-`· passed` on the Production page, and leaves the adopted column out of the
-epoch history, so none of them reads 0 while the pool is making blocks.
+Block results are written to the block log by the validate service:
+`cncli.sh validate` on cardano-node, `amaru-leaderlog.sh validate` on Amaru.
+Until the block log holds any result, gLiveView shows `Passed` and `To come`
+in place of the adopted and lost counts, marks passed slots as `· passed` on
+the Production page, and leaves the adopted column out of the epoch history,
+so none of them reads 0 while the pool is making blocks.
+
+On the Production page, each passed slot carries a note from the block
+details the validation recorded:
+
+```
+✗ height battle  Tue 17 14:24:48   51,851        —  ABCD 2 s earlier, reached us 0.60 s into our slot · forged in 0.12 s
+✗ height battle  Tue 17 16:03:10   57,633        —  EFGH 3 s later, same parent · forged in 0.15 s
+✗ stolen         Tue 17 18:02:11   64,931        —  slot battle with IJKL, their VRF lower
+✗ missed         Tue 17 20:41:07   74,467        —  node woke late
+✓ confirmed      Tue 17 21:10:52   76,252  131,940  forged in 0.11 s
+```
+
+A winner in a later slot means the next leader had not received our block. A
+winner in an earlier slot reached this node only after we forged. Times are as
+this node saw them; how fast our own block reached other pools cannot be seen
+locally. A shared measurement such as
+[openblockperf](https://github.com/cardano-foundation/openblockperf) may add
+that later. CNTools shows every detail, including the blocks before and after.
 
 Without a leader schedule the panel shows the node's own counters since it
 started.
@@ -365,9 +384,8 @@ start. An Amaru producer shows its remaining KES periods in the Block
 production panel. Amaru exports no leader-schedule or forged-block counters,
 so the Production figures come from the leader schedule that
 `amaru-leaderlog.sh` stores in the block log, see
-[Leader schedule](../Build/amaru.md#leader-schedule). Nothing records block
-results for Amaru yet, so gLiveView shows passed and upcoming leader slots
-rather than adopted and lost blocks.
+[Leader schedule](../Build/amaru.md#leader-schedule), with the results of its
+[block validation](../Build/amaru.md#block-validation).
 
 Amaru's own terminal dashboard runs inside the node process and is therefore
 only available when `amaru.sh run` is started from an interactive terminal.

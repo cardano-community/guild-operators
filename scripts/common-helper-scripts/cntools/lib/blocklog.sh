@@ -1,14 +1,16 @@
 #!/usr/bin/env bash
-# Read-only snapshots of the block log: CNCLI's journal on cardano-node, the
-# schedule from amaru-leaderlog.sh on Amaru. No env helpers, node queries or
-# migrations.
+# Read-only snapshots of the block log: written by cncli.sh on cardano-node and
+# amaru-leaderlog.sh on Amaru, with block details from their validate
+# services. No env helpers, node queries or migrations.
 # shellcheck disable=SC2034
 CNTOOLS_BLOCKLOG_WORK=''
 CNTOOLS_BLOCKLOG_ERROR=''
 CNTOOLS_BLOCKLOG_DATA='[]'
 CNTOOLS_BLOCKLOG_HAS_EPOCHDATA=N
-# N while no slot has a status other than leader: nothing records block results
-# for this node, as on Amaru, whose leader log stores the schedule only.
+# Y when the block log has the blockdetail table (schema 2).
+CNTOOLS_BLOCKLOG_HAS_DETAIL=N
+# N while no slot has a status other than leader: nothing validates the blocks
+# of this node, so the block log holds the schedule only.
 CNTOOLS_BLOCKLOG_HAS_RESULTS=Y
 CNTOOLS_BLOCKLOG_EPOCH_STATS='{}'
 
@@ -52,10 +54,16 @@ cntools_blocklog_prepare() {
         ('slot','at','epoch','block','slot_in_epoch','hash','size','status'))=8,
     'epochdata', EXISTS(SELECT 1 FROM main.sqlite_master WHERE name='epochdata' AND type='table')
       AND (SELECT count(*) FROM pragma_table_info('epochdata') WHERE name IN
-        ('epoch','pool_id','epoch_slots_ideal','max_performance'))=4);" || return 1
+        ('epoch','pool_id','epoch_slots_ideal','max_performance'))=4,
+    'blockdetail', EXISTS(SELECT 1 FROM main.sqlite_master WHERE name='blockdetail' AND type='table')
+      AND (SELECT count(*) FROM pragma_table_info('blockdetail') WHERE name IN
+        ('slot','reason','forge_ms','winner_slot','winner_pool','winner_ticker','winner_ms','winner_vrf','vrf',
+         'prev_slot','prev_pool','prev_ticker','prev_ms','next_slot','next_pool','next_ticker','next_ms'))=17);" || return 1
   jq -e '.blocklog == 1' <<< "${schema}" >/dev/null || { cntools_blocklog_error 'The block log does not contain a supported blocklog table.'; return 1; }
   CNTOOLS_BLOCKLOG_HAS_EPOCHDATA=N
   if jq -e '.epochdata == 1' <<< "${schema}" >/dev/null; then CNTOOLS_BLOCKLOG_HAS_EPOCHDATA=Y; fi
+  CNTOOLS_BLOCKLOG_HAS_DETAIL=N
+  if jq -e '.blockdetail == 1' <<< "${schema}" >/dev/null; then CNTOOLS_BLOCKLOG_HAS_DETAIL=Y; fi
   cntools_blocklog_sql results "SELECT json_object('results',
     EXISTS(SELECT 1 FROM main.blocklog WHERE status <> 'leader'));" || return 1
   CNTOOLS_BLOCKLOG_HAS_RESULTS=N
@@ -118,15 +126,16 @@ cntools_blocklog_summary() {
       coalesce(sum(b.status='missed'),0) AS missed,
       coalesce(sum(b.status='ghosted'),0) AS ghosted,
       coalesce(sum(b.status='stolen'),0) AS stolen,
+      coalesce(sum(b.status='heightbattle'),0) AS heightbattle,
       coalesce(sum(b.status='invalid'),0) AS invalid,
-      coalesce(sum(b.status IS NOT NULL AND b.status NOT IN ('leader','adopted','confirmed','missed','ghosted','stolen','invalid')),0) AS unknown
+      coalesce(sum(b.status IS NOT NULL AND b.status NOT IN ('leader','adopted','confirmed','missed','ghosted','stolen','heightbattle','invalid')),0) AS unknown
       FROM epochs LEFT JOIN main.blocklog b ON b.epoch=epochs.epoch GROUP BY epochs.epoch ORDER BY epochs.epoch DESC)
     SELECT coalesce(json_group_array(json_object('epoch',epoch,'ideal',ideal,'luck',luck,
       'scheduled',scheduled,'adopted',adopted,'confirmed',confirmed,'pending',pending,
-      'missed',missed,'ghosted',ghosted,'stolen',stolen,'invalid',invalid,'unknown',unknown)),json('[]')) FROM totals;"
+      'missed',missed,'ghosted',ghosted,'stolen',stolen,'heightbattle',heightbattle,'invalid',invalid,'unknown',unknown)),json('[]')) FROM totals;"
   cntools_blocklog_sql CNTOOLS_BLOCKLOG_DATA "${sql}" || return 1
   jq -e 'type=="array" and all(.[];
-    all(.epoch,.scheduled,.adopted,.confirmed,.pending,.missed,.ghosted,.stolen,.invalid,.unknown;
+    all(.epoch,.scheduled,.adopted,.confirmed,.pending,.missed,.ghosted,.stolen,.heightbattle,.invalid,.unknown;
       type=="number" and .>=0 and .<=9007199254740991 and .==floor) and
     all(.ideal,.luck; .==null or (type=="number" and .>=0 and .<=9007199254740991)))' \
     <<< "${CNTOOLS_BLOCKLOG_DATA}" >/dev/null || { cntools_blocklog_error 'The block log contains malformed epoch statistics.'; return 1; }
@@ -136,11 +145,21 @@ cntools_blocklog_epoch() {
   local epoch=''
   cntools_blocklog_integer_into epoch "$1" || return 2
   cntools_blocklog_prepare || return 1
-  # Read one more than the bound so truncation is rejected, not hidden.
+  # Read one more than the bound so truncation is rejected, not hidden. Block
+  # details join in when the block log has them; texts are cut to safe lengths.
+  local detail="json('null')"
+  if [[ "${CNTOOLS_BLOCKLOG_HAS_DETAIL}" == Y ]]; then
+    detail="(SELECT json_object('reason',substr(d.reason,1,64),'forge_ms',d.forge_ms,
+      'winner_slot',d.winner_slot,'winner_pool',substr(d.winner_pool,1,64),'winner_ticker',substr(d.winner_ticker,1,16),'winner_ms',d.winner_ms,
+      'vrf_lower',CASE WHEN d.winner_vrf <> '' AND d.vrf <> '' THEN d.winner_vrf < d.vrf END,
+      'prev_slot',d.prev_slot,'prev_pool',substr(d.prev_pool,1,64),'prev_ticker',substr(d.prev_ticker,1,16),'prev_ms',d.prev_ms,
+      'next_slot',d.next_slot,'next_pool',substr(d.next_pool,1,64),'next_ticker',substr(d.next_ticker,1,16),'next_ms',d.next_ms)
+      FROM main.blockdetail d WHERE d.slot=b.slot)"
+  fi
   cntools_blocklog_sql CNTOOLS_BLOCKLOG_DATA "SELECT coalesce(json_group_array(json_object(
     'slot',slot,'epoch',epoch,'block',block,'slot_in_epoch',slot_in_epoch,'hash',substr(coalesce(hash,''),1,8192),
-    'size',size,'status',substr(status,1,128),'at',at,'timestamp',cast(strftime('%s',at) AS INTEGER))),json('[]'))
-    FROM (SELECT * FROM main.blocklog WHERE epoch=${epoch} ORDER BY slot ASC LIMIT 100001);" || return 1
+    'size',size,'status',substr(status,1,128),'at',at,'timestamp',cast(strftime('%s',at) AS INTEGER),'detail',json(detail))),json('[]'))
+    FROM (SELECT b.*, ${detail} AS detail FROM main.blocklog b WHERE b.epoch=${epoch} ORDER BY b.slot ASC LIMIT 100001);" || return 1
   jq -e 'length <= 100000 and all(.[]; (.status|type)=="string" and
     all(.slot,.block,.slot_in_epoch,.size; type=="number" and .>=0 and .<=9007199254740991 and .==floor))' \
     <<< "${CNTOOLS_BLOCKLOG_DATA}" >/dev/null || { cntools_blocklog_error 'This epoch exceeds the safe display limit or contains malformed block records.'; return 1; }

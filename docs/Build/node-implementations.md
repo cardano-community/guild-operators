@@ -282,9 +282,8 @@ process is a producer. The launcher selects the live role from the complete
 operational hot-key set. gLiveView confirms it from Dingo's `forging_enabled`
 metric and, for Amaru, from the operational-certificate gauges that only its
 forge stage exports. Such a producer uses the common KES and block-production
-display. The leader schedule comes from the block log, which CNCLI keeps for
-cnode and `amaru-leaderlog.sh` for Amaru; only CNCLI also records block
-results. The node's own view of each connection in peer analysis is
+display. The leader schedule and the block results come from the block log,
+which CNCLI keeps for cnode and `amaru-leaderlog.sh` for Amaru. The node's own view of each connection in peer analysis is
 available for cnode and Amaru. See the
 [gLiveView guide](../Scripts/gliveview.md) for the displayed metric groups.
 
@@ -299,7 +298,7 @@ available for cnode and Amaru. See the
 | cardano-cli local queries | Yes | Not exposed through the profile | No compatible node-to-client socket |
 | db-sync, Ogmios, standalone Mithril helpers | Existing support | Not deployed | Not deployed |
 | Block production | Yes | Experimental on preprod/preview, not on mainnet | Experimental |
-| Leader schedule in the block log | CNCLI, with block results | No | `amaru-leaderlog.sh`, schedule only |
+| Leader schedule in the block log | CNCLI, with block results | No | `amaru-leaderlog.sh`, with block results |
 
 Dingo samples carry an upstream `network` label; the shared parser accepts
 labelled and unlabelled Prometheus samples. Amaru samples pass through

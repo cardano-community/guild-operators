@@ -775,7 +775,15 @@ database or controlling the node. Quick opens the last 10 epochs (Summary) or
 the latest epoch (Epoch); **Change epoch count** and **Choose epoch** change
 the view. Set up the blocklog collector separately: on cardano-node with the
 [CNCLI guide](cncli.md), on Amaru with `amaru-leaderlog.sh`, see
-[Leader schedule](../Build/amaru.md#leader-schedule). Amaru's leader log
-records the schedule only, so until a block log holds any block result the
-views list the leader slots and a **Block results** row says they are not
-recorded, instead of counting every slot as adopted 0 or pending validation.
+[Leader schedule](../Build/amaru.md#leader-schedule) and
+[Block validation](../Build/amaru.md#block-validation). Until a block log
+holds any block result, the views list the leader slots and a **Block
+results** row says they are not recorded, instead of counting every slot as
+adopted 0 or pending validation.
+
+**Show block details** adds what the validation recorded about a slot: the
+battle a lost block was in (slot battle, height battle or fork) with the pool
+that won, why a slot was missed, how long after its slot started our block was
+forged, when the winning block reached the node, and the blocks before and
+after ours. Times are as the node saw them; when our own block reached other
+pools is not measured.
