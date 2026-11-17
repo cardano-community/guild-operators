@@ -154,7 +154,7 @@ amaru_deploy_install_dependencies() {
       amaru_deploy_privileged env DEBIAN_FRONTEND=noninteractive apt-get \
       -o Dpkg::Use-Pty=0 -o APT::Color=0 install -y \
       bc ca-certificates coreutils curl diffutils findutils gawk git gnupg grep gzip iproute2 jq \
-      ncurses-bin openssl procps sed tar xxd "${hardware_packages[@]}" || return 1
+      ncurses-bin openssl procps sed sqlite3 tar xxd "${hardware_packages[@]}" || return 1
   elif command -v dnf >/dev/null 2>&1; then
     hardware_packages=()
     [[ "${AMARU_DEPLOY_INSTALL_HWCLI:-N}" == "Y" ]] &&
@@ -162,7 +162,7 @@ amaru_deploy_install_dependencies() {
     dispatcher_run_package_command "Amaru prerequisite package installation" \
       amaru_deploy_privileged dnf install -y \
       bc ca-certificates coreutils curl diffutils findutils gawk git gnupg2 grep gzip iproute jq \
-      ncurses openssl procps-ng sed tar vim-common "${hardware_packages[@]}" || return 1
+      ncurses openssl procps-ng sed sqlite tar vim-common "${hardware_packages[@]}" || return 1
   elif command -v yum >/dev/null 2>&1; then
     hardware_packages=()
     [[ "${AMARU_DEPLOY_INSTALL_HWCLI:-N}" == "Y" ]] &&
@@ -170,9 +170,9 @@ amaru_deploy_install_dependencies() {
     dispatcher_run_package_command "Amaru prerequisite package installation" \
       amaru_deploy_privileged yum install -y \
       bc ca-certificates coreutils curl diffutils findutils gawk git gnupg2 grep gzip iproute jq \
-      ncurses openssl procps-ng sed tar vim-common "${hardware_packages[@]}" || return 1
+      ncurses openssl procps-ng sed sqlite tar vim-common "${hardware_packages[@]}" || return 1
   else
-    amaru_deploy_fail "Unsupported package manager; install bc, coreutils, curl, findutils, git, gpg, grep, gzip, iproute, jq, ncurses, OpenSSL 3 or newer, procps, sed, tar, and xxd"
+    amaru_deploy_fail "Unsupported package manager; install bc, coreutils, curl, findutils, git, gpg, grep, gzip, iproute, jq, ncurses, OpenSSL 3 or newer, procps, sed, sqlite3, tar, and xxd"
     return 1
   fi
   amaru_deploy_ok "Amaru runtime prerequisites"
@@ -211,6 +211,7 @@ amaru_deploy_preflight_snapshot() {
 
   shell_payloads=(
     scripts/amaru-helper-scripts/amaru.sh
+    scripts/amaru-helper-scripts/amaru-leaderlog.sh
     scripts/amaru-helper-scripts/migrate-from-cnode.sh
     scripts/common-helper-scripts/lib/deployment.library
     scripts/common-helper-scripts/lib/env.library
@@ -481,6 +482,9 @@ amaru_deploy_install_payloads() {
   amaru_deploy_install_code_payload \
     "scripts/amaru-helper-scripts/amaru.sh" \
     "${NODE_HOME}/scripts/amaru.sh" 0755 || return 1
+  amaru_deploy_install_code_payload \
+    "scripts/amaru-helper-scripts/amaru-leaderlog.sh" \
+    "${NODE_HOME}/scripts/amaru-leaderlog.sh" 0755 Y || return 1
   amaru_deploy_install_code_payload \
     "scripts/amaru-helper-scripts/migrate-from-cnode.sh" \
     "${NODE_HOME}/scripts/migrate-from-cnode.sh" 0755 || return 1
