@@ -214,6 +214,11 @@ SGVERSION=v1.4.2
     [[ -z "${CRON_DIR}" ]] && CRON_DIR="/etc/cron.d"
     [[ -z "${PGDATABASE}" ]] && PGDATABASE="cexplorer"
     [[ -z "${HAPROXY_CFG}" ]] && HAPROXY_CFG="${CNODE_HOME}/files/haproxy.cfg"
+    # A pre-release network runs a db-sync with tables the released SQL doesn't read,
+    # so it follows the koios-artifacts branch built for it.
+    case ${NWMAGIC} in
+      6) SGVERSION="dijkstra" ;;
+    esac
     [[ -z "${DB_SCRIPTS_URL}" ]] && DB_SCRIPTS_URL="https://raw.githubusercontent.com/${G_ACCOUNT}/koios-artifacts/${SGVERSION}/files/grest/rpc/db-scripts"
     DOCS_URL="https://cardano-community.github.io/guild-operators"
     [[ -z "${PGPASSFILE}" ]] && export PGPASSFILE="${CNODE_HOME}"/priv/.pgpass

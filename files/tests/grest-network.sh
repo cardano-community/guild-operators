@@ -40,8 +40,8 @@ if command -v haproxy >/dev/null 2>&1 &&
   HAPROXY_CHECK="Y"
 fi
 
-check_network() { # $1 = magic, $2 = expected failover host, or "none"
-  local magic="$1" expected="$2"
+check_network() { # $1 = magic, $2 = expected failover host, or "none", $3 = expected koios-artifacts ref
+  local magic="$1" expected="$2" sgversion="${3:-test}"
   (
     # The setup script relies on unset variables meaning "use the default".
     set +u
@@ -51,6 +51,10 @@ check_network() { # $1 = magic, $2 = expected failover host, or "none"
     : > "${CNODE_HOME}/files/grestrpcs"
     unset HAPROXY_CFG PGDATABASE CRON_SCRIPTS_DIR CRON_DIR DB_SCRIPTS_URL PGPASSFILE
     set_environment_variables
+    # The SQL comes from the release tag, except on a network that needs its own branch.
+    [[ "${SGVERSION}" == "${sgversion}" ]] || fail "magic ${magic} installs koios-artifacts '${SGVERSION}', expected ${sgversion}"
+    [[ "${DB_SCRIPTS_URL}" == */koios-artifacts/${sgversion}/files/grest/rpc/db-scripts ]] ||
+      fail "magic ${magic} reads db scripts from ${DB_SCRIPTS_URL}"
     deploy_configs >/dev/null
     config="${HAPROXY_CFG}"
     failover="$(sed -n '/^backend grest_failover/,/^$/p' "${config}")"
@@ -79,7 +83,7 @@ check_network 764824073 api.koios.rest
 check_network 1 preprod.koios.rest
 check_network 2 preview.koios.rest
 check_network 141 guild.koios.rest
-check_network 6 none
+check_network 6 none dijkstra
 check_network 164 none
 
 if [[ "${HAPROXY_CHECK}" == "Y" ]]; then

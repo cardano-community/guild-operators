@@ -27,6 +27,10 @@ When the local PostgREST instance is down, HAProxy fails over to the public Koio
 instance for the same network: mainnet, preprod, preview or guild. Other networks,
 such as Dijkstra, have none, so requests fail until the local instance is back.
 
+On Dijkstra, setup-grest.sh installs the SQL from the `dijkstra` branch of
+koios-artifacts in place of the release tag, because that network's db-sync has
+tables the released SQL doesn't read.
+
 ### Setup gRest services {: id="setup"}
 
 To start with you'd want to ensure your current shell session has access to Postgres credentials, continuing from examples from the above mentioned [Sample Postgres deployment guide](../Appendix/postgres.md).
