@@ -1,6 +1,10 @@
 ARG COMMIT
 ARG G_ACCOUNT
-FROM --platform=$BUILDPLATFORM ghcr.io/${G_ACCOUNT}/pre-merge-rockylinux:guild-deploy-l_${COMMIT}
+# The account the guild-deploy image was tagged under. A fork's PR fetches
+# its scripts from the fork (G_ACCOUNT) but builds on the image tagged in
+# this repository's name, which stays local when the push is skipped.
+ARG IMAGE_ACCOUNT=${G_ACCOUNT}
+FROM --platform=$BUILDPLATFORM ghcr.io/${IMAGE_ACCOUNT}/pre-merge-rockylinux:guild-deploy-l_${COMMIT}
 ARG BRANCH
 ARG CNODE_HOME=/opt/cardano/cnode
 
