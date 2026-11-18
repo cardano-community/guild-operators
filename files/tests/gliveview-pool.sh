@@ -29,7 +29,7 @@ assert_eq() {
 command -v jq >/dev/null 2>&1 || { printf 'gliveview-pool skipped: jq required\n'; exit 0; }
 
 GLIVEVIEW="${REPO_ROOT}/scripts/common-helper-scripts/gLiveView.sh"
-for glv_function in glv_is_int ui_scale ui_fmt_int ui_fmt_tenths glv_koios_usable glv_koios \
+for glv_function in glv_is_int ui_scale ui_fmt_int ui_fmt_tenths glv_koios_usable glv_koios glv_koios_count \
   glv_pool_id_find glv_blocks_per_epoch glv_pool_job_run glv_pool_failed glv_pool_load \
   glv_history_job_run glv_history_load glv_history_rows glv_ada_short glv_ada_int glv_pool_vital; do
   glv_definition="$(sed -n "/^${glv_function}() {/,/^}/p" "${GLIVEVIEW}")"
@@ -54,6 +54,7 @@ D_NOW=1000
 declare -A D_STATUS=()
 D_SCHEDULE_EPOCH=""
 HIST_JOB_FILE="${TEST_ROOT}/history"
+POOL_JOB_FILE="${TEST_ROOT}/pool"
 epochnum=668
 POOL_B32="pool1edqwpnln3zr9gj9sfsmyl72pen6hdwev07xgqj7uz5mkjrgfj6h"
 POOL_HEX="cb40e0cff388865448b04c364ff9419cf576bb2c7f8c804bdc153769"
@@ -94,6 +95,12 @@ curl() {
     pool_blocks*_epoch_no=668*) printf '%s\n' "[$(printf '{"block_height":%s},' 1 2 3 4 5 6 7 8)"'{"block_height":9}]' ;;
     pool_blocks*_epoch_no=667*) printf '[%s{"block_height":0}]\n' "$(for i in $(seq 1 23); do printf '{"block_height":%s},' "${i}"; done)" ;;
     pool_list*pool_id_hex=eq.${POOL_HEX}*) printf '[{"pool_id_bech32":"%s"}]\n' "${POOL_B32}" ;;
+    pool_delegators_history*)
+      # Counted through Content-Range. Koios has not counted the next epoch.
+      offset="${path##*_epoch_no=}"; offset="${offset%%&*}"
+      case "${offset}" in 669) offset=0 ;; 668) offset=412 ;; 667) offset=409 ;; *) offset=400 ;; esac
+      [[ -z "${headers}" ]] || printf 'HTTP/2 200\r\ncontent-range: 0-0/%s\r\n\r\n' "${offset}" > "${headers}"
+      printf '[{"stake_address":"stake1u0"}]\n' ;;
     pool_history*)
       [[ "${path}" == *"epoch_no=lt.667"* ]] || { printf '[]\n'; return 0; }
       offset="${path##*offset=}"; offset="${offset%%&*}"
@@ -157,6 +164,9 @@ assert_eq "${POOL_INFO[margin]}|${POOL_INFO[saturation]}|${POOL_INFO[pledge]}|${
 assert_eq "${POOL_SNAP[669]}" "22430000000000|2254" "next epoch's stake and ideal blocks"
 assert_eq "${POOL_SNAP[667]%%|*}|${POOL_BLOCKS[668]}|${POOL_BLOCKS[667]}" "22390000000000|9|24" \
   "previous epoch's stake, and blocks of the current and previous epoch"
+grep -q '^deleg|669|0$' "${TEST_ROOT}/job" || fail "the next epoch's count was not asked for"
+assert_eq "${POOL_DELEG[668]}|${POOL_DELEG[667]}|${POOL_DELEG[669]:-unset}" "412|409|unset" \
+  "delegators counted, and a count of 0 is taken as not counted yet"
 glv_pool_vital text colour
 assert_eq "${text}|${colour}" "PL1 · 28.7 %|ok" "Pool vital"
 
@@ -197,8 +207,8 @@ HIST_SCROLL=0
 glv_history_rows 5
 assert_eq "${HIST_ROWS_TOTAL}" "15" "rows: next, now, previous and twelve settled"
 assert_eq "${HIST_VIEW[0]}" "next|669|22430000000000||21||2254|||" "next epoch row"
-assert_eq "${HIST_VIEW[1]}" "now|668|22410000000000||23|11|2252|||" "current epoch row uses the block log when it is ahead"
-assert_eq "${HIST_VIEW[2]}" "previous|667|22390000000000|||24|2248|||" "previous epoch row"
+assert_eq "${HIST_VIEW[1]}" "now|668|22410000000000|412|23|11|2252|||" "current epoch row uses the block log when it is ahead"
+assert_eq "${HIST_VIEW[2]}" "previous|667|22390000000000|409||24|2248|||" "previous epoch row"
 assert_eq "${HIST_VIEW[3]}" "settled|666|22400000000000|405|20|20|2257|271000000|10184000000|241" "settled epoch row"
 assert_eq "${HIST_VIEW[4]%%|*}" "settled" "fifth row"
 

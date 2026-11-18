@@ -1408,6 +1408,7 @@ POOL_EPOCH=''
 declare -gA POOL_INFO=()    # field -> value, from pool_info
 declare -gA POOL_SNAP=()    # epoch -> "pool stake|ideal blocks in hundredths"
 declare -gA POOL_BLOCKS=()  # epoch -> blocks made, for the current and the previous epoch
+declare -gA POOL_DELEG=()   # epoch -> delegators, for the next, current and previous epoch
 HIST_JOB_PID=''
 HIST_JOB_OFFSET=''
 HIST_CHUNK=10
@@ -1442,6 +1443,21 @@ glv_koios() {
   answer="$(curl "${arguments[@]}" "${KOIOS_API}/${path}" 2>/dev/null)" || return 1
   jq -e 'type == "array"' >/dev/null 2>&1 <<< "${answer}" || return 1
   printf '%s\n' "${answer}"
+}
+
+# glv_koios_count <path>: how many rows Koios has for a request, from the
+# Content-Range header of a one-row answer, so that a long list is counted
+# without being downloaded.
+glv_koios_count() {
+  local headers="${POOL_JOB_FILE:-${TMPDIR:-/tmp}/gLiveView.$$.pool}.head" total
+  if ! glv_koios "$1&limit=1" '' "${headers}" > /dev/null; then
+    rm -f -- "${headers}"
+    return 1
+  fi
+  total="$(tr -d '\r' < "${headers}" 2>/dev/null | sed -n 's|^[Cc]ontent-[Rr]ange: *[^/]*/\([0-9][0-9]*\)$|\1|p')"
+  rm -f -- "${headers}"
+  [[ -n "${total}" ]] || return 1
+  printf '%s\n' "${total}"
 }
 
 # glv_pool_id_find: prints the pool's ID in bech32, from POOL_ID in this
@@ -1484,11 +1500,11 @@ glv_blocks_per_epoch() {
 
 # glv_pool_job_run <epoch> <blocks per epoch>: the pool as Koios sees it, as
 # "|"-separated records: id, info, a snap for each stake snapshot (next,
-# current and previous epoch), blocks for the current and previous epoch,
-# and ok last. A failure prints none (no pool ID), unknown (Koios does not
+# current and previous epoch), deleg for the delegators in each of those,
+# blocks for the current and previous epoch, and ok last. A failure prints none (no pool ID), unknown (Koios does not
 # know the pool) or fail, and nothing after it.
 glv_pool_job_run() {
-  local epoch="$1" bpe="${2:-0}" id status answer e
+  local epoch="$1" bpe="${2:-0}" id status answer e count
   [[ "${bpe}" =~ ^[0-9]+$ ]] || bpe=0
   status=0
   id="$(glv_pool_id_find)" || status=$?
@@ -1524,6 +1540,13 @@ glv_pool_job_run() {
        (if $all > 0 and $bpe > 0 then ($pool / $all * $bpe * 100 | round | tostring) else "" end)] | join("|")
     ' <<< "${answer}" 2>/dev/null
   fi
+  # Koios's snapshots carry no delegator count, and its pool history has one
+  # only for settled epochs, so the delegators of the three newest are counted.
+  for e in $((epoch + 1)) "${epoch}" $((epoch - 1)); do
+    if count="$(glv_koios_count "pool_delegators_history?_pool_bech32=${id}&_epoch_no=${e}&select=stake_address")"; then
+      printf 'deleg|%s|%s\n' "${e}" "${count}"
+    fi
+  done
   for e in "${epoch}" $((epoch - 1)); do
     if answer="$(glv_koios "pool_blocks?_pool_bech32=${id}&_epoch_no=${e}&select=block_height")"; then
       printf 'blocks|%s|%s\n' "${e}" "$(jq -r 'length' <<< "${answer}" 2>/dev/null)"
@@ -1572,7 +1595,7 @@ glv_pool_failed() {
 glv_pool_load() {
   local line kind id='' fetched='' epoch='' key
   local -a field=()
-  local -A got_info=() got_snap=() got_blocks=()
+  local -A got_info=() got_snap=() got_blocks=() got_deleg=()
   while IFS= read -r line; do
     IFS='|' read -r -a field <<< "${line}|"
     kind="${field[0]}"
@@ -1595,6 +1618,8 @@ glv_pool_load() {
               [margin]="${field[11]}" [fixed_cost]="${field[12]}" [blocks]="${field[13]}") ;;
       snap) glv_is_int "${field[1]}" && got_snap["${field[1]}"]="${field[2]}|${field[3]}" ;;
       blocks) glv_is_int "${field[1]}" && glv_is_int "${field[2]}" && got_blocks["${field[1]}"]="${field[2]}" ;;
+      # A pool with stake has delegators: 0 means Koios has not counted them yet.
+      deleg) glv_is_int "${field[1]}" && glv_is_int "${field[2]}" && (( field[2] > 0 )) && got_deleg["${field[1]}"]="${field[2]}" ;;
       ok) fetched="${field[1]}"; epoch="${field[2]}" ;;
     esac
   done < "$1"
@@ -1606,6 +1631,7 @@ glv_pool_load() {
   POOL_INFO=(); for key in "${!got_info[@]}"; do POOL_INFO["${key}"]="${got_info[${key}]}"; done
   POOL_SNAP=(); for key in "${!got_snap[@]}"; do POOL_SNAP["${key}"]="${got_snap[${key}]}"; done
   POOL_BLOCKS=(); for key in "${!got_blocks[@]}"; do POOL_BLOCKS["${key}"]="${got_blocks[${key}]}"; done
+  POOL_DELEG=(); for key in "${!got_deleg[@]}"; do POOL_DELEG["${key}"]="${got_deleg[${key}]}"; done
   POOL_STATE=ok
   POOL_NOTE=''
   POOL_FETCHED_AT="${fetched}"
@@ -1770,7 +1796,7 @@ glv_history_rows() {
         mine=$(( ${D_STATUS[adopted]:-0} + ${D_STATUS[confirmed]:-0} ))
         if ! glv_is_int "${blocks}" || (( mine > blocks )); then blocks="${mine}"; fi
       fi
-      HIST_VIEW+=("${kind}|${e}|${stake}||${D_LED[${e}]:-}|${blocks}|${ideal}|||")
+      HIST_VIEW+=("${kind}|${e}|${stake}|${POOL_DELEG[${e}]:-}|${D_LED[${e}]:-}|${blocks}|${ideal}|||")
     else
       offset=$((index - HIST_VIRTUAL))
       if [[ -n "${HIST_ROW[${offset}]+set}" ]]; then
@@ -3056,6 +3082,9 @@ glv_page_body() {
     GLV_FOOTER_NOTE=''
     if (( VIEW == 1 )); then glv_view_overview "${width}"; else glv_view_build "${width}"; fi
     [[ "${HELP_MODE}" == drawer ]] || break
+    # The rail has no border to mark, but the drawer explains it too: it
+    # comes after the last panel.
+    UI_PANELS+=(rail)
     # The focus must be on a panel that is on screen; if it is not, take the
     # first one and draw the page once more.
     found=N
@@ -5364,7 +5393,7 @@ HELP_ENTRIES=()
 HELP_LINES=()
 HELP_PAGE_NAMES=('' Overview Chain Peers Production System Logs "Node & network")
 # The panels of each page, for the help that is one text for the whole page.
-HELP_PAGE_KEYS=('' "epoch chain propagation peers resources production recent"
+HELP_PAGE_KEYS=('' "epoch chain propagation peers resources production recent rail"
   "epoch chain traffic spread recent" "peers connections roundtrip peerlist"
   "production keys results pool schedule history epochs" "host process custom" "log"
   "node binary startup deployment nodeinfo network params")
@@ -5377,7 +5406,7 @@ declare -A HELP_TITLE=(
   [host]="Host" [process]="Node process" [custom]="Node's own metrics" [log]="Log"
   [node]="Node" [binary]="Binary" [network]="Network" [deployment]="Deployment" [nodeinfo]="Reported by the node"
   [startup]="Start-up options" [params]="Protocol parameters"
-  [pool]="Pool" [history]="Epoch history"
+  [pool]="Pool" [history]="Epoch history" [rail]="Rail · vitals"
 )
 
 # glv_help_mode <rows of the main area>: a drawer needs room above it.
@@ -5389,6 +5418,151 @@ glv_help_mode() {
 
 # glv_help_add <term> <text> [good] [current value] [ok|warn|bad]
 glv_help_add() { HELP_ENTRIES+=("$1|$2|${3:-}|${4:-}|${5:-}"); }
+
+# What the metrics each node reports about itself mean, by the label its
+# adapter gives them. A metric that is not listed is still shown, with a
+# general line.
+declare -A HELP_CUSTOM=(
+  # Amaru
+  [Proc CPU]="Amaru's own processor use, as Amaru measures it. It can differ a little from CPU (node), which gLiveView measures."
+  [Disk rd/s]="Bytes Amaru reads from disk per second."
+  [Disk wr/s]="Bytes Amaru writes to disk per second."
+  [Tx accept]="Transactions accepted into the mempool since the start, from this node's clients and from peers."
+  [Tx reject]="Transactions refused by the mempool since the start: invalid, already there, or the mempool was full."
+  [Pool sync]="Time to check the mempool again after a block was adopted. It rises with a full mempool."
+  [Hdr delay]="Time from the start of a slot until a valid header for it arrived, once Amaru follows the tip."
+  [Fetch wait]="Time from a valid header until its block was asked for."
+  [Fetch time]="Time from asking for a block until it arrived. It follows the round trip to the peer that sent it."
+  [Forward]="Time from a valid header until its block was adopted as the tip."
+  [Hdr reject]="Invalid blocks, and headers that were invalid, could not be decoded or could not be stored, since the start. Repeated headers are not counted."
+  # Dingo
+  [Goroutines]="Go routines the node runs. Steady over time is normal; a count that keeps climbing points at a leak."
+  [GC cycles]="Go garbage collections since the process started. Go has no minor and major collections, so this is the only count."
+  [DB size]="Size of Dingo's databases on disk."
+  [UTxO hits]="Share of UTxO lookups answered from the in-memory cache since the start; n/a before the first lookup."
+  [Block hits]="Share of block lookups answered from the block cache since the start; n/a before the first lookup."
+  [Mempool]="The mempool's size against its capacity."
+  [Adopt avg]="Average time from a block's slot until it was adopted as the tip, since the start. Unlike Last block it includes validating and storing the block."
+  [Inb warm]="Peers that connected to Dingo and that it keeps warm, against its InboundWarmTarget. This is not how those peers hold Dingo."
+  [Inb hot]="Peers that connected to Dingo and that it fetches from, against its InboundHotQuota."
+  [Slot batls]="On a producer: competing blocks seen for the same slot."
+  [Sync skips]="On a producer: leader slots skipped because a peer's tip was ahead of the node's."
+  [Tip skips]="On a producer: leader slots skipped because the node's chain was stale or unsafe to build on."
+  [Forge avg]="On a producer: average time from the start of a leader slot until the block was built."
+  [Valid fail]="Forged blocks dropped because they failed the node's own validation."
+  [Slot clock]="Errors reading the slot clock while forging."
+  [Hot short]="Hot peers missing below the configured minimum."
+  [Pipe rstrt]="Ledger pipeline restarts without progress at the tip, an early sign of a stuck ledger."
+  [Snap fail]="Failed stake snapshot captures."
+  [Gov decode]="Stored governance proposals that could not be decoded."
+  [Rollback]="Rollbacks the node could not recover from. This can mean its chain diverged, which needs looking into or a fresh bootstrap."
+  [At-tip err]="Recovery attempts at the tip that did not converge."
+  [Replay err]="Replay recovery attempts that made no progress."
+  [Mithril fb]="Times node-managed Mithril sync fell back to syncing from peers."
+)
+# Dingo shows these only when they are above zero, so any value wants a look.
+HELP_CUSTOM_FAULTS=" Valid fail | Slot clock | Hot short | Pipe rstrt | Snap fail | Gov decode | Rollback | At-tip err | Replay err | Mithril fb "
+
+# glv_help_custom: one entry for each metric the node reports about itself.
+glv_help_custom() {
+  local name label value level good
+  for name in "${NODE_CUSTOM_METRICS[@]}"; do
+    node_metric_has "${name}" || continue
+    label="${NODE_METRIC_LABEL[${name}]:-${name}}"
+    value="${!name:-}"
+    [[ -z "${NODE_METRIC_UNIT[${name}]:-}" ]] || value+=" ${NODE_METRIC_UNIT[${name}]}"
+    level=''; good=''
+    if [[ "${HELP_CUSTOM_FAULTS}" == *" ${label} "* ]]; then
+      level=ok; good="0. It is shown only when it is not."
+      [[ "${!name:-0}" == 0 ]] || level=warn
+    fi
+    glv_help_add "${label}" "${HELP_CUSTOM[${label}]:-A figure ${D_IMPL} reports about itself, under the name its adapter gives it.}" \
+      "${good}" "${value}" "${level}"
+  done
+}
+
+# glv_help_rail: the rail beside every page, which help mode reaches after
+# the last panel.
+glv_help_rail() {
+  local value='' level='' colour last text
+  glv_help_add "Name · role" \
+    "The node's name (NODE_NAME, else the deployment folder), its role badge, the implementation and version, the network, and how long the node process has run. The role comes from the node itself: BLOCK PRODUCER when it reports that it forges."
+  if [[ -n "${D_TIP_GAP}" ]]; then
+    glv_slots value "${D_TIP_GAP}"
+    if (( D_TIP_GAP <= 120 )); then level=ok; elif (( D_TIP_GAP <= 600 )); then level=warn; else level=bad; fi
+  fi
+  glv_help_add "Sync" \
+    "How far the node's tip is behind the slot the wall clock is in. While the node reports a sync phase, such as a ledger replay, the line shows its progress instead." \
+    "Under 120 slots. Amber up to 600, red above." "${value}" "${level}"
+  value=''; level=''
+  if node_metric_has conn_outgoing && node_metric_has conn_incoming; then
+    value="${conn_outgoing} out · ${conn_incoming} in"; level=ok
+    [[ "${conn_outgoing}" != 0 ]] || level=bad
+  elif node_metric_has peer_selection_hot; then
+    value="${peer_selection_hot} hot"
+  elif node_metric_has peer_active; then
+    value="${peer_active} active"
+  elif node_metric_has conn_total; then
+    value="${conn_total} connections"
+  fi
+  glv_help_add "Peers" \
+    "Connections the node opened to fetch from others, and connections others opened to it." \
+    "Out above zero. In above zero on a public relay; a block producer usually only has its own relays." "${value}" "${level}"
+  value=''; level=''
+  if node_metric_has block_delay && ui_scale last "${block_delay}" 3; then
+    ui_fmt_delay value "${last}"
+    if (( last <= 1000 )); then level=ok; elif (( last <= 3000 )); then level=warn; else level=bad; fi
+  fi
+  glv_help_add "Blocks" \
+    "How long the last block took to reach this node, from the start of its slot." \
+    "Under 1 s. Amber up to 3 s, red above." "${value}" "${level}"
+  if [[ "${D_ROLE}" == Core ]]; then
+    glv_help_add "KES · Op cert" \
+      "On a block producer: KES periods left, and the operational certificate's counter on disk and on chain. The Keys panel on the Production page has the details." \
+      "KES above 15 periods, and the counters equal or disk one ahead."
+    glv_pool_vital text colour
+    level=''
+    if [[ -n "${text}" ]]; then
+      level=ok
+      [[ "${colour}" != "${C_WARN}" ]] || level=warn
+      [[ "${colour}" != "${C_DANGER}" ]] || level=bad
+    fi
+    glv_help_add "Pool" \
+      "On a block producer with pool data from Koios: the ticker and the pool's saturation. It turns red when the owners delegate less than the pledge, which costs the pool the epoch's rewards, or when the pool has retired, and amber while it retires or is over-saturated." \
+      "Ticker and saturation, under 100 %." "${text}" "${level}"
+  fi
+  ui_fmt_tenths value "${D_CPU}"
+  level=ok
+  (( D_CPU < 900 )) || level=warn
+  glv_help_add "Host · Node" \
+    "Processor use of the whole host, and processor and memory use of the node process alone. The System page has more." \
+    "Room to spare on the host." "${value} % cpu" "${level}"
+  if [[ -n "${D_NEXT_IN}" ]]; then
+    ui_fmt_duration value "${D_NEXT_IN}"
+    glv_help_add "Next block" \
+      "Time until the pool's next leader slot, from the leader schedule, and when that is. The bar fills over the last day. Anyone who sees it knows when your pool makes its next block, so keep the screen to yourself." \
+      "" "${value}"
+  fi
+}
+
+# glv_help_history_totals <lost> <led> <luck>: over the epochs of the history
+# that are loaded, slots led that did not end as a block on chain, and the
+# average luck of the settled ones, for the help to quote.
+glv_help_history_totals() {
+  local -n _ht_lost="$1" _ht_led="$2" _ht_luck="$3"
+  local offset e stake ideal deleg blocks rest blocks_sum=0 ideal_sum=0
+  _ht_lost=0; _ht_led=0; _ht_luck=''
+  for offset in "${!HIST_ROW[@]}"; do
+    IFS='|' read -r e stake ideal deleg blocks rest <<< "${HIST_ROW[${offset}]}"
+    glv_is_int "${blocks}" || continue
+    if glv_is_int "${D_LED[${e}]:-}"; then
+      _ht_led=$((_ht_led + ${D_LED[${e}]}))
+      (( ${D_LED[${e}]} <= blocks )) || _ht_lost=$((_ht_lost + ${D_LED[${e}]} - blocks))
+    fi
+    if glv_is_int "${ideal}"; then blocks_sum=$((blocks_sum + blocks)); ideal_sum=$((ideal_sum + ideal)); fi
+  done
+  (( ideal_sum == 0 )) || _ht_luck=$((blocks_sum * 100000 / ideal_sum))
+}
 
 # glv_help_entries <panel> [page]: fills HELP_ENTRIES for one panel. With
 # "page" the text is part of the help for a whole page, where the production
@@ -5491,7 +5665,8 @@ glv_help_entries() {
       fi
       if (( ${#NODE_CUSTOM_METRICS[@]} > 0 )); then
         glv_help_add "Other rows" \
-          "Figures ${D_IMPL} reports about itself, under the names its adapter gives them."
+          "Figures ${D_IMPL} reports about itself fill the rows left over. The System page lists all of them."
+        glv_help_custom
       fi
       if (( ${#HELP_ENTRIES[@]} == 0 )); then
         glv_help_add "Propagation" "${D_IMPL} does not report how long blocks take to arrive."
@@ -5571,6 +5746,8 @@ glv_help_entries() {
       glv_help_add "Score" \
         "Headers the peer delivered first plus blocks fetched from it first, of the last 180 headers and 180 blocks." \
         "Higher means the peer is more useful to this node."
+      glv_help_add "Dir" \
+        "Shown before an analysis, or when the node gives no view of its own: out when this node opened the connection, in when the peer did. cardano-node dials out from its listening port, so for it the column is left out."
       glv_help_add "Location or static peer" \
         "The label of a static peer from the topology file, else the city and country of the address from ip-api.com."
       glv_help_add "This node itself" \
@@ -5626,7 +5803,8 @@ glv_help_entries() {
     custom)
       if (( ${#NODE_CUSTOM_METRICS[@]} > 0 )); then
         glv_help_add "Rows" \
-          "Figures ${D_IMPL} reports about itself, under the names its adapter gives them. gLiveView shows them as they come and does not judge them."
+          "Figures ${D_IMPL} reports about itself, under the names its adapter gives them. Timings in ms are the average of the blocks that arrived since the last refresh."
+        glv_help_custom
       fi
       ;;
     production)
@@ -5669,6 +5847,7 @@ glv_help_entries() {
           "One row for each recent epoch in the block log: slots led, the ideal number for the pool's stake, and leader against ideal as luck. The block log holds no block results for this node, so there is no column of adopted blocks."
       fi
       ;;
+    rail) glv_help_rail ;;
     pool)
       [[ "${D_ROLE}" == Core ]] || return 0
       glv_help_add "Source" \
@@ -5699,15 +5878,26 @@ glv_help_entries() {
       ;;
     history)
       [[ "${D_ROLE}" == Core ]] || return 0
+      local lost led average value=''
       glv_help_add "Rows" \
-        "One row for each epoch, newest first. An epoch's rewards are settled two epochs after it; until then its row comes from the stake snapshots and block counts Koios keeps, so the next epoch has a stake but no blocks yet, and the current and previous epochs show their rewards as pending."
-      glv_help_add "Stake · Deleg" "Active stake and delegators in the epoch."
+        "One row for each epoch, newest first. next is the coming epoch, with the stake its leader slots are drawn from; now is the current epoch so far. An epoch's rewards are settled two epochs after it, so the current and previous epochs show their rewards as pending. — means not known yet, or not recorded."
+      glv_help_add "Stake · Deleg" \
+        "Active stake and delegators in the epoch. A change in delegation reaches the active stake two epochs later."
       glv_help_add "Led" "Leader slots the block log holds for the epoch, — where it has none."
       glv_help_add "Blocks · Ideal · Luck" \
-        "Blocks the pool made, the number its share of the active stake gives on average, and one against the other. For the current epoch the block log's count is used when it is ahead of Koios." \
-        "Around 100 % over many epochs. One epoch on its own varies a lot by chance."
+        "Blocks the pool made, the number its share of the active stake gives on average, and one against the other. For the current epoch the block log's count is used when it is ahead of Koios."
+      glv_help_history_totals lost led average
+      (( led == 0 )) || value="${lost} of ${led} led"
+      glv_help_add "Led against Blocks" \
+        "Where the block log has the epoch, Led minus Blocks is the leader slots that did not end as a block on chain: missed, stolen in a slot battle, lost in a height battle, ghosted or invalid. The leader schedule says which, for the current epoch. The figure counts the epochs loaded so far." \
+        "Equal, apart from an occasional slot battle." "${value}"
+      value=''
+      if glv_is_int "${average}"; then value="$((average / 10)).$((average % 10)) % on average"; fi
+      glv_help_add "Luck over time" \
+        "One epoch's luck says little: a pool with 20 blocks in an epoch often lands between 80 and 120 %. Over many epochs it should come close to 100 %. The figure is the average of the settled epochs loaded so far; scroll down to load more." \
+        "Close to 100 % over 20 or more epochs. Lower than that, with slots lost, points at the node." "${value}"
       glv_help_add "Fees · Rewards · ROS" \
-        "Fees: what the operator received, fixed cost plus margin. Rewards: what the delegators received. ROS: their return on stake for a year at that epoch's rate, from Koios."
+        "Fees: what the operator received, fixed cost plus margin. Rewards: what the delegators received together. ROS: their yearly return on stake at that epoch's rate, from Koios. It moves with luck, and drops when the pool loses blocks or is over-saturated."
       glv_help_add "Scrolling" \
         "Tab puts the focus on this list. Up and down move one epoch, PgUp and PgDn as many as the list shows, g back to the newest and G to the pool's first. Epochs that are not loaded yet are fetched from Koios as they come into view, ten at a time; a row says when it is waiting for them."
       glv_help_add "Rows shown" "POOL_HISTORY_EPOCHS at the top of gLiveView.sh, 5 unless you change it."
@@ -5733,12 +5923,38 @@ glv_help_entries() {
         "Tab puts the focus on the log: its border turns double, and up and down then move through the lines one at a time. Tab or Esc gives the arrows back to the list of pages. PgUp and PgDn move half a screen either way, g goes to the newest line and G to the oldest. Left and right move a long line sideways so its end can be read."
       ;;
     node)
-      glv_help_add "Rows" \
-        "What is running: the implementation and its version, whether it forges blocks, its systemd service and process, and how gLiveView itself is set up."
+      glv_help_add "Implementation · Version" \
+        "The node software and the version the running process reports, with its source revision when it reports one. The Binary panel compares it with the file on disk."
+      glv_help_add "Role" "Relay or Core, from what the node reports: Core when it forges blocks."
+      glv_help_add "Service · Process · Uptime" \
+        "The systemd service that runs the node, its process number, and how long that process has run. A restart sets the uptime back to zero."
+      glv_help_add "gLiveView · Refresh" \
+        "This tool's version, theme and colour depth, and how often it asks the node for its metrics. Clocks and countdowns move every second in between."
       ;;
     network)
-      glv_help_add "Rows" \
-        "The constants of the network the node is on. Epoch and slot length give the length of an epoch in time; the KES rows say how long a KES key lasts before the operational certificate has to be renewed."
+      glv_help_add "Network · Network magic" \
+        "The network the node is on, and its magic number. Nodes only talk to nodes with the same magic."
+      glv_help_add "Node port" "The port other nodes connect to."
+      local epoch_days='' kes_hours='' kes_days=''
+      if glv_is_int "${EPOCH_LENGTH:-}" && glv_is_int "${SLOT_LENGTH:-}"; then
+        if (( EPOCH_LENGTH * SLOT_LENGTH % 86400 == 0 )); then
+          epoch_days=" An epoch is $((EPOCH_LENGTH * SLOT_LENGTH / 86400)) days."
+          (( EPOCH_LENGTH * SLOT_LENGTH != 86400 )) || epoch_days=" An epoch is a day."
+        else
+          epoch_days=" An epoch is $((EPOCH_LENGTH * SLOT_LENGTH / 3600)) hours."
+        fi
+      fi
+      glv_help_add "Epoch length · Slot length" "Slots in an epoch, and the length of a slot.${epoch_days}"
+      glv_help_add "Active slot coefficient" \
+        "The share of slots that get a leader. ${D_BLOCK_EVERY:+On this network a block comes about every ${D_BLOCK_EVERY} s on average.}"
+      if glv_is_int "${SLOTS_PER_KES_PERIOD:-}" && glv_is_int "${SLOT_LENGTH:-}" && glv_is_int "${MAX_KES_EVOLUTIONS:-}"; then
+        kes_hours=" A KES period is $((SLOTS_PER_KES_PERIOD * SLOT_LENGTH / 3600)) hours"
+        kes_days=", so an operational certificate lasts $((MAX_KES_EVOLUTIONS * SLOTS_PER_KES_PERIOD * SLOT_LENGTH / 86400)) days and has to be renewed before that."
+      fi
+      glv_help_add "Slots per KES period · Max KES evolutions" \
+        "The length of a KES period, and how many periods a KES key can evolve through.${kes_hours}${kes_days}"
+      glv_help_add "Shelley from epoch" \
+        "The first epoch of the Shelley era, where slot and epoch arithmetic switches to Shelley's slot length."
       ;;
     binary)
       glv_help_add "File" \
@@ -5752,20 +5968,37 @@ glv_help_entries() {
     deployment)
       glv_help_add "Rows" \
         "Where the deployment keeps its files, and the address gLiveView reads the node's metrics from. A path the start-up options already show is not repeated here."
+      glv_help_add "Block log" \
+        "The database with the pool's leader schedule and block results, written by cncli.sh on cardano-node and amaru-leaderlog.sh on Amaru. The Production page reads it."
+      glv_help_add "Pool folder" \
+        "Where the pool's keys and certificates are. gLiveView reads the pool ID from it when POOL_ID is not set, and writes nothing to it."
       ;;
     startup)
       glv_help_add "Rows" \
         "How the node process was started: the options on its command line, and the settings in its environment that carry the node's own prefix. Values whose name suggests a key, token or password are hidden."
       ;;
     params)
-      glv_help_add "Rows" \
-        "The protocol parameters in force, grouped as network limits, economic values and governance values. Parameters this tool has no name for are listed under Other, so a new era shows up without an update."
       glv_help_add "Source" \
-        "Asked from the node through its local socket where it has one, else from Koios. They are read when the page is opened and again when the epoch changes."
+        "The protocol parameters in force, asked from the node through its local socket where it has one, else from Koios. They are read when the page is opened and again when the epoch changes."
+      glv_help_add "Protocol version" \
+        "The version of the ledger rules in force. A hard fork raises the major number."
+      glv_help_add "Block and transaction limits" \
+        "Max block body, transaction, header and value size, the execution units a transaction and a block may use, and the collateral inputs a script transaction may give. They bound what fits in a block."
+      glv_help_add "Fees" \
+        "A transaction costs at least Min fee fixed plus Min fee per byte times its size. Execution unit prices add the cost of running scripts, and the reference script rows price scripts a transaction refers to."
+      glv_help_add "Deposits" \
+        "Stake key and stake pool deposits, paid back when the key is deregistered or the pool retires. Lovelace per UTxO byte sets the least ada an output must hold."
+      glv_help_add "Rewards and pools" \
+        "Monetary expansion: the share of the reserves paid out each epoch. Treasury expansion: the share of that which goes to the treasury. Optimal stake pools (k) sets the saturation point, the total stake divided by k. Pledge influence: how much pledge raises a pool's rewards. Min pool cost: the lowest fixed cost a pool may ask. Pool max retirement epoch: how far ahead a pool can announce its retirement."
+      glv_help_add "Governance" \
+        "The size and term of the constitutional committee, how long a governance action stays open and what it costs to submit, and the DRep deposit and the epochs of inactivity before a DRep stops counting."
+      glv_help_add "Other" \
+        "Parameters gLiveView has no name for, as the node reports them. A new era's parameters show up here without an update."
       ;;
     nodeinfo)
       if (( ${#NODE_INFO_METRICS[@]} > 0 )); then
-        glv_help_add "Rows" "Facts ${D_IMPL} reports about itself through its adapter."
+        glv_help_add "Rows" \
+          "Facts ${D_IMPL} reports about itself through its adapter that do not change while it runs, such as the platform it was built for, the host's memory, or the network constants it uses."
       fi
       ;;
   esac
@@ -5805,11 +6038,35 @@ glv_help_results() {
   else
     glv_help_add "Leader · Adopted" \
       "Counted by the node since it started: slots it led, and blocks it made and adopted. There is no leader schedule for this epoch yet, so nothing is known about slots to come."
+    if node_metric_has didntadopt; then
+      glv_help_add "Invalid" "Blocks the node made that it did not adopt, since it started." "0." "${didntadopt}"
+    fi
+    if node_metric_has leader_sched_slots; then
+      glv_help_add "Scheduled" "Leader slots in the schedule the node computed itself, for this or the next epoch." "" "${leader_sched_slots}"
+    fi
+    if node_metric_has leader_lost; then
+      glv_help_add "Lost" \
+        "Leader slots that did not end with the pool's block adopted: refused, failed, or lost in a slot battle." "0, apart from an occasional slot battle." "${leader_lost}"
+    fi
+  fi
+  if node_metric_has forge_keys_valid; then
+    local level=bad state=invalid
+    [[ "${forge_keys_valid}" != 1 ]] || { level=ok; state=valid; }
+    glv_help_add "Keys" \
+      "Whether the node's forging keys can sign at the current slot. invalid means the pool cannot make blocks: check the KES key and the operational certificate." \
+      "valid." "${state}" "${level}"
   fi
 }
 
 glv_help_keys() {
   local value='' level='' remaining text colour
+  if node_metric_has kesperiod; then
+    glv_help_add "KES period" \
+      "The current KES period: the slots since the network started, divided by the slots in a KES period." "" "${kesperiod}"
+  fi
+  glv_help_add "Cert from period · Expires" \
+    "The KES period the operational certificate starts at. The KES key is valid for a fixed number of periods from it (Max KES evolutions on the Node & network page), and Expires is when they run out." \
+    "A new certificate, with a new KES key, well before that date." "${D_KES_EXPIRES}"
   if node_metric_has remaining_kes_periods; then
     value="${remaining_kes_periods} periods"; level=ok
     if ui_scale remaining "${remaining_kes_periods}" 0; then
@@ -6051,7 +6308,7 @@ glv_cleanup() {
   rm -f -- "${PARAMS_JOB_FILE:-/nonexistent}" "${PARAMS_JOB_FILE:-/nonexistent}.part"
   [[ -z "${POOL_JOB_PID:-}" ]] || kill "${POOL_JOB_PID}" 2>/dev/null || true
   [[ -z "${HIST_JOB_PID:-}" ]] || kill "${HIST_JOB_PID}" 2>/dev/null || true
-  rm -f -- "${POOL_JOB_FILE:-/nonexistent}" "${POOL_JOB_FILE:-/nonexistent}.part" \
+  rm -f -- "${POOL_JOB_FILE:-/nonexistent}" "${POOL_JOB_FILE:-/nonexistent}.part" "${POOL_JOB_FILE:-/nonexistent}.head" \
     "${HIST_JOB_FILE:-/nonexistent}" "${HIST_JOB_FILE:-/nonexistent}.part" "${HIST_JOB_FILE:-/nonexistent}.head"
   [[ "${GLV_TITLE_PUSHED}" == N ]] || printf '\e[23;0t'
   printf '\e[?25h\e[?1049l'

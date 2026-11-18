@@ -131,6 +131,14 @@ what a good value looks like. Where gLiveView has a threshold, the drawer also
 judges the current value as `good`, `watch` or `act`. `←` `→` or `Tab` move to
 the next panel, `↑` `↓` scroll the text, and `?` or `Esc` close the help.
 
+After the last panel the drawer explains the rail: each vital, with its
+current value and verdict, and the next block countdown. Every panel's help
+covers each figure it shows, including the metrics a node reports about
+itself, such as Amaru's pipeline timings and Dingo's runtime and forging
+counters, the rows of the Node & network page, and how to read the epoch
+history together: the leader slots that did not end as a block on chain, and
+the average luck over the epochs loaded so far.
+
 On a terminal with fewer than 30 rows, or fewer than 110 columns, there is no
 room for a drawer, and the help for the whole page is one scrollable text.
 
@@ -292,9 +300,9 @@ The epoch history has these columns, newest epoch first:
 | Fees, Rewards, ROS | What the operator received, what the delegators received, and their yearly return on stake at that epoch's rate. |
 
 An epoch's rewards are settled two epochs after it. Until then its row comes
-from the stake snapshots and block counts Koios keeps: the next epoch has a
-stake but no blocks yet, and the current and previous epochs show their
-rewards as `pending`. The narrowest columns, Deleg and Fees, leave first on a
+from the stake snapshots Koios keeps, and the blocks and delegators Koios
+counts for it: the next epoch has a stake and delegators but no blocks yet,
+and the current and previous epochs show their rewards as `pending`. The narrowest columns, Deleg and Fees, leave first on a
 terminal under 110 columns.
 
 The history shows `POOL_HISTORY_EPOCHS` epochs at a time, 5 by default. `Tab`
