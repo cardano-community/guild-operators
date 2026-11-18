@@ -651,9 +651,8 @@ separately; testnet registration does not grant mainnet voting eligibility.
 The Dijkstra hard fork is protocol version 12. Networks before it, such as
 mainnet, preprod and preview today, behave exactly as described above.
 Dijkstra-only features turn on only when the protocol parameters CNTools reads
-for a transaction report protocol 12 or later, and only with a Cardano CLI that
-has the `dijkstra` commands: 11.7.0.0, the pin for every network except
-Musashi, or Musashi's own Leios build.
+for a transaction report protocol 12 or later. CNTools uses Cardano CLI 11.7.0.0,
+the pin for every network, and reads only that release's output formats.
 
 **Transaction era.** A node in the Dijkstra era still accepts Conway-era
 transactions, and hardware wallets sign only those. So CNTools builds every
@@ -677,6 +676,12 @@ If a signer of the registration is a hardware wallet, CNTools builds a
 Conway-era registration without a BLS key, and the review says so. When the pool
 already has a BLS key on chain, that registration would remove it, so CNTools
 refuses it: sign with CLI keys instead.
+
+On Musashi, CNTools creates and registers no BLS key, whatever the signer.
+Musashi's Leios node reads only BLS key files whose type is spelled
+`…-Minimal-…`, and cardano-cli 11.7 writes `…-Mininimal-…`, so a key from 11.7
+would stop the node from starting. Registrations there are Conway-era without a
+BLS key, and CNTools refuses to change a pool that already has one on chain.
 
 **Minimum margin.** Protocol 12 adds `minPoolMargin`, 1.5 % on dijkstranet. The
 margin prompt names the minimum, the review marks a margin below it, and CNTools

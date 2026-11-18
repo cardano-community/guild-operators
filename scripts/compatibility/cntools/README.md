@@ -27,11 +27,12 @@ withdrawals and voting. It checks minimum ADA, estimate-builder change, exact
 asset quantities, transaction IDs and minimum fees against the signed transaction
 size. No extra fee margin is added.
 
-A CLI with the `dijkstra` commands also builds a Dijkstra-era pool registration
-with a newly generated BLS key, using the synthetic Dijkstra parameters in
-`lib/data/protocol-dijkstra.json`, and a transaction with a direct deposit that
-CNTools must refuse. The decoded pool and DRep certificates are checked against
-the field names CNTools compares, those of 11.7 and of earlier releases.
+It also builds a Dijkstra-era pool registration with a newly generated BLS key,
+using the synthetic Dijkstra parameters in `lib/data/protocol-dijkstra.json`,
+and a transaction with a direct deposit that CNTools must refuse. CNTools reads
+only the output formats of the pinned cardano-cli 11.7.0.0: the decoded pool
+and DRep certificates, the BLS key files, and the fee and minimum-ADA text are
+checked against them, so a candidate that changes any of them fails.
 
 These are command/output compatibility fixtures, **not transactions accepted by
 the ledger**: their inputs and chain state are synthetic. They cannot replace

@@ -1023,8 +1023,7 @@ cnode_deploy_validate_release_metadata() {
     (.tools["cardano-signer"].minimumVersion | concrete_version) and
     (.managedInstallers | keys == ["openblockperf"]) and
     (.managedInstallers.openblockperf | managed_installer) and
-    (.build | keys == ["cardanoCli", "sourceDependencies", "toolchain"]) and
-    (.build.cardanoCli | concrete_version) and
+    (.build | keys == ["sourceDependencies", "toolchain"]) and
     (.build.toolchain | keys == ["cabal", "ghc"]) and
     all(.build.toolchain[]; concrete_version) and
     (.build.sourceDependencies | keys == [
@@ -1390,7 +1389,7 @@ cnode_deploy_extract_binary() {
 download_cnodebins() {
   local architecture staging_dir binary
   local node_version cli_version address_version dbsync_version support_version
-  local node_artifact support_archive="cnode.tar.gz" cli_archive="ccli.tar.gz"
+  local support_archive="cnode.tar.gz" cli_archive="ccli.tar.gz"
   local install_dbsync="N"
   local manifest=""
   local -a install_binaries=(
@@ -1413,11 +1412,11 @@ download_cnodebins() {
   cnode_deploy_resolve_primary "${architecture}"
   node_version="${CNODE_RESOLVED_VERSION}"
   support_version="${node_version}"
-  node_artifact="${CNODE_RESOLVED_URL} ${CNODE_RESOLVED_SHA256}"
   log_progress "Downloading cardano-node" "${CARDANO_NODE_VERSION}"
   cnode_deploy_download_resolved_artifact "cnode.tar.gz"
-  # Leios archives carry only the node and its CLI, so a pinned mainline release
-  # supplies bech32 and the submit API there.
+  # Leios archives carry only the node and an older CLI, so a pinned mainline
+  # release supplies bech32 and the submit API there. Every network installs
+  # the CLI from the shared cardano-cli pin below.
   if jq -e '.companions | has("cardano-node-support")' "${manifest}" >/dev/null; then
     cnode_deploy_resolve_companion "cardano-node-support" "${architecture}"
     support_version="${CNODE_RESOLVED_VERSION}"
@@ -1437,11 +1436,7 @@ download_cnodebins() {
   cnode_deploy_resolve_companion "cardano-cli" "${architecture}"
   cli_version="${CNODE_RESOLVED_VERSION}"
   log_progress "Downloading cardano-cli" "${CARDANO_CLI_VERSION}"
-  if [[ "${CNODE_RESOLVED_URL} ${CNODE_RESOLVED_SHA256}" == "${node_artifact}" ]]; then
-    cli_archive="cnode.tar.gz"
-  else
-    cnode_deploy_download_resolved_artifact "${cli_archive}"
-  fi
+  cnode_deploy_download_resolved_artifact "${cli_archive}"
   if ! cnode_deploy_extract_binary "${cli_archive}" "cardano-cli-${architecture#linux-}-linux" cardano-cli &&
      ! cnode_deploy_extract_binary "${cli_archive}" cardano-cli; then
     err_exit "Could not extract the expected cardano-cli binary."

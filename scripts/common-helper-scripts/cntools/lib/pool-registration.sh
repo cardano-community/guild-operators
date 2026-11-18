@@ -190,7 +190,7 @@ cntools_pool_registration_collect() {
 
 cntools_pool_registration_certificate_create() {
   if [[ "${CNTOOLS_WALLET_REGISTER_OPERATION}" == pool-retire ]]; then cntools_pool_retirement_certificate_create; return $?; fi
-  local certificate='' response='' errors='' owner='' relay='' type='' status=0 reversed=0
+  local certificate='' response='' errors='' owner='' relay='' type='' status=0
   local -a args=(--cold-verification-key-file "${CNTOOLS_POOL_REG_COLD_VKEY}" --vrf-verification-key-file "${CNTOOLS_POOL_REG_VRF_VKEY}"
     --pool-pledge "${CNTOOLS_POOL_REG_PLEDGE}" --pool-cost "${CNTOOLS_POOL_REG_COST}" --pool-margin "${CNTOOLS_POOL_REG_MARGIN}"
     --pool-reward-account-verification-key-file "${CNTOOLS_POOL_REG_REWARD_VKEY}") network=()
@@ -212,14 +212,7 @@ cntools_pool_registration_certificate_create() {
       dns) args+=(--single-host-pool-relay "$(jq -r .dns <<< "${relay}")" --pool-relay-port "$(jq -r .port <<< "${relay}")") ;;
       srv) args+=(--multi-host-pool-relay "$(jq -r .dns <<< "${relay}")") ;;
       ip)
-        if [[ "$(jq -r .ipv4 <<< "${relay}")" != '' ]]; then
-          cntools_transaction_cli_reverses_relay_ipv4 && reversed=0 || reversed=$?
-          if ((reversed == 0)); then
-            cntools_wallet_register_set_error "Cardano CLI ${CNTOOLS_TRANSACTION_VALIDATED_CLI_VERSION} registers IPv4 relays with reversed bytes (cardano-cli#1442). Use a DNS or IPv6 relay, or deploy the pinned Cardano CLI ${CNTOOLS_TRANSACTION_CARDANO_CLI_VERSION}."; return 1
-          fi
-          ((reversed == 1)) || return 1
-          args+=(--pool-relay-ipv4 "$(jq -r .ipv4 <<< "${relay}")")
-        fi
+        [[ "$(jq -r .ipv4 <<< "${relay}")" == '' ]] || args+=(--pool-relay-ipv4 "$(jq -r .ipv4 <<< "${relay}")")
         [[ "$(jq -r .ipv6 <<< "${relay}")" == '' ]] || args+=(--pool-relay-ipv6 "$(jq -r .ipv6 <<< "${relay}")")
         args+=(--pool-relay-port "$(jq -r .port <<< "${relay}")") ;;
     esac
@@ -281,11 +274,12 @@ cntools_pool_registration_bls_generate() {
 }
 
 # Choose the era of a registration or modification. On a network at protocol
-# 12 or later, with a CLI that has the Dijkstra era commands, it is a
-# Dijkstra-era transaction that carries the pool's BLS key (created in the pool
-# folder when there is none). A hardware signer keeps it Conway-era without a
-# BLS key, which is refused when the pool already has one on chain: the
-# registration would remove it.
+# 12 or later it is a Dijkstra-era transaction that carries the pool's BLS key
+# (created in the pool folder when there is none). It stays Conway-era without
+# a BLS key for a hardware signer, and on Musashi, whose Leios node does not
+# read the BLS key files cardano-cli 11.7 writes (it spells the key type
+# "Minimal", 11.7 "Mininimal"). Both are refused when the pool already has a
+# BLS key on chain: the registration would remove it.
 cntools_pool_registration_era_select() {
   local directory="${CNTOOLS_POOL_DIRECTORIES[CNTOOLS_POOL_REG_INDEX]}" skey='' vkey='' registered='' public=''
   cntools_transaction_era_reset
@@ -293,6 +287,13 @@ cntools_pool_registration_era_select() {
   [[ "${CNTOOLS_WALLET_REGISTER_OPERATION}" != pool-retire ]] || return 0
   cntools_transaction_era_dijkstra_available "${CNTOOLS_WALLET_REGISTER_PROTOCOL_FILE:-${CNTOOLS_FUNDING_PROTOCOL:-}}" || return 0
   registered="$(jq -r '.current.bls // empty' <<< "${CNTOOLS_POOL_REG_STATE}")"
+  if [[ "${CNTOOLS_NETWORK:-}" == musashi ]]; then
+    if [[ -n "${registered}" ]]; then
+      cntools_wallet_register_set_error "This pool has a BLS key on chain. CNTools adds no BLS keys on Musashi, because its Leios node can't read the key files cardano-cli ${CNTOOLS_TRANSACTION_CARDANO_CLI_VERSION} writes, and a registration without the key would remove it."; return 1
+    fi
+    CNTOOLS_POOL_REG_BLS_NOTE="None · Musashi's Leios node can't read BLS keys from cardano-cli ${CNTOOLS_TRANSACTION_CARDANO_CLI_VERSION}, so the pool gets no Leios committee seat"
+    return 0
+  fi
   if cntools_pool_registration_hardware_signer; then
     if [[ -n "${registered}" ]]; then
       cntools_wallet_register_set_error 'This pool has a BLS key on chain. Hardware wallets sign Conway-era transactions only, and a Conway-era registration would remove the key. Sign with CLI keys to keep it.'; return 1
@@ -338,6 +339,12 @@ cntools_pool_registration_bls_preview_into() {
   fi
   cntools_transaction_era_dijkstra_available "${CNTOOLS_WALLET_REGISTER_PROTOCOL_FILE:-${CNTOOLS_FUNDING_PROTOCOL:-}}" || return 0
   registered="$(jq -r '.current.bls // empty' <<< "${CNTOOLS_POOL_REG_STATE}")"
+  if [[ "${CNTOOLS_NETWORK:-}" == musashi ]]; then
+    pbp_role=warning
+    if [[ -n "${registered}" ]]; then pbp_text='Would be removed · CNTools adds no BLS keys on Musashi'
+    else pbp_text="None · Musashi's Leios node can't read BLS keys from cardano-cli ${CNTOOLS_TRANSACTION_CARDANO_CLI_VERSION}"; fi
+    return 0
+  fi
   if cntools_pool_registration_hardware_signer; then
     pbp_role=warning
     if [[ -n "${registered}" ]]; then pbp_text='Would be removed · sign with CLI keys to keep it'
@@ -413,7 +420,7 @@ cntools_pool_registration_plan_create() {
 }
 
 cntools_pool_registration_validate_body() {
-  local view='' expected='' view_params='' inputs=''
+  local view='' expected=null view_params=null inputs=''
   cntools_transaction_view_into view "$1" || return 1
   if [[ "${CNTOOLS_WALLET_REGISTER_OPERATION}" == pool-retire ]]; then
     cntools_pool_retirement_validate_certificate "${view}" || return 1
@@ -421,16 +428,12 @@ cntools_pool_registration_validate_body() {
     # guards below; no registration-only parameter or owner assumptions apply.
     expected="$(jq -c '.certificates[0]["Pool retirement"]' <<< "${view}")" || return 1
   else
-    expected="$(cntools_pool_parameters_json)" || return 1
     view_params="$(cntools_pool_parameters_view_json)" || return 1
   fi
   inputs="$(printf '%s\n' "${CNTOOLS_WALLET_REGISTER_INPUTS[@]}" | jq -Rsc 'split("\n")|map(select(length>0))|sort')"
-  # Up to cardano-cli 11.6 (and in the Leios builds) the pool parameters use
-  # poolId, vrf, accountAddress and a decimal margin, with "blsKey". From 11.7
-  # they use "pool id", "vrf key hash", "reward account" and a fraction, and a
-  # Dijkstra-era registration carries "bls key". The BLS key, when set, is
-  # compared separately; the rest must match exactly.
-  jq -e --argjson params "${expected}" --argjson viewParams "${view_params:-null}" --argjson bls "${CNTOOLS_POOL_REG_BLS_EXPECTED:-null}" \
+  # A Dijkstra-era registration carries "bls key" in the pool parameters. It
+  # is compared separately; the rest must match exactly.
+  jq -e --argjson params "${expected}" --argjson viewParams "${view_params}" --argjson bls "${CNTOOLS_POOL_REG_BLS_EXPECTED:-null}" \
     --argjson inputs "${inputs}" --arg address "${CNTOOLS_WALLET_REGISTER_BASE_ADDRESS}" \
     --argjson setup "${CNTOOLS_POOL_EXTRA_EXPECTED:-[]}" --arg operation "${CNTOOLS_WALLET_REGISTER_OPERATION}" \
     --arg expiry "${CNTOOLS_WALLET_REGISTER_EXPIRY}" --arg fee "${CNTOOLS_WALLET_REGISTER_FEE} Lovelace" '
@@ -439,14 +442,9 @@ cntools_pool_registration_validate_body() {
     .certificates[1:] == $setup and
     (if $operation == "pool-retire" then .certificates[0]["Pool retirement"] == $params else
       (.certificates[0]["Pool registration"]["pool params"] |
-        if has("pool id") then
-          (if $bls == null then has("bls key") | not
-           else ."bls key".blsPubKey == $bls.blsPubKey and (."bls key".blsPossessionProof | type == "string" and test("^[0-9a-f]{96}$")) end) and
-          (del(."bls key") | .owners |= sort) == $viewParams
-        else
-          (if $bls == null then .blsKey == null
-           else .blsKey.blsPubKey == $bls.blsPubKey and (.blsKey.blsPossessionProof | type == "string" and test("^[0-9a-f]{96}$")) end) and
-          (del(.blsKey) | .owners |= sort) == $params end) end) and
+        (if $bls == null then has("bls key") | not
+         else ."bls key".blsPubKey == $bls.blsPubKey and (."bls key".blsPossessionProof | type == "string" and test("^[0-9a-f]{96}$")) end) and
+        (del(."bls key") | .owners |= sort) == $viewParams) end) and
     (.inputs|sort) == $inputs and .fee == $fee and
     (."validity range"["upper bound"]|if . == null then "" else tostring end) == $expiry and ."validity range"["lower bound"] == null and
     (.outputs|length > 0 and all(.[];.address == $address and .datum == null and ."reference script" == null)) and

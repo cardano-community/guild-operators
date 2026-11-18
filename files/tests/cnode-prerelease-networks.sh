@@ -54,7 +54,7 @@ assert_eq "$(jq -er '.companions["cardano-db-sync"].version' "${RELEASE}")" "13.
 
 render_release musashi
 assert_eq "$(jq -er '.version' "${RELEASE}")" "11.2.0.164" "Musashi node"
-assert_eq "$(jq -er '.companions["cardano-cli"].version' "${RELEASE}")" "11.3.1.0" "Musashi cli"
+assert_eq "$(jq -er '.companions["cardano-cli"].version' "${RELEASE}")" "11.7.0.0" "Musashi cli"
 assert_eq "$(jq -er '.companions | has("cardano-db-sync")' "${RELEASE}")" "false" "Musashi has no db-sync build"
 assert_eq "$(jq -er '.companions["cardano-node-support"].version' "${RELEASE}")" "11.2.0" "Musashi support tools"
 [[ "$(jq -er '.artifacts["linux-aarch64"].url' "${RELEASE}")" == */ouroboros-leios/releases/download/rc-*/* ]] ||
@@ -67,28 +67,22 @@ assert_eq "$(jq -c '.tools' "${RELEASE}")" "$(jq -c '.tools' "${BASE_RELEASE}")"
   ! cnode_deploy_render_release_metadata "${TEST_ROOT}/missing-release.json" 2>/dev/null ||
     fail "a missing overlay should fail" )
 
-# --- CNTools accepts each network's CLI, and only on that network ----------------
+# --- one cardano-cli for every network, and CNTools accepts only that ------------
 eval "$(sed -n '/^cntools_transaction_cli_version_supported() {/,/^}/p' \
   "${ROOT_DIR}/scripts/common-helper-scripts/cntools/lib/transaction.sh")"
 CNTOOLS_TRANSACTION_CARDANO_CLI_VERSION="$(jq -er '.companions["cardano-cli"].version' "${BASE_RELEASE}")"
-CNTOOLS_TRANSACTION_SOURCE_BUILD_CLI_VERSION="$(jq -er '.build.cardanoCli' "${BASE_RELEASE}")"
 for network in dijkstra musashi; do
-  cli="$(jq -er '.companions["cardano-cli"].version' \
-    "${ROOT_DIR}/files/node-implementations/cnode/networks/${network}.json")"
-  CNTOOLS_NETWORK="${network}"
-  CNTOOLS_NODE_HOME="${TEST_ROOT}/cntools-${network}"
-  mkdir -p "${CNTOOLS_NODE_HOME}/files"
-  jq -n --arg cli "${cli}" '{companions: {"cardano-cli": {version: $cli}}}' \
-    > "${CNTOOLS_NODE_HOME}/files/cnode-release.json"
-  cntools_transaction_cli_version_supported "${cli}" || fail "CNTools rejects the ${network} cli ${cli}"
-  ! cntools_transaction_cli_version_supported "9.9.9.9" || fail "CNTools accepts a cli the ${network} deployment did not pin"
-  CNTOOLS_NETWORK="mainnet"
-  # Dijkstra shares the mainnet pin; only a network-specific build must stay there.
-  if [[ "${cli}" != "${CNTOOLS_TRANSACTION_CARDANO_CLI_VERSION}" ]]; then
-    ! cntools_transaction_cli_version_supported "${cli}" || fail "CNTools accepts the ${network} cli on mainnet"
-  fi
+  ! jq -e '.companions | has("cardano-cli")' \
+    "${ROOT_DIR}/files/node-implementations/cnode/networks/${network}.json" >/dev/null ||
+    fail "${network} pins its own cardano-cli"
+  render_release "${network}"
+  assert_eq "$(jq -c '.companions["cardano-cli"]' "${RELEASE}")" "$(jq -c '.companions["cardano-cli"]' "${BASE_RELEASE}")" \
+    "${network} installs the shared cardano-cli"
 done
-unset CNTOOLS_NETWORK
+cntools_transaction_cli_version_supported "${CNTOOLS_TRANSACTION_CARDANO_CLI_VERSION}" || fail "CNTools rejects the pinned cli"
+for cli in 11.3.1.0 11.5.0.0 11.2.3.0 ""; do
+  ! cntools_transaction_cli_version_supported "${cli}" || fail "CNTools accepts cardano-cli '${cli}'"
+done
 
 # --- CNTools maps both networks everywhere it maps a network ---------------------
 for spec in \
@@ -263,7 +257,7 @@ install_network() { # $1 = network; leaves the result in HOME
   TMPDIR="${TEST_ROOT}"
   CNODE_SKIP_DBSYNC_DOWNLOAD="N"
   LEIOS_DOWNLOADS=0
-  LEIOS_CLI="11.3.1.0"
+  LEIOS_CLI="11.3.1.0" # the Leios archive's own CLI, which must not be installed
   render_release "$1"
   cp "${RELEASE}" "${NODE_HOME}/files/cnode-release.json"
   download_cnodebins
@@ -283,11 +277,11 @@ reports bech32 11.2.0
 
 install_network musashi
 reports cardano-node 11.2.0.164
-reports cardano-cli 11.3.1.0
+reports cardano-cli 11.7.0.0
 reports cardano-submit-api 11.2.0
 reports bech32 11.2.0
 [[ ! -e "${NODE_HOME}/bin/cardano-db-sync" ]] || fail "Musashi has no db-sync to install"
-assert_eq "${LEIOS_DOWNLOADS}" "1" "the Leios archive holds both the node and its CLI"
+assert_eq "${LEIOS_DOWNLOADS}" "1" "the Leios archive is downloaded once, for the node; its own CLI is not installed"
 
 install_network preview
 reports cardano-node "$(jq -er '.version' "${BASE_RELEASE}")"

@@ -12,19 +12,6 @@
     }
   },
   "companions": {
-    "cardano-cli": {
-      "version": "11.3.1.0",
-      "artifacts": {
-        "linux-x86_64": {
-          "url": "https://github.com/input-output-hk/ouroboros-leios/releases/download/rc-2026w44/cardano-node-leios-x86_64-linux.tar.gz",
-          "sha256": "e42e5b5e71650daea635378d9a012fe51e13f72a604137cf0625964332321c58"
-        },
-        "linux-aarch64": {
-          "url": "https://github.com/input-output-hk/ouroboros-leios/releases/download/rc-2026w44/cardano-node-leios-aarch64-linux.tar.gz",
-          "sha256": "3eeae3a5f79bbd8a825c7501d1f34dae36099258d771822f4cd662bd350d556c"
-        }
-      }
-    },
     "cardano-db-sync": null,
     "cardano-node-support": {
       "version": "11.2.0",

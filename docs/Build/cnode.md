@@ -199,9 +199,10 @@ separate version text files as the cnode deployment source of truth.
 
 The `build.toolchain` values for GHC and Cabal are plain version strings.
 `build.sourceDependencies` records repository URLs, display versions, and
-immutable commit refs. `build.cardanoCli` records the cardano-cli release that
-a source build of the pinned node includes, which CNTools accepts alongside the
-downloaded companion. The pre-merge source build fails when the two differ.
+immutable commit refs. A cardano-node checkout's own cardano-cli is older than
+the companion pin, so a source build installs cardano-cli from its own
+repository at `companions["cardano-cli"]` (see
+[Build Cardano CLI](node-cli.md#build-cardano-cli)).
 These build fields are consumed only by source-build flags and do not change a
 binary-only deployment. Node and CLI compatibility
 thresholds are not part of this compact manifest.
@@ -295,10 +296,12 @@ which only overrides entries in `release.json`.
 
 | Network | Magic | cardano-node | cardano-cli | cardano-db-sync |
 | --- | --- | --- | --- | --- |
-| [dijkstra](https://book.world.dev.cardano.org/adv-dijkstra.html) | 6 | 11.2.0 (pre-release) | 11.7.0.0 | `dijkstra-0-0` CI build, which reports 13.8.0.0 |
-| [musashi](https://book.world.dev.cardano.org/adv-musashi.html) | 164 | Leios `rc-2026w44`, which reports 11.2.0.164 | 11.3.1.0, from the same build | None published |
+| [dijkstra](https://book.world.dev.cardano.org/adv-dijkstra.html) | 6 | 11.2.0 (pre-release) | 11.7.0.0, the shared pin | `dijkstra-0-0` CI build, which reports 13.8.0.0 |
+| [musashi](https://book.world.dev.cardano.org/adv-musashi.html) | 164 | Leios `rc-2026w44`, which reports 11.2.0.164 | 11.7.0.0, the shared pin | None published |
 
-The Leios archive holds only the node and its CLI, so on Musashi `bech32` and
+The overlays pin no cardano-cli: like every other network, both use the
+`release.json` companion. The Leios archive holds only the node and an older
+CLI, which isn't installed, so on Musashi `bech32` and
 `cardano-submit-api` come from cardano-node 11.2.0. No Koios endpoint is configured
 for either network, so CNTools works from the local node unless you set
 `KOIOS_API`. The Mithril helpers and `blockPerf.sh` don't support these networks.
@@ -309,10 +312,10 @@ voting committee is drawn from: **Pool → Register / Modify** in CNTools create
 and registers `bls.skey` and `bls.vkey` in the pool folder (see
 [Dijkstra era](../Scripts/cntools-common.md#dijkstra-era)). When `bls.skey` is
 in the folder of `POOL_NAME`, `cnode.sh` starts the node with
-`--shelley-bls-key`, if the node release has that option. Musashi's Leios build
-writes BLS key files with a differently spelled type than upstream cardano-cli,
-and each reads only its own, so create the key with the CLI of the network it is
-for.
+`--shelley-bls-key`, if the node release has that option. Musashi's Leios node
+reads only BLS key files whose type is spelled `…-Minimal-…`, while cardano-cli
+11.7 writes `…-Mininimal-…` (the key bytes are the same), so CNTools creates and
+registers no BLS key on Musashi.
 
 These networks deploy from `cntools-rebuild` unless you pass `-b`. Their pins
 change often, so a scheduled job, `pins.yml`, watches what each network requires and

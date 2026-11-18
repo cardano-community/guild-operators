@@ -222,7 +222,8 @@ cntools_transaction_calculate_min_fee_into() {
     return 1
   fi
   _cntools_result="$(< "${_cntools_output_file}")"
-  if [[ "${_cntools_result}" =~ ^[[:space:]]*([0-9]+)[[:space:]]+Lovelace[[:space:]]*$ ]]; then
+  # cardano-cli 11.7 prints "<lovelace> Lovelace".
+  if [[ "${_cntools_result}" =~ ^([0-9]+)\ Lovelace$ ]]; then
     CNTOOLS_TRANSACTION_MIN_FEE="${BASH_REMATCH[1]}"
     _cntools_output_ref="${BASH_REMATCH[1]}"
   else
@@ -278,9 +279,8 @@ cntools_transaction_calculate_min_utxo_into() {
     return 1
   fi
   _cntools_result="$(< "${_cntools_output_file}")"
-  if [[ "${_cntools_result}" =~ ^[[:space:]]*(Lovelace|Coin)[[:space:]]+([0-9]+)[[:space:]]*$ ]]; then
-    _cntools_output_ref="${BASH_REMATCH[2]}"
-  elif [[ "${_cntools_result}" =~ ^[[:space:]]*([0-9]+)[[:space:]]+(Lovelace|Coin)[[:space:]]*$ ]]; then
+  # cardano-cli 11.7 prints "Coin <lovelace>".
+  if [[ "${_cntools_result}" =~ ^Coin\ ([0-9]+)$ ]]; then
     _cntools_output_ref="${BASH_REMATCH[1]}"
   else
     cntools_transaction_set_error \

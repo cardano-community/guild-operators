@@ -7,9 +7,9 @@ CNTOOLS_TRANSACTION_SCHEMA_VERSION=1
 CNTOOLS_TRANSACTION_MAX_BODY_BYTES=4194304
 CNTOOLS_TRANSACTION_MAX_WITNESS_BYTES=524288
 CNTOOLS_TRANSACTION_MAX_PACKAGE_BYTES=16777216
+# The only cardano-cli release CNTools runs: the shared companion pin of every
+# node implementation and network. Its output formats are the ones CNTools reads.
 CNTOOLS_TRANSACTION_CARDANO_CLI_VERSION="11.7.0.0"
-# Included in a source build of the pinned cardano-node (cnode build.cardanoCli).
-CNTOOLS_TRANSACTION_SOURCE_BUILD_CLI_VERSION="11.2.3.0"
 CNTOOLS_TRANSACTION_TIMEOUT="${CNTOOLS_TRANSACTION_TIMEOUT:-60}"
 [[ "${CNTOOLS_TRANSACTION_TIMEOUT}" =~ ^[1-9][0-9]*$ ]] ||
   CNTOOLS_TRANSACTION_TIMEOUT=60
@@ -29,7 +29,6 @@ CNTOOLS_TRANSACTION_VALIDATED_CLI_VERSION=""
 # transaction ids and submission take the era from the file instead.
 CNTOOLS_TRANSACTION_ERA="latest"
 CNTOOLS_TRANSACTION_DIJKSTRA_PROTOCOL=12
-CNTOOLS_TRANSACTION_DIJKSTRA_CLI=""
 
 declare -ag CNTOOLS_TRANSACTION_TEMP_FILES=()
 CNTOOLS_TRANSACTION_TEMP_DIR=""
@@ -504,95 +503,16 @@ cntools_protocol_major_into() {
   printf -v "${_cntools_major_name}" '%s' "${_cntools_major}"
 }
 
-# The validated CLI has the Dijkstra era commands (cardano-cli 11.6 and later,
-# and the Leios builds). Asked once per executable.
-cntools_transaction_cli_supports_dijkstra() {
-  local output="" errors="" answer=N
-  cntools_transaction_require_cli || return 1
-  if [[ "${CNTOOLS_TRANSACTION_DIJKSTRA_CLI%|*}" == "${CNTOOLS_CLI}|${CNTOOLS_TRANSACTION_VALIDATED_CLI_VERSION}" ]]; then
-    [[ "${CNTOOLS_TRANSACTION_DIJKSTRA_CLI##*|}" == Y ]]; return
-  fi
-  cntools_transaction_temp_file output dijkstra-help-output &&
-    cntools_transaction_temp_file errors dijkstra-help-errors || return 1
-  cntools_transaction_run_cli "${output}" "${errors}" -- "${CNTOOLS_CLI}" dijkstra transaction build-raw --help && answer=Y
-  CNTOOLS_TRANSACTION_DIJKSTRA_CLI="${CNTOOLS_CLI}|${CNTOOLS_TRANSACTION_VALIDATED_CLI_VERSION}|${answer}"
-  [[ "${answer}" == Y ]]
-}
-
-# $1 = protocol parameters file of the network. A Dijkstra feature can be used:
-# protocol 12 or later and a CLI with the Dijkstra era commands.
+# $1 = protocol parameters file of the network. A Dijkstra feature can be used
+# from protocol 12 on.
 cntools_transaction_era_dijkstra_available() {
   local major=""
   cntools_protocol_major_into major "${1:-}" || return 1
-  (( major >= CNTOOLS_TRANSACTION_DIJKSTRA_PROTOCOL )) && cntools_transaction_cli_supports_dijkstra
+  (( major >= CNTOOLS_TRANSACTION_DIJKSTRA_PROTOCOL ))
 }
 
 cntools_transaction_cli_version_supported() {
-  # Exact pin downloaded by the cnode, dingo and amaru profiles, or the release
-  # a cnode source build includes. The pre-release networks pin their own, which
-  # changes often, so the deployment's installed release metadata is the record.
-  case "${CNTOOLS_NETWORK:-}" in
-    dijkstra|musashi)
-      [[ -n "${1:-}" &&
-         "${1}" == "$(jq -r '.companions["cardano-cli"].version // empty' \
-           "${CNTOOLS_NODE_HOME:-}/files/cnode-release.json" 2>/dev/null)" ]] && return 0
-      ;;
-  esac
-  [[ "${1:-}" == "${CNTOOLS_TRANSACTION_CARDANO_CLI_VERSION}" ||
-     "${1:-}" == "${CNTOOLS_TRANSACTION_SOURCE_BUILD_CLI_VERSION}" ]]
-}
-
-# cardano-cli 11.2.1.0 through 11.4.0.0 write a pool relay's IPv4 address into
-# registration certificates with its bytes reversed (cardano-cli#1442): they
-# link cardano-ledger-binary 1.9.0.0 or 1.10.0.0. A build that reports one of
-# those versions can link a fixed release (the Leios archive's 11.3.1.0 does),
-# so a CLI in that range writes a test certificate once and its relay bytes
-# decide. Only public keys are used. Returns 0 when it reverses them, 1 when
-# it does not, 2 when that could not be checked.
-CNTOOLS_TRANSACTION_RELAY_PROBE_KEYS=(
-  '{"type":"StakePoolVerificationKey_ed25519","description":"","cborHex":"5820599ee7ae9247cb3694b8ad5ce2eaeb84c0ddbc89b1a4e16b0253c0a72c20ff26"}'
-  '{"type":"VrfVerificationKey_PraosVRF","description":"","cborHex":"58201b1ab6bf4e3df53ad12ae8572ca38bf12f0019f44cd4795550fa1efb22331a4f"}'
-  '{"type":"StakeVerificationKeyShelley_ed25519","description":"","cborHex":"58208fe4568ca3f5ceee5ad5704eb9f4eda97ef99cecdd3a263b5dd0ac00805f6828"}'
-)
-CNTOOLS_TRANSACTION_RELAY_PROBE_CLI=""
-CNTOOLS_TRANSACTION_RELAY_PROBE_RESULT=""
-cntools_transaction_cli_reverses_relay_ipv4() {
-  local cold="" vrf="" stake="" certificate="" output="" errors="" cbor="" result="" status=0
-  cntools_transaction_require_cli || return 2
-  [[ "${CNTOOLS_TRANSACTION_VALIDATED_CLI_VERSION}" == 11.2.[1-3].* ||
-     "${CNTOOLS_TRANSACTION_VALIDATED_CLI_VERSION}" == 11.[34].* ]] || return 1
-  if [[ "${CNTOOLS_TRANSACTION_RELAY_PROBE_CLI}" == "${CNTOOLS_CLI}|${CNTOOLS_TRANSACTION_VALIDATED_CLI_VERSION}" ]]; then
-    return "${CNTOOLS_TRANSACTION_RELAY_PROBE_RESULT}"
-  fi
-  cntools_transaction_temp_file cold relay-probe-cold &&
-    cntools_transaction_temp_file vrf relay-probe-vrf &&
-    cntools_transaction_temp_file stake relay-probe-stake &&
-    cntools_transaction_temp_file certificate relay-probe-certificate &&
-    cntools_transaction_temp_file output relay-probe-output &&
-    cntools_transaction_temp_file errors relay-probe-errors || return 2
-  printf '%s\n' "${CNTOOLS_TRANSACTION_RELAY_PROBE_KEYS[0]}" > "${cold}" &&
-    printf '%s\n' "${CNTOOLS_TRANSACTION_RELAY_PROBE_KEYS[1]}" > "${vrf}" &&
-    printf '%s\n' "${CNTOOLS_TRANSACTION_RELAY_PROBE_KEYS[2]}" > "${stake}" || return 2
-  cntools_transaction_run_cli "${output}" "${errors}" -- "${CNTOOLS_CLI}" latest stake-pool registration-certificate \
-    --cold-verification-key-file "${cold}" --vrf-verification-key-file "${vrf}" \
-    --pool-pledge 0 --pool-cost 0 --pool-margin 0 \
-    --pool-reward-account-verification-key-file "${stake}" --pool-owner-stake-verification-key-file "${stake}" \
-    --pool-relay-ipv4 1.2.3.4 --pool-relay-port 1 --testnet-magic 1 --out-file "${certificate}" || status=$?
-  if (( status == 0 )); then
-    cbor="$(jq -r '.cborHex // empty' "${certificate}" 2>/dev/null)" || cbor=""
-  fi
-  case "${cbor,,}" in
-    *4401020304*) result=1 ;;
-    *4404030201*) result=0 ;;
-    *)
-      cntools_transaction_log_cli_failure 'Could not check how Cardano CLI writes IPv4 relays' "${status}" "${errors}" "${output}"
-      cntools_transaction_set_error "Could not check how Cardano CLI ${CNTOOLS_TRANSACTION_VALIDATED_CLI_VERSION} writes IPv4 relays. Use a DNS or IPv6 relay, or deploy the pinned Cardano CLI ${CNTOOLS_TRANSACTION_CARDANO_CLI_VERSION}."
-      return 2 ;;
-  esac
-  CNTOOLS_TRANSACTION_RELAY_PROBE_CLI="${CNTOOLS_CLI}|${CNTOOLS_TRANSACTION_VALIDATED_CLI_VERSION}"
-  CNTOOLS_TRANSACTION_RELAY_PROBE_RESULT="${result}"
-  cntools_transaction_log TRANSACTION "cardano-cli ${CNTOOLS_TRANSACTION_VALIDATED_CLI_VERSION} IPv4 relay bytes $([[ ${result} == 0 ]] && printf reversed || printf correct)"
-  return "${result}"
+  [[ "${1:-}" == "${CNTOOLS_TRANSACTION_CARDANO_CLI_VERSION}" ]]
 }
 
 # Shelley slots on supported deployment networks are one second. A lifetime
@@ -664,7 +584,7 @@ cntools_transaction_require_cli() {
     CNTOOLS_TRANSACTION_VALIDATED_CLI_PATH=""
     CNTOOLS_TRANSACTION_VALIDATED_CLI_VERSION=""
     cntools_transaction_set_error \
-      "CNTools transaction support requires Cardano CLI ${CNTOOLS_TRANSACTION_CARDANO_CLI_VERSION} (or ${CNTOOLS_TRANSACTION_SOURCE_BUILD_CLI_VERSION} from a source build); the selected executable reports ${reported_version:-an unsupported version}. Refresh the pinned deployment before continuing."
+      "CNTools transaction support requires Cardano CLI ${CNTOOLS_TRANSACTION_CARDANO_CLI_VERSION}; the selected executable reports ${reported_version:-an unsupported version}. Refresh the pinned deployment with guild-deploy.sh -s d before continuing."
     return 1
   fi
   CNTOOLS_TRANSACTION_VALIDATED_CLI_PATH="${CNTOOLS_CLI}"
@@ -1100,32 +1020,6 @@ cntools_transaction_view_dijkstra_extras_into() {
     return 1
   }
   printf -v "${_cntools_extras_name}" '%s' "${_cntools_extras_found}"
-}
-
-# Up to cardano-cli 11.6 the DRep certificates in a transaction view are
-# "Drep registration certificate", "Drep unregistration certificate" and
-# "Drep certificate update", the credential is "certificate" (or "Drep
-# credential" in an update) and the update's anchor key ends in a space. 11.7
-# renamed them to "DRep …", "DRep credential" and "anchor". Rewrites the view
-# in the variable named by $1 to the 11.7 names; other certificates are kept.
-cntools_transaction_view_drep_names() {
-  local _cntools_view_name="${1:-}" _cntools_renamed=""
-  [[ "${_cntools_view_name}" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || return 2
-  local -n _cntools_view_ref="${_cntools_view_name}"
-  _cntools_renamed="$(jq -c '
-    if (.certificates | type) == "array" then
-      .certificates |= map(if type == "object" then with_entries(
-        if (.key | test("^D[Rr]ep ")) then
-          .key |= sub("^Drep "; "DRep ") |
-          .value |= (if type == "object" then with_entries(.key |= (
-            if . == "certificate" or . == "Drep credential" then "DRep credential"
-            elif . == "anchor " then "anchor" else . end)) else . end)
-        else . end) else . end)
-    else . end' <<< "${_cntools_view_ref}")" || {
-    cntools_transaction_set_error "Could not read the DRep certificate in the transaction review."
-    return 1
-  }
-  _cntools_view_ref="${_cntools_renamed}"
 }
 
 cntools_transaction_view_witnesses_into() {

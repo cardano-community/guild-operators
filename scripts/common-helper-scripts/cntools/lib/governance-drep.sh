@@ -288,8 +288,7 @@ cntools_drep_lifecycle_plan_create() {
 }
 
 # These are the CLI's authoritative decoded certificate fields, in the names
-# cardano-cli 11.7 uses. cntools_transaction_view_drep_names maps the names of
-# earlier releases onto them. Never rely on intent JSON alone.
+# cardano-cli 11.7 uses. Never rely on intent JSON alone.
 cntools_drep_lifecycle_validate_body() {
   local view="" kind="" credential='DRep credential' amount=deposit anchor=anchor expected="null" inputs="[]" credential_type=keyHash lower=''
   [[ "${CNTOOLS_DREP_LIFECYCLE_KIND:-key}" != script ]] || credential_type=scriptHash
@@ -307,7 +306,6 @@ cntools_drep_lifecycle_validate_body() {
     expected="$(jq -cn --arg url "${CNTOOLS_DREP_LIFECYCLE_ANCHOR_URL}" --arg hash "${CNTOOLS_DREP_LIFECYCLE_ANCHOR_HASH}" '{url:$url,dataHash:$hash}')" || return 1
   fi
   cntools_transaction_view_into view "$1" || return 1
-  cntools_transaction_view_drep_names view || return 1
   inputs="$(printf '%s\n' "${CNTOOLS_WALLET_REGISTER_INPUTS[@]}" | jq -Rsc 'split("\n") | map(select(length > 0)) | sort')" || return 1
   jq -e --arg kind "${kind}" --arg credential "${credential}" --arg hash "${CNTOOLS_DREP_LIFECYCLE_HASH}" --arg credentialType "${credential_type}" --arg lower "${lower}" \
     --arg amount "${amount}" --arg deposit "${CNTOOLS_WALLET_REGISTER_DEPOSIT}" --arg anchor "${anchor}" --argjson expected "${expected}" \

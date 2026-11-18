@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Every binary the pre-release networks pin, on this machine's architecture:
+# Every binary the pre-release networks install, on this machine's architecture:
 # the checksum matches and the binary runs and reports the pinned version.
 set -euo pipefail
 
@@ -39,16 +39,18 @@ check_component() { # $1 = binary, $2 = version, $3 = url, $4 = sha256
   printf '  %-18s %-12s %s\n' "${binary}" "${version}" "ok"
 }
 
+SHARED_RELEASE="${ROOT_DIR}/files/node-implementations/cnode/release.json"
 for overlay in "${ROOT_DIR}"/files/node-implementations/cnode/networks/*.json; do
   printf '%s on %s\n' "$(basename "${overlay}" .json)" "${ARCHITECTURE}"
   check_component cardano-node \
     "$(jq -er '.version' "${overlay}")" \
     "$(jq -er --arg arch "${ARCHITECTURE}" '.artifacts[$arch].url' "${overlay}")" \
     "$(jq -er --arg arch "${ARCHITECTURE}" '.artifacts[$arch].sha256' "${overlay}")"
+  # Every network installs the shared cardano-cli pin; no overlay has its own.
   check_component cardano-cli \
-    "$(jq -er '.companions["cardano-cli"].version' "${overlay}")" \
-    "$(jq -er --arg arch "${ARCHITECTURE}" '.companions["cardano-cli"].artifacts[$arch].url' "${overlay}")" \
-    "$(jq -er --arg arch "${ARCHITECTURE}" '.companions["cardano-cli"].artifacts[$arch].sha256' "${overlay}")"
+    "$(jq -er '.companions["cardano-cli"].version' "${SHARED_RELEASE}")" \
+    "$(jq -er --arg arch "${ARCHITECTURE}" '.companions["cardano-cli"].artifacts[$arch].url' "${SHARED_RELEASE}")" \
+    "$(jq -er --arg arch "${ARCHITECTURE}" '.companions["cardano-cli"].artifacts[$arch].sha256' "${SHARED_RELEASE}")"
   if [[ "$(jq -r '.companions["cardano-db-sync"].version // empty' "${overlay}")" != "" ]]; then
     check_component cardano-db-sync \
       "$(jq -er '.companions["cardano-db-sync"].version' "${overlay}")" \

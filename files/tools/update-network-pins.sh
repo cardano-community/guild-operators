@@ -8,8 +8,10 @@
 # changes unless every step succeeds. The working tree is left for a person, or
 # the pins workflow, to review. Running it twice in a row changes nothing.
 #
+# cardano-cli is not pinned per network: every network uses the shared pin in
+# files/node-implementations/cnode/release.json, which this tool never changes.
 # What stays manual, and is listed in the summary: db-sync comes from a Hydra
-# build, and the book doesn't name a CLI for Dijkstra.
+# build, and whether the shared CLI still works with the new node.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd -P)"
@@ -156,8 +158,7 @@ fi
 # ---- binaries -------------------------------------------------------------------
 OLD_TAG="$(jq -r '.releaseTag // "unknown"' "${OVERLAY}")"
 OLD_VERSION="$(jq -r '.version // "unknown"' "${OVERLAY}")"
-OLD_CLI="$(jq -r '.companions["cardano-cli"].version // "unknown"' "${OVERLAY}")"
-NEW_CLI="${OLD_CLI}"
+SHARED_CLI="$(jq -r '.companions["cardano-cli"].version // "unknown"' "${ROOT}/files/node-implementations/cnode/release.json")"
 RELEASE_URL="https://github.com/${REPOSITORY}/releases/tag/${TAG}"
 cp "${OVERLAY}" "${STAGE}/overlay.json"
 
@@ -205,19 +206,6 @@ if [[ "${TAG}" != "${OLD_TAG}" ]]; then
         "linux-aarch64": {url: $url_arm, sha256: $sha_arm}
       }
     ' "${OVERLAY}" > "${STAGE}/overlay.json"
-
-  # A Leios archive carries the CLI that belongs with its node.
-  if [[ "${NETWORK}" == "musashi" ]]; then
-    cli_binary="$(find "${STAGE}/binaries" -type f -name cardano-cli | head -n 1)"
-    [[ -n "${cli_binary}" ]] || die "release ${TAG} has no cardano-cli"
-    NEW_CLI="$("${cli_binary}" version | head -n 1 | awk '{print $2}')"
-    [[ "${NEW_CLI}" =~ ^[0-9]+(\.[0-9]+){1,3}$ ]] ||
-      die "release ${TAG} reports an unexpected cardano-cli version '${NEW_CLI}'"
-    jq --arg cli "${NEW_CLI}" '
-      .companions["cardano-cli"] = {version: $cli, artifacts: .artifacts}
-    ' "${STAGE}/overlay.json" > "${STAGE}/overlay.next" &&
-      mv -f "${STAGE}/overlay.next" "${STAGE}/overlay.json"
-  fi
 fi
 
 # ---- everything worked, so update the checkout ----------------------------------
@@ -241,8 +229,7 @@ fi
   printf 'The book now requires `%s`.\n\n' "${MIN_NODE_VERSION}"
   printf '| | Now | Proposed |\n| --- | --- | --- |\n'
   printf '| Release | %s | [%s](%s) |\n' "${OLD_TAG}" "${TAG}" "${RELEASE_URL}"
-  printf '| cardano-node | %s | %s |\n' "${OLD_VERSION}" "${VERSION}"
-  printf '| cardano-cli | %s | %s |\n\n' "${OLD_CLI}" "${NEW_CLI}"
+  printf '| cardano-node | %s | %s |\n\n' "${OLD_VERSION}" "${VERSION}"
   if [[ ${#CONFIG_CHANGED[@]} -gt 0 ]]; then
     printf 'Config files changed: `%s`\n\n' "${CONFIG_CHANGED[*]}"
   fi
@@ -253,13 +240,9 @@ fi
     printf 'Then stop the service, delete its `db` folder and start it again.\n\n'
   fi
   printf '### Needs a person\n\n'
+  printf -- '- cardano-cli stays at the shared pin %s, which every network uses. Check that CNTools still works with it against this node.\n' \
+    "${SHARED_CLI}"
   if [[ "${NETWORK}" == "dijkstra" ]]; then
-    newest_cli="$(curl --fail --silent --location --max-time 30 \
-      ${GH_TOKEN:+--header "Authorization: Bearer ${GH_TOKEN}"} \
-      "${API_BASE}/repos/IntersectMBO/cardano-cli/releases/latest" 2>/dev/null |
-      jq -r '.tag_name // empty' 2>/dev/null || true)"
-    printf -- '- The book does not name a CLI for this network. It stays at %s. Newest release: %s.\n' \
-      "${OLD_CLI}" "${newest_cli:-unknown}"
     printf -- '- db-sync comes from a Hydra build, which this tool cannot watch. Check it still matches this node.\n'
   else
     printf -- '- `bech32` and `cardano-submit-api` come from the pinned cardano-node archive, which this tool does not change.\n'

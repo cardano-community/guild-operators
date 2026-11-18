@@ -150,7 +150,7 @@ ck_cli_transaction() {
     ck_cli "$dir/out" latest transaction build-raw --tx-in "$input" "${extra[@]}" --tx-out "$out" --tx-out "$addr+$change" --fee "$fee" --out-canonical-cbor --out-file "$dir/body.json" || return
     ck_cli "$dir/fee" latest transaction calculate-min-fee --tx-body-file "$dir/body.json" --tx-in-count 1 --tx-out-count 2 --witness-count "$witnesses" --byron-witness-count 0 --reference-script-size 0 --protocol-params-file "$CK_HOME/lib/data/protocol.json" --output-text || return
     local fee_text=''; fee_text="$(< "$dir/fee")"
-    [[ "$fee_text" =~ ^[0-9]+[[:space:]]+Lovelace$ ]] || { ck_note 'Expected calculate-min-fee output: <integer> Lovelace'; return 1; }
+    [[ "$fee_text" =~ ^[0-9]+\ Lovelace$ ]] || { ck_note 'Expected calculate-min-fee output: <integer> Lovelace'; return 1; }
     next="${fee_text%% *}"
     [[ "$fee" != "$next" ]] || break
     fee="$next"
@@ -185,11 +185,11 @@ ck_cli_transaction() {
   printf 'Exact fee: %s lovelace · witnesses: %s · transaction ID: %s\n' "$fee" "$witnesses" "$(< "$dir/body.id")"
   cp "$dir/view.json" "$CK_CASE_DIR/decoded.json"
 }
-# The certificate fields CNTools compares in a decoded transaction. cardano-cli
-# 11.7 renamed them (cardano-cli#1488); CNTools accepts both sets, so a third
-# naming must fail here before it reaches a user.
+# The certificate fields CNTools compares in a decoded transaction, in the
+# names cardano-cli 11.7 uses (renamed in cardano-cli#1488). CNTools reads only
+# these, so a candidate that names them differently must fail here.
 ck_cli_certificate_views() {
-  local kind='' view='' margin='' dir="$CK_WORK/views" input=''
+  local kind='' margin='' dir="$CK_WORK/views" input=''
   input="$(printf '00%.0s' {1..32})#0"
   ck_require_file "$CK_WORK/base.addr" || return 78
   mkdir -p "$dir"
@@ -200,20 +200,13 @@ ck_cli_certificate_views() {
     ck_cli "$dir/$kind.view" debug transaction view --tx-body-file "$dir/$kind.body" --output-json || return
   done
   ck_assert "$dir/pool-reg.view" '.certificates[0]["Pool registration"]["pool params"] |
-    (has("pool id") and has("vrf key hash") and has("reward account") and (.margin | type == "string" and test("^[0-9]+/[0-9]+$"))) or
-    (has("poolId") and has("vrf") and has("accountAddress") and (.margin | type == "number"))' 'Pool parameters in the 11.7 or the earlier field names' || return
-  margin="$(jq -r '.certificates[0]["Pool registration"]["pool params"].margin | tostring' "$dir/pool-reg.view")"
-  if [[ "$margin" == */* ]]; then
-    [[ "$(cntools_pool_margin_rational 0.05)" == "$margin" ]] || { ck_note "CNTools writes the margin 0.05 as $(cntools_pool_margin_rational 0.05), the CLI as $margin"; return 1; }
-  fi
-  for kind in drep-reg drep-update drep-retire; do
-    view="$(< "$dir/$kind.view")"
-    cntools_transaction_view_drep_names view || return 1
-    printf '%s\n' "$view" > "$dir/$kind.named"
-  done
-  ck_assert "$dir/drep-reg.named" '.certificates[0] | keys == ["DRep registration certificate"] and (.[keys[0]] | has("DRep credential") and has("deposit"))' 'DRep registration in the names CNTools compares' || return
-  ck_assert "$dir/drep-update.named" '.certificates[0] | keys == ["DRep certificate update"] and (.[keys[0]] | has("DRep credential") and has("anchor"))' 'DRep update in the names CNTools compares' || return
-  ck_assert "$dir/drep-retire.named" '.certificates[0] | keys == ["DRep unregistration certificate"] and (.[keys[0]] | has("DRep credential") and has("refund"))' 'DRep retirement in the names CNTools compares'
+    keys == ["cost", "margin", "metadata", "owners", "pledge", "pool id", "relays", "reward account", "vrf key hash"] and
+    (.margin | type == "string" and test("^[0-9]+/[0-9]+$"))' 'Pool parameters in the names CNTools compares' || return
+  margin="$(jq -r '.certificates[0]["Pool registration"]["pool params"].margin' "$dir/pool-reg.view")"
+  [[ "$(cntools_pool_margin_rational 0.05)" == "$margin" ]] || { ck_note "CNTools writes the margin 0.05 as $(cntools_pool_margin_rational 0.05), the CLI as $margin"; return 1; }
+  ck_assert "$dir/drep-reg.view" '.certificates[0] | keys == ["DRep registration certificate"] and (.[keys[0]] | keys == ["DRep credential", "anchor", "deposit"])' 'DRep registration in the names CNTools compares' || return
+  ck_assert "$dir/drep-update.view" '.certificates[0] | keys == ["DRep certificate update"] and (.[keys[0]] | keys == ["DRep credential", "anchor"])' 'DRep update in the names CNTools compares' || return
+  ck_assert "$dir/drep-retire.view" '.certificates[0] | keys == ["DRep unregistration certificate"] and (.[keys[0]] | keys == ["DRep credential", "refund"])' 'DRep retirement in the names CNTools compares'
 }
 # A Dijkstra-era pool registration with a BLS key, as CNTools builds one at
 # protocol 12: key generation, certificate, exact fee, signing, detached
@@ -223,12 +216,11 @@ ck_cli_dijkstra_pool() {
   local params="$CK_HOME/lib/data/protocol-dijkstra.json" extras=''
   input="$(printf '00%.0s' {1..32})#0"
   ck_require_file "$CK_WORK/base.addr" && ck_require_file "$CK_WORK/cold.vkey" && ck_require_file "$CK_WORK/vrf.vkey" || return 78
-  ck_cli "$CK_WORK/out" dijkstra transaction build-raw --help || ck_skip 'This CLI has no Dijkstra era commands.' || return
   mkdir -p "$dir"; addr="$(< "$CK_WORK/base.addr")"
   CK_SECRET=Y ck_cli "$dir/out" dijkstra node key-gen-BLS --verification-key-file "$dir/bls.vkey" --signing-key-file "$dir/bls.skey" || return
-  # Upstream spells the key type "Mininimal", the Leios builds "Minimal".
-  ck_assert "$dir/bls.vkey" '(.type | test("^BlsVerificationKey_bls12-381-BLS-Signature-Mini(ni)?mal-Signature-Size$")) and (.cborHex | test("^5860[0-9a-f]{192}$"))' 'BLS verification key envelope' || return
-  jq -e '(.type | test("^BlsSigningKey_bls12-381-BLS-Signature-Mini(ni)?mal-Signature-Size$")) and (.cborHex | test("^5820[0-9a-f]{64}$"))' "$dir/bls.skey" >/dev/null || { ck_note 'Unexpected BLS signing key envelope'; return 1; }
+  # cardano-cli 11.7 spells the key type "Mininimal"; CNTools reads only that.
+  ck_assert "$dir/bls.vkey" '.type == "BlsVerificationKey_bls12-381-BLS-Signature-Mininimal-Signature-Size" and (.cborHex | test("^5860[0-9a-f]{192}$"))' 'BLS verification key envelope' || return
+  jq -e '.type == "BlsSigningKey_bls12-381-BLS-Signature-Mininimal-Signature-Size" and (.cborHex | test("^5820[0-9a-f]{64}$"))' "$dir/bls.skey" >/dev/null || { ck_note 'Unexpected BLS signing key envelope'; return 1; }
   public="$(jq -r '.cborHex[4:]' "$dir/bls.vkey")"
   ck_cli "$CK_WORK/out" dijkstra stake-pool registration-certificate --cold-verification-key-file "$CK_WORK/cold.vkey" --vrf-verification-key-file "$CK_WORK/vrf.vkey" \
     --bls-signing-key-file "$dir/bls.skey" --pool-pledge 100000000 --pool-cost 170000000 --pool-margin 0.05 \
@@ -241,7 +233,7 @@ ck_cli_dijkstra_pool() {
     ck_cli "$dir/fee" dijkstra transaction calculate-min-fee --tx-body-file "$dir/body.json" --tx-in-count 1 --tx-out-count 2 --witness-count 3 \
       --byron-witness-count 0 --reference-script-size 0 --protocol-params-file "$params" --output-text || return
     fee_text="$(< "$dir/fee")"
-    [[ "$fee_text" =~ ^[0-9]+[[:space:]]+Lovelace$ ]] || { ck_note 'Expected calculate-min-fee output: <integer> Lovelace'; return 1; }
+    [[ "$fee_text" =~ ^[0-9]+\ Lovelace$ ]] || { ck_note 'Expected calculate-min-fee output: <integer> Lovelace'; return 1; }
     next="${fee_text%% *}"; [[ "$fee" != "$next" ]] || break; fee="$next"
   done
   (( i<12 )) || { ck_note 'Exact fee did not converge'; return 1; }
@@ -250,8 +242,7 @@ ck_cli_dijkstra_pool() {
   ck_assert "$dir/signed.json" '.type == "Tx DijkstraEra"' 'Dijkstra-era transaction envelope' || return
   ck_cli "$dir/view.json" debug transaction view --tx-file "$dir/signed.json" --output-json || return
   ck_assert "$dir/view.json" ".era == \"Dijkstra\" and .fee == \"$fee Lovelace\" and ([.outputs[].amount.lovelace] | add) == $((2000000000-500000000-fee))" 'Decoded era, exact fee and ADA conservation' || return
-  # "bls key" from cardano-cli 11.7, "blsKey" before it and in the Leios builds.
-  ck_assert "$dir/view.json" ".certificates[0][\"Pool registration\"][\"pool params\"] | (.[\"bls key\"] // .blsKey) | .blsPubKey == \"$public\" and (.blsPossessionProof | test(\"^[0-9a-f]{96}$\"))" 'BLS public key and proof of possession in the certificate' || return
+  ck_assert "$dir/view.json" ".certificates[0][\"Pool registration\"][\"pool params\"][\"bls key\"] | .blsPubKey == \"$public\" and (.blsPossessionProof | test(\"^[0-9a-f]{96}$\"))" 'BLS public key and proof of possession in the certificate' || return
   actual="$(jq -r --slurpfile p "$params" '(.cborHex|length/2)*$p[0].txFeePerByte+$p[0].txFeeFixed' "$dir/signed.json")"
   [[ "$fee" -le "$actual" ]] || { printf 'Signed minimum mismatch: built=%s, signed size minimum=%s\n' "$fee" "$actual"; return 1; }
   cntools_transaction_view_dijkstra_extras_into extras "$(< "$dir/view.json")" || return 1
@@ -275,8 +266,6 @@ ck_cli_dijkstra_extras() {
   local dir="$CK_WORK/dijkstra-extras" input='' addr='' reward='' extras=''
   input="$(printf '00%.0s' {1..32})#0"
   ck_require_file "$CK_WORK/base.addr" && ck_require_file "$CK_WORK/reward.addr" || return 78
-  ck_cli "$dir-help" dijkstra transaction build-raw --help || ck_skip 'This CLI has no Dijkstra era commands.' || return
-  grep -q -- '--direct-deposit' "$dir-help" || ck_skip 'This CLI cannot build direct deposits.' || return
   mkdir -p "$dir"; addr="$(< "$CK_WORK/base.addr")"; reward="$(< "$CK_WORK/reward.addr")"
   ck_cli "$dir/out" dijkstra transaction build-raw --tx-in "$input" --tx-out "$addr+10000000" --direct-deposit "$reward+5000000" \
     --fee 200000 --out-file "$dir/body.json" || return
@@ -294,9 +283,10 @@ ck_cli_minimum_ada() {
   ck_cli "$CK_WORK/minimum-plain" latest transaction calculate-min-required-utxo --protocol-params-file "$CK_HOME/lib/data/protocol.json" --tx-out "$addr+10000000" || return
   ck_cli "$CK_WORK/minimum-assets" latest transaction calculate-min-required-utxo --protocol-params-file "$CK_HOME/lib/data/protocol.json" --tx-out "$addr+10000000 + 1 $policy.74657374" || return
   plain="$(< "$CK_WORK/minimum-plain")"; assets="$(< "$CK_WORK/minimum-assets")"
-  [[ "$plain" =~ ^(Lovelace|Coin)[[:space:]]+([0-9]+)$ ]] || { ck_note 'Unexpected minimum-ADA output'; return 1; }; minimum="${BASH_REMATCH[2]}"
-  [[ "$assets" =~ ^(Lovelace|Coin)[[:space:]]+([0-9]+)$ ]] || { ck_note 'Unexpected token minimum-ADA output'; return 1; }
-  (( BASH_REMATCH[2] > minimum && minimum > 0 )) || { ck_note 'Token minimum-ADA should exceed an equivalent ADA-only output'; return 1; }
+  # cardano-cli 11.7 prints "Coin <lovelace>", the only form CNTools reads.
+  [[ "$plain" =~ ^Coin\ ([0-9]+)$ ]] || { ck_note 'Unexpected minimum-ADA output'; return 1; }; minimum="${BASH_REMATCH[1]}"
+  [[ "$assets" =~ ^Coin\ ([0-9]+)$ ]] || { ck_note 'Unexpected token minimum-ADA output'; return 1; }
+  (( BASH_REMATCH[1] > minimum && minimum > 0 )) || { ck_note 'Token minimum-ADA should exceed an equivalent ADA-only output'; return 1; }
 }
 ck_cli_estimate() {
   ck_require_file "$CK_WORK/base.addr" || return 78

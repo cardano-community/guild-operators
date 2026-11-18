@@ -26,6 +26,7 @@ reset_fixtures() {
     "${REPO}/files/node-implementations/cnode/networks" \
     "${BOOK}/leios" "${BOOK}/dijkstra" "${API}"
   cp "${ROOT_DIR}/files/tools/update-network-pins.sh" "${TOOL}"
+  cp "${ROOT_DIR}/files/node-implementations/cnode/release.json" "${REPO}/files/node-implementations/cnode/release.json"
   local network folder path name
   for network in dijkstra musashi; do
     cp -R "${ROOT_DIR}/files/configs/cnode/${network}" "${REPO}/files/configs/cnode/${network}"
@@ -109,7 +110,8 @@ bash "${TOOL}" musashi | grep -qF "is up to date" || fail "musashi should be up 
 bash "${TOOL}" dijkstra | grep -qF "is up to date" || fail "dijkstra should be up to date"
 [[ "$(checkout_hash)" == "${before}" ]] || fail "no upstream change, but the checkout changed"
 
-# A new Leios build: node, CLI and tag come from the release the book names.
+# A new Leios build: node and tag come from the release the book names. The
+# archive's own CLI is not used: every network runs the shared cardano-cli pin.
 reset_fixtures
 book_requires leios "11.3.0.200-rc-2026w99"
 fake_release "${LEIOS}" rc-2026w99 11.3.0.200 11.5.0.0 "${MUSASHI_X86}" "${MUSASHI_ARM}"
@@ -117,7 +119,8 @@ summary="${TEST_ROOT}/summary.md"
 bash "${TOOL}" musashi --summary "${summary}" || fail "musashi update failed"
 [[ "$(jq -r '.releaseTag' "${MUSASHI_OVERLAY}")" == "rc-2026w99" ]] || fail "tag not recorded"
 [[ "$(jq -r '.version' "${MUSASHI_OVERLAY}")" == "11.3.0.200" ]] || fail "node version not recorded"
-[[ "$(jq -r '.companions["cardano-cli"].version' "${MUSASHI_OVERLAY}")" == "11.5.0.0" ]] || fail "cli version not recorded"
+jq -e '.companions | has("cardano-cli") | not' "${MUSASHI_OVERLAY}" >/dev/null || fail "musashi pins the archive's cli"
+grep -qF "shared pin" "${summary}" || fail "summary hides the shared CLI check"
 [[ "$(jq -r '.artifacts["linux-x86_64"].sha256' "${MUSASHI_OVERLAY}")" =~ ^[0-9a-f]{64}$ ]] || fail "digest not recorded"
 [[ "$(jq -r '.companions["cardano-node-support"].version' "${MUSASHI_OVERLAY}")" == "11.2.0" ]] || fail "support archive changed"
 jq -e '.companions | has("cardano-db-sync")' "${MUSASHI_OVERLAY}" >/dev/null || fail "db-sync removal was lost"
@@ -147,21 +150,20 @@ bash "${TOOL}" musashi --summary "${summary}" || fail "respin update failed"
 grep -qF "Respin" "${summary}" || fail "respin was not flagged"
 grep -qF "delete its \`db\` folder" "${summary}" || fail "respin has no operator steps"
 
-# Dijkstra: the release comes from cardano-node, its CLI stays put, and the
+# Dijkstra: the release comes from cardano-node, no CLI is pinned, and the
 # nested config keeps Guild's tracing.
 reset_fixtures
 book_requires dijkstra "11.3.0"
 fake_release IntersectMBO/cardano-node 11.3.0 11.3.0 99.0.0.0 \
   cardano-node-11.3.0-linux-amd64.tar.gz cardano-node-11.3.0-linux-arm64.tar.gz
-cli_before="$(jq -r '.companions["cardano-cli"].version' "${DIJKSTRA_OVERLAY}")"
 bash "${TOOL}" dijkstra --summary "${summary}" || fail "dijkstra update failed"
 [[ "$(jq -r '.version' "${DIJKSTRA_OVERLAY}")" == "11.3.0" ]] || fail "dijkstra version not recorded"
-[[ "$(jq -r '.companions["cardano-cli"].version' "${DIJKSTRA_OVERLAY}")" == "${cli_before}" ]] || fail "dijkstra cli changed"
+jq -e '.companions | has("cardano-cli") | not' "${DIJKSTRA_OVERLAY}" >/dev/null || fail "dijkstra pins a cli"
 config="${REPO}/files/configs/cnode/dijkstra/config.json"
 [[ "$(jq -r '.Configuration.HermodTracing.TraceOptionNodeName' "${config}")" == "cnode" ]] || fail "nested node name was lost"
 [[ "$(jq -r '.Configuration.Protocol.ShelleyGenesisFile' "${config}")" == "/opt/cardano/cnode/files/shelley-genesis.json" ]] ||
   fail "nested paths are not absolute"
-grep -qF "does not name a CLI" "${summary}" || fail "summary hides the manual CLI step"
+grep -qF "shared pin" "${summary}" || fail "summary hides the shared CLI check"
 grep -qF "db-sync" "${summary}" || fail "summary hides the manual db-sync step"
 
 # Refusals, each leaving the checkout as it was.

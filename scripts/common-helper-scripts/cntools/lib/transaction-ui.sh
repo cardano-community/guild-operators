@@ -559,11 +559,11 @@ cntools_transaction_ui_effect_rows() {
     ($outs[:4][] | ["output", ("To " + ((.address // "?") | tostring | if length > 24 then .[0:14] + "…" + .[-8:] else . end)), (.amount | lovelace | tostring), (.amount | asset_count | tostring)] | join("\u001f")),
     (if ($outs | length) > 4 then ["more", "", (($outs | length) - 4 | tostring), "0"] | join("\u001f") else empty end),
     ((.certificates // [])[] | ["certificate", "", (cert_word | gsub("[[:cntrl:]]"; " ")), "0"] | join("\u001f")),
-    ((.withdrawals // [])[]? | ["withdrawal", "", ((.amount // .value // 0) | lovelace | tostring), "0"] | join("\u001f")),
+    ((.withdrawals // [])[]? | ["withdrawal", "", (.amount | lovelace | tostring), "0"] | join("\u001f")),
     (quantities | map(select(. > 0)) | length | select(. > 0) | ["mint", "", tostring, "0"] | join("\u001f")),
     (quantities | map(select(. < 0)) | length | select(. > 0) | ["burn", "", tostring, "0"] | join("\u001f")),
-    ((.voters // .["voting procedures"] // .votes // null) | select(. != null) | count | select(. > 0) | ["votes", "", tostring, "0"] | join("\u001f")),
-    ((.["proposal procedures"] // .["governance actions"] // .proposals // null) | select(. != null) | count | select(. > 0) | ["proposals", "", tostring, "0"] | join("\u001f"))
+    (.voters | count | select(. > 0) | ["votes", "", tostring, "0"] | join("\u001f")),
+    (.["governance actions"] | count | select(. > 0) | ["proposals", "", tostring, "0"] | join("\u001f"))
   ' <<< "${CNTOOLS_TRANSACTION_UI_VIEW}" 2>/dev/null)
 }
 

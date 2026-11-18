@@ -146,14 +146,18 @@ jq -e '
   cnode_deploy_validate_release_metadata "${CNODE_RELEASE}"
 ) || fail "runtime validator rejected compact cnode release metadata"
 
-# CNTools accepts exactly the cardano-cli releases these profiles install: the
-# shared downloaded companion, and the one built with the pinned node source.
+# CNTools accepts exactly the one cardano-cli release every profile and network
+# installs: the shared companion pin.
 cntools_cli_versions="$(
-  sed -nE 's/^CNTOOLS_TRANSACTION_(CARDANO|SOURCE_BUILD)_CLI_VERSION="([^"]+)"$/\2/p' \
+  sed -nE 's/^CNTOOLS_TRANSACTION_[A-Z_]*CLI_VERSION="([^"]+)"$/\1/p' \
     "${ROOT_DIR}/scripts/common-helper-scripts/cntools/lib/transaction.sh"
 )"
-[[ "${cntools_cli_versions}" == "$(jq -r '.companions["cardano-cli"].version, .build.cardanoCli' "${CNODE_RELEASE}")" ]] ||
+[[ "${cntools_cli_versions}" == "$(jq -r '.companions["cardano-cli"].version' "${CNODE_RELEASE}")" ]] ||
   fail "CNTools cardano-cli versions differ from the cnode release metadata"
+for overlay in "${ROOT_DIR}"/files/node-implementations/cnode/networks/*.json; do
+  ! jq -e '.companions | has("cardano-cli")' "${overlay}" >/dev/null ||
+    fail "${overlay##*/} pins its own cardano-cli"
+done
 for implementation in dingo amaru; do
   [[ "$(jq -r '.companions["cardano-cli"].version' "${ROOT_DIR}/files/node-implementations/${implementation}/release.json")" == \
      "$(jq -r '.companions["cardano-cli"].version' "${CNODE_RELEASE}")" ]] ||

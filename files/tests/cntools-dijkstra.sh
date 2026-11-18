@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# CNTools across cardano-cli 11.7 and the Dijkstra era: the certificate field
-# names of 11.7 and of earlier releases, the per-transaction era, the review
-# guard against Dijkstra-only fields, the minimum pool margin and the pool's
-# BLS key in a registration. Functions are loaded from the libraries; no CLI
-# or node is needed.
+# CNTools with cardano-cli 11.7 and the Dijkstra era: only 11.7's certificate
+# field names and BLS key files are accepted, the per-transaction era, the
+# review guard against Dijkstra-only fields, the minimum pool margin, the pool's
+# BLS key in a registration and why Musashi gets none. Functions are loaded from
+# the libraries; no CLI or node is needed.
 set -o pipefail
 
 if (( BASH_VERSINFO[0] < 5 )); then
@@ -22,7 +22,7 @@ assert_eq() { [[ "$1" == "$2" ]] || fail "$3: expected '$2', got '$1'"; }
 
 cntools_log() { :; }
 # shellcheck source=/dev/null
-for library in number bech32 transaction pool pool-parameters pool-registration; do
+for library in number bech32 transaction pool pool-key pool-parameters pool-registration; do
   . "${LIB}/${library}.sh" || { printf 'FAIL: cannot load %s\n' "${library}" >&2; exit 1; }
 done
 cntools_transaction_log() { :; }
@@ -39,18 +39,17 @@ cntools_pool_margin_meets_minimum 1499999/100000000 0.015 && fail "1.499999 % me
 cntools_pool_margin_meets_minimum 0.02 0.015 || fail "a decimal margin above the minimum"
 cntools_pool_margin_meets_minimum 0 0 || fail "no minimum below protocol 12"
 
-# ── DRep certificate names ───────────────────────────────────────────────────
-view='{"certificates":[{"Drep registration certificate":{"certificate":{"keyHash":"aa"},"deposit":5}},
-  {"Drep certificate update":{"Drep credential":{"keyHash":"aa"},"anchor ":{"url":"u","dataHash":"h"}}},
-  {"Drep unregistration certificate":{"certificate":{"keyHash":"aa"},"refund":5}},
-  {"Stake address registration":{"certificate":{"keyHash":"bb"}}}]}'
-cntools_transaction_view_drep_names view || fail "DRep names could not be mapped"
-assert_eq "$(jq -c '[.certificates[] | keys[0]]' <<< "${view}")" \
-  '["DRep registration certificate","DRep certificate update","DRep unregistration certificate","Stake address registration"]' "DRep certificate names"
-assert_eq "$(jq -c '[.certificates[0][] | keys], [.certificates[1][] | keys], [.certificates[2][] | keys], [.certificates[3][] | keys]' <<< "${view}" | paste -sd' ' -)" \
-  '[["DRep credential","deposit"]] [["DRep credential","anchor"]] [["DRep credential","refund"]] [["certificate"]]' "DRep fields, other certificates untouched"
-renamed="${view}"
-cntools_transaction_view_drep_names renamed && assert_eq "${renamed}" "$(jq -c . <<< "${view}")" "11.7 names stay as they are"
+# ── BLS key files ────────────────────────────────────────────────────────────
+cntools_pool_public_file_safe() { [[ -f "$1" && ! -L "$1" ]]; }
+for case in "BlsSigningKey_bls12-381-BLS-Signature-Mininimal-Signature-Size|signing|5820$(printf 'ab%.0s' {1..32})|0" \
+            "BlsVerificationKey_bls12-381-BLS-Signature-Mininimal-Signature-Size|verification|5860$(printf 'cd%.0s' {1..96})|0" \
+            "BlsSigningKey_bls12-381-BLS-Signature-Minimal-Signature-Size|signing|5820$(printf 'ab%.0s' {1..32})|1" \
+            "BlsVerificationKey_bls12-381-BLS-Signature-Minimal-Signature-Size|verification|5860$(printf 'cd%.0s' {1..96})|1"; do
+  IFS='|' read -r type kind cbor expected <<< "${case}"
+  jq -n --arg type "${type}" --arg cbor "${cbor}" '{type:$type,description:"",cborHex:$cbor}' > "${TEST_ROOT}/bls.key"
+  status=0; cntools_pool_key_validate "${TEST_ROOT}/bls.key" bls "${kind}" || status=$?
+  assert_eq "${status}" "${expected}" "a ${type} file (0 = accepted)"
+done
 
 # ── Dijkstra-only fields ─────────────────────────────────────────────────────
 for case in '{"era":"Conway","fee":"1 Lovelace"}|' \
@@ -71,7 +70,6 @@ done
 printf '{"protocolVersion":{"major":12,"minor":0}}\n' > "${TEST_ROOT}/protocol-12.json"
 printf '{"protocolVersion":{"major":10,"minor":2}}\n' > "${TEST_ROOT}/protocol-10.json"
 cntools_protocol_major_into major "${TEST_ROOT}/protocol-12.json" && assert_eq "${major}" 12 "protocol major"
-cntools_transaction_cli_supports_dijkstra() { return 0; }
 cntools_transaction_era_dijkstra_available "${TEST_ROOT}/protocol-12.json" || fail "Dijkstra features at protocol 12"
 cntools_transaction_era_dijkstra_available "${TEST_ROOT}/protocol-10.json" && fail "Dijkstra features at protocol 10"
 assert_eq "${CNTOOLS_TRANSACTION_ERA}" latest "transactions are Conway-era by default"
@@ -95,14 +93,10 @@ cntools_bech32_encode_into reward_bech32 "e0${CNTOOLS_POOL_REG_REWARD_HASH}" sta
 assert_eq "$(cntools_pool_parameters_view_json | jq -c '{"pool id", "vrf key hash", margin, "reward account"}')" \
   "{\"pool id\":\"${pool_bech32}\",\"vrf key hash\":\"${CNTOOLS_POOL_REG_VRF_HASH}\",\"margin\":\"1/50\",\"reward account\":\"${reward_bech32}\"}" \
   "pool parameters in the 11.7 names"
-# A decoded body built from the expected parameters; $1 = 11.7 or earlier, $2 = BLS key JSON or null.
+# A decoded body built from the expected parameters; $1 = BLS key JSON or null.
 pool_view() {
   local params=''
-  if [[ "$1" == 11.7 ]]; then
-    params="$(cntools_pool_parameters_view_json | jq -c --argjson bls "$2" 'if $bls == null then . else . + {"bls key": $bls} end')"
-  else
-    params="$(cntools_pool_parameters_json | jq -c --argjson bls "$2" '. + {blsKey: $bls}')"
-  fi
+  params="$(cntools_pool_parameters_view_json | jq -c --argjson bls "$1" 'if $bls == null then . else . + {"bls key": $bls} end')"
   jq -cn --argjson params "${params}" --arg input "${CNTOOLS_WALLET_REGISTER_INPUTS[0]}" --arg address "${CNTOOLS_WALLET_REGISTER_BASE_ADDRESS}" '
     {certificates:[{"Pool registration":{"pool params":$params}}], inputs:[$input], fee:"200000 Lovelace",
      "validity range":{"upper bound":99999,"lower bound":null}, outputs:[{address:$address,datum:null,"reference script":null}],
@@ -111,24 +105,47 @@ pool_view() {
 }
 cntools_transaction_view_into() { local -n _view="$1"; _view="${FIXTURE_VIEW}"; }
 bls="{\"blsPubKey\":\"${BLS_PUBLIC}\",\"blsPossessionProof\":\"${BLS_PROOF}\"}"
-for format in 11.7 11.5; do
-  CNTOOLS_POOL_REG_BLS_EXPECTED=null
-  FIXTURE_VIEW="$(pool_view "${format}" null)"
-  cntools_pool_registration_validate_body body || fail "${format}: a Conway-era registration without a BLS key"
-  FIXTURE_VIEW="$(pool_view "${format}" "${bls}")"
-  cntools_pool_registration_validate_body body && fail "${format}: a BLS key CNTools did not put there"
-  CNTOOLS_POOL_REG_BLS_EXPECTED="{\"blsPubKey\":\"${BLS_PUBLIC}\"}"
-  cntools_pool_registration_validate_body body || fail "${format}: a Dijkstra-era registration with the pool's BLS key"
-  FIXTURE_VIEW="$(pool_view "${format}" "{\"blsPubKey\":\"$(printf 'f6%.0s' {1..96})\",\"blsPossessionProof\":\"${BLS_PROOF}\"}")"
-  cntools_pool_registration_validate_body body && fail "${format}: another BLS key"
-  FIXTURE_VIEW="$(pool_view "${format}" null)"
-  cntools_pool_registration_validate_body body && fail "${format}: a registration that drops the BLS key"
-  CNTOOLS_POOL_REG_BLS_EXPECTED=null
-  FIXTURE_VIEW="$(pool_view "${format}" null | jq -c '.certificates[0]["Pool registration"]["pool params"].pledge = 1')"
-  cntools_pool_registration_validate_body body && fail "${format}: another pledge"
-done
-FIXTURE_VIEW="$(pool_view 11.7 null | jq -c '.certificates[0]["Pool registration"]["pool params"].margin = "1/49"')"
-cntools_pool_registration_validate_body body && fail "11.7: another margin"
+CNTOOLS_POOL_REG_BLS_EXPECTED=null
+FIXTURE_VIEW="$(pool_view null)"
+cntools_pool_registration_validate_body body || fail "a Conway-era registration without a BLS key"
+FIXTURE_VIEW="$(pool_view "${bls}")"
+cntools_pool_registration_validate_body body && fail "a BLS key CNTools did not put there"
+CNTOOLS_POOL_REG_BLS_EXPECTED="{\"blsPubKey\":\"${BLS_PUBLIC}\"}"
+cntools_pool_registration_validate_body body || fail "a Dijkstra-era registration with the pool's BLS key"
+FIXTURE_VIEW="$(pool_view "{\"blsPubKey\":\"$(printf 'f6%.0s' {1..96})\",\"blsPossessionProof\":\"${BLS_PROOF}\"}")"
+cntools_pool_registration_validate_body body && fail "another BLS key"
+FIXTURE_VIEW="$(pool_view null)"
+cntools_pool_registration_validate_body body && fail "a registration that drops the BLS key"
+CNTOOLS_POOL_REG_BLS_EXPECTED=null
+FIXTURE_VIEW="$(pool_view null | jq -c '.certificates[0]["Pool registration"]["pool params"].pledge = 1')"
+cntools_pool_registration_validate_body body && fail "another pledge"
+FIXTURE_VIEW="$(pool_view null | jq -c '.certificates[0]["Pool registration"]["pool params"].margin = "1/49"')"
+cntools_pool_registration_validate_body body && fail "another margin"
+# The same registration as cardano-cli 11.6 and earlier decoded it.
+FIXTURE_VIEW="$(pool_view null | jq -c --argjson old "$(cntools_pool_parameters_json)" '.certificates[0]["Pool registration"]["pool params"] = ($old + {blsKey: null})')"
+cntools_pool_registration_validate_body body && fail "pool parameters in the field names of cardano-cli 11.6"
+
+# ── no BLS key on Musashi ────────────────────────────────────────────────────
+mkdir -p "${TEST_ROOT}/pool"
+CNTOOLS_POOL_DIRECTORIES=("${TEST_ROOT}/pool") CNTOOLS_POOL_REG_INDEX=0 CNTOOLS_POOL_REG_ID=pool1test
+CNTOOLS_WALLET_REGISTER_PROTOCOL_FILE="${TEST_ROOT}/protocol-12.json"
+cntools_pool_registration_hardware_signer() { return 1; }
+cntools_pool_registration_bls_generate() { fail "a BLS key was generated on Musashi"; return 1; }
+CNTOOLS_NETWORK=musashi CNTOOLS_WALLET_REGISTER_OPERATION=pool-register CNTOOLS_POOL_REG_STATE='{"registered":false}'
+cntools_pool_registration_era_select || fail "a new pool on Musashi"
+assert_eq "${CNTOOLS_TRANSACTION_ERA}:${CNTOOLS_POOL_REG_BLS_SKEY}" "latest:" "a Musashi registration is Conway-era without a BLS key"
+[[ "${CNTOOLS_POOL_REG_BLS_NOTE}" == "None · Musashi"* ]] || fail "the review does not say why Musashi gets no BLS key"
+CNTOOLS_POOL_REG_BLS_NOTE=''
+cntools_pool_registration_bls_preview_into preview role
+[[ "${preview}:${role}" == "None · Musashi"*":warning" ]] || fail "the BLS preview on Musashi: ${preview} (${role})"
+CNTOOLS_WALLET_REGISTER_OPERATION=pool-modify CNTOOLS_POOL_REG_STATE="{\"registered\":true,\"current\":{\"bls\":\"${BLS_PUBLIC}\"}}"
+cntools_pool_registration_era_select && fail "a Musashi modification that would remove the pool's BLS key"
+[[ "${CNTOOLS_WALLET_REGISTER_ERROR}" == *"BLS key on chain"* ]] || fail "the refusal does not name the on-chain key"
+cntools_pool_registration_hardware_signer() { return 0; }
+cntools_pool_registration_era_select && fail "a Musashi modification by a hardware signer that would remove the BLS key"
+[[ "${CNTOOLS_WALLET_REGISTER_ERROR}" == *"no BLS keys on Musashi"* ]] || fail "a hardware signer on Musashi is told to sign with CLI keys"
+CNTOOLS_NETWORK=preprod CNTOOLS_WALLET_REGISTER_OPERATION=pool-register
+
 CNTOOLS_POOL_REG_MARGIN=1000000/100000000
 cntools_pool_parameters_json >/dev/null && fail "a margin below the network minimum builds"
 CNTOOLS_POOL_REG_MIN_MARGIN=0

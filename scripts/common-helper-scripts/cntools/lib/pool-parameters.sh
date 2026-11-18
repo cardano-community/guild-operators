@@ -23,7 +23,7 @@ cntools_pool_margin_into() {
   printf -v "${output}" '%s' "${units}/100000000"
 }
 
-# Margin as cardano-cli 11.7 and later decode it: the reduced fraction, "3/40",
+# Margin as cardano-cli 11.7 decodes it: the reduced fraction, "3/40",
 # with "0/1" and "1/1" at the ends. Accepts a ratio or a decimal fraction.
 cntools_pool_margin_rational() {
   jq -ner --arg margin "$1" '
@@ -229,10 +229,10 @@ cntools_pool_relays_ledger() {
     else {"single host address":{IPv4:(if .ipv4 == "" then null else .ipv4 end),IPv6:(if .ipv6 == "" then null else .ipv6 end),port:.port}} end)' <<< "$1"
 }
 
-# The pool parameters as cardano-cli 11.7 and later decode them in a
-# transaction view: bech32 pool id and reward account, "vrf key hash" and the
-# margin as a reduced fraction. cntools_pool_parameters_json below is the
-# format of earlier releases, which a source build of the pinned node includes.
+# The pool parameters as cardano-cli 11.7 decodes them in a transaction view:
+# bech32 pool id and reward account, "vrf key hash" and the margin as a reduced
+# fraction. cntools_pool_parameters_json below is CNTools's own record of them,
+# kept in the transaction plan.
 cntools_pool_parameters_view_json() {
   local parameters='' pool='' reward='' margin='' header=e0 hrp=stake_test
   parameters="$(cntools_pool_parameters_json)" || return 1

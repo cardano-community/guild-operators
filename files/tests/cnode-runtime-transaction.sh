@@ -288,11 +288,8 @@ run_release_manifest_validation_tests() (
     '.managedInstallers.openblockperf.installer.sha256 = "invalid"' \
     "invalid openBlockPerf installer checksum"
   assert_manifest_rejected \
-    'del(.build.cardanoCli)' \
-    "missing source-build cardano-cli version"
-  assert_manifest_rejected \
-    '.build.cardanoCli = "latest"' \
-    "moving source-build cardano-cli version"
+    '.build.cardanoCli = "11.2.3.0"' \
+    "a second, source-build cardano-cli version"
   assert_manifest_rejected \
     '.build.toolchain.ghc = {"version": "9.6.7"}' \
     "non-string GHC toolchain version"

@@ -3,6 +3,10 @@
 # executes cabal build all
 # parses executables created from compiler output and copies them to a binary folder:
 # the one given with -o <dir>, else ${CNODE_HOME}/bin when that deployment has one, else ~/.local/bin.
+# In a cardano-node checkout it builds cardano-node and cardano-submit-api only:
+# the CLI in the node's dependency plan is older than the one the guild scripts
+# require. Build cardano-cli from its own repository at the pinned release
+# (companions["cardano-cli"] in the cnode release manifest) instead.
 
 set -o pipefail
 
@@ -81,11 +85,10 @@ echo "Building.."
 
 if [[ -z "${USE_SYSTEM_LIBSODIUM}" ]] ; then # Build using default cabal.project first and then add cabal.project.local for additional packages
   if [[ "${PWD##*/}" == "cardano-node" ]] || [[ "${PWD##*/}" == "cardano-db-sync" ]]; then
-    [[ "${PWD##*/}" == "cardano-node" ]] && run_logged /tmp/build.log cabal build cardano-node cardano-cli cardano-submit-api --disable-tests --disable-profiling
+    [[ "${PWD##*/}" == "cardano-node" ]] && run_logged /tmp/build.log cabal build cardano-node cardano-submit-api --disable-tests --disable-profiling
     [[ "${PWD##*/}" == "cardano-db-sync" ]] && run_logged /tmp/build.log cabal build cardano-db-sync --disable-tests --disable-profiling
     if [[ "${CUSTOM_CABAL}" == "Y" ]]; then
       mv .tmp.cabal.project.local cabal.project.local
-      run_logged /tmp/build-b32-caddr.log cabal install cardano-cli --overwrite-policy=always
     else
       [[ -f "cabal.project.local" ]] && mv cabal.project.local cabal.project.local_disabled
     fi
@@ -99,12 +102,11 @@ else # Add cabal.project.local customisations first before building
     else
       [[ -f "cabal.project.local" ]] && mv cabal.project.local cabal.project.local_disabled
     fi
-    [[ "${PWD##*/}" == "cardano-node" ]] && run_logged /tmp/build.log cabal build cardano-node cardano-cli cardano-submit-api --disable-tests --disable-profiling
+    [[ "${PWD##*/}" == "cardano-node" ]] && run_logged /tmp/build.log cabal build cardano-node cardano-submit-api --disable-tests --disable-profiling
     [[ "${PWD##*/}" == "cardano-db-sync" ]] && run_logged /tmp/build.log cabal build cardano-db-sync --disable-tests --disable-profiling
   else
     run_logged /tmp/build.log cabal build all --disable-tests --disable-profiling
   fi
-  [[ -f cabal.project.local ]] && run_logged /tmp/build-b32-caddr.log cabal install cardano-cli --overwrite-policy=always
 fi
 
 grep "Linking /" /tmp/build.log | grep -Ev 'test|golden|demo|chairman|locli|ledger|topology' | sed -e 's#^.*.Linking#Linking#g' | while read -r line ; do

@@ -60,8 +60,8 @@ cntools_coin_initial_fee_into() {
   local -n _cntools_output_ref="${_cntools_output_name}"
   record="$(jq -er '
     [
-      (.txFeeFixed // .minFeeB),
-      (.txFeePerByte // .minFeeA),
+      .txFeeFixed,
+      .txFeePerByte,
       .maxTxSize
     ] as $fee |
     if ($fee | all(.[]; type == "number" and floor == . and . >= 0)) and

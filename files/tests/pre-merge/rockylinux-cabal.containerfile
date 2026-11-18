@@ -28,8 +28,15 @@ RUN curl -s -f -k -o cnode-release.json "https://raw.githubusercontent.com/${G_A
     git checkout tags/"${CNODE_VERSION}" &&\
     git status &&\
     /opt/cardano/cnode/scripts/cabal-build-all.sh -c &&\
-    CLI_VERSION=$(jq -er '.build.cardanoCli' cnode-release.json) &&\
-    echo "Expecting source-built cardano-cli ${CLI_VERSION}" &&\
-    $CNODE_HOME/bin/cardano-cli version &&\
-    $CNODE_HOME/bin/cardano-cli version | head -n 1 | grep -Fq "cardano-cli ${CLI_VERSION} " &&\
     $CNODE_HOME/bin/cardano-node version
+
+# The node's dependency plan has an older cardano-cli than the guild scripts
+# require, so the pinned release is built from its own repository.
+WORKDIR /
+RUN CLI_VERSION=$(jq -er '.companions["cardano-cli"].version' /cardano-node/cnode-release.json) &&\
+    echo "Building cardano-cli ${CLI_VERSION}" &&\
+    git clone --depth 1 --branch "cardano-cli-${CLI_VERSION}" https://github.com/intersectmbo/cardano-cli &&\
+    cd cardano-cli &&\
+    /opt/cardano/cnode/scripts/cabal-build-all.sh &&\
+    $CNODE_HOME/bin/cardano-cli version &&\
+    $CNODE_HOME/bin/cardano-cli version | head -n 1 | grep -Fq "cardano-cli ${CLI_VERSION} "

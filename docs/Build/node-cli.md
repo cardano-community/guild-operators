@@ -66,29 +66,31 @@ install -m 0755 "$(cabal list-bin exe:cardano-submit-api)" \
 
 #### Build Cardano CLI
 
-A cardano-node source build includes cardano-cli. The node's pinned dependency
-plan selects its release, recorded as `build.cardanoCli` in the
+The guild scripts and CNTools use one cardano-cli release on every network and
+node type: the companion pinned as `companions["cardano-cli"]` in the
 [cnode release manifest](https://github.com/cardano-community/guild-operators/blob/master/files/node-implementations/cnode/release.json).
-Install it from the same cardano-node checkout:
+CNTools reads only that release's output formats and refuses any other version.
+The cardano-cli in a cardano-node checkout's dependency plan is an older
+release, so build the pinned one from the cardano-cli repository:
 
 ``` bash
-cabal install cardano-cli --installdir "$CNODE_HOME/bin" \
-  --install-method=copy --overwrite-policy=always
+cd ~/git
+git clone https://github.com/intersectmbo/cardano-cli
+cd cardano-cli
+git checkout --detach "cardano-cli-$(
+  curl -sLf https://raw.githubusercontent.com/cardano-community/guild-operators/master/files/node-implementations/cnode/release.json |
+    jq -er '.companions["cardano-cli"].version'
+)"
+
+cabal update
+cabal build exe:cardano-cli --disable-tests --disable-profiling
+install -m 0755 "$(cabal list-bin exe:cardano-cli)" "$CNODE_HOME/bin/cardano-cli"
 ```
 
-CNTools accepts this release as well as the downloaded companion
-(`companions["cardano-cli"]`). cardano-cli 11.2.1.0 through 11.4.0.0 write
-pool relay IPv4 addresses with reversed bytes
-([cardano-cli#1442](https://github.com/IntersectMBO/cardano-cli/issues/1442)),
-so CNTools refuses to build pool registrations with IPv4 relays while such a
-release is selected. Use DNS or IPv6 relays, or the downloaded companion.
-These releases also reverse the bytes back in `debug transaction view`, so
-their own output looks correct; a pool registered with one of them shows the
-reversed address in explorers and in the output of 11.5.0.0 or later.
-
-`cabal-build-all.sh` performs the same node and cardano-cli build. The
-pre-merge source-build test uses it and checks the installed cardano-cli
-against `build.cardanoCli`.
+`cabal-build-all.sh` builds cardano-node and cardano-submit-api in a
+cardano-node checkout, and cardano-cli when it runs in a cardano-cli checkout.
+The pre-merge source-build test builds both and checks that the installed
+cardano-cli reports the pinned version.
 
 #### Download pre-compiled Binary from Node release
 
