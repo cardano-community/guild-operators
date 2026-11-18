@@ -227,7 +227,7 @@ cntools_drep_lifecycle_certificate_create() {
   cntools_transaction_temp_file certificate drep-certificate || return 1
   cntools_transaction_temp_file output drep-certificate-output || return 1
   cntools_transaction_temp_file errors drep-certificate-errors || return 1
-  cntools_transaction_run_cli "${output}" "${errors}" -- "${CNTOOLS_CLI}" latest governance drep \
+  cntools_transaction_run_cli "${output}" "${errors}" -- "${CNTOOLS_CLI}" "${CNTOOLS_TRANSACTION_ERA:-latest}" governance drep \
     "${CNTOOLS_WALLET_REGISTER_CERTIFICATE_COMMAND}" "${arguments[@]}" --out-file "${certificate}" || status=$?
   if ((status != 0)); then
     cntools_transaction_log_cli_failure 'DRep certificate creation failed' "${status}" "${errors}" "${output}"
@@ -287,25 +287,27 @@ cntools_drep_lifecycle_plan_create() {
   cntools_transaction_plan_set_summary "${summary}"
 }
 
-# These are the pinned CLI's authoritative decoded certificate fields (including
-# the trailing space in its update anchor key). Never rely on intent JSON alone.
+# These are the CLI's authoritative decoded certificate fields, in the names
+# cardano-cli 11.7 uses. cntools_transaction_view_drep_names maps the names of
+# earlier releases onto them. Never rely on intent JSON alone.
 cntools_drep_lifecycle_validate_body() {
-  local view="" kind="" credential=certificate amount=deposit anchor=anchor expected="null" inputs="[]" credential_type=keyHash lower=''
+  local view="" kind="" credential='DRep credential' amount=deposit anchor=anchor expected="null" inputs="[]" credential_type=keyHash lower=''
   [[ "${CNTOOLS_DREP_LIFECYCLE_KIND:-key}" != script ]] || credential_type=scriptHash
   if [[ "${CNTOOLS_DREP_LIFECYCLE_KIND:-key}" == script || "${CNTOOLS_WALLET_REGISTER_WALLET_TYPE:-}" == MultiSig ]]; then
     cntools_transaction_body_matches_plan "$1" || return 1
     lower="${CNTOOLS_TRANSACTION_PLAN_INVALID_BEFORE}"
   fi
   case "${CNTOOLS_WALLET_REGISTER_OPERATION}" in
-    drep-register) kind='Drep registration certificate' ;;
-    drep-update) kind='Drep certificate update'; credential='Drep credential'; amount=''; anchor='anchor ' ;;
-    drep-retire) kind='Drep unregistration certificate'; amount=refund; anchor='' ;;
+    drep-register) kind='DRep registration certificate' ;;
+    drep-update) kind='DRep certificate update'; amount='' ;;
+    drep-retire) kind='DRep unregistration certificate'; amount=refund; anchor='' ;;
     *) return 2 ;;
   esac
   if [[ -n "${CNTOOLS_DREP_LIFECYCLE_ANCHOR_URL}" && "${CNTOOLS_WALLET_REGISTER_OPERATION}" != drep-retire ]]; then
     expected="$(jq -cn --arg url "${CNTOOLS_DREP_LIFECYCLE_ANCHOR_URL}" --arg hash "${CNTOOLS_DREP_LIFECYCLE_ANCHOR_HASH}" '{url:$url,dataHash:$hash}')" || return 1
   fi
   cntools_transaction_view_into view "$1" || return 1
+  cntools_transaction_view_drep_names view || return 1
   inputs="$(printf '%s\n' "${CNTOOLS_WALLET_REGISTER_INPUTS[@]}" | jq -Rsc 'split("\n") | map(select(length > 0)) | sort')" || return 1
   jq -e --arg kind "${kind}" --arg credential "${credential}" --arg hash "${CNTOOLS_DREP_LIFECYCLE_HASH}" --arg credentialType "${credential_type}" --arg lower "${lower}" \
     --arg amount "${amount}" --arg deposit "${CNTOOLS_WALLET_REGISTER_DEPOSIT}" --arg anchor "${anchor}" --argjson expected "${expected}" \

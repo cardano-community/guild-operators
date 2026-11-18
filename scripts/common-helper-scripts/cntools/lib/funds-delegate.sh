@@ -40,7 +40,7 @@ cntools_delegate_certificate_create() {
   cntools_transaction_temp_file errors delegation-errors || return 1
   if [[ "${CNTOOLS_WALLET_REGISTER_WALLET_TYPE:-}" == MultiSig ]]; then cntools_stake_credential_arguments_into stake_arguments || return 1
   else stake_arguments=(--stake-verification-key-file "${CNTOOLS_WALLET_REGISTER_STAKE_VKEY}"); fi
-  cntools_transaction_run_cli "${output}" "${errors}" -- "${CNTOOLS_CLI}" latest stake-address "${command}" \
+  cntools_transaction_run_cli "${output}" "${errors}" -- "${CNTOOLS_CLI}" "${CNTOOLS_TRANSACTION_ERA:-latest}" stake-address "${command}" \
     "${stake_arguments[@]}" \
     --stake-pool-id "${CNTOOLS_DELEGATE_POOL_ID}" "${args[@]}" --out-file "${certificate}" || status=$?
   if (( status != 0 )); then

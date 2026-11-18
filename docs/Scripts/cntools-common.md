@@ -251,7 +251,8 @@ leaving registration and delegations unchanged. Rewards are checked first; the
 fee then needs at least one eligible funding UTxO, and CNTools explains when
 that is missing.
 
-Where the protocol requires it, set voting delegation first through
+From protocol 10, the end of the Conway bootstrap phase, and in the Dijkstra
+era, withdrawals require a voting delegation. Set it first through
 **Vote → Governance → Delegate**, including a predefined abstention option
 if appropriate. The withdrawal flow does not add voting delegation implicitly.
 
@@ -472,6 +473,10 @@ issuance is a separate side effect: it advances the issue counter even if you
 later cancel the transaction. Follow the final guidance for `POOL_NAME`,
 operational files and pledge maintenance; CNTools does not edit `env` for you.
 
+On a network in the Dijkstra era the registration also carries the pool's BLS
+key, and the margin must meet the network's minimum. See
+[Dijkstra era](#dijkstra-era).
+
 ### Rotate KES keys
 
 **Pool → Rotate** replaces the pool's KES key and operational certificate. It
@@ -640,6 +645,47 @@ Catalyst API. Optional delegator details include known local wallets, reward
 addresses and individual power. Snapshot eligibility differs from recent
 transaction inclusion. Check the current fund's dates and voting requirements
 separately; testnet registration does not grant mainnet voting eligibility.
+
+## Dijkstra era
+
+The Dijkstra hard fork is protocol version 12. Networks before it, such as
+mainnet, preprod and preview today, behave exactly as described above.
+Dijkstra-only features turn on only when the protocol parameters CNTools reads
+for a transaction report protocol 12 or later, and only with a Cardano CLI that
+has the `dijkstra` commands: 11.7.0.0, the pin for every network except
+Musashi, or Musashi's own Leios build.
+
+**Transaction era.** A node in the Dijkstra era still accepts Conway-era
+transactions, and hardware wallets sign only those. So CNTools builds every
+transaction in the Conway era, as before, unless it needs a Dijkstra feature.
+Signing, assembly, transaction IDs and submission take the era from the
+transaction file, so an offline signing system needs nothing extra.
+
+**Pool BLS key.** The Leios voting committee is drawn from pools that registered
+a BLS key with a proof of possession. On a Dijkstra-era network,
+**Pool → Register / Modify** builds a Dijkstra-era transaction that carries the
+pool's key from `bls.skey` and `bls.vkey` in the pool folder (`POOL_BLS_SK_FILENAME`,
+`POOL_BLS_VK_FILENAME`). When the folder has none, CNTools creates the pair there
+when it builds the transaction. The review's **BLS key** row says whether the
+key is new, added, kept or replaces the one on chain. The block producer needs
+`bls.skey` in its pool folder: `cnode.sh` then starts cardano-node with
+`--shelley-bls-key`, on node releases that have that option. Copy it there when
+you register from another system. Pool → Encrypt leaves it readable, like the
+VRF and KES keys, because the node uses it.
+
+If a signer of the registration is a hardware wallet, CNTools builds a
+Conway-era registration without a BLS key, and the review says so. When the pool
+already has a BLS key on chain, that registration would remove it, so CNTools
+refuses it: sign with CLI keys instead.
+
+**Minimum margin.** Protocol 12 adds `minPoolMargin`, 1.5 % on dijkstranet. The
+margin prompt names the minimum, the review marks a margin below it, and CNTools
+does not build the registration.
+
+**Fields CNTools does not build.** A Dijkstra-era transaction can carry direct
+deposits into reward accounts, sub-transactions and account balance intervals.
+CNTools builds none of them, so it refuses to review or sign a transaction that
+has any.
 
 ## Advanced actions
 

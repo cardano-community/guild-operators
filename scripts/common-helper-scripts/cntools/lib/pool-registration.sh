@@ -13,6 +13,12 @@ CNTOOLS_POOL_REG_STATE='{}'
 CNTOOLS_POOL_REG_MIN_COST=0
 CNTOOLS_POOL_REG_PROTOCOL_STATE=''
 CNTOOLS_POOL_REG_COMBINE_HARDWARE=N
+# Dijkstra era (protocol 12): the lowest margin the ledger accepts, and the
+# pool's BLS key. The Leios voting committee is drawn from pools with one.
+CNTOOLS_POOL_REG_MIN_MARGIN=0
+CNTOOLS_POOL_REG_BLS_SKEY=''
+CNTOOLS_POOL_REG_BLS_EXPECTED=null
+CNTOOLS_POOL_REG_BLS_NOTE=''
 
 cntools_pool_registration_operation_set() {
   case "$1" in pool-register) CNTOOLS_WALLET_REGISTER_TITLE=Register ;; pool-modify) CNTOOLS_WALLET_REGISTER_TITLE=Modify ;; pool-retire) CNTOOLS_WALLET_REGISTER_TITLE=Retire ;; *) return 2 ;; esac
@@ -85,7 +91,7 @@ cntools_pool_registration_state_into() {
     pool_state="$(jq -cS --arg retirement "${CNTOOLS_POOL_RETIREMENT[index]}" --argjson pending "${CNTOOLS_POOL_FUTURE[index]}" '
       {registered:true,retirement:$retirement,current:{pledgeLovelace:(.spsPledge|tostring),costLovelace:(.spsCost|tostring),
        margin:(.spsMargin|tostring),vrf:.spsVrf,reward:.spsAccountId.keyHash,owners:(.spsOwners|sort),
-       relays:.spsRelays,metadata:(.spsMetadata // null)},pending:$pending}' <<< "${CNTOOLS_POOL_CURRENT[index]}")" || return 1
+       relays:.spsRelays,metadata:(.spsMetadata // null),bls:(.spsBlsKey.bksKey.blsPubKey // null)},pending:$pending}' <<< "${CNTOOLS_POOL_CURRENT[index]}")" || return 1
   elif [[ "${format}" == 'Koios API' ]]; then
     address="$(jq -er .reward_addr <<< "${CNTOOLS_POOL_CURRENT[index]}")" || return 1
     cntools_wallet_reward_credential_into reward "${address}" || return 1
@@ -168,6 +174,9 @@ cntools_pool_registration_collect() {
   fi
   cntools_wallet_query_json_uint_field CNTOOLS_POOL_REG_MIN_COST "${CNTOOLS_FUNDING_PROTOCOL}" minPoolCost &&
     cntools_pool_parameter_uint "${CNTOOLS_POOL_REG_MIN_COST}" || return 1
+  # Protocol 12 adds minPoolMargin (CIP-0023). The ledger checks it for every
+  # pool registration, whichever era the transaction is in.
+  CNTOOLS_POOL_REG_MIN_MARGIN="$(jq -r '.minPoolMargin | if type == "number" and . >= 0 and . <= 1 then tostring else "0" end' "${CNTOOLS_FUNDING_PROTOCOL}")" || return 1
   CNTOOLS_WALLET_REGISTER_DEPOSIT=0
   if [[ "${registered}" != true ]]; then
     cntools_wallet_query_json_uint_field CNTOOLS_WALLET_REGISTER_DEPOSIT "${CNTOOLS_FUNDING_PROTOCOL}" stakePoolDeposit &&
@@ -188,7 +197,14 @@ cntools_pool_registration_certificate_create() {
   cntools_pool_relays_normalize_into CNTOOLS_POOL_REG_RELAYS "${CNTOOLS_POOL_REG_RELAYS}" || {
     cntools_wallet_register_set_error 'Pool relays are invalid. Review their DNS names, IP addresses and ports.'; return 1;
   }
-  cntools_pool_parameters_json >/dev/null || { cntools_wallet_register_set_error 'Complete valid pool settings and public owner/reward keys before building.'; return 1; }
+  cntools_pool_parameters_json >/dev/null || {
+    if ! cntools_pool_margin_meets_minimum "${CNTOOLS_POOL_REG_MARGIN}" "${CNTOOLS_POOL_REG_MIN_MARGIN}"; then
+      cntools_wallet_register_set_error "The margin is below this network's minimum of $(cntools_pool_margin_percent "${CNTOOLS_POOL_REG_MIN_MARGIN}") %. Raise it before building."; return 1
+    fi
+    cntools_wallet_register_set_error 'Complete valid pool settings and public owner/reward keys before building.'; return 1;
+  }
+  cntools_pool_registration_era_select || return 1
+  [[ -z "${CNTOOLS_POOL_REG_BLS_SKEY}" ]] || args+=(--bls-signing-key-file "${CNTOOLS_POOL_REG_BLS_SKEY}")
   while IFS= read -r owner; do args+=(--pool-owner-stake-verification-key-file "${owner}"); done < <(jq -r '.[].vkey' <<< "${CNTOOLS_POOL_REG_OWNERS}")
   while IFS= read -r relay; do
     type="$(jq -r .type <<< "${relay}")"
@@ -215,12 +231,125 @@ cntools_pool_registration_certificate_create() {
   cntools_transaction_temp_file certificate pool-registration || return 1
   cntools_transaction_temp_file response pool-registration-output || return 1
   cntools_transaction_temp_file errors pool-registration-errors || return 1
-  cntools_transaction_run_cli "${response}" "${errors}" -- "${CNTOOLS_CLI}" latest stake-pool registration-certificate \
+  cntools_transaction_run_cli "${response}" "${errors}" -- "${CNTOOLS_CLI}" "${CNTOOLS_TRANSACTION_ERA:-latest}" stake-pool registration-certificate \
     "${args[@]}" "${network[@]}" --out-file "${certificate}" || status=$?
   if ((status != 0)); then cntools_transaction_log_cli_failure 'Pool certificate creation failed' "${status}" "${errors}" "${response}"; return 1; fi
   cntools_transaction_file_safe "${certificate}" 131072 || return 1
   CNTOOLS_WALLET_REGISTER_CERTIFICATE_FILE="${certificate}"
   cntools_pool_stake_certificates_create
+}
+
+# A signer of this registration is on a hardware wallet. cardano-hw-cli and the
+# devices sign Conway-era transactions only.
+cntools_pool_registration_hardware_signer() {
+  local source='' kind=''
+  [[ "${CNTOOLS_WALLET_REGISTER_WALLET_TYPE:-}" != Hardware ]] || return 0
+  while IFS= read -r source; do
+    [[ -n "${source}" ]] || continue
+    cntools_transaction_source_kind_into kind "${source}" || continue
+    [[ "${kind}" != hardware ]] || return 0
+  done < <(printf '%s\n' "${CNTOOLS_WALLET_REGISTER_PAYMENT_SOURCE:-}" "${CNTOOLS_POOL_REG_COLD_SOURCE:-}" "${CNTOOLS_POOL_REG_REWARD_SOURCE:-}"
+           jq -r '.[] | .source // empty' <<< "${CNTOOLS_POOL_REG_OWNERS:-[]}")
+  return 1
+}
+
+# Create the pool's BLS key pair in its folder, never replacing a file.
+cntools_pool_registration_bls_generate() {
+  local directory="$1" stage='' skey='' vkey='' name=''
+  cntools_pool_file_name_into skey bls-skey && cntools_pool_file_name_into vkey bls-vkey || return 1
+  if ! cntools_pool_directory_writable "${directory}" || ! cntools_pool_stage_into stage; then
+    cntools_wallet_register_set_error 'The pool folder is not writable, so its BLS key could not be created.'; return 1
+  fi
+  if ! cntools_pool_cli dijkstra node key-gen-BLS --verification-key-file "${stage}/${vkey}" --signing-key-file "${stage}/${skey}" ||
+     ! cntools_pool_key_validate "${stage}/${skey}" bls signing || ! cntools_pool_key_validate "${stage}/${vkey}" bls verification ||
+     ! chmod 0600 "${stage}/${skey}" "${stage}/${vkey}"; then
+    cntools_wallet_register_set_error "${CNTOOLS_POOL_WRITE_ERROR:-The BLS key could not be created.}"; return 1
+  fi
+  if ! ln -T -- "${stage}/${skey}" "${directory}/${skey}" 2>/dev/null; then
+    cntools_wallet_register_set_error 'The BLS key could not be added to the pool folder. Nothing was replaced.'; return 1
+  fi
+  if ! ln -T -- "${stage}/${vkey}" "${directory}/${vkey}" 2>/dev/null; then
+    [[ "${directory}/${skey}" -ef "${stage}/${skey}" ]] && rm -f -- "${directory}/${skey}"
+    cntools_wallet_register_set_error 'The BLS key could not be added to the pool folder. Nothing was replaced.'; return 1
+  fi
+  # In a pool that Pool → Encrypt locked, new files are locked like their neighbours.
+  for name in "${skey}" "${vkey}"; do
+    rm -f -- "${stage:?}/${name}" || continue
+    ! declare -F cntools_pool_new_file_lock >/dev/null 2>&1 || cntools_pool_new_file_lock "${directory}/${name}"
+  done
+  cntools_transaction_log POOL "BLS key created pool=${directory##*/}"
+}
+
+# Choose the era of a registration or modification. On a network at protocol
+# 12 or later, with a CLI that has the Dijkstra era commands, it is a
+# Dijkstra-era transaction that carries the pool's BLS key (created in the pool
+# folder when there is none). A hardware signer keeps it Conway-era without a
+# BLS key, which is refused when the pool already has one on chain: the
+# registration would remove it.
+cntools_pool_registration_era_select() {
+  local directory="${CNTOOLS_POOL_DIRECTORIES[CNTOOLS_POOL_REG_INDEX]}" skey='' vkey='' registered='' public=''
+  cntools_transaction_era_reset
+  CNTOOLS_POOL_REG_BLS_SKEY=''; CNTOOLS_POOL_REG_BLS_EXPECTED=null; CNTOOLS_POOL_REG_BLS_NOTE=''
+  [[ "${CNTOOLS_WALLET_REGISTER_OPERATION}" != pool-retire ]] || return 0
+  cntools_transaction_era_dijkstra_available "${CNTOOLS_WALLET_REGISTER_PROTOCOL_FILE:-${CNTOOLS_FUNDING_PROTOCOL:-}}" || return 0
+  registered="$(jq -r '.current.bls // empty' <<< "${CNTOOLS_POOL_REG_STATE}")"
+  if cntools_pool_registration_hardware_signer; then
+    if [[ -n "${registered}" ]]; then
+      cntools_wallet_register_set_error 'This pool has a BLS key on chain. Hardware wallets sign Conway-era transactions only, and a Conway-era registration would remove the key. Sign with CLI keys to keep it.'; return 1
+    fi
+    CNTOOLS_POOL_REG_BLS_NOTE='None · hardware wallets sign Conway-era transactions only, so the pool gets no BLS key and no Leios committee seat'
+    return 0
+  fi
+  cntools_pool_file_name_into skey bls-skey && cntools_pool_file_name_into vkey bls-vkey || return 1
+  if [[ -e "${directory}/${skey}.gpg" && ! -e "${directory}/${skey}" ]]; then
+    cntools_wallet_register_set_error "The pool's BLS signing key is encrypted. Decrypt ${skey} before registering."; return 1
+  fi
+  if [[ ! -e "${directory}/${skey}" && ! -L "${directory}/${skey}" ]]; then
+    [[ ! -e "${directory}/${vkey}" && ! -L "${directory}/${vkey}" ]] || {
+      cntools_wallet_register_set_error "The pool folder has ${vkey} without ${skey}. Restore the BLS signing key, or remove ${vkey} to create a new pair."; return 1;
+    }
+    cntools_pool_registration_bls_generate "${directory}" || return 1
+    CNTOOLS_POOL_REG_BLS_NOTE="New · created in ${skey}; the block producer needs it to vote"
+  fi
+  cntools_pool_key_validate "${directory}/${skey}" bls signing && cntools_pool_key_validate "${directory}/${vkey}" bls verification || {
+    cntools_wallet_register_set_error "The pool's BLS key files ${skey} and ${vkey} are invalid."; return 1;
+  }
+  public="$(jq -r '.cborHex[4:] | ascii_downcase' "${directory}/${vkey}")" || return 1
+  CNTOOLS_POOL_REG_BLS_SKEY="${directory}/${skey}"
+  CNTOOLS_POOL_REG_BLS_EXPECTED="$(jq -cn --arg key "${public}" '{blsPubKey:$key}')" || return 1
+  if [[ -z "${CNTOOLS_POOL_REG_BLS_NOTE}" ]]; then
+    if [[ -z "${registered}" ]]; then CNTOOLS_POOL_REG_BLS_NOTE="Added · ${public:0:16}…"
+    elif [[ "${registered,,}" == "${public}" ]]; then CNTOOLS_POOL_REG_BLS_NOTE="Kept · ${public:0:16}…"
+    else CNTOOLS_POOL_REG_BLS_NOTE="Replaces the registered key · ${public:0:16}…"; fi
+  fi
+  CNTOOLS_TRANSACTION_ERA=dijkstra
+  cntools_transaction_log POOL "Dijkstra-era registration with BLS key pool=${CNTOOLS_POOL_REG_ID} key=${public:0:16}"
+}
+
+# The BLS key row of the review, before the transaction is built: what
+# cntools_pool_registration_era_select will do. Empty below protocol 12.
+cntools_pool_registration_bls_preview_into() {
+  local -n pbp_text="$1" pbp_role="$2"
+  local directory="${CNTOOLS_POOL_DIRECTORIES[CNTOOLS_POOL_REG_INDEX]}" skey='' vkey='' registered='' public=''
+  pbp_text=''; pbp_role=muted
+  [[ "${CNTOOLS_WALLET_REGISTER_OPERATION}" != pool-retire ]] || return 0
+  if [[ -n "${CNTOOLS_POOL_REG_BLS_NOTE}" ]]; then
+    pbp_text="${CNTOOLS_POOL_REG_BLS_NOTE}"; [[ "${pbp_text}" != None* ]] || pbp_role=warning; return 0
+  fi
+  cntools_transaction_era_dijkstra_available "${CNTOOLS_WALLET_REGISTER_PROTOCOL_FILE:-${CNTOOLS_FUNDING_PROTOCOL:-}}" || return 0
+  registered="$(jq -r '.current.bls // empty' <<< "${CNTOOLS_POOL_REG_STATE}")"
+  if cntools_pool_registration_hardware_signer; then
+    pbp_role=warning
+    if [[ -n "${registered}" ]]; then pbp_text='Would be removed · sign with CLI keys to keep it'
+    else pbp_text='None · hardware wallets sign Conway-era transactions only'; fi
+    return 0
+  fi
+  cntools_pool_file_name_into skey bls-skey && cntools_pool_file_name_into vkey bls-vkey || return 0
+  if [[ ! -e "${directory}/${skey}" ]]; then pbp_text="New · created in ${skey} when the transaction is built"; pbp_role=accent; return 0; fi
+  public="$(jq -r '.cborHex[4:] | ascii_downcase' "${directory}/${vkey}" 2>/dev/null)" || public=''
+  if [[ -z "${registered}" ]]; then pbp_text="Added · ${public:0:16}…"; pbp_role=accent
+  elif [[ "${registered,,}" == "${public}" ]]; then pbp_text="Kept · ${public:0:16}…"
+  else pbp_text="Replaces the registered key · ${public:0:16}…"; pbp_role=warning; fi
 }
 
 cntools_pool_registration_group_into() {
@@ -275,32 +404,49 @@ cntools_pool_registration_plan_create() {
     --arg wallet "${CNTOOLS_WALLET_REGISTER_WALLET}" --arg deposit "${CNTOOLS_WALLET_REGISTER_DEPOSIT}" \
     --arg change "${CNTOOLS_WALLET_REGISTER_BASE_ADDRESS}" --argjson inputs "${inputs}" --argjson params "${params}" \
     --argjson policy "${CNTOOLS_WALLET_REGISTER_POLICY_JSON}" --argjson previous "${CNTOOLS_POOL_REG_STATE}" \
-    --argjson setup "${CNTOOLS_POOL_EXTRA_EXPECTED:-[]}" \
+    --argjson setup "${CNTOOLS_POOL_EXTRA_EXPECTED:-[]}" --argjson bls "${CNTOOLS_POOL_REG_BLS_EXPECTED:-null}" \
+    --arg era "${CNTOOLS_TRANSACTION_ERA:-latest}" \
     '{action:$action,poolId:$pool,fundingWallet:$wallet,depositLovelace:$deposit,changeAddress:$change,selectedInputs:$inputs,
-      poolParameters:$params,transactionPolicy:$policy,previousPoolState:$previous,stakeSetupCertificates:$setup}')" || return 1
+      poolParameters:$params,transactionPolicy:$policy,previousPoolState:$previous,stakeSetupCertificates:$setup}
+     + (if $era == "dijkstra" then {transactionEra:"Dijkstra",blsPublicKey:($bls.blsPubKey // null)} else {} end)')" || return 1
   cntools_transaction_plan_set_summary "${summary}"
 }
 
 cntools_pool_registration_validate_body() {
-  local view='' expected='' inputs=''
+  local view='' expected='' view_params='' inputs=''
   cntools_transaction_view_into view "$1" || return 1
   if [[ "${CNTOOLS_WALLET_REGISTER_OPERATION}" == pool-retire ]]; then
     cntools_pool_retirement_validate_certificate "${view}" || return 1
     # Feed the already independently checked certificate into the common body
     # guards below; no registration-only parameter or owner assumptions apply.
     expected="$(jq -c '.certificates[0]["Pool retirement"]' <<< "${view}")" || return 1
-  else expected="$(cntools_pool_parameters_json)" || return 1; fi
+  else
+    expected="$(cntools_pool_parameters_json)" || return 1
+    view_params="$(cntools_pool_parameters_view_json)" || return 1
+  fi
   inputs="$(printf '%s\n' "${CNTOOLS_WALLET_REGISTER_INPUTS[@]}" | jq -Rsc 'split("\n")|map(select(length>0))|sort')"
-  # cardano-cli 11.4 shows "blsKey": null in the pool parameters. CNTools never
-  # sets one, so require it empty and compare the rest exactly.
-  jq -e --argjson params "${expected}" --argjson inputs "${inputs}" --arg address "${CNTOOLS_WALLET_REGISTER_BASE_ADDRESS}" \
+  # Up to cardano-cli 11.6 (and in the Leios builds) the pool parameters use
+  # poolId, vrf, accountAddress and a decimal margin, with "blsKey". From 11.7
+  # they use "pool id", "vrf key hash", "reward account" and a fraction, and a
+  # Dijkstra-era registration carries "bls key". The BLS key, when set, is
+  # compared separately; the rest must match exactly.
+  jq -e --argjson params "${expected}" --argjson viewParams "${view_params:-null}" --argjson bls "${CNTOOLS_POOL_REG_BLS_EXPECTED:-null}" \
+    --argjson inputs "${inputs}" --arg address "${CNTOOLS_WALLET_REGISTER_BASE_ADDRESS}" \
     --argjson setup "${CNTOOLS_POOL_EXTRA_EXPECTED:-[]}" --arg operation "${CNTOOLS_WALLET_REGISTER_OPERATION}" \
     --arg expiry "${CNTOOLS_WALLET_REGISTER_EXPIRY}" --arg fee "${CNTOOLS_WALLET_REGISTER_FEE} Lovelace" '
     (.certificates|type == "array" and length == (1+($setup|length))) and
     (.certificates[0]|keys == [if $operation == "pool-retire" then "Pool retirement" else "Pool registration" end]) and
     .certificates[1:] == $setup and
     (if $operation == "pool-retire" then .certificates[0]["Pool retirement"] == $params else
-      (.certificates[0]["Pool registration"]["pool params"] | .blsKey == null and (del(.blsKey) | .owners |= sort) == $params) end) and
+      (.certificates[0]["Pool registration"]["pool params"] |
+        if has("pool id") then
+          (if $bls == null then has("bls key") | not
+           else ."bls key".blsPubKey == $bls.blsPubKey and (."bls key".blsPossessionProof | type == "string" and test("^[0-9a-f]{96}$")) end) and
+          (del(."bls key") | .owners |= sort) == $viewParams
+        else
+          (if $bls == null then .blsKey == null
+           else .blsKey.blsPubKey == $bls.blsPubKey and (.blsKey.blsPossessionProof | type == "string" and test("^[0-9a-f]{96}$")) end) and
+          (del(.blsKey) | .owners |= sort) == $params end) end) and
     (.inputs|sort) == $inputs and .fee == $fee and
     (."validity range"["upper bound"]|if . == null then "" else tostring end) == $expiry and ."validity range"["lower bound"] == null and
     (.outputs|length > 0 and all(.[];.address == $address and .datum == null and ."reference script" == null)) and

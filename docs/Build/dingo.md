@@ -84,7 +84,7 @@ exactly one uploaded artifact for the current architecture, and that artifact
 must publish a valid GitHub SHA-256 digest. Its repository, tag, filename,
 download URL, size, and digest are validated together before download.
 
-The Dingo CLI pin is 11.5.0.0, the same release pinned by the cnode and Amaru
+The Dingo CLI pin is 11.7.0.0, the same release pinned by the cnode and Amaru
 profiles. Dingo's own container image ships 11.4.0.0, which writes pool relay
 IPv4 addresses with reversed bytes (see [Node CLI](node-cli.md)). Current Dingo
 releases negotiate node-to-client V23 with 11.4.0.0 and answer

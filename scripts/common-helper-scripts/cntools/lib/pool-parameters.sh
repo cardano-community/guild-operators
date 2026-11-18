@@ -23,6 +23,25 @@ cntools_pool_margin_into() {
   printf -v "${output}" '%s' "${units}/100000000"
 }
 
+# Margin as cardano-cli 11.7 and later decode it: the reduced fraction, "3/40",
+# with "0/1" and "1/1" at the ends. Accepts a ratio or a decimal fraction.
+cntools_pool_margin_rational() {
+  jq -ner --arg margin "$1" '
+    def gcd($a; $b): if $b == 0 then $a else gcd($b; $a % $b) end;
+    ($margin | if contains("/") then split("/") | map(tonumber)
+      else split(".") as $p | ($p[1] // "") as $f | [($p[0] + $f | tonumber), pow(10; $f | length)] end) as [$n, $d] |
+    select($n >= 0 and $d > 0 and $n <= $d and $n == ($n | floor) and $d == ($d | floor)) |
+    gcd($n; $d) as $g | "\($n / $g | floor)/\($d / $g | floor)"'
+}
+
+# $1 = margin (ratio or decimal fraction), $2 = minimum as a decimal fraction.
+# Compared in units of 1/100000000, the precision CNTools stores margins in.
+cntools_pool_margin_meets_minimum() {
+  jq -ne --arg margin "$1" --arg minimum "${2:-0}" '
+    ($margin | if contains("/") then split("/") | (.[0]|tonumber) * 100000000 / (.[1]|tonumber) else tonumber * 100000000 end | round) >=
+    ($minimum | tonumber * 100000000 | round)' >/dev/null 2>&1
+}
+
 cntools_pool_margin_number() {
   jq -ner --arg margin "$1" '$margin | if contains("/") then split("/") | (.[0]|tonumber)/(.[1]|tonumber) else tonumber end | select(. >= 0 and . <= 1)'
 }
@@ -210,10 +229,26 @@ cntools_pool_relays_ledger() {
     else {"single host address":{IPv4:(if .ipv4 == "" then null else .ipv4 end),IPv6:(if .ipv6 == "" then null else .ipv6 end),port:.port}} end)' <<< "$1"
 }
 
+# The pool parameters as cardano-cli 11.7 and later decode them in a
+# transaction view: bech32 pool id and reward account, "vrf key hash" and the
+# margin as a reduced fraction. cntools_pool_parameters_json below is the
+# format of earlier releases, which a source build of the pinned node includes.
+cntools_pool_parameters_view_json() {
+  local parameters='' pool='' reward='' margin='' header=e0 hrp=stake_test
+  parameters="$(cntools_pool_parameters_json)" || return 1
+  [[ "${CNTOOLS_NETWORK}" != mainnet ]] || { header=e1; hrp=stake; }
+  cntools_bech32_encode_into pool "${CNTOOLS_POOL_REG_HEX}" pool &&
+    cntools_bech32_encode_into reward "${header}${CNTOOLS_POOL_REG_REWARD_HASH}" "${hrp}" || return 1
+  margin="$(cntools_pool_margin_rational "${CNTOOLS_POOL_REG_MARGIN}")" || return 1
+  jq -c --arg pool "${pool}" --arg reward "${reward}" --arg margin "${margin}" '
+    {"pool id":$pool,"vrf key hash":.vrf,pledge,cost,margin:$margin,"reward account":$reward,owners,relays,metadata}' <<< "${parameters}"
+}
+
 cntools_pool_parameters_json() {
   local margin='' owners='' relays='' relay=''
   cntools_pool_parameter_uint "${CNTOOLS_POOL_REG_PLEDGE}" && cntools_pool_parameter_uint "${CNTOOLS_POOL_REG_COST}" &&
-    cntools_uint_greater_equal "${CNTOOLS_POOL_REG_COST}" "${CNTOOLS_POOL_REG_MIN_COST}" || return 1
+    cntools_uint_greater_equal "${CNTOOLS_POOL_REG_COST}" "${CNTOOLS_POOL_REG_MIN_COST}" &&
+    cntools_pool_margin_meets_minimum "${CNTOOLS_POOL_REG_MARGIN}" "${CNTOOLS_POOL_REG_MIN_MARGIN:-0}" || return 1
   margin="$(cntools_pool_margin_number "${CNTOOLS_POOL_REG_MARGIN}")" || return 1
   jq -e 'type == "array" and length > 0 and
     ((map(.hash)|unique|length) == length) and all(.[]; (.hash|type == "string" and test("^[0-9a-f]{56}$")) and (.vkey|type == "string" and length > 0))' \

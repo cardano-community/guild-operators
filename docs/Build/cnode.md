@@ -279,7 +279,7 @@ the common environment is explicitly replaced with `-s s`.
 The current manifest was verified against the official
 [cardano-node 11.1.3 release](https://github.com/IntersectMBO/cardano-node/releases/tag/11.1.3)
 and
-[cardano-cli 11.5.0.0 release](https://github.com/IntersectMBO/cardano-cli/releases/tag/cardano-cli-11.5.0.0),
+[cardano-cli 11.7.0.0 release](https://github.com/IntersectMBO/cardano-cli/releases/tag/cardano-cli-11.7.0.0),
 using their published GitHub release-asset digests.
 The companion Koios bundles, pinned Catalyst Toolbox and GHCup binaries,
 openBlockPerf installer, and hardware-wallet support files were fully
@@ -295,13 +295,24 @@ which only overrides entries in `release.json`.
 
 | Network | Magic | cardano-node | cardano-cli | cardano-db-sync |
 | --- | --- | --- | --- | --- |
-| [dijkstra](https://book.world.dev.cardano.org/adv-dijkstra.html) | 6 | 11.2.0 (pre-release) | 11.6.0.0 | `dijkstra-0-0` CI build, which reports 13.8.0.0 |
+| [dijkstra](https://book.world.dev.cardano.org/adv-dijkstra.html) | 6 | 11.2.0 (pre-release) | 11.7.0.0 | `dijkstra-0-0` CI build, which reports 13.8.0.0 |
 | [musashi](https://book.world.dev.cardano.org/adv-musashi.html) | 164 | Leios `rc-2026w44`, which reports 11.2.0.164 | 11.3.1.0, from the same build | None published |
 
 The Leios archive holds only the node and its CLI, so on Musashi `bech32` and
 `cardano-submit-api` come from cardano-node 11.2.0. No Koios endpoint is configured
 for either network, so CNTools works from the local node unless you set
 `KOIOS_API`. The Mithril helpers and `blockPerf.sh` don't support these networks.
+
+Both networks are in the Dijkstra era (protocol 12). A block producer there can
+register a BLS key with its pool, which places it in the pool set the Leios
+voting committee is drawn from: **Pool → Register / Modify** in CNTools creates
+and registers `bls.skey` and `bls.vkey` in the pool folder (see
+[Dijkstra era](../Scripts/cntools-common.md#dijkstra-era)). When `bls.skey` is
+in the folder of `POOL_NAME`, `cnode.sh` starts the node with
+`--shelley-bls-key`, if the node release has that option. Musashi's Leios build
+writes BLS key files with a differently spelled type than upstream cardano-cli,
+and each reads only its own, so create the key with the CLI of the network it is
+for.
 
 These networks deploy from `cntools-rebuild` unless you pass `-b`. Their pins
 change often, so a scheduled job, `pins.yml`, watches what each network requires and

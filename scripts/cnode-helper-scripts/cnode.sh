@@ -266,6 +266,14 @@ fi
 
 # Run Node
 if [[ -f "${POOL_FOLDER}/${POOL_NAME}/${POOL_OPCERT_FILENAME}" && -f "${POOL_FOLDER}/${POOL_NAME}/${POOL_VRF_SK_FILENAME}" && -f "${POOL_FOLDER}/${POOL_NAME}/${POOL_HOTKEY_SK_FILENAME}" ]]; then
+  # The pool's BLS key (Dijkstra era) lets the node vote in the Leios committee.
+  # Nodes before 11.2 do not know the option, so it is passed only when the
+  # node lists it.
+  bls_key_args=()
+  bls_key_file="${POOL_FOLDER}/${POOL_NAME}/${POOL_BLS_SK_FILENAME:-bls.skey}"
+  if [[ -f "${bls_key_file}" ]] && "${CNODEBIN}" run --help 2>&1 | grep -q -- '--shelley-bls-key'; then
+    bls_key_args=(--shelley-bls-key "${bls_key_file}")
+  fi
   exec "${CNODEBIN}" "${CPU_RUNTIME[@]}" run \
     --topology "${TOPOLOGY}" \
     --config "${CONFIG}" \
@@ -274,6 +282,7 @@ if [[ -f "${POOL_FOLDER}/${POOL_NAME}/${POOL_OPCERT_FILENAME}" && -f "${POOL_FOL
     --shelley-kes-key "${POOL_FOLDER}/${POOL_NAME}/${POOL_HOTKEY_SK_FILENAME}" \
     --shelley-vrf-key "${POOL_FOLDER}/${POOL_NAME}/${POOL_VRF_SK_FILENAME}" \
     --shelley-operational-certificate "${POOL_FOLDER}/${POOL_NAME}/${POOL_OPCERT_FILENAME}" \
+    "${bls_key_args[@]}" \
     --port ${CNODE_PORT} \
     ${MEMPOOL_OVERRIDE} "${host_addr[@]}"
 else

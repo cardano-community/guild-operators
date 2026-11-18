@@ -113,7 +113,7 @@ cntools_pool_retirement_certificate_create() {
   cntools_transaction_temp_file certificate pool-retirement || return 1
   cntools_transaction_temp_file output pool-retirement-output || return 1
   cntools_transaction_temp_file errors pool-retirement-errors || return 1
-  cntools_transaction_run_cli "${output}" "${errors}" -- "${CNTOOLS_CLI}" latest stake-pool deregistration-certificate \
+  cntools_transaction_run_cli "${output}" "${errors}" -- "${CNTOOLS_CLI}" "${CNTOOLS_TRANSACTION_ERA:-latest}" stake-pool deregistration-certificate \
     --cold-verification-key-file "${CNTOOLS_POOL_REG_COLD_VKEY}" --epoch "${CNTOOLS_POOL_RETIRE_EPOCH}" --out-file "${certificate}" || status=$?
   if ((status != 0)); then cntools_transaction_log_cli_failure 'Pool retirement certificate creation failed' "${status}" "${errors}" "${output}"; return 1; fi
   cntools_transaction_file_safe "${certificate}" 131072 || return 1

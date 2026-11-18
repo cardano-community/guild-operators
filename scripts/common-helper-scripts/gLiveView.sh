@@ -1283,9 +1283,11 @@ glv_params_job_run() {
   printf 'source\t%s\n' "${source}"
   jq -r '
     def short: {"memory": "mem", "steps": "cpu", "priceMemory": "mem", "priceSteps": "cpu"}[.] // .;
+    def era: if . >= 12 then " · Dijkstra" elif . >= 9 then " · Conway" elif . >= 7 then " · Babbage" else "" end;
     def show:
-      if type == "object" and has("major") then "\(.major).\(.minor)"
+      if type == "object" and has("major") then "\(.major).\(.minor)\(.major | era)"
       elif type == "object" then (to_entries | map("\(.key | short)=\(.value)") | join(", "))
+      elif . == null then "none"
       else tostring end;
     [["Network","protocolVersion","Protocol version"],
      ["Network","maxBlockBodySize","Max block body size"],
@@ -1295,6 +1297,8 @@ glv_params_job_run() {
      ["Network","maxBlockExecutionUnits","Max block execution units"],
      ["Network","maxValueSize","Max value size"],
      ["Network","maxCollateralInputs","Max collateral inputs"],
+     ["Network","maxRefScriptSizePerTx","Max ref script size per tx"],
+     ["Network","maxRefScriptSizePerBlock","Max ref script size per block"],
      ["Economic","txFeePerByte","Min fee per byte"],
      ["Economic","txFeeFixed","Min fee fixed"],
      ["Economic","stakeAddressDeposit","Stake key deposit"],
@@ -1306,6 +1310,12 @@ glv_params_job_run() {
      ["Economic","executionUnitPrices","Execution unit prices"],
      ["Economic","collateralPercentage","Collateral percentage"],
      ["Economic","minFeeRefScriptCostPerByte","Ref script fee per byte"],
+     ["Economic","refScriptCostMultiplier","Ref script cost multiplier"],
+     ["Economic","refScriptCostStride","Ref script cost stride"],
+     ["Economic","refInputsCostPerDatumByte","Ref input cost per datum byte"],
+     ["Economic","refInputsCostPerMultiAssetPolicy","Ref input cost per policy"],
+     ["Economic","minPoolMargin","Min pool margin"],
+     ["Economic","maxPledgeLeverage","Max pledge leverage"],
      ["Governance","poolRetireMaxEpoch","Pool max retirement epoch"],
      ["Governance","stakePoolTargetNum","Optimal stake pools"],
      ["Governance","poolPledgeInfluence","Pledge influence"],
@@ -1314,9 +1324,27 @@ glv_params_job_run() {
      ["Governance","govActionLifetime","Gov action lifetime"],
      ["Governance","govActionDeposit","Gov action deposit"],
      ["Governance","dRepDeposit","DRep deposit"],
-     ["Governance","dRepActivity","DRep expiry"]] as $known |
+     ["Governance","dRepActivity","DRep expiry"],
+     ["Peras","perasTargetCommitteeSize","Target committee size"],
+     ["Peras","perasQuorumThresholdSafetyMargin","Quorum safety margin"],
+     ["Peras","perasCertBoost","Certificate boost"],
+     ["Peras","perasMinCandidateBlockAge","Min candidate block age"],
+     ["Peras","perasHealingFactor","Healing factor"],
+     ["Peras","perasBootstrapRound","Bootstrap round"],
+     ["Leios","leiosCommitteeSize","Committee size"],
+     ["Leios","leiosQuorumStakeThreshold","Quorum stake threshold"],
+     ["Leios","leiosAnnouncementPeriodLength","Announcement period"],
+     ["Leios","leiosVotePeriodLength","Vote period"],
+     ["Leios","leiosDiffusionPeriodLength","Diffusion period"],
+     ["Leios","maxEndorserBlockTxsSize","Max EB transactions size"],
+     ["Leios","maxEndorserBlockReferencesSize","Max EB references size"],
+     ["Leios","maxEndorserBlockExecutionUnits","Max EB execution units"],
+     ["Leios","maxRefScriptSizePerEndorserBlock","Max EB ref script size"]] as $known |
     . as $p |
-    ($known[] | select($p[.[1]] != null) | ["row", .[0], .[2], ($p[.[1]] | show)]),
+    # Dijkstra-era parameters can be null, which means not set: maxPledgeLeverage
+    # null is no limit. A Conway-era node does not have them at all.
+    ($known[] | .[1] as $key | select($p | has($key)) | select($p[$key] != null or .[0] == "Economic" or .[0] == "Peras") |
+      ["row", .[0], .[2], ($p[.[1]] | show)]),
     (($p | keys) - ($known | map(.[1])) | .[] |
       select(($p[.] | type) == "number" or ($p[.] | type) == "string" or ($p[.] | type) == "boolean") |
       ["row", "Other", ., ($p[.] | tostring)])
@@ -1361,6 +1389,8 @@ glv_params_job_poll() {
 glv_data_view() {
   case "${VIEW:-1}" in
     7) glv_data_startup; glv_data_binary; glv_params_job_start; glv_params_job_poll ;;
+    # The Keys panel's BLS row needs the protocol version on a cnode producer.
+    4) if [[ "${D_ROLE:-}" == Core && "${NODE_IMPLEMENTATION:-cnode}" == cnode ]]; then glv_params_job_start; glv_params_job_poll; fi ;;
     3) glv_data_peers; glv_peers_job_poll ;;
     5) glv_data_system ;;
     6) glv_data_logs ;;
@@ -1611,6 +1641,32 @@ glv_kes_colour() {
   ui_scale remaining "${remaining_kes_periods:-0}" 0 || return 0
   if (( remaining <= 5 )); then _kes_out=C_DANGER
   elif (( remaining <= 15 )); then _kes_out=C_WARN; fi
+}
+
+# The BLS key a cardano-node producer votes with in the Dijkstra era (Leios
+# committee). "set" when the node runs with --shelley-bls-key; "not set" only
+# when the protocol parameters show protocol 12 or later; empty otherwise, so
+# Conway-era networks and other nodes show no row.
+glv_bls_text() {
+  local -n _bls_text="$1" _bls_colour="$2"
+  local _bls_args='' _bls_row=''
+  _bls_text=''
+  _bls_colour=''
+  [[ "${NODE_IMPLEMENTATION:-cnode}" == cnode && -n "${D_PID:-}" && -r "/proc/${D_PID}/cmdline" ]] || return 0
+  _bls_args="$(tr '\0' ' ' < "/proc/${D_PID}/cmdline" 2>/dev/null)" || return 0
+  if [[ " ${_bls_args} " == *" --shelley-bls-key "* ]]; then
+    _bls_text='set · Leios votes'
+    _bls_colour=C_OK
+    return 0
+  fi
+  for _bls_row in "${D_PARAMS[@]}"; do
+    [[ "${_bls_row}" == "Network|Protocol version|"* ]] || continue
+    _bls_row="${_bls_row##*|}"; _bls_row="${_bls_row%%.*}"
+    if glv_is_int "${_bls_row}" && (( _bls_row >= 12 )); then
+      _bls_text='not set · no Leios votes'
+      _bls_colour=C_WARN
+    fi
+  done
 }
 
 # "7 · 7 ✓": the certificate on disk must match the chain or be one ahead.
@@ -4047,7 +4103,7 @@ glv_schedule_time() {
 
 glv_view_production() {
   local width="$1" half=$(($1 / 2)) inner=$(($1 - 4)) text colour value days rows entry
-  local slot status at block epoch_height=0 schedule_height first=Y luck ideal
+  local slot status at block epoch_height=0 schedule_height first=Y luck ideal key_rows=6
   local -a keys=() epoch=() upcoming=() past=() ordered=()
 
   if [[ "${D_ROLE}" != Core ]]; then
@@ -4071,11 +4127,14 @@ glv_view_production() {
   glv_cell keys "Op cert" "${text}" "${colour}"
   glv_metric_cell keys opcert_start_kes "Cert from period"
   glv_metric_cell keys missed_slots "Missed chk"
+  glv_bls_text text colour
+  key_rows=6
+  if [[ -n "${text}" ]]; then glv_cell keys "BLS key" "${text}" "${colour}"; key_rows=7; fi
   glv_production_cells epoch results
   UI_HELP=keys
-  glv_cells_panel P_A "${half}" "Keys" "" keys 1 6
+  glv_cells_panel P_A "${half}" "Keys" "" keys 1 "${key_rows}"
   UI_HELP=results
-  glv_cells_panel P_B $((width - half)) "Epoch ${epochnum:-} so far" "" epoch 2 6
+  glv_cells_panel P_B $((width - half)) "Epoch ${epochnum:-} so far" "" epoch 2 "${key_rows}"
   glv_main_add P_A P_B
 
   if (( ${#D_EPOCHS[@]} > 0 )); then epoch_height=$((${#D_EPOCHS[@]} + 3)); fi
@@ -5013,6 +5072,14 @@ glv_help_keys() {
     glv_help_add "Missed chk" \
       "Slot leader checks the node skipped, often during a pause for memory collection or a ledger snapshot." \
       "A few are normal. Many in a row can cost a block." "${missed_slots}"
+  fi
+  glv_bls_text text colour
+  if [[ -n "${text}" ]]; then
+    level=ok
+    [[ "${colour}" != C_WARN ]] || level=warn
+    glv_help_add "BLS key" \
+      "From protocol 12 (Dijkstra) the Leios voting committee is drawn from pools that registered a BLS key. The node votes with it when started with --shelley-bls-key, which cnode.sh adds when the pool folder has bls.skey. CNTools creates and registers the key with Pool → Register or Modify." \
+      "set, with the same key registered on chain." "${text}" "${level}"
   fi
 }
 

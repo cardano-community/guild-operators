@@ -137,7 +137,7 @@ cntools_catalyst_authorize_hardware() {
   ) || status=$?
   if ((status != 0)); then cntools_transaction_log_cli_failure 'Hardware Catalyst authorization failed' "${status}" "${errors}" "${response}"; return 1; fi
   # Decode hardware-produced CBOR with the pinned CLI, not a second CBOR parser.
-  cntools_transaction_run_cli "${response}" "${errors}" -- "${CNTOOLS_CLI}" latest transaction build-raw \
+  cntools_transaction_run_cli "${response}" "${errors}" -- "${CNTOOLS_CLI}" "${CNTOOLS_TRANSACTION_ERA:-latest}" transaction build-raw \
     --tx-in "$(printf '%064d' 0)#0" --tx-out "${CNTOOLS_CATALYST_REWARD}+0" --fee 0 --metadata-cbor-file "${raw}" --out-file "${body}" || return 1
   cntools_transaction_view_into view "${body}" || return 1
   jq '

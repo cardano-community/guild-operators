@@ -88,7 +88,7 @@ cntools_transaction_build_body() {
   cntools_transaction_temp_file command_output build-output || return 1
   cntools_transaction_temp_file error_file build-error || return 1
 
-  command=("${CNTOOLS_CLI}" latest transaction "${builder}")
+  command=("${CNTOOLS_CLI}" "${CNTOOLS_TRANSACTION_ERA:-latest}" transaction "${builder}")
   command+=("${caller_arguments[@]}")
   # Bind the complete witness plan into the transaction body. These signers
   # already have to witness the transaction; recording every credential as an
@@ -202,7 +202,7 @@ cntools_transaction_calculate_min_fee_into() {
   cntools_transaction_temp_file _cntools_error_file fee-error || return 1
   if cntools_transaction_run_cli \
       "${_cntools_output_file}" "${_cntools_error_file}" -- \
-      "${CNTOOLS_CLI}" latest transaction calculate-min-fee \
+      "${CNTOOLS_CLI}" "${CNTOOLS_TRANSACTION_ERA:-latest}" transaction calculate-min-fee \
       --tx-body-file "${_cntools_body_file}" \
       --tx-in-count "${_cntools_input_count}" \
       --tx-out-count "${_cntools_output_count}" \
@@ -264,7 +264,7 @@ cntools_transaction_calculate_min_utxo_into() {
   cntools_transaction_temp_file _cntools_error_file min-utxo-error || return 1
   if cntools_transaction_run_cli \
       "${_cntools_output_file}" "${_cntools_error_file}" -- \
-      "${CNTOOLS_CLI}" latest transaction calculate-min-required-utxo \
+      "${CNTOOLS_CLI}" "${CNTOOLS_TRANSACTION_ERA:-latest}" transaction calculate-min-required-utxo \
       --protocol-params-file "${_cntools_protocol_file}" \
       --tx-out "${_cntools_tx_out}"; then
     _cntools_status=0

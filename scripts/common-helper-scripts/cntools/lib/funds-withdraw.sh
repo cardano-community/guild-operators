@@ -38,13 +38,14 @@ cntools_withdraw_query_stake() {
   [[ "${CNTOOLS_WALLET_REWARD_LOVELACE}" != 0 ]] || {
     cntools_withdraw_fail "Nothing to withdraw: ${CNTOOLS_STAKE_WALLET} has no claimable rewards."; return 4;
   }
-  # Conway protocol 10/11 requires voting delegation after bootstrap. Do not
-  # silently add delegation, require an active DRep, or extrapolate to future eras.
+  # From protocol 10, the end of the Conway bootstrap, withdrawals require a
+  # voting delegation; the Dijkstra era (protocol 12) keeps that rule. Do not
+  # silently add delegation or require an active DRep.
   local major=""
   major="$(jq -er '.protocolVersion.major | select(type == "number" and . >= 0 and floor == .)' "${CNTOOLS_FUNDING_PROTOCOL}")" || {
     cntools_withdraw_fail 'The protocol version could not be verified.'; return 1;
   }
-  if [[ "${major}" == 10 || "${major}" == 11 ]] && [[ -z "${CNTOOLS_WALLET_DREP_DELEGATION:-}" ]]; then
+  if (( major >= 10 )) && [[ -z "${CNTOOLS_WALLET_DREP_DELEGATION:-}" ]]; then
     cntools_withdraw_fail 'This network requires voting delegation before rewards can be withdrawn. Delegate to a DRep, Always Abstain, or Always No Confidence first. This action will not change delegation.'
     return 1
   fi

@@ -160,6 +160,7 @@ cntools_transaction_submit_local() {
   local signed_file="${1:-}"
   local transaction_id="${2:-}"
   local envelope_kind=""
+  local era=""
   local output_file=""
   local error_file=""
   local detail=""
@@ -184,8 +185,9 @@ cntools_transaction_submit_local() {
   }
   cntools_transaction_temp_file output_file submit-local-output || return 1
   cntools_transaction_temp_file error_file submit-local-error || return 1
+  cntools_transaction_file_era_into era "${signed_file}" || return 1
   if cntools_transaction_run_cli "${output_file}" "${error_file}" -- \
-      "${CNTOOLS_CLI}" latest transaction submit \
+      "${CNTOOLS_CLI}" "${era}" transaction submit \
       "${network_arguments[@]}" \
       --socket-path "${CNTOOLS_SOCKET}" \
       --tx-file "${signed_file}"; then

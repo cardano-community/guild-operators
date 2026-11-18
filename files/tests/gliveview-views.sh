@@ -58,7 +58,7 @@ glv_load() {
 glv_load "${GLIVEVIEW}" ui_colour_256 ui_colour ui_theme ui_put ui_gap ui_putw ui_endl ui_scale \
   ui_fmt_duration glv_is_int glv_logo_init glv_role_badge glv_identity_lines glv_rail glv_title_update \
   glv_data_init glv_data_blocklog glv_cell glv_schedule_split glv_production_cells \
-  glv_status_label glv_ms_text glv_block_note \
+  glv_status_label glv_ms_text glv_block_note glv_params_job_run glv_bls_text \
   glv_binary_parse glv_binary_state glv_binary_pin
 eval "$(grep -E '^(GLV_RAIL_W|VIEW_KEYS|VIEW_NAMES|GLV_VERSION|UI_RESET|UI_BOLD|UI_L|UI_LW|GLV_TITLE_SHOWN|GLV_TITLE_PUSHED)=' "${GLIVEVIEW}")"
 printf -v UI_SPACES '%500s' ''
@@ -393,6 +393,46 @@ for expected in 'Our block forged=0.12 s after the slot started' \
   'Next block=Slot 1077, 7 s later · NXT'; do
   grep -qxF "${expected}" <<< "${rows}" || fail "CNTools block details lack '${expected}': ${rows}"
 done
+
+# ── Dijkstra protocol parameters and the BLS key ─────────────────────────────
+# Parameters as a Dijkstra-era node reports them, read here through "Koios".
+dijkstra_params="$(jq -c '.' "${REPO_ROOT}/scripts/compatibility/cntools/lib/data/protocol-dijkstra.json")"
+curl() { printf '%s\n' "${dijkstra_params}"; }
+KOIOS_API=https://koios.invalid/api/v1 KOIOS_API_HEADERS=() CCLI='' rows="$(glv_params_job_run)"
+unset -f curl
+grep -qx $'row\tNetwork\tProtocol version\t12.0 · Dijkstra' <<< "${rows}" || fail "protocol version without the era: ${rows}"
+grep -qx $'row\tEconomic\tMin pool margin\t0.015' <<< "${rows}" || fail "no minimum pool margin: ${rows}"
+grep -qx $'row\tEconomic\tMax pledge leverage\tnone' <<< "${rows}" || fail "an unset pledge leverage is not shown as none: ${rows}"
+grep -q $'^row\tPeras\tTarget committee size\t' <<< "${rows}" || fail "no Peras group: ${rows}"
+grep -q $'^row\tLeios\tMax EB execution units\tmem=' <<< "${rows}" || fail "no Leios group with endorser block limits: ${rows}"
+grep -q $'^row\tOther\t' <<< "${rows}" && fail "Dijkstra parameters left under Other: $(grep $'\tOther\t' <<< "${rows}")"
+conway_params="$(jq -c '.' "${REPO_ROOT}/scripts/compatibility/cntools/lib/data/protocol.json")"
+curl() { printf '%s\n' "${conway_params}"; }
+KOIOS_API=https://koios.invalid/api/v1 KOIOS_API_HEADERS=() CCLI='' rows="$(glv_params_job_run)"
+unset -f curl
+grep -qx $'row\tNetwork\tProtocol version\t11.0 · Conway' <<< "${rows}" || fail "Conway protocol version: ${rows}"
+grep -qE $'\t(Peras|Leios)\t|Min pool margin' <<< "${rows}" && fail "Dijkstra rows on a Conway network: ${rows}"
+
+if [[ -r /proc/self/cmdline ]]; then
+  NODE_IMPLEMENTATION=cnode
+  bash -c 'sleep 30; true' cardano-node run --shelley-bls-key /x/bls.skey & D_PID=$!
+  D_PARAMS=()
+  glv_bls_text text colour
+  assert_eq "${text}|${colour}" "set · Leios votes|C_OK" "node started with its BLS key"
+  kill "${D_PID}" 2>/dev/null || true; wait "${D_PID}" 2>/dev/null || true
+  bash -c 'sleep 30; true' cardano-node run --shelley-vrf-key /x/vrf.skey & D_PID=$!
+  D_PARAMS=("Network|Protocol version|12.0 · Dijkstra")
+  glv_bls_text text colour
+  assert_eq "${text}|${colour}" "not set · no Leios votes|C_WARN" "Dijkstra producer without a BLS key"
+  D_PARAMS=("Network|Protocol version|10.6 · Conway")
+  glv_bls_text text colour
+  assert_eq "${text}" "" "no BLS row on a Conway network"
+  NODE_IMPLEMENTATION=amaru D_PARAMS=("Network|Protocol version|12.0 · Dijkstra")
+  glv_bls_text text colour
+  assert_eq "${text}" "" "no BLS row for another node"
+  kill "${D_PID}" 2>/dev/null || true; wait "${D_PID}" 2>/dev/null || true
+  D_PID=''; D_PARAMS=(); NODE_IMPLEMENTATION=cnode
+fi
 
 # CNTools reads the details with the block log's own query.
 if command -v sqlite3 >/dev/null 2>&1; then

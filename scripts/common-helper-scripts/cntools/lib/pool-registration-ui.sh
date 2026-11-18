@@ -67,7 +67,7 @@ cntools_pool_registration_change_value() {
 }
 
 cntools_pool_registration_rows() {
-  local record='' index=0 margin='' owner_count='' hash='' state='' role='' changes='' retiring='' deposit=''
+  local record='' index=0 margin='' owner_count='' hash='' state='' role='' changes='' retiring='' deposit='' bls='' bls_role=''
   local old_pledge='' old_cost='' old_margin='' old_reward='' old_metadata=''
   margin="$(cntools_pool_margin_percent "${CNTOOLS_POOL_REG_MARGIN}")" || return 1
   owner_count="$(jq length <<< "${CNTOOLS_POOL_REG_OWNERS}")"
@@ -93,7 +93,11 @@ cntools_pool_registration_rows() {
   cntools_table_pair Pledge "$(cntools_pool_registration_change_value "${old_pledge}" "$(cntools_number_format_lovelace "${CNTOOLS_POOL_REG_PLEDGE}")")" number
   cntools_pool_stake_pledge_row
   cntools_table_pair 'Fixed cost' "$(cntools_pool_registration_change_value "${old_cost}" "$(cntools_number_format_lovelace "${CNTOOLS_POOL_REG_COST}")")" number
-  cntools_table_pair Margin "$(cntools_pool_registration_change_value "${old_margin}" "${margin} %")" number
+  if cntools_pool_margin_meets_minimum "${CNTOOLS_POOL_REG_MARGIN}" "${CNTOOLS_POOL_REG_MIN_MARGIN:-0}"; then
+    cntools_table_pair Margin "$(cntools_pool_registration_change_value "${old_margin}" "${margin} %")" number
+  else
+    cntools_table_pair Margin "$(cntools_pool_registration_change_value "${old_margin}" "${margin} %") · below the network minimum of $(cntools_pool_margin_percent "${CNTOOLS_POOL_REG_MIN_MARGIN}") %" warning
+  fi
   if [[ -n "${CNTOOLS_POOL_REG_REWARD_HASH}" ]]; then
     record="$(jq -cn --arg reward_label "${CNTOOLS_POOL_REG_REWARD_LABEL}" --arg hash "${CNTOOLS_POOL_REG_REWARD_HASH}" '{label:$reward_label,hash:$hash}')"
     state=''; role=identifier
@@ -116,6 +120,7 @@ cntools_pool_registration_rows() {
       '.owners - ($owners | map(.hash)) | .[]' <<< "${CNTOOLS_POOL_REG_BASELINE}")
   fi
   cntools_pool_registration_relay_rows
+  cntools_pool_registration_bls_preview_into bls bls_role && [[ -z "${bls}" ]] || cntools_table_pair 'BLS key' "${bls}" "${bls_role}"
   [[ "${changes}" != *Relays* ]] || cntools_table_pair 'Relays · before' "$(jq -r "[.relays[] | ${CNTOOLS_POOL_RELAY_TEXT_JQ}] |
     if length == 0 then \"None\" else join(\", \") end" <<< "${CNTOOLS_POOL_REG_BASELINE}")" muted
   if [[ "${CNTOOLS_POOL_REG_METADATA}" == null ]]; then cntools_table_pair Metadata None muted
@@ -311,7 +316,7 @@ cntools_pool_registration_edit_metadata() {
 # Done; before the first review Esc cancels. 'Cancel transaction' always cancels.
 # Validation warnings need no Enter: the next redraw repeats them.
 cntools_pool_registration_edit_settings() {
-  local mode="${1:-}" choice='' input='' amount='' record='' status=0 current='' changes=''
+  local mode="${1:-}" choice='' input='' amount='' record='' status=0 current='' changes='' minimum=''
   local -a options=()
   while true; do
     cntools_pool_registration_begin
@@ -345,9 +350,12 @@ cntools_pool_registration_edit_settings() {
         else cntools_ui_render_status warn "Minimum fixed cost: $(cntools_number_format_lovelace "${CNTOOLS_POOL_REG_MIN_COST}")."; fi ;;
       Margin)
         current="$(cntools_pool_margin_percent "${CNTOOLS_POOL_REG_MARGIN}")" || return 2
-        cntools_pool_registration_input input "Margin percent (Enter keeps ${current} %)" '0–100; up to six decimal places' || status=$?
+        minimum="$(cntools_pool_margin_percent "${CNTOOLS_POOL_REG_MIN_MARGIN:-0}")" || minimum=0
+        cntools_pool_registration_input input "Margin percent (Enter keeps ${current} %)" "$([[ "${minimum}" == 0 ]] && printf '0–100' || printf '%s–100, the network minimum' "${minimum}"); up to six decimal places" || status=$?
         ((status != 1)) || continue; ((status == 0)) || return "${status}"; [[ -n "${input}" ]] || continue
-        cntools_pool_margin_into amount "${input}" && CNTOOLS_POOL_REG_MARGIN="${amount}" || cntools_ui_render_status warn 'Use a percentage from 0 to 100.' ;;
+        if ! cntools_pool_margin_into amount "${input}"; then cntools_ui_render_status warn 'Use a percentage from 0 to 100.'
+        elif ! cntools_pool_margin_meets_minimum "${amount}" "${CNTOOLS_POOL_REG_MIN_MARGIN:-0}"; then cntools_ui_render_status warn "Minimum margin on this network: ${minimum} %."
+        else CNTOOLS_POOL_REG_MARGIN="${amount}"; fi ;;
       'Reward account')
         cntools_pool_registration_select_stake_into record 'Reward account stake key' || status=$?
         ((status != 1 && status != 3)) || continue; ((status == 0)) || return "${status}"

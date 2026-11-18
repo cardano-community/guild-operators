@@ -18,6 +18,8 @@ cntools_pool_file_name_into() {
     kes-skey) chosen="${CNTOOLS_POOL_KES_SKEY_FILENAME:-hot.skey}" ;;
     vrf-vkey) chosen="${CNTOOLS_POOL_VRF_VKEY_FILENAME:-vrf.vkey}" ;;
     vrf-skey) chosen="${CNTOOLS_POOL_VRF_SKEY_FILENAME:-vrf.skey}" ;;
+    bls-vkey) chosen="${CNTOOLS_POOL_BLS_VKEY_FILENAME:-bls.vkey}" ;;
+    bls-skey) chosen="${CNTOOLS_POOL_BLS_SKEY_FILENAME:-bls.skey}" ;;
     counter) chosen="${CNTOOLS_POOL_COUNTER_FILENAME:-cold.counter}" ;;
     opcert) chosen="${CNTOOLS_POOL_OPCERT_FILENAME:-op.cert}" ;;
     kes-start) chosen="${CNTOOLS_POOL_KES_START_FILENAME:-kes.start}" ;;

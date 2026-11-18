@@ -708,7 +708,7 @@ cntools_wallet_register_certificate_create() {
     cntools_stake_credential_arguments_into stake_arguments || return 1
   else stake_arguments=(--stake-verification-key-file "${CNTOOLS_WALLET_REGISTER_STAKE_VKEY}"); fi
   if cntools_transaction_run_cli "${output_file}" "${error_file}" -- \
-      "${CNTOOLS_CLI}" latest stake-address \
+      "${CNTOOLS_CLI}" "${CNTOOLS_TRANSACTION_ERA:-latest}" stake-address \
       "${CNTOOLS_WALLET_REGISTER_CERTIFICATE_COMMAND}" \
       "${stake_arguments[@]}" \
       --key-reg-deposit-amt "${CNTOOLS_WALLET_REGISTER_DEPOSIT}" \

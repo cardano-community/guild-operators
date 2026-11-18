@@ -137,7 +137,7 @@ cntools_gov_vote_file_create() {
   cntools_transaction_temp_file artifact governance-vote || return 1
   cntools_transaction_temp_file output governance-vote-output || return 1
   cntools_transaction_temp_file errors governance-vote-errors || return 1
-  cntools_transaction_run_cli "${output}" "${errors}" -- "${CNTOOLS_CLI}" latest governance vote create "${arguments[@]}" --out-file "${artifact}" || status=$?
+  cntools_transaction_run_cli "${output}" "${errors}" -- "${CNTOOLS_CLI}" "${CNTOOLS_TRANSACTION_ERA:-latest}" governance vote create "${arguments[@]}" --out-file "${artifact}" || status=$?
   if ((status != 0)); then cntools_transaction_log_cli_failure 'Governance vote creation failed' "${status}" "${errors}" "${output}"; return 1; fi
   cntools_transaction_file_safe "${artifact}" 131072 && jq -e '.cborHex | type == "string" and test("^([0-9a-fA-F]{2})+$")' "${artifact}" >/dev/null || return 1
   CNTOOLS_WALLET_REGISTER_CERTIFICATE_FILE="${artifact}"

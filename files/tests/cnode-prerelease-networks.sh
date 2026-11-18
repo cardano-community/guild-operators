@@ -47,7 +47,7 @@ assert_eq "$(jq -er '.companions | has("cardano-db-sync")' "${BASE_RELEASE}")" "
 # --- pinned versions ------------------------------------------------------------
 render_release dijkstra
 assert_eq "$(jq -er '.version' "${RELEASE}")" "11.2.0" "Dijkstra node"
-assert_eq "$(jq -er '.companions["cardano-cli"].version' "${RELEASE}")" "11.6.0.0" "Dijkstra cli"
+assert_eq "$(jq -er '.companions["cardano-cli"].version' "${RELEASE}")" "11.7.0.0" "Dijkstra cli"
 assert_eq "$(jq -er '.companions["cardano-db-sync"].version' "${RELEASE}")" "13.8.0.0" "Dijkstra db-sync"
 [[ "$(jq -er '.artifacts["linux-x86_64"].url' "${RELEASE}")" == */cardano-node/releases/download/11.2.0/* ]] ||
   fail "Dijkstra node comes from the 11.2.0 release"
@@ -83,7 +83,10 @@ for network in dijkstra musashi; do
   cntools_transaction_cli_version_supported "${cli}" || fail "CNTools rejects the ${network} cli ${cli}"
   ! cntools_transaction_cli_version_supported "9.9.9.9" || fail "CNTools accepts a cli the ${network} deployment did not pin"
   CNTOOLS_NETWORK="mainnet"
-  ! cntools_transaction_cli_version_supported "${cli}" || fail "CNTools accepts the ${network} cli on mainnet"
+  # Dijkstra shares the mainnet pin; only a network-specific build must stay there.
+  if [[ "${cli}" != "${CNTOOLS_TRANSACTION_CARDANO_CLI_VERSION}" ]]; then
+    ! cntools_transaction_cli_version_supported "${cli}" || fail "CNTools accepts the ${network} cli on mainnet"
+  fi
 done
 unset CNTOOLS_NETWORK
 
@@ -273,7 +276,7 @@ reports() { # $1 = binary, $2 = version
 
 install_network dijkstra
 reports cardano-node 11.2.0
-reports cardano-cli 11.6.0.0
+reports cardano-cli 11.7.0.0
 reports cardano-db-sync 13.8.0.0
 reports cardano-submit-api 11.2.0
 reports bech32 11.2.0

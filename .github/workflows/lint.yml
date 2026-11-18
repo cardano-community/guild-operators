@@ -52,6 +52,8 @@ jobs:
       run: bash files/tests/gliveview-views.sh
     - name: Block validation tests
       run: bash files/tests/block-validation.sh
+    - name: CNTools Dijkstra tests
+      run: bash files/tests/cntools-dijkstra.sh
   jsonlint:
     name: JSON and YAML Check
     runs-on: ubuntu-latest

@@ -103,7 +103,7 @@ trap cleanup EXIT
 trap 'exit 130' INT
 trap 'exit 143' TERM
 # Source functions only, never the launcher, env, menus or action entrypoints.
-for library in number filesystem bech32 json wallet-query wallet-query-local asset-cache asset-metadata wallet-query-koios utxo pool-query drep-query drep-id governance-proposal wallet-history message-crypto key-crypto; do
+for library in number filesystem bech32 json wallet-query wallet-query-local asset-cache asset-metadata wallet-query-koios utxo pool-query drep-query drep-id governance-proposal wallet-history message-crypto key-crypto transaction pool-parameters; do
   . "$CK_SOURCE/lib/$library.sh" || die "Cannot load CNTools parser library: $library"
 done
 . "$CK_SOURCE/core/log.sh" || die 'Cannot load bounded command executor'

@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 # Pool-specific artifact validation and missing-only public derivation in staging.
 # shellcheck disable=SC2034
+# BLS key types are spelled "…-Mininimal-…" by upstream cardano-cli 11.5 to
+# 11.7 and "…-Minimal-…" by the Leios builds; each reads only its own.
 cntools_pool_key_validate() {
   local file="$1" role="$2" kind="$3" expected="" pattern=""
   case "${role}:${kind}" in
@@ -10,11 +12,14 @@ cntools_pool_key_validate() {
     kes:verification) expected='KesVerificationKey_ed25519_kes_2^6'; pattern='^5820[0-9a-fA-F]{64}$' ;;
     vrf:signing) expected=VrfSigningKey_PraosVRF; pattern='^5840[0-9a-fA-F]{128}$' ;;
     vrf:verification) expected=VrfVerificationKey_PraosVRF; pattern='^5820[0-9a-fA-F]{64}$' ;;
+    bls:signing) expected='^BlsSigningKey_bls12-381-BLS-Signature-Mini(ni)?mal-Signature-Size$'; pattern='^5820[0-9a-fA-F]{64}$' ;;
+    bls:verification) expected='^BlsVerificationKey_bls12-381-BLS-Signature-Mini(ni)?mal-Signature-Size$'; pattern='^5860[0-9a-fA-F]{192}$' ;;
     *) return 2 ;;
   esac
   cntools_pool_public_file_safe "${file}" || return 1
   jq -es --arg type "${expected}" --arg pattern "${pattern}" '
-    length == 1 and (.[0] | type == "object") and .[0].type == $type and
+    length == 1 and (.[0] | type == "object") and (.[0].type | type == "string") and
+    (if ($type | startswith("^")) then (.[0].type | test($type)) else .[0].type == $type end) and
     (.[0].cborHex | type == "string" and test($pattern))
   ' "${file}" >/dev/null 2>&1
 }

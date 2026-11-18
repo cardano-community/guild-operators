@@ -303,6 +303,7 @@ cntools_transaction_witness_cli() {
   local output_file=""
   local error_file=""
   local kind=""
+  local era=""
   local status=0
   local -a network_arguments=()
 
@@ -315,8 +316,9 @@ cntools_transaction_witness_cli() {
     return 1
   cntools_transaction_temp_file output_file witness-output || return 1
   cntools_transaction_temp_file error_file witness-error || return 1
+  cntools_transaction_file_era_into era "${body_file}" || return 1
   if cntools_transaction_run_cli "${output_file}" "${error_file}" -- \
-      "${CNTOOLS_CLI}" latest transaction witness \
+      "${CNTOOLS_CLI}" "${era}" transaction witness \
       --tx-body-file "${body_file}" \
       --signing-key-file "${source_file}" \
       "${network_arguments[@]}" \

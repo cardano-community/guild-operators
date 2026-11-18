@@ -231,6 +231,7 @@ Shown on a producer, in the overview and on the Production page.
 | KES | Remaining KES periods. Amber at 15, red at 5. |
 | Op cert | The certificate counter on disk and the last one used on chain. It is marked wrong unless the disk counter equals the chain counter or exceeds it by one. |
 | Missed chk | Leadership checks the node skipped. Sustained growth can indicate CPU, I/O, GC, or timekeeping pressure. |
+| BLS key | On a cardano-node producer: `set` when the node runs with `--shelley-bls-key`, the key it votes with in the Leios committee. Amber `not set` when the protocol parameters show protocol 12 (Dijkstra) or later and the node has none. No row on earlier networks. |
 
 Block results are written to the block log by the validate service:
 `cncli.sh validate` on cardano-node, `amaru-leaderlog.sh validate` on Amaru.
@@ -452,7 +453,7 @@ terminals and scrolls as a whole.
 | Deployment | Node home, configuration, node socket and metrics endpoint where the start-up options do not already show them, and the block log and pool folder when they exist |
 | Reported by the node | Adapter-supplied static metadata, such as Dingo's Go runtime and stake snapshot or Amaru's build platform and host memory |
 | Network | Network name and magic, node port, epoch and slot length, active slot coefficient, KES constants |
-| Protocol parameters | The parameters in force, grouped as Network, Economic and Governance. A parameter gLiveView has no name for is listed under Other |
+| Protocol parameters | The parameters in force, grouped as Network, Economic and Governance, and on a Dijkstra-era network also Peras and Leios. The protocol version names its era. A Dijkstra parameter that is not set, such as `maxPledgeLeverage`, shows as none. A parameter gLiveView has no name for is listed under Other |
 
 The protocol parameters are asked from the node through its local socket
 where it has one (cnode and Dingo), and from Koios otherwise (Amaru). They are

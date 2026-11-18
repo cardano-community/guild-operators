@@ -344,7 +344,7 @@ cntools_pool_stake_certificates_create() {
     if [[ "$(jq -r .previousRegistered <<< "${record}")" == no ]]; then expected="$(jq -c --argjson deposit "${deposit}" '.+{deposit:$deposit}' <<< "${expected}")"; fi
     expected="$(jq -cn --arg kind "${kind}" --argjson expected "${expected}" '{($kind):$expected}')"
     cntools_transaction_temp_file certificate pool-stake-setup || return 1
-    cntools_pool_cli latest stake-address "${command}" --stake-verification-key-file "$(jq -r .vkey <<< "${record}")" \
+    cntools_pool_cli "${CNTOOLS_TRANSACTION_ERA:-latest}" stake-address "${command}" --stake-verification-key-file "$(jq -r .vkey <<< "${record}")" \
       "${args[@]}" --out-file "${certificate}" || return 1
     CNTOOLS_POOL_EXTRA_CERTIFICATES+=("${certificate}")
     CNTOOLS_POOL_EXTRA_EXPECTED="$(jq -c --argjson expected "${expected}" '.+[$expected]' <<< "${CNTOOLS_POOL_EXTRA_EXPECTED}")" || return 1
