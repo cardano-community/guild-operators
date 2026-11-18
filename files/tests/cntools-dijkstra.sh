@@ -2,8 +2,9 @@
 # CNTools with cardano-cli 11.7 and the Dijkstra era: only 11.7's certificate
 # field names and BLS key files are accepted, the per-transaction era, the
 # review guard against Dijkstra-only fields, the minimum pool margin, the pool's
-# BLS key in a registration and why Musashi gets none. Functions are loaded from
-# the libraries; no CLI or node is needed.
+# BLS key in a registration, and BLS key registration being off until a
+# cardano-cli release fixes the key files. Functions are loaded from the
+# libraries; no CLI or node is needed.
 set -o pipefail
 
 if (( BASH_VERSINFO[0] < 5 )); then
@@ -125,26 +126,39 @@ cntools_pool_registration_validate_body body && fail "another margin"
 FIXTURE_VIEW="$(pool_view null | jq -c --argjson old "$(cntools_pool_parameters_json)" '.certificates[0]["Pool registration"]["pool params"] = ($old + {blsKey: null})')"
 cntools_pool_registration_validate_body body && fail "pool parameters in the field names of cardano-cli 11.6"
 
-# ── no BLS key on Musashi ────────────────────────────────────────────────────
+# ── BLS key registration is off ──────────────────────────────────────────────
 mkdir -p "${TEST_ROOT}/pool"
 CNTOOLS_POOL_DIRECTORIES=("${TEST_ROOT}/pool") CNTOOLS_POOL_REG_INDEX=0 CNTOOLS_POOL_REG_ID=pool1test
 CNTOOLS_WALLET_REGISTER_PROTOCOL_FILE="${TEST_ROOT}/protocol-12.json"
 cntools_pool_registration_hardware_signer() { return 1; }
-cntools_pool_registration_bls_generate() { fail "a BLS key was generated on Musashi"; return 1; }
-CNTOOLS_NETWORK=musashi CNTOOLS_WALLET_REGISTER_OPERATION=pool-register CNTOOLS_POOL_REG_STATE='{"registered":false}'
-cntools_pool_registration_era_select || fail "a new pool on Musashi"
-assert_eq "${CNTOOLS_TRANSACTION_ERA}:${CNTOOLS_POOL_REG_BLS_SKEY}" "latest:" "a Musashi registration is Conway-era without a BLS key"
-[[ "${CNTOOLS_POOL_REG_BLS_NOTE}" == "None · Musashi"* ]] || fail "the review does not say why Musashi gets no BLS key"
-CNTOOLS_POOL_REG_BLS_NOTE=''
-cntools_pool_registration_bls_preview_into preview role
-[[ "${preview}:${role}" == "None · Musashi"*":warning" ]] || fail "the BLS preview on Musashi: ${preview} (${role})"
-CNTOOLS_WALLET_REGISTER_OPERATION=pool-modify CNTOOLS_POOL_REG_STATE="{\"registered\":true,\"current\":{\"bls\":\"${BLS_PUBLIC}\"}}"
-cntools_pool_registration_era_select && fail "a Musashi modification that would remove the pool's BLS key"
-[[ "${CNTOOLS_WALLET_REGISTER_ERROR}" == *"BLS key on chain"* ]] || fail "the refusal does not name the on-chain key"
+cntools_pool_registration_bls_generate() { fail "a BLS key was generated while registration is off"; return 1; }
+assert_eq "${CNTOOLS_POOL_BLS_REGISTRATION}" N "BLS key registration ships turned off"
+for network in preprod dijkstra musashi; do
+  CNTOOLS_NETWORK="${network}" CNTOOLS_WALLET_REGISTER_OPERATION=pool-register CNTOOLS_POOL_REG_STATE='{"registered":false}'
+  cntools_pool_registration_era_select || fail "${network}: a new pool at protocol 12"
+  assert_eq "${CNTOOLS_TRANSACTION_ERA}:${CNTOOLS_POOL_REG_BLS_SKEY}" "latest:" "${network}: a Conway-era registration without a BLS key"
+  [[ "${CNTOOLS_POOL_REG_BLS_NOTE}" == "None · CNTools registers no BLS keys"* ]] || fail "${network}: the review does not say why there is no BLS key"
+  CNTOOLS_POOL_REG_BLS_NOTE=''
+  cntools_pool_registration_bls_preview_into preview role
+  [[ "${preview}:${role}" == "None · CNTools registers no BLS keys"*":warning" ]] || fail "${network}: the BLS preview: ${preview} (${role})"
+  CNTOOLS_WALLET_REGISTER_OPERATION=pool-modify CNTOOLS_POOL_REG_STATE="{\"registered\":true,\"current\":{\"bls\":\"${BLS_PUBLIC}\"}}"
+  cntools_pool_registration_era_select && fail "${network}: a modification that would remove the pool's BLS key"
+  [[ "${CNTOOLS_WALLET_REGISTER_ERROR}" == *"BLS key on chain"*"Leave the pool unchanged"* ]] || fail "${network}: the refusal does not explain itself"
+done
 cntools_pool_registration_hardware_signer() { return 0; }
-cntools_pool_registration_era_select && fail "a Musashi modification by a hardware signer that would remove the BLS key"
-[[ "${CNTOOLS_WALLET_REGISTER_ERROR}" == *"no BLS keys on Musashi"* ]] || fail "a hardware signer on Musashi is told to sign with CLI keys"
-CNTOOLS_NETWORK=preprod CNTOOLS_WALLET_REGISTER_OPERATION=pool-register
+cntools_pool_registration_era_select && fail "a hardware signer's modification that would remove the BLS key"
+[[ "${CNTOOLS_WALLET_REGISTER_ERROR}" == *"until a cardano-cli release"* ]] || fail "a hardware signer is told to sign with CLI keys"
+
+# Turned back on, a registration carries the pool's key from its folder.
+CNTOOLS_POOL_BLS_REGISTRATION=Y
+cntools_pool_registration_hardware_signer() { return 1; }
+jq -n --arg cbor "5820$(printf 'ab%.0s' {1..32})" '{type:"BlsSigningKey_bls12-381-BLS-Signature-Mininimal-Signature-Size",description:"",cborHex:$cbor}' > "${TEST_ROOT}/pool/bls.skey"
+jq -n --arg cbor "5860${BLS_PUBLIC}" '{type:"BlsVerificationKey_bls12-381-BLS-Signature-Mininimal-Signature-Size",description:"",cborHex:$cbor}' > "${TEST_ROOT}/pool/bls.vkey"
+CNTOOLS_NETWORK=preprod CNTOOLS_WALLET_REGISTER_OPERATION=pool-modify
+cntools_pool_registration_era_select || fail "turned on: a modification that keeps the pool's BLS key (${CNTOOLS_WALLET_REGISTER_ERROR})"
+assert_eq "${CNTOOLS_TRANSACTION_ERA}:${CNTOOLS_POOL_REG_BLS_SKEY}" "dijkstra:${TEST_ROOT}/pool/bls.skey" "turned on: a Dijkstra-era registration with the pool's key"
+[[ "${CNTOOLS_POOL_REG_BLS_NOTE}" == "Kept · "* ]] || fail "turned on: the review says ${CNTOOLS_POOL_REG_BLS_NOTE}"
+CNTOOLS_POOL_BLS_REGISTRATION=N CNTOOLS_WALLET_REGISTER_OPERATION=pool-register
 
 CNTOOLS_POOL_REG_MARGIN=1000000/100000000
 cntools_pool_parameters_json >/dev/null && fail "a margin below the network minimum builds"

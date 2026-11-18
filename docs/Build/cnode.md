@@ -308,14 +308,11 @@ for either network, so CNTools works from the local node unless you set
 
 Both networks are in the Dijkstra era (protocol 12). A block producer there can
 register a BLS key with its pool, which places it in the pool set the Leios
-voting committee is drawn from: **Pool → Register / Modify** in CNTools creates
-and registers `bls.skey` and `bls.vkey` in the pool folder (see
-[Dijkstra era](../Scripts/cntools-common.md#dijkstra-era)). When `bls.skey` is
-in the folder of `POOL_NAME`, `cnode.sh` starts the node with
-`--shelley-bls-key`, if the node release has that option. Musashi's Leios node
-reads only BLS key files whose type is spelled `…-Minimal-…`, while cardano-cli
-11.7 writes `…-Mininimal-…` (the key bytes are the same), so CNTools creates and
-registers no BLS key on Musashi.
+voting committee is drawn from. CNTools doesn't register BLS keys for now,
+because of a cardano-cli 11.7 key file problem that upstream has fixed but not
+released (see [Dijkstra era](../Scripts/cntools-common.md#dijkstra-era)). When
+`bls.skey` is in the folder of `POOL_NAME`, `cnode.sh` starts the node with
+`--shelley-bls-key`, if the node release has that option.
 
 These networks deploy from `cntools-rebuild` unless you pass `-b`. Their pins
 change often, so a scheduled job, `pins.yml`, watches what each network requires and

@@ -473,8 +473,8 @@ issuance is a separate side effect: it advances the issue counter even if you
 later cancel the transaction. Follow the final guidance for `POOL_NAME`,
 operational files and pledge maintenance; CNTools does not edit `env` for you.
 
-On a network in the Dijkstra era the registration also carries the pool's BLS
-key, and the margin must meet the network's minimum. See
+On a network in the Dijkstra era the margin must meet the network's minimum,
+and the registration carries no BLS key for now. See
 [Dijkstra era](#dijkstra-era).
 
 ### Rotate KES keys
@@ -661,27 +661,29 @@ Signing, assembly, transaction IDs and submission take the era from the
 transaction file, so an offline signing system needs nothing extra.
 
 **Pool BLS key.** The Leios voting committee is drawn from pools that registered
-a BLS key with a proof of possession. On a Dijkstra-era network,
-**Pool → Register / Modify** builds a Dijkstra-era transaction that carries the
-pool's key from `bls.skey` and `bls.vkey` in the pool folder (`POOL_BLS_SK_FILENAME`,
-`POOL_BLS_VK_FILENAME`). When the folder has none, CNTools creates the pair there
-when it builds the transaction. The review's **BLS key** row says whether the
-key is new, added, kept or replaces the one on chain. The block producer needs
-`bls.skey` in its pool folder: `cnode.sh` then starts cardano-node with
-`--shelley-bls-key`, on node releases that have that option. Copy it there when
-you register from another system. Pool → Encrypt leaves it readable, like the
-VRF and KES keys, because the node uses it.
+a BLS key with a proof of possession. **CNTools doesn't register BLS keys for
+now, on any network.** On a Dijkstra-era network, **Pool → Register / Modify**
+builds a Conway-era registration without a BLS key, and the review's
+**BLS key** row says so. When the pool already has a BLS key on chain, that
+registration would remove it, so CNTools refuses it: leave the pool unchanged
+until BLS keys are turned back on.
 
-If a signer of the registration is a hardware wallet, CNTools builds a
-Conway-era registration without a BLS key, and the review says so. When the pool
-already has a BLS key on chain, that registration would remove it, so CNTools
-refuses it: sign with CLI keys instead.
+The reason is cardano-cli 11.7.0.0. It labels BLS key files
+`…-Mininimal-…`, a typo that comes from cardano-crypto-class 2.6.0.0, and it
+computes the proof of possession with an older domain tag. Both are fixed in
+cardano-base ([cardano-base#695](https://github.com/IntersectMBO/cardano-base/pull/695)),
+but no release has the fix yet. Musashi's Leios node already uses it and
+refuses 11.7's key files, and later releases may too
+([cardano-keys#16](https://github.com/IntersectMBO/cardano-keys/pull/16)).
+CNTools will register BLS keys again once a pinned cardano-cli release has both
+fixes. It will then create `bls.skey` and `bls.vkey` in the pool folder
+(`POOL_BLS_SK_FILENAME`, `POOL_BLS_VK_FILENAME`) and register the key, except
+when a hardware wallet signs, since hardware wallets sign Conway-era
+transactions only.
 
-On Musashi, CNTools creates and registers no BLS key, whatever the signer.
-Musashi's Leios node reads only BLS key files whose type is spelled
-`…-Minimal-…`, and cardano-cli 11.7 writes `…-Mininimal-…`, so a key from 11.7
-would stop the node from starting. Registrations there are Conway-era without a
-BLS key, and CNTools refuses to change a pool that already has one on chain.
+A block producer with a BLS key from another tool can still use it: when
+`bls.skey` is in the pool folder, `cnode.sh` starts cardano-node with
+`--shelley-bls-key`, on node releases that have that option.
 
 **Minimum margin.** Protocol 12 adds `minPoolMargin`, 1.5 % on dijkstranet. The
 margin prompt names the minimum, the review marks a margin below it, and CNTools

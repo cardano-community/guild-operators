@@ -19,6 +19,14 @@ CNTOOLS_POOL_REG_MIN_MARGIN=0
 CNTOOLS_POOL_REG_BLS_SKEY=''
 CNTOOLS_POOL_REG_BLS_EXPECTED=null
 CNTOOLS_POOL_REG_BLS_NOTE=''
+# BLS key registration is off on every network for now. cardano-cli 11.7.0.0
+# (cardano-crypto-class 2.6.0.0) labels BLS key files "...-Mininimal-..." and
+# computes the proof of possession with the older domain tag. cardano-base
+# master fixes both (cardano-base#695), but no release has the fix yet:
+# Musashi's Leios node already uses it and refuses 11.7's key files, and later
+# releases may too (cardano-keys#16). Set this to Y once a pinned cardano-cli
+# release has both fixes.
+CNTOOLS_POOL_BLS_REGISTRATION=N
 
 cntools_pool_registration_operation_set() {
   case "$1" in pool-register) CNTOOLS_WALLET_REGISTER_TITLE=Register ;; pool-modify) CNTOOLS_WALLET_REGISTER_TITLE=Modify ;; pool-retire) CNTOOLS_WALLET_REGISTER_TITLE=Retire ;; *) return 2 ;; esac
@@ -274,12 +282,11 @@ cntools_pool_registration_bls_generate() {
 }
 
 # Choose the era of a registration or modification. On a network at protocol
-# 12 or later it is a Dijkstra-era transaction that carries the pool's BLS key
-# (created in the pool folder when there is none). It stays Conway-era without
-# a BLS key for a hardware signer, and on Musashi, whose Leios node does not
-# read the BLS key files cardano-cli 11.7 writes (it spells the key type
-# "Minimal", 11.7 "Mininimal"). Both are refused when the pool already has a
-# BLS key on chain: the registration would remove it.
+# 12 or later, with BLS key registration on (CNTOOLS_POOL_BLS_REGISTRATION), it
+# is a Dijkstra-era transaction that carries the pool's BLS key (created in the
+# pool folder when there is none). It stays Conway-era without a BLS key while
+# registration is off, and for a hardware signer. Both are refused when the
+# pool already has a BLS key on chain: the registration would remove it.
 cntools_pool_registration_era_select() {
   local directory="${CNTOOLS_POOL_DIRECTORIES[CNTOOLS_POOL_REG_INDEX]}" skey='' vkey='' registered='' public=''
   cntools_transaction_era_reset
@@ -287,11 +294,11 @@ cntools_pool_registration_era_select() {
   [[ "${CNTOOLS_WALLET_REGISTER_OPERATION}" != pool-retire ]] || return 0
   cntools_transaction_era_dijkstra_available "${CNTOOLS_WALLET_REGISTER_PROTOCOL_FILE:-${CNTOOLS_FUNDING_PROTOCOL:-}}" || return 0
   registered="$(jq -r '.current.bls // empty' <<< "${CNTOOLS_POOL_REG_STATE}")"
-  if [[ "${CNTOOLS_NETWORK:-}" == musashi ]]; then
+  if [[ "${CNTOOLS_POOL_BLS_REGISTRATION}" != Y ]]; then
     if [[ -n "${registered}" ]]; then
-      cntools_wallet_register_set_error "This pool has a BLS key on chain. CNTools adds no BLS keys on Musashi, because its Leios node can't read the key files cardano-cli ${CNTOOLS_TRANSACTION_CARDANO_CLI_VERSION} writes, and a registration without the key would remove it."; return 1
+      cntools_wallet_register_set_error "This pool has a BLS key on chain. CNTools doesn't register BLS keys until a cardano-cli release fixes their key files and proofs, and a registration without the key would remove it. Leave the pool unchanged for now."; return 1
     fi
-    CNTOOLS_POOL_REG_BLS_NOTE="None · Musashi's Leios node can't read BLS keys from cardano-cli ${CNTOOLS_TRANSACTION_CARDANO_CLI_VERSION}, so the pool gets no Leios committee seat"
+    CNTOOLS_POOL_REG_BLS_NOTE='None · CNTools registers no BLS keys until a cardano-cli release fixes their key files and proofs'
     return 0
   fi
   if cntools_pool_registration_hardware_signer; then
@@ -339,10 +346,10 @@ cntools_pool_registration_bls_preview_into() {
   fi
   cntools_transaction_era_dijkstra_available "${CNTOOLS_WALLET_REGISTER_PROTOCOL_FILE:-${CNTOOLS_FUNDING_PROTOCOL:-}}" || return 0
   registered="$(jq -r '.current.bls // empty' <<< "${CNTOOLS_POOL_REG_STATE}")"
-  if [[ "${CNTOOLS_NETWORK:-}" == musashi ]]; then
+  if [[ "${CNTOOLS_POOL_BLS_REGISTRATION}" != Y ]]; then
     pbp_role=warning
-    if [[ -n "${registered}" ]]; then pbp_text='Would be removed · CNTools adds no BLS keys on Musashi'
-    else pbp_text="None · Musashi's Leios node can't read BLS keys from cardano-cli ${CNTOOLS_TRANSACTION_CARDANO_CLI_VERSION}"; fi
+    if [[ -n "${registered}" ]]; then pbp_text='Would be removed · CNTools registers no BLS keys for now'
+    else pbp_text='None · CNTools registers no BLS keys until a cardano-cli release fixes their key files and proofs'; fi
     return 0
   fi
   if cntools_pool_registration_hardware_signer; then

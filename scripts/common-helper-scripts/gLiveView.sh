@@ -5078,7 +5078,7 @@ glv_help_keys() {
     level=ok
     [[ "${colour}" != C_WARN ]] || level=warn
     glv_help_add "BLS key" \
-      "From protocol 12 (Dijkstra) the Leios voting committee is drawn from pools that registered a BLS key. The node votes with it when started with --shelley-bls-key, which cnode.sh adds when the pool folder has bls.skey. CNTools creates and registers the key with Pool → Register or Modify." \
+      "From protocol 12 (Dijkstra) the Leios voting committee is drawn from pools that registered a BLS key. The node votes with it when started with --shelley-bls-key, which cnode.sh adds when the pool folder has bls.skey. CNTools registers no BLS keys for now, until a cardano-cli release fixes their key files and proofs." \
       "set, with the same key registered on chain." "${text}" "${level}"
   fi
 }
