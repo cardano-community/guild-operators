@@ -17,6 +17,8 @@
 #GLV_COLORS=""                            # truecolor, 256 or none (default: truecolor when COLORTERM announces it, else 256)
 #SHOW_NODE_LOGO=Y                         # Show the node's logo under the title in the full side rail (N to hide)
 #ENABLE_IP_GEOLOCATION=Y                  # Peer analysis asks ip-api.com for the city and country of peer addresses (N to disable)
+#POOL_ID=""                               # Pool ID, bech32 or hex, for the pool data on a block producer (default: from the pool folder)
+#POOL_HISTORY_EPOCHS=5                    # Epochs shown at a time in the epoch history on the Production page (1-20)
 #ENABLE_NODE_PEER_STATE=Y                 # Peer analysis reads the node's own view of its peers from its journal: cardano-node's log and state dump (SIGUSR1), or Amaru's log (N to disable)
 
 ######################################
@@ -921,6 +923,7 @@ glv_data_blocklog() {
   D_STATUS=()
   D_DETAIL=()
   D_EPOCHS=()
+  D_LED=()
   D_RESULTS=N
   D_IDEAL=''
   D_LUCK=''
@@ -931,7 +934,8 @@ glv_data_blocklog() {
   command -v sqlite3 >/dev/null 2>&1 || return 0
   # One sqlite3 process for everything: S rows are this epoch's leader slots
   # (slot in epoch, status, time, block, slot), X counts the next epoch's, N is
-  # the next slot's time, I the ideal count, H one row per recent epoch.
+  # the next slot's time, I the ideal count, H one row per recent epoch, L the
+  # leader slots of every epoch for the epoch history.
   while IFS='|' read -r kind first second third fourth fifth; do
     case "${kind}" in
       S) D_SCHEDULE+=("${first}|${second}|${third}|${fourth}|${fifth}")
@@ -941,6 +945,7 @@ glv_data_blocklog() {
       N) glv_is_int "${first}" && D_NEXT_AT="${first}" ;;
       I) D_IDEAL="${first}" ;;
       H) D_EPOCHS+=("${first}|${second}|${third}|${fourth}") ;;
+      L) glv_is_int "${first}" && D_LED["${first}"]="${second}" ;;
       V) [[ "${first}" != 1 ]] || D_RESULTS=Y ;;
       D) glv_is_int "${first}" && D_DETAIL["${first}"]="${second}|${third}|${fourth}|${fifth}" ;;
     esac
@@ -955,6 +960,7 @@ glv_data_blocklog() {
            SUM(CASE WHEN b.status IN ('adopted','confirmed') THEN 1 ELSE 0 END),
            IFNULL((SELECT e.epoch_slots_ideal FROM epochdata e WHERE e.epoch=b.epoch LIMIT 1), '')
       FROM blocklog b GROUP BY b.epoch ORDER BY b.epoch DESC LIMIT 6;
+    SELECT 'L', epoch, COUNT(*) FROM blocklog GROUP BY epoch;
     SELECT 'V', EXISTS(SELECT 1 FROM blocklog WHERE status <> 'leader');
     SELECT 'D', d.slot, d.reason, IFNULL(d.forge_ms, ''), IFNULL(d.winner_slot, ''),
            CASE WHEN d.winner_ticker <> '' THEN d.winner_ticker ELSE d.winner_pool END, IFNULL(d.winner_ms, ''),
@@ -1385,6 +1391,453 @@ glv_params_job_poll() {
   D_PARAMS_EPOCH="${epochnum:-}"
 }
 
+# ── Pool data from Koios ─────────────────────────────────────────────────────
+# On a block producer the Production page shows the pool as Koios sees it and
+# its epoch history, and the rail flags a pledge that is not met. Every Koios
+# request runs in a background job, so a slow or absent Koios never holds the
+# page up: until an answer comes the panels say what they wait for, and after
+# a failure they keep the last answer and ask again a minute later.
+
+POOL_JOB_PID=''
+POOL_STATE=off        # off, waiting, ok, stale, failed, none, unknown, nokoios
+POOL_NOTE=''
+POOL_ID_B32=''
+POOL_FETCHED_AT=0
+POOL_FAILED_AT=0
+POOL_EPOCH=''
+declare -gA POOL_INFO=()    # field -> value, from pool_info
+declare -gA POOL_SNAP=()    # epoch -> "pool stake|ideal blocks in hundredths"
+declare -gA POOL_BLOCKS=()  # epoch -> blocks made, for the current and the previous epoch
+HIST_JOB_PID=''
+HIST_JOB_OFFSET=''
+HIST_CHUNK=10
+HIST_TOTAL=-1         # settled epochs Koios has for the pool, -1 while unknown
+HIST_KNOWN=0          # rows loaded, counted from the newest
+HIST_EPOCH=''         # the epoch the loaded rows belong to
+HIST_SCROLL=0
+HIST_VIRTUAL=0
+HIST_ROWS_TOTAL=0
+declare -gA HIST_ROW=()     # Koios offset -> "epoch|stake|ideal hundredths|delegators|blocks|fees|rewards|ROS hundredths"
+declare -gA HIST_LOADED=()  # chunk offset -> 1
+declare -gA HIST_FAILED=()  # chunk offset -> time of the failure
+HIST_VIEW=()
+HIST_SHOWN=0
+declare -gA D_LED=()        # epoch -> leader slots in the block log
+
+# Koios is used unless env turned it off or the network has no Koios service.
+glv_koios_usable() {
+  [[ "${ENABLE_KOIOS:-Y}" == Y && -n "${KOIOS_API:-}" ]] &&
+    command -v curl >/dev/null 2>&1 && command -v jq >/dev/null 2>&1
+}
+
+# glv_koios <path> [JSON body] [file for the response headers]: one Koios
+# request, with the deployment's token when it has one. Prints the answer.
+# Fails on a refused connection, an HTTP error, 10 seconds without an answer,
+# and on anything that is not a JSON array, such as a proxy's error page.
+glv_koios() {
+  local path="$1" body="${2:-}" headers="${3:-/dev/null}" answer
+  local -a arguments=(-sS -f -m 10 -D "${headers}" "${KOIOS_API_HEADERS[@]}")
+  [[ -z "${body}" ]] || arguments+=(-X POST -H 'Content-Type: application/json' -d "${body}")
+  [[ "${headers}" == /dev/null ]] || arguments+=(-H 'Prefer: count=exact')
+  answer="$(curl "${arguments[@]}" "${KOIOS_API}/${path}" 2>/dev/null)" || return 1
+  jq -e 'type == "array"' >/dev/null 2>&1 <<< "${answer}" || return 1
+  printf '%s\n' "${answer}"
+}
+
+# glv_pool_id_find: prints the pool's ID in bech32, from POOL_ID in this
+# script, the pool folder's pool.id files, or its cold verification key.
+# Nothing is written to the pool folder. Returns 1 when there is no ID, and 2
+# when a hex ID could not be turned into bech32 because Koios did not answer.
+glv_pool_id_find() {
+  local folder="${POOL_FOLDER:-}/${POOL_NAME:-}" id="${POOL_ID:-}" file answer
+  local name="${POOL_ID_FILENAME:-pool.id}" vkey="${POOL_COLDKEY_VK_FILENAME:-cold.vkey}"
+  if [[ -z "${id}" && -n "${POOL_NAME:-}" && "${POOL_NAME}" != CHANGE_ME ]]; then
+    for file in "${folder}/${name}-bech32" "${folder}/${name}"; do
+      [[ -r "${file}" ]] || continue
+      read -r id < "${file}" || id=''
+      [[ -z "${id}" ]] || break
+    done
+    if [[ -z "${id}" && -r "${folder}/${vkey}" && -n "${CCLI:-}" ]]; then
+      id="$("${CCLI}" latest stake-pool id --cold-verification-key-file "${folder}/${vkey}" 2>/dev/null)" || id=''
+    fi
+  fi
+  id="${id//[[:space:]]/}"
+  if [[ "${id}" =~ ^[0-9a-fA-F]{56}$ ]]; then
+    # Koios turns a hex ID into bech32, so no extra tool is needed.
+    answer="$(glv_koios "pool_list?pool_id_hex=eq.${id,,}&select=pool_id_bech32")" || return 2
+    id="$(jq -r '.[0].pool_id_bech32 // empty' <<< "${answer}" 2>/dev/null)"
+  fi
+  [[ "${id}" =~ ^pool1[02-9ac-hj-np-z]{51}$ ]] || return 1
+  printf '%s\n' "${id}"
+}
+
+# glv_blocks_per_epoch <variable>: blocks an epoch holds on average, the epoch
+# length times the active slot coefficient. Empty when either is unknown.
+glv_blocks_per_epoch() {
+  local -n _bpe_out="$1"
+  local coefficient=0
+  _bpe_out=''
+  if ui_scale coefficient "${ACTIVE_SLOTS_COEFF:-}" 4 && (( coefficient > 0 )) && glv_is_int "${EPOCH_LENGTH:-}"; then
+    _bpe_out=$((EPOCH_LENGTH * coefficient / 10000))
+  fi
+}
+
+# glv_pool_job_run <epoch> <blocks per epoch>: the pool as Koios sees it, as
+# "|"-separated records: id, info, a snap for each stake snapshot (next,
+# current and previous epoch), blocks for the current and previous epoch,
+# and ok last. A failure prints none (no pool ID), unknown (Koios does not
+# know the pool) or fail, and nothing after it.
+glv_pool_job_run() {
+  local epoch="$1" bpe="${2:-0}" id status answer e
+  [[ "${bpe}" =~ ^[0-9]+$ ]] || bpe=0
+  status=0
+  id="$(glv_pool_id_find)" || status=$?
+  case "${status}" in
+    0) ;;
+    2) printf 'fail|Koios did not answer\n'; return 0 ;;
+    *) printf 'none\n'; return 0 ;;
+  esac
+  printf 'id|%s\n' "${id}"
+  answer="$(glv_koios pool_info "{\"_pool_bech32_ids\":[\"${id}\"]}")" || { printf 'fail|Koios did not answer\n'; return 0; }
+  # Pool metadata is written by anyone: control characters, which could steer
+  # the terminal, are blanked, and the field separator is replaced.
+  jq -r '
+    def clean: tostring | explode | map(if . == 124 then 47 elif . < 32 or (. >= 127 and . < 160) then 32 else . end) | implode;
+    def n: if . == null then "" else tostring end;
+    if length == 0 then "unknown" else .[0] |
+      ["info",
+       ((.meta_json.ticker? // "") | tostring | gsub("[^A-Za-z0-9]"; "") | .[0:9]),
+       ((.meta_json.name? // "") | clean | .[0:60]),
+       ((.pool_status // "") | clean),
+       (.retiring_epoch | n),
+       (.live_stake | n), (.active_stake | n), (.live_saturation | n),
+       (.live_delegators | n), (.pledge | n), (.live_pledge | n),
+       (.margin | n), (.fixed_cost | n), (.block_count | n)] | join("|")
+    end' <<< "${answer}" 2>/dev/null || { printf 'fail|Koios gave an answer gLiveView could not read\n'; return 0; }
+  # The rest is optional: without it the history starts at the settled epochs.
+  if answer="$(glv_koios "pool_stake_snapshot?_pool_bech32=${id}")"; then
+    jq -r --argjson bpe "${bpe}" '
+      .[]? | select(.epoch_no != null) |
+      ((.pool_stake // "0" | tostring | tonumber?) // 0) as $pool |
+      ((.active_stake // "0" | tostring | tonumber?) // 0) as $all |
+      ["snap", (.epoch_no | tostring), (.pool_stake // "" | tostring),
+       (if $all > 0 and $bpe > 0 then ($pool / $all * $bpe * 100 | round | tostring) else "" end)] | join("|")
+    ' <<< "${answer}" 2>/dev/null
+  fi
+  for e in "${epoch}" $((epoch - 1)); do
+    if answer="$(glv_koios "pool_blocks?_pool_bech32=${id}&_epoch_no=${e}&select=block_height")"; then
+      printf 'blocks|%s|%s\n' "${e}" "$(jq -r 'length' <<< "${answer}" 2>/dev/null)"
+    fi
+  done
+  printf 'ok|%(%s)T|%s\n' -1 "${epoch}"
+}
+
+glv_pool_job_start() {
+  local bpe
+  glv_blocks_per_epoch bpe
+  rm -f -- "${POOL_JOB_FILE}" "${POOL_JOB_FILE}.part"
+  [[ "${POOL_STATE}" == ok || "${POOL_STATE}" == stale ]] || POOL_STATE=waiting
+  (
+    glv_pool_job_run "${epochnum}" "${bpe}" > "${POOL_JOB_FILE}.part" 2>/dev/null
+    mv -f -- "${POOL_JOB_FILE}.part" "${POOL_JOB_FILE}"
+  ) < /dev/null > /dev/null 2>&1 &
+  POOL_JOB_PID=$!
+}
+
+glv_pool_job_poll() {
+  [[ -n "${POOL_JOB_PID}" ]] || return 0
+  if [[ ! -f "${POOL_JOB_FILE}" ]]; then
+    ! kill -0 "${POOL_JOB_PID}" 2>/dev/null || return 0
+    if [[ ! -f "${POOL_JOB_FILE}" ]]; then
+      POOL_JOB_PID=''
+      glv_pool_failed "The pool data could not be read"
+      return 0
+    fi
+  fi
+  glv_pool_load "${POOL_JOB_FILE}"
+  rm -f -- "${POOL_JOB_FILE}"
+  POOL_JOB_PID=''
+}
+
+# A failed request keeps the last answer, if there is one, and is retried a
+# minute later.
+glv_pool_failed() {
+  POOL_FAILED_AT="${D_NOW:-0}"
+  POOL_NOTE="$1"
+  if [[ "${POOL_STATE}" == ok || "${POOL_STATE}" == stale ]]; then POOL_STATE=stale; else POOL_STATE=failed; fi
+}
+
+# glv_pool_load <file>: takes in what a pool job printed. The pool data is
+# replaced only by a complete answer.
+glv_pool_load() {
+  local line kind id='' fetched='' epoch='' key
+  local -a field=()
+  local -A got_info=() got_snap=() got_blocks=()
+  while IFS= read -r line; do
+    IFS='|' read -r -a field <<< "${line}|"
+    kind="${field[0]}"
+    case "${kind}" in
+      id) id="${field[1]}" ;;
+      none)
+        POOL_STATE=none; POOL_ID_B32=''; POOL_FETCHED_AT="${D_NOW:-0}"; POOL_EPOCH="${epochnum:-}"
+        return 0 ;;
+      unknown)
+        POOL_STATE=unknown; POOL_ID_B32="${id}"; POOL_FETCHED_AT="${D_NOW:-0}"; POOL_EPOCH="${epochnum:-}"
+        return 0 ;;
+      fail)
+        [[ -z "${id}" ]] || POOL_ID_B32="${id}"
+        glv_pool_failed "${field[1]:-Koios did not answer}"
+        return 0 ;;
+      info)
+        got_info=([ticker]="${field[1]}" [name]="${field[2]}" [status]="${field[3]}" [retiring]="${field[4]}"
+              [live_stake]="${field[5]}" [active_stake]="${field[6]}" [saturation]="${field[7]}"
+              [delegators]="${field[8]}" [pledge]="${field[9]}" [live_pledge]="${field[10]}"
+              [margin]="${field[11]}" [fixed_cost]="${field[12]}" [blocks]="${field[13]}") ;;
+      snap) glv_is_int "${field[1]}" && got_snap["${field[1]}"]="${field[2]}|${field[3]}" ;;
+      blocks) glv_is_int "${field[1]}" && glv_is_int "${field[2]}" && got_blocks["${field[1]}"]="${field[2]}" ;;
+      ok) fetched="${field[1]}"; epoch="${field[2]}" ;;
+    esac
+  done < "$1"
+  if [[ -z "${fetched}" || ${#got_info[@]} -eq 0 ]]; then
+    glv_pool_failed "The answer from Koios was incomplete"
+    return 0
+  fi
+  POOL_ID_B32="${id}"
+  POOL_INFO=(); for key in "${!got_info[@]}"; do POOL_INFO["${key}"]="${got_info[${key}]}"; done
+  POOL_SNAP=(); for key in "${!got_snap[@]}"; do POOL_SNAP["${key}"]="${got_snap[${key}]}"; done
+  POOL_BLOCKS=(); for key in "${!got_blocks[@]}"; do POOL_BLOCKS["${key}"]="${got_blocks[${key}]}"; done
+  POOL_STATE=ok
+  POOL_NOTE=''
+  POOL_FETCHED_AT="${fetched}"
+  POOL_FAILED_AT=0
+  POOL_EPOCH="${epoch}"
+}
+
+# glv_history_job_run <pool ID> <epoch> <offset> <blocks per epoch>: one
+# chunk of the pool's settled epochs, newest first: records total and row,
+# then ok, or fail. Settled means the rewards are known, which Koios has from
+# two epochs back; the newer ones come from the pool job.
+glv_history_job_run() {
+  local id="$1" epoch="$2" offset="$3" bpe="${4:-0}" headers answer total
+  [[ "${bpe}" =~ ^[0-9]+$ ]] || bpe=0
+  headers="${HIST_JOB_FILE}.head"
+  if ! answer="$(glv_koios "pool_history?_pool_bech32=${id}&epoch_no=lt.$((epoch - 1))&order=epoch_no.desc&limit=${HIST_CHUNK}&offset=${offset}&select=epoch_no,active_stake,active_stake_pct,delegator_cnt,block_cnt,pool_fees,deleg_rewards,epoch_ros" '' "${headers}")"; then
+    rm -f -- "${headers}"
+    printf 'fail\n'
+    return 0
+  fi
+  # Content-Range: 0-9/327 says how many there are in all.
+  total="$(tr -d '\r' < "${headers}" 2>/dev/null | sed -n 's|^[Cc]ontent-[Rr]ange: *[^/]*/\([0-9][0-9]*\)$|\1|p')"
+  rm -f -- "${headers}"
+  [[ -z "${total}" ]] || printf 'total|%s\n' "${total}"
+  jq -r --argjson bpe "${bpe}" --argjson offset "${offset}" '
+    def n: if . == null then "" else tostring end;
+    def number: (tostring | tonumber?) // null;
+    to_entries[] | .key as $i | .value |
+    ["row", ($offset + $i | tostring), (.epoch_no | n), (.active_stake | n),
+     (if $bpe > 0 and ((.active_stake_pct | number) != null) then ((.active_stake_pct | number) * $bpe | round | tostring) else "" end),
+     (.delegator_cnt | n), (.block_cnt | n), (.pool_fees | n), (.deleg_rewards | n),
+     (if (.epoch_ros | number) != null then ((.epoch_ros | number) * 100 | round | tostring) else "" end)] | join("|")
+  ' <<< "${answer}" 2>/dev/null || { printf 'fail\n'; return 0; }
+  printf 'ok\n'
+}
+
+glv_history_job_start() {
+  local bpe
+  glv_blocks_per_epoch bpe
+  rm -f -- "${HIST_JOB_FILE}" "${HIST_JOB_FILE}.part"
+  HIST_JOB_OFFSET="$1"
+  (
+    glv_history_job_run "${POOL_ID_B32}" "${HIST_EPOCH}" "$1" "${bpe}" > "${HIST_JOB_FILE}.part" 2>/dev/null
+    mv -f -- "${HIST_JOB_FILE}.part" "${HIST_JOB_FILE}"
+  ) < /dev/null > /dev/null 2>&1 &
+  HIST_JOB_PID=$!
+}
+
+glv_history_job_poll() {
+  [[ -n "${HIST_JOB_PID}" ]] || return 0
+  if [[ ! -f "${HIST_JOB_FILE}" ]]; then
+    ! kill -0 "${HIST_JOB_PID}" 2>/dev/null || return 0
+    if [[ ! -f "${HIST_JOB_FILE}" ]]; then
+      HIST_JOB_PID=''
+      HIST_FAILED["${HIST_JOB_OFFSET}"]="${D_NOW:-0}"
+      return 0
+    fi
+  fi
+  glv_history_load "${HIST_JOB_FILE}" "${HIST_JOB_OFFSET}"
+  rm -f -- "${HIST_JOB_FILE}"
+  HIST_JOB_PID=''
+}
+
+# glv_history_load <file> <chunk offset>: takes in one chunk of settled epochs.
+glv_history_load() {
+  local line rows=0 ok=N total=''
+  local -a field=()
+  while IFS= read -r line; do
+    IFS='|' read -r -a field <<< "${line}|"
+    case "${field[0]}" in
+      total) glv_is_int "${field[1]}" && total="${field[1]}" ;;
+      row)
+        glv_is_int "${field[1]}" && glv_is_int "${field[2]}" || continue
+        HIST_ROW["${field[1]}"]="${field[2]}|${field[3]}|${field[4]}|${field[5]}|${field[6]}|${field[7]}|${field[8]}|${field[9]}"
+        (( field[1] + 1 <= HIST_KNOWN )) || HIST_KNOWN=$((field[1] + 1))
+        rows=$((rows + 1)) ;;
+      ok) ok=Y ;;
+    esac
+  done < "$1"
+  if [[ "${ok}" != Y ]]; then
+    HIST_FAILED["$2"]="${D_NOW:-0}"
+    return 0
+  fi
+  HIST_LOADED["$2"]=1
+  unset "HIST_FAILED[$2]"
+  if [[ -n "${total}" ]]; then HIST_TOTAL="${total}"
+  elif (( rows < HIST_CHUNK )); then HIST_TOTAL=$(($2 + rows)); fi
+}
+
+# Every second: takes in finished jobs, and starts the pool job when its data
+# is due, every 10 minutes and as an epoch starts.
+glv_pool_tick() {
+  [[ -z "${POOL_JOB_PID}" ]] || glv_pool_job_poll
+  [[ -z "${HIST_JOB_PID}" ]] || glv_history_job_poll
+  [[ "${D_ROLE:-}" == Core ]] || return 0
+  if ! glv_koios_usable; then POOL_STATE=nokoios; return 0; fi
+  [[ "${POOL_STATE}" != nokoios ]] || POOL_STATE=off
+  glv_is_int "${epochnum:-}" || return 0
+  if [[ -z "${POOL_JOB_PID}" ]] && (( D_NOW - POOL_FAILED_AT >= 60 )); then
+    if (( POOL_FETCHED_AT == 0 )) || [[ "${POOL_EPOCH}" != "${epochnum}" ]] || (( D_NOW - POOL_FETCHED_AT >= 600 )); then
+      glv_pool_job_start
+    fi
+  fi
+  (( VIEW != 4 )) || glv_history_tick
+}
+
+# Starts fetching the chunk of settled epochs the history panel shows next:
+# the rows on screen and one screenful beyond them.
+glv_history_tick() {
+  local first last offset
+  [[ -n "${POOL_ID_B32}" && ( "${POOL_STATE}" == ok || "${POOL_STATE}" == stale ) ]] || return 0
+  glv_is_int "${epochnum:-}" || return 0
+  # A new epoch moves every settled epoch one row down: start again.
+  if [[ "${HIST_EPOCH}" != "${epochnum}" ]]; then
+    HIST_ROW=(); HIST_LOADED=(); HIST_FAILED=()
+    HIST_TOTAL=-1; HIST_KNOWN=0; HIST_SCROLL=0; HIST_EPOCH="${epochnum}"
+  fi
+  [[ -z "${HIST_JOB_PID}" ]] || return 0
+  (( HIST_TOTAL != 0 )) || return 0
+  first=$((HIST_SCROLL - HIST_VIRTUAL))
+  (( first >= 0 )) || first=0
+  last=$((first + 2 * ${POOL_HISTORY_EPOCHS:-5}))
+  (( HIST_TOTAL < 0 || last < HIST_TOTAL )) || last=$((HIST_TOTAL - 1))
+  for ((offset = first - first % HIST_CHUNK; offset <= last; offset += HIST_CHUNK)); do
+    [[ -z "${HIST_LOADED[${offset}]+set}" ]] || continue
+    (( D_NOW - ${HIST_FAILED[${offset}]:-0} >= 60 )) || continue
+    glv_history_job_start "${offset}"
+    return 0
+  done
+}
+
+# glv_history_rows <rows>: the epochs the history panel shows, from
+# HIST_SCROLL, in HIST_VIEW as "kind|epoch|stake|delegators|led|blocks|ideal
+# hundredths|fees|rewards|ROS hundredths". Kind is next, now or previous for
+# the newest epochs, which come from the pool job, settled for Koios's pool
+# history, and loading or failed for a row that is not there yet.
+glv_history_rows() {
+  local count="$1" index offset e kind stake ideal deleg blocks fees rewards ros mine limit
+  local -a virtual=()
+  HIST_VIEW=()
+  HIST_SHOWN="${count}"
+  glv_is_int "${epochnum:-}" || return 0
+  for e in $((epochnum + 1)) "${epochnum}" $((epochnum - 1)); do
+    [[ -z "${POOL_SNAP[${e}]+set}${POOL_BLOCKS[${e}]+set}" ]] || virtual+=("${e}")
+  done
+  HIST_VIRTUAL=${#virtual[@]}
+  if (( HIST_TOTAL >= 0 )); then HIST_ROWS_TOTAL=$((HIST_VIRTUAL + HIST_TOTAL))
+  else HIST_ROWS_TOTAL=$((HIST_VIRTUAL + HIST_KNOWN + 1)); fi
+  limit=$((HIST_ROWS_TOTAL - count))
+  (( limit >= 0 )) || limit=0
+  (( HIST_SCROLL <= limit )) || HIST_SCROLL="${limit}"
+  (( HIST_SCROLL >= 0 )) || HIST_SCROLL=0
+  for ((index = HIST_SCROLL; index < HIST_SCROLL + count && index < HIST_ROWS_TOTAL; index++)); do
+    if (( index < HIST_VIRTUAL )); then
+      e="${virtual[index]}"
+      if (( e > epochnum )); then kind=next; elif (( e == epochnum )); then kind=now; else kind=previous; fi
+      stake="${POOL_SNAP[${e}]:-|}"
+      ideal="${stake#*|}"; stake="${stake%%|*}"
+      blocks="${POOL_BLOCKS[${e}]:-}"
+      # The block log knows this epoch's blocks before Koios does.
+      if [[ "${kind}" == now && "${D_SCHEDULE_EPOCH:-}" == "${epochnum}" ]]; then
+        mine=$(( ${D_STATUS[adopted]:-0} + ${D_STATUS[confirmed]:-0} ))
+        if ! glv_is_int "${blocks}" || (( mine > blocks )); then blocks="${mine}"; fi
+      fi
+      HIST_VIEW+=("${kind}|${e}|${stake}||${D_LED[${e}]:-}|${blocks}|${ideal}|||")
+    else
+      offset=$((index - HIST_VIRTUAL))
+      if [[ -n "${HIST_ROW[${offset}]+set}" ]]; then
+        IFS='|' read -r e stake ideal deleg blocks fees rewards ros <<< "${HIST_ROW[${offset}]}"
+        HIST_VIEW+=("settled|${e}|${stake}|${deleg}|${D_LED[${e}]:-}|${blocks}|${ideal}|${fees}|${rewards}|${ros}")
+      elif (( ${D_NOW:-0} - ${HIST_FAILED[$((offset - offset % HIST_CHUNK))]:-0} < 60 )); then
+        HIST_VIEW+=("failed|")
+      else
+        HIST_VIEW+=("loading|")
+      fi
+    fi
+  done
+}
+
+# glv_ada_short <variable> <lovelace>: 22412345678901 -> "22.41 M".
+glv_ada_short() {
+  local -n _ada_short="$1"
+  local lovelace="$2" whole
+  if ! [[ "${lovelace}" =~ ^[0-9]+$ ]]; then _ada_short='—'; return 0; fi
+  if (( lovelace >= 1000000000000000 )); then
+    printf -v _ada_short '%d.%02d B' $((lovelace / 1000000000000000)) $((lovelace % 1000000000000000 / 10000000000000))
+  elif (( lovelace >= 1000000000000 )); then
+    printf -v _ada_short '%d.%02d M' $((lovelace / 1000000000000)) $((lovelace % 1000000000000 / 10000000000))
+  elif (( lovelace >= 10000000000 )); then
+    printf -v _ada_short '%d k' $((lovelace / 1000000000))
+  elif (( lovelace >= 1000000000 )); then
+    printf -v _ada_short '%d.%d k' $((lovelace / 1000000000)) $((lovelace % 1000000000 / 100000000))
+  else
+    ui_fmt_int whole $((lovelace / 1000000))
+    _ada_short="${whole}"
+  fi
+}
+
+# glv_ada_int <variable> <lovelace>: 10184123456 -> "10,184 ₳".
+glv_ada_int() {
+  local -n _ada_int="$1"
+  local whole
+  if ! [[ "$2" =~ ^[0-9]+$ ]]; then _ada_int='—'; return 0; fi
+  ui_fmt_int whole $(($2 / 1000000))
+  _ada_int="${whole} ₳"
+}
+
+# glv_pool_vital <text> <colour>: the rail's Pool line. Red when the live
+# pledge is below the pledge, which costs the epoch's rewards, or the pool
+# has retired; amber while it is retiring or over-saturated. Empty without
+# pool data.
+glv_pool_vital() {
+  local -n _pool_text="$1" _pool_colour="$2"
+  local saturation=0 value
+  _pool_text=''
+  _pool_colour="${C_OK}"
+  [[ "${POOL_STATE}" == ok || "${POOL_STATE}" == stale ]] || return 0
+  ui_scale saturation "${POOL_INFO[saturation]:-}" 1 || saturation=0
+  ui_fmt_tenths value "${saturation}"
+  _pool_text="${POOL_INFO[ticker]:-pool} · ${value} %"
+  if glv_is_int "${POOL_INFO[pledge]:-}" && glv_is_int "${POOL_INFO[live_pledge]:-}" &&
+     (( ${POOL_INFO[live_pledge]} < ${POOL_INFO[pledge]} )); then
+    _pool_text="pledge not met"; _pool_colour="${C_DANGER}"
+  elif [[ "${POOL_INFO[status]:-}" == retired ]]; then
+    _pool_text="retired"; _pool_colour="${C_DANGER}"
+  elif glv_is_int "${POOL_INFO[retiring]:-}"; then
+    _pool_text="retiring ${POOL_INFO[retiring]}"; _pool_colour="${C_WARN}"
+  elif (( saturation >= 1000 )); then
+    _pool_colour="${C_WARN}"
+  fi
+}
+
 # What only the page on screen needs.
 glv_data_view() {
   case "${VIEW:-1}" in
@@ -1505,6 +1958,7 @@ glv_data_clock() {
   # A finished peer analysis shows up within a second, not at the next collection.
   [[ -z "${PEER_JOB_PID:-}" ]] || glv_peers_job_poll
   [[ -z "${PARAMS_JOB_PID:-}" ]] || glv_params_job_poll
+  glv_pool_tick
 
   D_UPTIME=''
   if node_metric_has uptimes && glv_is_int "${uptimes:-}"; then
@@ -2240,6 +2694,8 @@ glv_vitals() {
       if [[ "${colour}" == C_DANGER ]]; then colour="${C_DANGER}"; else colour="${C_OK}"; fi
       glv_vital "${list}" "${colour}" "Op cert" "${text}"
     fi
+    glv_pool_vital text colour
+    [[ -z "${text}" ]] || glv_vital "${list}" "${colour}" "Pool" "${text}"
   fi
   # The host as a whole, then the node process on its own.
   colour="${C_OK}"
@@ -2558,11 +3014,17 @@ glv_view_overview() {
 # other than the overview. With the focus on the page's list the arrows
 # scroll it; otherwise they move between pages and Tab offers the list.
 glv_footer_page() {
-  local name="$1"
+  local name="$1" tab_hint="Tab Pages"
   shift
   if [[ "${PAGE_FOCUS}" == Y ]]; then
-    glv_footer "${name}" "↑↓ Line" "Tab Pages" "${GLV_PAGE_KEYS[@]}" "? Help" "q Quit" "${GLV_EXTRA_KEYS[@]}"
-  elif [[ "${PAGE_FOCUSABLE[VIEW]}" == Y ]]; then
+    glv_focus_key
+    ! glv_focus_after || tab_hint="Tab Next list"
+    if [[ "${GLV_FOCUS_KEY}" == history ]]; then
+      glv_footer "${name}" "↑↓ Epoch" "PgUp/PgDn ${HIST_SHOWN} epochs" "g Newest" "G Oldest" "${tab_hint}" "? Help" "q Quit"
+    else
+      glv_footer "${name}" "↑↓ Line" "${tab_hint}" "${GLV_PAGE_KEYS[@]}" "? Help" "q Quit" "${GLV_EXTRA_KEYS[@]}"
+    fi
+  elif glv_focus_available; then
     glv_footer "${name}" "Tab List" "${GLV_PAGE_KEYS[@]}" "? Help" "q Quit" "$@" "${GLV_EXTRA_KEYS[@]}"
   else
     glv_footer "${name}" "${GLV_PAGE_KEYS[@]}" "? Help" "q Quit" "$@" "${GLV_EXTRA_KEYS[@]}"
@@ -2588,7 +3050,7 @@ glv_page_body() {
   for pass in 1 2; do
     UI_FOCUS=''
     if [[ "${HELP_MODE}" == drawer ]]; then UI_FOCUS="${HELP_FOCUS}"
-    elif [[ "${PAGE_FOCUS}" == Y ]]; then UI_FOCUS="${PAGE_LIST_KEY[VIEW]}"; fi
+    elif [[ "${PAGE_FOCUS}" == Y ]]; then glv_focus_key; UI_FOCUS="${GLV_FOCUS_KEY}"; fi
     glv_main_begin $((rows - drawer))
     GLV_PAGE_KEYS=()
     GLV_FOOTER_NOTE=''
@@ -2656,7 +3118,7 @@ glv_page_compact() {
   GLV_FOOTER_NOTE=''
   GLV_PAGE_KEYS=()
   UI_FOCUS=''
-  [[ "${PAGE_FOCUS}" != Y || "${HELP}" == Y ]] || UI_FOCUS="${PAGE_LIST_KEY[VIEW]}"
+  if [[ "${PAGE_FOCUS}" == Y && "${HELP}" != Y ]]; then glv_focus_key; UI_FOCUS="${GLV_FOCUS_KEY}"; fi
   # There is no room for a help drawer here, so help is a page of its own.
   HELP_MODE=off
   [[ "${HELP}" != Y ]] || HELP_MODE=page
@@ -3611,13 +4073,94 @@ glv_peer_label() {
 
 PAGE_SCROLL=0
 PAGE_TOTAL=0
-# Tab moves the focus from the list of pages to the list on the page, and
-# back. While the page has it, up and down scroll that list a line at a time.
-# PAGE_LIST_KEY names the panel that holds each page's list (the Node &
-# network page scrolls as a whole, so it has none to mark).
+# Tab moves the focus from the list of pages to the lists on the page, one
+# after the other, and back. While a list has it, up and down scroll that
+# list. PAGE_LISTS names the panels that hold each page's lists, in the order
+# Tab visits them (the Node & network page scrolls as a whole, so it has none
+# to mark), and PAGE_FOCUS_AT which of them has the focus.
 PAGE_FOCUS=N
+PAGE_FOCUS_AT=0
 PAGE_FOCUSABLE=('' N Y Y Y N Y Y)
-PAGE_LIST_KEY=('' '' recent peerlist schedule '' log '')
+PAGE_LISTS=('' '' recent peerlist "schedule history" '' log '')
+
+# glv_focus_key: GLV_FOCUS_KEY names the list that has the focus, or is empty.
+glv_focus_key() {
+  local -a lists=()
+  GLV_FOCUS_KEY=''
+  [[ "${PAGE_FOCUS}" == Y ]] || return 0
+  read -r -a lists <<< "${PAGE_LISTS[VIEW]}"
+  GLV_FOCUS_KEY="${lists[PAGE_FOCUS_AT]:-${lists[0]:-}}"
+}
+
+# glv_focus_on_screen <key>: whether that list was drawn in the last frame.
+glv_focus_on_screen() {
+  local key
+  for key in "${UI_PANELS[@]}"; do [[ "${key}" != "$1" ]] || return 0; done
+  return 1
+}
+
+# glv_focus_after: whether a list after the focused one is on screen, so that
+# Tab moves to it rather than back to the pages.
+glv_focus_after() {
+  local -a lists=()
+  local i
+  read -r -a lists <<< "${PAGE_LISTS[VIEW]}"
+  for ((i = PAGE_FOCUS_AT + 1; i < ${#lists[@]}; i++)); do
+    ! glv_focus_on_screen "${lists[i]}" || return 0
+  done
+  return 1
+}
+
+# glv_focus_available: whether Tab has a list to go to on this page. The Node
+# & network page scrolls as a whole, so it always has.
+glv_focus_available() {
+  local -a lists=()
+  local key
+  [[ "${PAGE_FOCUSABLE[VIEW]}" == Y ]] || return 1
+  read -r -a lists <<< "${PAGE_LISTS[VIEW]}"
+  (( ${#lists[@]} > 0 )) || return 0
+  for key in "${lists[@]}"; do ! glv_focus_on_screen "${key}" || return 0; done
+  return 1
+}
+
+# glv_focus_next: Tab. The focus goes to the next list on screen, and from the
+# last one back to the pages.
+glv_focus_next() {
+  local -a lists=()
+  local i=0
+  read -r -a lists <<< "${PAGE_LISTS[VIEW]}"
+  if (( ${#lists[@]} == 0 )); then
+    if [[ "${PAGE_FOCUS}" == Y ]]; then PAGE_FOCUS=N; else PAGE_FOCUS=Y; fi
+    return 0
+  fi
+  [[ "${PAGE_FOCUS}" != Y ]] || i=$((PAGE_FOCUS_AT + 1))
+  for ((; i < ${#lists[@]}; i++)); do
+    if glv_focus_on_screen "${lists[i]}"; then PAGE_FOCUS=Y; PAGE_FOCUS_AT="${i}"; return 0; fi
+  done
+  PAGE_FOCUS=N
+  PAGE_FOCUS_AT=0
+}
+
+# glv_focus_scroll <lines> [page]: scrolls the list that has the focus, or
+# the page's first list when none has. The epoch history moves by epochs, a
+# page at a time by as many as it shows, and asks Koios at once for what
+# comes into view.
+glv_focus_scroll() {
+  local limit
+  glv_focus_key
+  if [[ "${GLV_FOCUS_KEY}" != history ]]; then
+    PAGE_SCROLL=$((PAGE_SCROLL + $1))
+    return 0
+  fi
+  if [[ "${2:-}" != page ]]; then HIST_SCROLL=$((HIST_SCROLL + $1))
+  elif (( $1 < 0 )); then HIST_SCROLL=$((HIST_SCROLL - HIST_SHOWN))
+  else HIST_SCROLL=$((HIST_SCROLL + HIST_SHOWN)); fi
+  limit=$((HIST_ROWS_TOTAL - HIST_SHOWN))
+  (( limit >= 0 )) || limit=0
+  (( HIST_SCROLL <= limit )) || HIST_SCROLL="${limit}"
+  (( HIST_SCROLL >= 0 )) || HIST_SCROLL=0
+  glv_history_tick
+}
 LOG_LEVEL=0
 LOG_PAUSED=N       # Y keeps the lines that are loaded and reads no new ones
 LOG_PAUSED_AT=''
@@ -4101,8 +4644,160 @@ glv_schedule_time() {
   fi
 }
 
+# glv_pool_age <variable>: how old the last answer from Koios is.
+glv_pool_age() {
+  local -n _age_out="$1"
+  local _age_seconds=$(( ${D_NOW:-0} - POOL_FETCHED_AT ))
+  if (( _age_seconds < 60 )); then _age_out="just now"
+  elif (( _age_seconds < 3600 )); then _age_out="$((_age_seconds / 60)) min ago"
+  else _age_out="$((_age_seconds / 3600)) h ago"; fi
+}
+
+# glv_panel_pool <width>: the pool as Koios sees it, in P_POOL, or a note on
+# why there is nothing to show.
+glv_panel_pool() {
+  local width="$1" inner=$(($1 - 4)) pool_title="Pool" right='' text value colour age saturation=0 margin=0
+  local -a cells=() note=()
+  if [[ "${POOL_STATE}" == ok || "${POOL_STATE}" == stale ]]; then
+    [[ -z "${POOL_INFO[ticker]}" ]] || pool_title+=" · ${POOL_INFO[ticker]}"
+    [[ -z "${POOL_INFO[name]}" ]] || pool_title+=" · ${POOL_INFO[name]}"
+    [[ -n "${POOL_INFO[ticker]}${POOL_INFO[name]}" ]] || pool_title+=" · ${POOL_ID_B32:0:20}…"
+    # Three columns, filled one column at a time.
+    glv_ada_short value "${POOL_INFO[live_stake]}"; glv_cell cells "Live stake" "${value} ₳"
+    glv_ada_short value "${POOL_INFO[active_stake]}"; glv_cell cells "Active stake" "${value} ₳"
+    ui_scale margin "${POOL_INFO[margin]}" 3 || margin=0
+    ui_fmt_tenths value "${margin}"; glv_cell cells "Margin" "${value} %"
+    ui_scale saturation "${POOL_INFO[saturation]}" 1 || saturation=0
+    colour=''
+    (( saturation < 1000 )) || colour=C_WARN
+    ui_fmt_tenths value "${saturation}"; glv_cell cells "Saturation" "${value} %" "${colour}"
+    glv_ada_short value "${POOL_INFO[pledge]}"; glv_cell cells "Pledge" "${value} ₳"
+    glv_ada_int value "${POOL_INFO[fixed_cost]}"; glv_cell cells "Fixed cost" "${value}"
+    ui_fmt_int value "${POOL_INFO[delegators]}"; glv_cell cells "Delegators" "${value:-—}"
+    glv_ada_short text "${POOL_INFO[live_pledge]}"
+    if glv_is_int "${POOL_INFO[pledge]}" && glv_is_int "${POOL_INFO[live_pledge]}" &&
+       (( ${POOL_INFO[live_pledge]} < ${POOL_INFO[pledge]} )); then
+      glv_cell cells "Live pledge" "${text} ₳ ✗" C_DANGER
+    else
+      glv_cell cells "Live pledge" "${text} ₳ ✓" C_OK
+    fi
+    ui_fmt_int value "${POOL_INFO[blocks]}"; glv_cell cells "Lifetime blocks" "${value:-—}"
+    if [[ "${POOL_STATE}" == stale ]]; then
+      printf -v text '%(%H:%M)T' "${POOL_FETCHED_AT}"
+      right="Koios not answering · data from ${text}"
+    else
+      glv_pool_age age
+      text="${POOL_INFO[status]:-}"
+      ! glv_is_int "${POOL_INFO[retiring]}" || text="retiring after epoch ${POOL_INFO[retiring]}"
+      right="${text:+${text} · }Koios ${age}"
+    fi
+    UI_HELP=pool
+    glv_cells_panel P_POOL "${width}" "${pool_title}" "${right}" cells 3 3
+    return 0
+  fi
+  case "${POOL_STATE}" in
+    nokoios)
+      if [[ "${ENABLE_KOIOS:-Y}" != Y ]]; then
+        text="Koios is turned off in env (ENABLE_KOIOS=N), so there is no pool data."
+      else
+        text="There is no Koios service for this network, so there is no pool data."
+      fi ;;
+    none)
+      text="No pool ID: set POOL_ID at the top of gLiveView.sh, or keep ${POOL_ID_FILENAME:-pool.id}-bech32 in the pool folder ${POOL_FOLDER:-}/${POOL_NAME:-}." ;;
+    unknown) text="Koios does not know pool ${POOL_ID_B32}. It may not be registered yet, or be on another network." ;;
+    failed)
+      printf -v value '%(%H:%M)T' "${POOL_FAILED_AT}"
+      text="${POOL_NOTE:-Koios did not answer} at ${value}. gLiveView asks again every minute." ;;
+    *) text="Asking Koios for the pool's data…" ;;
+  esac
+  ui_wrap note "${inner}" "${text}"
+  UI_HELP=pool
+  glv_note_panel P_POOL "${width}" $((${#note[@]} + 2)) "Pool" "${text}"
+}
+
+# glv_panel_history <width> <height>: the pool's epochs, newest first, in
+# P_HISTORY. The columns that matter least leave first on a narrow terminal.
+glv_panel_history() {
+  local width="$1" height="$2" inner=$(($1 - 4)) rows=$(($2 - 3)) wide=N entry kind e stake deleg led
+  local blocks ideal fees rewards ros value colour first='' last='' luck right
+  (( inner >= 84 )) && wide=Y
+  glv_history_rows "${rows}"
+  UI_BASE="${UI_BASE_MAIN}"
+  UI_BODY=()
+  ui_putw "${C_MUTED}" 10 "Epoch"; ui_putw "${C_MUTED}" 9 "Stake" r
+  [[ "${wide}" == N ]] || ui_putw "${C_MUTED}" 7 "Deleg" r
+  ui_putw "${C_MUTED}" 5 "Led" r; ui_putw "${C_MUTED}" 8 "Blocks" r
+  ui_putw "${C_MUTED}" 7 "Ideal" r; ui_putw "${C_MUTED}" 9 "Luck" r
+  [[ "${wide}" == N ]] || ui_putw "${C_MUTED}" 9 "Fees" r
+  ui_putw "${C_MUTED}" 11 "Rewards" r; ui_putw "${C_MUTED}" 8 "ROS" r
+  ui_endl UI_BODY "${inner}"
+  for entry in "${HIST_VIEW[@]}"; do
+    IFS='|' read -r kind e stake deleg led blocks ideal fees rewards ros <<< "${entry}"
+    case "${kind}" in
+      loading|failed)
+        ui_putw "${C_MUTED}" 10 "…"
+        if [[ "${kind}" == loading ]]; then ui_putw "${C_MUTED}" $((inner - 10)) "fetching from Koios…"
+        else ui_putw "${C_WARN}" $((inner - 10)) "Koios did not answer; asking again in a minute"; fi
+        ui_endl UI_BODY "${inner}"
+        continue ;;
+    esac
+    [[ -n "${first}" ]] || first="${e}"
+    last="${e}"
+    colour=''
+    case "${kind}" in
+      next) value="${e} next" ;;
+      now) value="${e} now"; colour="${UI_BOLD}" ;;
+      *) value="${e}" ;;
+    esac
+    ui_putw "${colour}" 10 "${value}"
+    glv_ada_short value "${stake}"; ui_putw '' 9 "${value}" r
+    if [[ "${wide}" == Y ]]; then
+      if glv_is_int "${deleg}"; then ui_fmt_int value "${deleg}"; else value='—'; fi
+      ui_putw '' 7 "${value}" r
+    fi
+    ui_putw '' 5 "${led:-—}" r
+    if [[ "${kind}" == next ]] || ! glv_is_int "${blocks}"; then ui_putw "${C_MUTED}" 8 "—" r
+    else ui_putw '' 8 "${blocks}" r; fi
+    if glv_is_int "${ideal}"; then value="$((ideal / 100)).$((ideal % 100 / 10))"; else value='—'; fi
+    ui_putw '' 7 "${value}" r
+    # Luck is blocks made against the ideal, so only for a finished epoch.
+    luck='—'; colour="${C_MUTED}"
+    if [[ "${kind}" == now ]]; then luck="so far"
+    elif [[ "${kind}" != next ]] && glv_is_int "${blocks}" && glv_is_int "${ideal}" && (( ideal > 0 )); then
+      value=$((blocks * 100000 / ideal))
+      luck="$((value / 10)).$((value % 10)) %"; colour=''
+    fi
+    ui_putw "${colour}" 9 "${luck}" r
+    case "${kind}" in
+      next)
+        [[ "${wide}" == N ]] || ui_putw "${C_MUTED}" 9 "—" r
+        ui_putw "${C_MUTED}" 11 "—" r; ui_putw "${C_MUTED}" 8 "—" r ;;
+      now|previous)
+        # Rewards are settled two epochs after the epoch they are for.
+        [[ "${wide}" == N ]] || ui_putw "${C_MUTED}" 9 "pending" r
+        ui_putw "${C_MUTED}" 11 "pending" r; ui_putw "${C_MUTED}" 8 "—" r ;;
+      *)
+        if [[ "${wide}" == Y ]]; then glv_ada_int value "${fees}"; ui_putw '' 9 "${value}" r; fi
+        glv_ada_int value "${rewards}"; ui_putw '' 11 "${value}" r
+        # Koios has a few epochs without their rewards, and then a ROS of 0.
+        if glv_is_int "${ros}" && [[ -n "${rewards}" ]]; then printf -v value '%d.%02d %%' $((ros / 100)) $((ros % 100)); else value='—'; fi
+        ui_putw '' 8 "${value}" r ;;
+    esac
+    ui_endl UI_BODY "${inner}"
+  done
+  if [[ -n "${first}" ]]; then
+    right="${first}–${last}"
+    (( HIST_TOTAL < 0 )) || right+=" · ${HIST_ROWS_TOTAL} epochs"
+    right+=" · newest first"
+  else
+    right="newest first"
+  fi
+  UI_HELP=history
+  ui_panel P_HISTORY "${width}" "${height}" "Epoch history" "${right}"
+}
+
 glv_view_production() {
-  local width="$1" half=$(($1 / 2)) inner=$(($1 - 4)) text colour value days rows entry
+  local width="$1" half=$(($1 / 2)) inner=$(($1 - 4)) text colour value days rows entry history=N
   local slot status at block epoch_height=0 schedule_height first=Y luck ideal key_rows=6
   local -a keys=() epoch=() upcoming=() past=() ordered=()
 
@@ -4137,10 +4832,23 @@ glv_view_production() {
   glv_cells_panel P_B $((width - half)) "Epoch ${epochnum:-} so far" "" epoch 2 "${key_rows}"
   glv_main_add P_A P_B
 
-  if (( ${#D_EPOCHS[@]} > 0 )); then epoch_height=$((${#D_EPOCHS[@]} + 3)); fi
+  # The pool as Koios sees it, and its epochs. Without an answer from Koios
+  # the epochs come from the block log alone.
+  glv_panel_pool "${width}"
+  glv_main_add P_POOL
+  [[ "${POOL_STATE}" != ok && "${POOL_STATE}" != stale ]] || history=Y
   glv_main_room
-  schedule_height=$((GLV_ROOM - epoch_height))
-  if (( schedule_height < 6 )); then schedule_height="${GLV_ROOM}"; epoch_height=0; fi
+  if [[ "${history}" == Y ]]; then
+    # The schedule keeps room for three slots; the history gives up rows first.
+    epoch_height=$((POOL_HISTORY_EPOCHS + 3))
+    (( GLV_ROOM - epoch_height >= 6 )) || epoch_height=$((GLV_ROOM - 6))
+    (( epoch_height >= 4 )) || epoch_height=0
+    schedule_height=$((GLV_ROOM - epoch_height))
+  else
+    if (( ${#D_EPOCHS[@]} > 0 )); then epoch_height=$((${#D_EPOCHS[@]} + 3)); fi
+    schedule_height=$((GLV_ROOM - epoch_height))
+    if (( schedule_height < 6 )); then schedule_height="${GLV_ROOM}"; epoch_height=0; fi
+  fi
   (( schedule_height >= 5 )) || return 0
 
   # Slots to come first, soonest on top, then the ones that have passed.
@@ -4216,6 +4924,11 @@ glv_view_production() {
   glv_main_add P_C
 
   (( epoch_height > 0 )) || return 0
+  if [[ "${history}" == Y ]]; then
+    glv_panel_history "${width}" "${epoch_height}"
+    glv_main_add P_HISTORY
+    return 0
+  fi
   UI_BODY=()
   ui_putw "${C_MUTED}" 10 "Epoch"; ui_putw "${C_MUTED}" 9 "Leader" r
   # Without block results every epoch would show 0 adopted.
@@ -4653,7 +5366,7 @@ HELP_PAGE_NAMES=('' Overview Chain Peers Production System Logs "Node & network"
 # The panels of each page, for the help that is one text for the whole page.
 HELP_PAGE_KEYS=('' "epoch chain propagation peers resources production recent"
   "epoch chain traffic spread recent" "peers connections roundtrip peerlist"
-  "production keys results schedule epochs" "host process custom" "log"
+  "production keys results pool schedule history epochs" "host process custom" "log"
   "node binary startup deployment nodeinfo network params")
 declare -A HELP_TITLE=(
   [epoch]="Epoch" [chain]="Chain" [propagation]="Propagation" [peers]="Peers"
@@ -4664,6 +5377,7 @@ declare -A HELP_TITLE=(
   [host]="Host" [process]="Node process" [custom]="Node's own metrics" [log]="Log"
   [node]="Node" [binary]="Binary" [network]="Network" [deployment]="Deployment" [nodeinfo]="Reported by the node"
   [startup]="Start-up options" [params]="Protocol parameters"
+  [pool]="Pool" [history]="Epoch history"
 )
 
 # glv_help_mode <rows of the main area>: a drawer needs room above it.
@@ -4955,6 +5669,49 @@ glv_help_entries() {
           "One row for each recent epoch in the block log: slots led, the ideal number for the pool's stake, and leader against ideal as luck. The block log holds no block results for this node, so there is no column of adopted blocks."
       fi
       ;;
+    pool)
+      [[ "${D_ROLE}" == Core ]] || return 0
+      glv_help_add "Source" \
+        "The pool as Koios sees it, asked every 10 minutes and as an epoch starts. The title says how old the answer is. When Koios does not answer, the panel keeps the last answer and says so, and gLiveView asks again every minute; nothing else on the page waits for it."
+      glv_help_add "Live stake · Active stake" \
+        "Live: delegated to the pool now. Active: the stake this epoch's leader slots were drawn from, taken in a snapshot two epochs ago."
+      local saturation=0 level=ok value=''
+      if ui_scale saturation "${POOL_INFO[saturation]:-}" 1; then
+        ui_fmt_tenths value "${saturation}"; value+=" %"
+        (( saturation < 1000 )) || level=warn
+      fi
+      glv_help_add "Saturation" \
+        "Live stake against the saturation point. Above 100 % the pool's rewards stop growing with its stake, so delegators earn less." \
+        "Under 100 %." "${value}" "${value:+${level}}"
+      value=''; level=''
+      if glv_is_int "${POOL_INFO[pledge]:-}" && glv_is_int "${POOL_INFO[live_pledge]:-}"; then
+        if (( ${POOL_INFO[live_pledge]} < ${POOL_INFO[pledge]} )); then value="not met"; level=bad; else value="met"; level=ok; fi
+      fi
+      glv_help_add "Pledge · Live pledge" \
+        "What the owners promised to keep delegated to the pool, and what they delegate now." \
+        "Live pledge at least the pledge. Below it the pool earns no rewards for the epoch, and the Pool line in the rail turns red." "${value}" "${level}"
+      glv_help_add "Margin · Fixed cost" \
+        "What the operator takes from each epoch's rewards before the delegators get the rest."
+      glv_help_add "Delegators · Lifetime blocks" \
+        "Accounts delegating to the pool now, and the blocks it has made since it was registered."
+      glv_help_add "Pool ID" \
+        "From POOL_ID at the top of gLiveView.sh, or else the pool.id files or cold.vkey in the pool folder. A producer that keeps its cold keys elsewhere needs POOL_ID."
+      ;;
+    history)
+      [[ "${D_ROLE}" == Core ]] || return 0
+      glv_help_add "Rows" \
+        "One row for each epoch, newest first. An epoch's rewards are settled two epochs after it; until then its row comes from the stake snapshots and block counts Koios keeps, so the next epoch has a stake but no blocks yet, and the current and previous epochs show their rewards as pending."
+      glv_help_add "Stake · Deleg" "Active stake and delegators in the epoch."
+      glv_help_add "Led" "Leader slots the block log holds for the epoch, — where it has none."
+      glv_help_add "Blocks · Ideal · Luck" \
+        "Blocks the pool made, the number its share of the active stake gives on average, and one against the other. For the current epoch the block log's count is used when it is ahead of Koios." \
+        "Around 100 % over many epochs. One epoch on its own varies a lot by chance."
+      glv_help_add "Fees · Rewards · ROS" \
+        "Fees: what the operator received, fixed cost plus margin. Rewards: what the delegators received. ROS: their return on stake for a year at that epoch's rate, from Koios."
+      glv_help_add "Scrolling" \
+        "Tab puts the focus on this list. Up and down move one epoch, PgUp and PgDn as many as the list shows, g back to the newest and G to the pool's first. Epochs that are not loaded yet are fetched from Koios as they come into view, ten at a time; a row says when it is waiting for them."
+      glv_help_add "Rows shown" "POOL_HISTORY_EPOCHS at the top of gLiveView.sh, 5 unless you change it."
+      ;;
     recent)
       glv_help_add "Rows" \
         "One row each time gLiveView sees a new tip. It looks every ${REFRESH_RATE} s, so two blocks in one look show as \"+1 more\"."
@@ -5210,6 +5967,7 @@ node_require metrics \
   "${NODE_IMPLEMENTATION} does not expose a metrics interface supported by gLiveView." || exit $?
 
 [[ "${REFRESH_RATE:-}" =~ ^[1-9][0-9]*$ ]] || REFRESH_RATE=2
+[[ "${POOL_HISTORY_EPOCHS:-}" =~ ^[1-9][0-9]?$ ]] && (( POOL_HISTORY_EPOCHS <= 20 )) || POOL_HISTORY_EPOCHS=5
 
 if [[ -z "${GLV_THEME:-}" && -r "${PARENT}/cntools/.state/theme" ]]; then
   read -r GLV_THEME < "${PARENT}/cntools/.state/theme" || GLV_THEME=''
@@ -5235,6 +5993,8 @@ GLV_PEER_STATE_FILE="${PARENT}/gLiveView.sh.peerstate"
 GLV_PEER_GEO_FILE="${PARENT}/gLiveView.sh.geo"
 PEER_JOB_FILE="${TMPDIR:-/tmp}/gLiveView.$$.peers"
 PARAMS_JOB_FILE="${TMPDIR:-/tmp}/gLiveView.$$.params"
+POOL_JOB_FILE="${TMPDIR:-/tmp}/gLiveView.$$.pool"
+HIST_JOB_FILE="${TMPDIR:-/tmp}/gLiveView.$$.history"
 glv_peers_geo_load
 
 # ── terminal ─────────────────────────────────────────────────────────────────
@@ -5289,6 +6049,10 @@ glv_cleanup() {
   glv_peers_cleanup
   [[ -z "${PARAMS_JOB_PID:-}" ]] || kill "${PARAMS_JOB_PID}" 2>/dev/null || true
   rm -f -- "${PARAMS_JOB_FILE:-/nonexistent}" "${PARAMS_JOB_FILE:-/nonexistent}.part"
+  [[ -z "${POOL_JOB_PID:-}" ]] || kill "${POOL_JOB_PID}" 2>/dev/null || true
+  [[ -z "${HIST_JOB_PID:-}" ]] || kill "${HIST_JOB_PID}" 2>/dev/null || true
+  rm -f -- "${POOL_JOB_FILE:-/nonexistent}" "${POOL_JOB_FILE:-/nonexistent}.part" \
+    "${HIST_JOB_FILE:-/nonexistent}" "${HIST_JOB_FILE:-/nonexistent}.part" "${HIST_JOB_FILE:-/nonexistent}.head"
   [[ "${GLV_TITLE_PUSHED}" == N ]] || printf '\e[23;0t'
   printf '\e[?25h\e[?1049l'
   [[ -z "${STTY_SAVED}" ]] || stty "${STTY_SAVED}" 2>/dev/null
@@ -5406,6 +6170,7 @@ glv_view_set() {
   VIEW="$1"
   PAGE_SCROLL=0
   PAGE_FOCUS=N
+  PAGE_FOCUS_AT=0
   HELP_SCROLL=0
   HELP_FOCUS=''
   glv_data_view
@@ -5428,13 +6193,19 @@ glv_key() {
     # Tab gives the arrows to the list on the page, Tab or Esc gives them back.
     $'\t')
       [[ "${PAGE_FOCUSABLE[VIEW]}" == Y ]] || return 1
-      if [[ "${PAGE_FOCUS}" == Y ]]; then PAGE_FOCUS=N; else PAGE_FOCUS=Y; fi ;;
-    $'\e') [[ "${PAGE_FOCUS}" == Y ]] || return 1; PAGE_FOCUS=N ;;
-    $'\e[A'|k) if [[ "${PAGE_FOCUS}" == Y ]]; then PAGE_SCROLL=$((PAGE_SCROLL - 1)); else glv_view_set $((VIEW - 1)); fi ;;
-    $'\e[B'|j) if [[ "${PAGE_FOCUS}" == Y ]]; then PAGE_SCROLL=$((PAGE_SCROLL + 1)); else glv_view_set $((VIEW + 1)); fi ;;
-    $'\e[5~') PAGE_SCROLL=$((PAGE_SCROLL - step)) ;;
-    $'\e[6~'|' ') PAGE_SCROLL=$((PAGE_SCROLL + step)) ;;
-    $'\e[H'|g) PAGE_SCROLL=0; LOG_SHIFT=0 ;;
+      glv_focus_next ;;
+    $'\e') [[ "${PAGE_FOCUS}" == Y ]] || return 1; PAGE_FOCUS=N; PAGE_FOCUS_AT=0 ;;
+    $'\e[A'|k) if [[ "${PAGE_FOCUS}" == Y ]]; then glv_focus_scroll -1; else glv_view_set $((VIEW - 1)); fi ;;
+    $'\e[B'|j) if [[ "${PAGE_FOCUS}" == Y ]]; then glv_focus_scroll 1; else glv_view_set $((VIEW + 1)); fi ;;
+    $'\e[5~') glv_focus_scroll $((-step)) page ;;
+    $'\e[6~'|' ') glv_focus_scroll "${step}" page ;;
+    $'\e[H'|g)
+      glv_focus_key
+      if [[ "${GLV_FOCUS_KEY}" == history ]]; then HIST_SCROLL=0; else PAGE_SCROLL=0; LOG_SHIFT=0; fi ;;
+    G|$'\e[F')
+      glv_focus_key
+      [[ "${GLV_FOCUS_KEY}" == history ]] || return 1
+      glv_focus_scroll 1000000 ;;
     /) glv_command_palette ;;
     r) ui_invalidate; printf '\e[2J' ;;
     *) return 1 ;;

@@ -44,6 +44,8 @@ jobs:
       run: bash files/tests/cnode-metrics.sh
     - name: Test gLiveView peer analysis
       run: bash files/tests/gliveview-peer-analysis.sh
+    - name: Test gLiveView pool data
+      run: bash files/tests/gliveview-pool.sh
     - name: Test Dingo metrics adapter
       run: bash files/tests/dingo-metrics.sh
     - name: Test Amaru metrics adapter

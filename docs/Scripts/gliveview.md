@@ -85,7 +85,7 @@ work where you are.
 | `1` | Overview | Epoch, chain, propagation, peers, resources, block production on a producer, and the recent blocks |
 | `2` | Chain | Tip figures, traffic, how block delays are spread, and the full block list |
 | `3` | Peers | Peer and connection counts, round trips, and every connection of the node. See [Peer analysis](#peer-analysis) |
-| `4` | Production | Keys, this epoch's results, the leader schedule and recent epochs. A relay shows a note instead |
+| `4` | Production | Keys, this epoch's results, the pool as Koios sees it, the leader schedule and the pool's epoch history. A relay shows a note instead |
 | `5` | System | The host beside the node process, and the node's own metrics |
 | `6` | Logs | The node's journal, with pause, find and a level filter |
 | `n` | Node & network | What is running, how it was started, the network constants and the protocol parameters |
@@ -94,7 +94,7 @@ work where you are.
 | --- | --- |
 | `↑` `↓` | Previous and next page |
 | `1`-`6`, `n` | Jump to a page |
-| `Tab` | Put the focus on the page's list, where `↑` `↓` then scroll it a line at a time. `Tab` or `Esc` gives the arrows back to the pages |
+| `Tab` | Put the focus on the page's list, where `↑` `↓` then scroll it a line at a time. A page with two lists, such as Production, gets the focus on each in turn. `Tab` from the last list, or `Esc`, gives the arrows back to the pages |
 | `PgUp` `PgDn`, `Space` | Scroll the page's list half a screen |
 | `g` | Back to the top of a list |
 | `?` | Help for the page, see [Help](#help) |
@@ -152,6 +152,7 @@ implementation can expose a different subset.
 | Peers | Outgoing and incoming connections as the node counts them. |
 | Blocks | How long the last block took to arrive. |
 | KES, Op cert | On a producer: remaining KES periods, and the certificate counters on disk and on chain. |
+| Pool | On a producer with pool data from Koios: the ticker and the pool's saturation. Red with `pledge not met` when the owners delegate less than the pledge, which costs the pool the epoch's rewards, and with `retired`; amber while the pool is retiring or over-saturated. Not shown without an answer from Koios. |
 | Host, Node | Processor use of the host, and processor and memory use of the node process. |
 | Next block | On a producer with a leader schedule: the countdown to the next leader slot. This is sensitive operational information; control who can view the terminal. |
 
@@ -266,6 +267,60 @@ cnode adapter does, otherwise at `blocklog.db` in `BLOCKLOG_DIR` from `env`,
 and by default at `guild-db/blocklog/blocklog.db` in the deployment folder,
 the same file CNTools reads.
 
+### Pool and epoch history
+
+On a producer the Production page also shows the pool as
+[Koios](https://koios.rest) sees it, and the pool's history one epoch per row.
+This works the same for cardano-node, Amaru and Dingo.
+
+| Label | Meaning |
+| --- | --- |
+| Live stake, Active stake | Delegated to the pool now, and the stake this epoch's leader slots were drawn from. |
+| Saturation | Live stake against the saturation point. Amber above 100 %. |
+| Pledge, Live pledge | What the owners promised to delegate, and what they delegate now, with ✓ or a red ✗. |
+| Margin, Fixed cost | What the operator takes from each epoch's rewards. |
+| Delegators, Lifetime blocks | Accounts delegating now, and the blocks the pool has made since it was registered. |
+
+The epoch history has these columns, newest epoch first:
+
+| Column | Meaning |
+| --- | --- |
+| Epoch | The epoch, with `next` and `now` on the two newest rows. |
+| Stake, Deleg | Active stake and delegators in the epoch. |
+| Led | Leader slots the block log holds for the epoch, `—` where it has none. |
+| Blocks, Ideal, Luck | Blocks the pool made, the number its share of the active stake gives on average, and one against the other. For the current epoch the block log's count is used when it is ahead of Koios. |
+| Fees, Rewards, ROS | What the operator received, what the delegators received, and their yearly return on stake at that epoch's rate. |
+
+An epoch's rewards are settled two epochs after it. Until then its row comes
+from the stake snapshots and block counts Koios keeps: the next epoch has a
+stake but no blocks yet, and the current and previous epochs show their
+rewards as `pending`. The narrowest columns, Deleg and Fees, leave first on a
+terminal under 110 columns.
+
+The history shows `POOL_HISTORY_EPOCHS` epochs at a time, 5 by default. `Tab`
+puts the focus on the leader schedule and then on the history; there `↑` `↓`
+move one epoch, `PgUp` `PgDn` as many as the list shows, `g` goes back to the
+newest epoch and `G` to the pool's first. Epochs that are not loaded yet are
+fetched from Koios as they come into view, ten at a time, and the history
+asks for the next ones before you reach them. On a short terminal the
+history gives up rows first, so that the leader schedule keeps room for three
+slots, and leaves the page when even one epoch no longer fits.
+
+The pool ID comes from `POOL_ID` at the top of `gLiveView.sh`, which takes a
+bech32 or hex ID, or else from `pool.id-bech32`, `pool.id` or `cold.vkey` in
+the pool folder (`POOL_FOLDER`/`POOL_NAME` in `env`). A producer that keeps
+its cold keys elsewhere needs `POOL_ID`. gLiveView writes nothing to the pool
+folder.
+
+Koios is asked in the background: the pool data every 10 minutes and as an
+epoch starts, the history as you scroll. The page never waits for it, and it
+uses the Koios token in `env` when there is one. When Koios does not answer,
+the panel keeps the last answer and says how old it is, or says that there is
+none yet, and gLiveView asks again every minute; until there is an answer the
+epoch history comes from the block log alone. With `ENABLE_KOIOS=N` in `env`,
+or on a network without a Koios service, gLiveView sends no request and the
+panel says why.
+
 ## Node-specific metrics
 
 ### cardano-node / cnode
@@ -286,8 +341,9 @@ blocklog collection and validation details. Without a blocklog the Production
 page shows the node's process-lifetime `Leader`, `Adopted` and `Invalid`
 counters and no schedule.
 
-gLiveView 2 does not show the Koios pool figures (stake, pledge, delegators,
-saturation) or the Mithril signer section that gLiveView 1 had.
+gLiveView 2 does not show the Mithril signer section that gLiveView 1 had. The
+Koios pool figures are on the Production page, see
+[Pool and epoch history](#pool-and-epoch-history).
 
 ### Dingo
 
@@ -649,6 +705,8 @@ tracker](https://github.com/cardano-community/guild-operators/issues).
 #GLV_COLORS=""                            # truecolor | 256 | none
 #SHOW_NODE_LOGO=Y                         # Show the node's logo in the full rail
 #ENABLE_IP_GEOLOCATION=Y                  # Geolocate peer addresses
+#POOL_ID=""                               # Pool ID for the pool data, bech32 or hex
+#POOL_HISTORY_EPOCHS=5                    # Epochs shown at a time in the epoch history
 #ENABLE_NODE_PEER_STATE=Y                 # Read peer data from the node's journal
 ```
 
