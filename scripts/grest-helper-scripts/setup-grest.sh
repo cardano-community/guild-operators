@@ -311,6 +311,18 @@ SGVERSION=v1.4.2
     ALGENESIS="$(jq -c . <"${ALONZO_GENESIS_JSON}")"
 
     insert_genesis_table_data "${ALGENESIS}" "${SHGENESIS[@]}"
+    update_genesis_json conwaygenesis "${CONWAY_GENESIS_JSON:-}"
+    update_genesis_json dijkstragenesis "${DIJKSTRA_GENESIS_JSON:-}"
+  }
+
+  # Description : Store a genesis file in its grest.genesis column, if the deployed koios-artifacts version has
+  #             : that column and the node configuration names the file. $1 = column, $2 = genesis file.
+  update_genesis_json() {
+    local column=$1 file=$2
+    [[ -n ${file} && ${file} != "null" && -f ${file} ]] || return 0
+    [[ $(psql "${PGDATABASE}" -qtAX -c "SELECT 1 FROM information_schema.columns WHERE table_schema = 'grest' AND table_name = 'genesis' AND column_name = '${column}'") == 1 ]] || return 0
+    psql "${PGDATABASE}" -q -v ON_ERROR_STOP=1 -v genesis="$(jq -c . <"${file}")" <<<"UPDATE grest.genesis SET ${column} = :'genesis';" >/dev/null ||
+      printf "  WARN: Could not store %s from %s\n" "${column}" "${file}"
   }
 
   deploy_postgrest() {
