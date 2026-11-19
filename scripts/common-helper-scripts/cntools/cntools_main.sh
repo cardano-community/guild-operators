@@ -43,7 +43,8 @@ done
 unset CNTOOLS_SHARED_LIBRARY
 
 for CNTOOLS_CORE_FILE in \
-  startup.sh log.sh update.sh menu.sh action.sh theme.sh settings.sh gum.sh health.sh; do
+  startup.sh log.sh update.sh menu.sh action.sh theme.sh settings.sh gum.sh \
+  shortcuts.sh health.sh; do
   if [[ ! -f "${CNTOOLS_CORE_DIR}/${CNTOOLS_CORE_FILE}" ||
         -L "${CNTOOLS_CORE_DIR}/${CNTOOLS_CORE_FILE}" ||
         ! -s "${CNTOOLS_CORE_DIR}/${CNTOOLS_CORE_FILE}" ]]; then
