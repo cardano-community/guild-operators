@@ -294,6 +294,7 @@ if command -v sqlite3 >/dev/null 2>&1; then
   if printf '%s\n' "${cells[@]}" | grep -Eq '^(Passed|To come)\|'; then
     fail "passed and upcoming counts are shown beside block results: ${cells[*]}"
   fi
+  printf '%s\n' "${cells[@]}" | grep -q '^Unknown|' && fail "an unknown count is shown without unknown slots: ${cells[*]}"
 
   # Block details (schema 2) give each lost slot a note.
   eval "$(awk '/^blocklogDetailSchema\(\) \{/{f=1} f{print} f&&/^}$/{exit}' "${REPO_ROOT}/scripts/common-helper-scripts/lib/env.library")"
@@ -302,12 +303,14 @@ if command -v sqlite3 >/dev/null 2>&1; then
     INSERT INTO blocklog (slot,at,epoch,slot_in_epoch,status) VALUES
       (900,'$(printf '%(%FT%T)T+00:00' $((now - 7200)))',100,9,'stolen'),
       (800,'$(printf '%(%FT%T)T+00:00' $((now - 9000)))',100,8,'missed'),
-      (700,'$(printf '%(%FT%T)T+00:00' $((now - 9900)))',100,7,'confirmed');
+      (700,'$(printf '%(%FT%T)T+00:00' $((now - 9900)))',100,7,'confirmed'),
+      (500,'$(printf '%(%FT%T)T+00:00' $((now - 10800)))',100,5,'unknown');
     INSERT INTO blockdetail (slot,reason,forge_ms,vrf,winner_slot,winner_pool,winner_ticker,winner_ms,winner_vrf) VALUES
       (1000,'height_battle',120,'',998,'pool1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq','ABCD',2600,''),
       (900,'slot_battle',NULL,'ff',900,'pool1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq','',NULL,'0a'),
       (800,'woke_late',NULL,'',NULL,'','',NULL,''),
-      (700,'',110,'',NULL,'','',NULL,'');"
+      (700,'',110,'',NULL,'','',NULL,''),
+      (500,'koios_failed',NULL,'',NULL,'','',NULL,'');"
   glv_data_blocklog
   glv_block_note text 1000 heightbattle
   assert_eq "${text}" "ABCD 2 s earlier, reached us 0.60 s into our slot · forged in 0.12 s" "height battle note"
@@ -323,15 +326,18 @@ if command -v sqlite3 >/dev/null 2>&1; then
   assert_eq "${text}" "forged in 0.11 s" "confirmed note"
   glv_block_note text 600 missed
   assert_eq "${text}" "" "a slot without details has no note"
+  glv_block_note text 500 unknown
+  assert_eq "${text}" "not decided: Koios could not tell, checked again" "unknown note"
   cells=()
   glv_production_cells cells results
   printf '%s\n' "${cells[@]}" | grep -qx 'Height battle|1|C_DANGER' || fail "height battles are counted: ${cells[*]}"
   printf '%s\n' "${cells[@]}" | grep -qx 'Stolen|1|C_DANGER' || fail "slot battles are counted: ${cells[*]}"
+  printf '%s\n' "${cells[@]}" | grep -qx 'Unknown|1|C_WARN' || fail "unknown slots are counted: ${cells[*]}"
 
   # A block log without the blockdetail table still reads.
   sqlite3 "${db}" "DROP TABLE blockdetail;"
   glv_data_blocklog
-  assert_eq "${D_STATUS[total]}|${#D_DETAIL[@]}" "6|0" "schema 1 block log"
+  assert_eq "${D_STATUS[total]}|${#D_DETAIL[@]}" "7|0" "schema 1 block log"
 else
   printf 'gliveview-views: sqlite3 is not installed, block log reads skipped\n'
 fi
@@ -393,6 +399,11 @@ for expected in 'Our block forged=0.12 s after the slot started' \
   'Next block=Slot 1077, 7 s later · NXT'; do
   grep -qxF "${expected}" <<< "${rows}" || fail "CNTools block details lack '${expected}': ${rows}"
 done
+cntools_blocks_status_into status role unknown
+assert_eq "${status}|${role}" 'Unknown · not decided yet|warning' "CNTools unknown status"
+rows="$(cntools_blocks_record_rows "$(jq -c '.status = "unknown" | .detail = {reason: "no_koios"}' <<< "${record}")" N)"
+grep -qx 'Reason=Nothing can tell yet whether our block is on the chain, and there is no Koios to ask' <<< "${rows}" ||
+  fail "CNTools block list has no reason for an unknown slot: ${rows}"
 
 # ── Dijkstra protocol parameters and the BLS key ─────────────────────────────
 # Parameters as a Dijkstra-era node reports them, read here through "Koios".

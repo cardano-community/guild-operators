@@ -36,7 +36,8 @@ leaderlog   Calculate the leader schedule for the current epoch, then keep runni
   force     Calculate now and overwrite what is stored, exits after the leaderlog is calculated
 validate    Check each passed leader slot against the chain and record the result: adopted, confirmed, missed, stolen
             (slot battle), heightbattle, ghosted or invalid, with the competing block and the blocks before and after
-            it. Reads the node's journal and its chain database (deployed as service)
+            it, or unknown when nothing can tell yet whether our block is on the chain. Reads the node's journal, its
+            chain database and Koios (deployed as service)
   all       One-time re-validation of all slots in the blocklog db
   epoch     One-time re-validation of the slots of the given epoch number
 
@@ -539,17 +540,26 @@ amaruBlockState() {
 # from blocks by a PostgREST filter such as block_height=in.(1,2).
 amaruKoiosBlocks() {
   local answer
-  [[ -n ${KOIOS_API} ]] || return 0
+  [[ -n ${KOIOS_API} ]] || return 1
   if [[ $1 == --filter ]]; then
     answer=$(curl -sSL -f -m 15 "${KOIOS_API_HEADERS[@]}" \
-      "${KOIOS_API}/blocks?${2}&select=hash,abs_slot,block_height,pool" 2>/dev/null) || return 0
+      "${KOIOS_API}/blocks?${2}&select=hash,abs_slot,block_height,pool" 2>/dev/null) || return 1
   else
     answer=$(curl -sSL -f -m 15 "${KOIOS_API_HEADERS[@]}" -H 'Content-Type: application/json' \
       -d "$(jq -nc '{_block_hashes: $ARGS.positional}' --args "$@")" \
-      "${KOIOS_API}/block_info?select=hash,abs_slot,block_height,pool,parent_hash" 2>/dev/null) || return 0
+      "${KOIOS_API}/block_info?select=hash,abs_slot,block_height,pool,parent_hash" 2>/dev/null) || return 1
   fi
-  jq -r '.[]? | select(.hash | type == "string")
-    | [.block_height, .abs_slot, .hash, (.pool // ""), (.parent_hash // "")] | map(tostring) | join("|")' <<< "${answer}" 2>/dev/null
+  # An empty list is an answer too; anything but a list is not.
+  jq -r 'if type == "array" then .[] | select(.hash | type == "string")
+    | [.block_height, .abs_slot, .hash, (.pool // ""), (.parent_hash // "")] | map(tostring) | join("|")
+    else error("not a list") end' <<< "${answer}" 2>/dev/null
+}
+
+# amaruKoiosWhy <variable>: why Koios could not tell, as a blockdetail reason:
+# no_koios when there is none for the network or it is turned off, else
+# koios_failed.
+amaruKoiosWhy() {
+  if [[ -n ${KOIOS_API} ]]; then printf -v "$1" '%s' koios_failed; else printf -v "$1" '%s' no_koios; fi
 }
 
 # amaruForgeEvent <variable> <trace line>: the name of the forge event a line
@@ -634,21 +644,23 @@ amaruOurPool() {
 # A journal that no longer has a led slot (it was rotated) says nothing about
 # our block, but the block in that slot on the chain may still be ours. Koios
 # names the pool of each block: when it is our pool, the block is taken as the
-# one we forged. Without Koios nothing changes. Uses block_slot and the best
-# chain from amaruLoadBestChain; sets forge_kind, forge_hash and forge_parent.
+# one we forged. Uses block_slot and the best chain from amaruLoadBestChain;
+# sets forge_kind, forge_hash and forge_parent. Returns 1 when nothing can
+# tell whose block is in the slot: Koios is not there or did not answer.
 amaruOwnBlockInSlot() {
   local line slot hash pool parent
-  [[ -n ${KOIOS_API} ]] || return 0
   if [[ -n ${CHAIN_AT_SLOT[${block_slot}]+set} ]]; then
-    IFS= read -r line < <(amaruKoiosBlocks "${CHAIN_AT_SLOT[${block_slot}]}")
+    line=$(amaruKoiosBlocks "${CHAIN_AT_SLOT[${block_slot}]}") || return 1
   elif [[ -z ${CHAIN_LOW_HEIGHT} || ${block_slot} -lt ${CHAIN_SLOT[${CHAIN_LOW_HEIGHT}]:-0} ]]; then
-    IFS= read -r line < <(amaruKoiosBlocks --filter "abs_slot=eq.${block_slot}") # older than the chain database
+    line=$(amaruKoiosBlocks --filter "abs_slot=eq.${block_slot}") || return 1 # older than the chain database
+    [[ -n ${line} ]] || return 0 # no block in the slot
   else
     return 0 # no block in the slot on the best chain
   fi
-  IFS='|' read -r _ slot hash pool parent <<< "${line}"
-  [[ ${slot} == "${block_slot}" && ${hash} =~ ^[0-9a-f]{64}$ && -n ${pool} ]] || return 0
-  amaruOurPool || return 0
+  IFS='|' read -r _ slot hash pool parent <<< "${line%%$'\n'*}"
+  # Koios may not have the block yet.
+  [[ ${slot} == "${block_slot}" && ${hash} =~ ^[0-9a-f]{64}$ && -n ${pool} ]] || return 1
+  amaruOurPool || return 1
   [[ ${pool} == "${AMARU_POOL_BECH32}" ]] || return 0
   forge_kind=forged; forge_hash="${hash}"; forge_parent=''; forge_reason=''; forge_ms=''
   [[ ! ${parent} =~ ^[0-9a-f]{64}$ ]] || forge_parent="${parent}"
@@ -778,9 +790,9 @@ amaruSetStatus() {
 # node tip (slotnum) and the best chain from amaruLoadBestChain.
 amaruValidateSlot() {
   local our_hash='' our_parent='' our_height='' our_best='' parent_on_chain='' taken=N
-  local winner='' prev='' next='' canon_parent='' around_prev='' around_next='' line tip_height
+  local winner='' prev='' next='' canon_parent='' around_prev='' around_next='' line tip_height unknown=N why
   local -A stored=()
-  [[ ${block_status} == leader || ${block_status} == adopted ]] || return 0
+  [[ ${block_status} == leader || ${block_status} == adopted || ${block_status} == unknown ]] || return 0
   (( block_slot <= slotnum )) || return 0 # still to come
 
   # The journal is read once per slot; what it said is kept in blockdetail.
@@ -790,15 +802,16 @@ amaruValidateSlot() {
     forge_reason=''; forge_ms="${stored[forge_ms]:-}"
   else
     amaruForgeRecord "${block_slot}"
-    # An older run read the reason from the journal. A slot battle was decided
-    # from the chain, not from the journal, so it is decided again.
-    if [[ -z ${forge_kind} && ${stored[source]:-} == amaru && -n ${stored[reason]:-} && ${stored[reason]} != slot_battle ]]; then
+    # An older run read the reason from the journal. A slot battle, and a
+    # slot nothing could tell about, were decided without it, so again.
+    if [[ -z ${forge_kind} && ${stored[source]:-} == amaru && -n ${stored[reason]:-} &&
+          " slot_battle no_koios koios_failed " != *" ${stored[reason]} "* ]]; then
       forge_kind=missed_slot; forge_reason="${stored[reason]}"
     fi
     # Nothing in the journal about a slot old enough to decide: the block in
     # it may still be ours.
     if [[ -z ${forge_kind} ]] && (( block_slot + CONFIRM_SLOT_CNT < slotnum )); then
-      amaruOwnBlockInSlot
+      amaruOwnBlockInSlot || unknown=Y
     fi
   fi
   if [[ ${forge_kind} == forged ]]; then
@@ -808,9 +821,15 @@ amaruValidateSlot() {
     elif amaruBlockState "${our_hash}"; then
       our_height="${BLOCK_HEIGHT}"; our_best="${BLOCK_BEST}"
     else # older than the chain database holds, or never stored
-      IFS='|' read -r our_height _ _ _ _ < <(amaruKoiosBlocks "${our_hash}")
+      if line=$(amaruKoiosBlocks "${our_hash}"); then
+        IFS='|' read -r our_height _ _ _ _ <<< "${line%%$'\n'*}"
+      else
+        unknown=Y # nothing can tell whether it is on the chain
+      fi
       if [[ ${our_height} =~ ^[0-9]+$ ]]; then
-        our_best=Y
+        our_best=Y; unknown=N
+      elif [[ ${unknown} == Y ]]; then
+        :
       elif [[ -n ${our_parent} ]]; then
         our_best=N
         if [[ -n ${CHAIN_HEIGHT[${our_parent}]+set} ]]; then
@@ -841,6 +860,25 @@ amaruValidateSlot() {
     echo "INVALID: Leader for slot '${block_slot}' but forging failed at step '${forge_reason}', see the node's journal around $(getDateFromSlot "${block_slot}")"
     amaruSetStatus invalid
     amaruSaveDetail "${forge_reason}"
+    return 0
+  fi
+
+  # Nothing can tell yet whether our block is on the chain: the journal has
+  # no record of the slot, or the chain database no longer holds our block,
+  # and Koios is not there to ask. Checked again on every run.
+  if [[ ${unknown} == Y ]]; then
+    amaruKoiosWhy why
+    # Said once; the service checks the slot again quietly.
+    [[ ${block_status} == unknown && ${our_hash} == "${stored[hash]:-}" && ${why} == "${stored[reason]:-}" ]] && return 0
+    if [[ ${why} == no_koios ]]; then line="there is no Koios to ask"; else line="Koios could not tell"; fi
+    if [[ ${forge_kind} == forged ]]; then
+      echo "UNKNOWN: Leader for slot '${block_slot}' and block forged, but the chain database no longer holds it, and ${line} whether it is on the chain; checked again on the next run"
+    else
+      echo "UNKNOWN: Leader for slot '${block_slot}' but the journal no longer says whether a block was forged, and ${line} whose block is in the slot; checked again on the next run"
+    fi
+    amaruSetStatus unknown "${our_height}" "${our_hash}"
+    amaruChainAround "${block_slot}"; prev="${around_prev}"; next="${around_next}"
+    amaruSaveDetail "${why}"
     return 0
   fi
 
@@ -992,7 +1030,7 @@ amaruValidate() {
     # Check the previous epoch as well at the start of an epoch.
     prev_epoch=${curr_epoch}
     [[ ${slot_in_epoch} -ge $(( CONFIRM_SLOT_CNT * 6 )) ]] || prev_epoch=$(( curr_epoch - 1 ))
-    amaruValidateRows "epoch BETWEEN ${prev_epoch} AND ${curr_epoch} AND status IN ('leader','adopted') AND slot <= ${slotnum}" || true
+    amaruValidateRows "epoch BETWEEN ${prev_epoch} AND ${curr_epoch} AND status IN ('leader','adopted','unknown') AND slot <= ${slotnum}" || true
   done
 }
 

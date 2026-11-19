@@ -2511,6 +2511,8 @@ glv_production_cells() {
       glv_status_label value "${text}"
       glv_cell "$1" "${value^}" "${D_STATUS[${text}]:-0}" "${colour}"
     done
+    # Only Amaru's validation without Koios has these, so only when there are.
+    (( ${D_STATUS[unknown]:-0} == 0 )) || glv_cell "$1" "Unknown" "${D_STATUS[unknown]}" C_WARN
   else
     glv_metric_cell "$1" isleader "Leader"
     glv_metric_cell "$1" adopted "Adopted" int C_OK
@@ -4641,6 +4643,11 @@ glv_block_note() {
         0) _bn_note+=", our VRF lower" ;;
       esac ;;
     ghosted) [[ "${_bn_reason}" != fork ]] || _bn_note="built on a block that lost a fork" ;;
+    unknown)
+      case "${_bn_reason}" in
+        no_koios) _bn_note="not decided: no Koios to ask" ;;
+        koios_failed) _bn_note="not decided: Koios could not tell, checked again" ;;
+      esac ;;
     missed|invalid)
       case "${_bn_reason}" in
         '') ;;
@@ -4915,6 +4922,7 @@ glv_view_production() {
       glv_block_note text "${entry##*|}" "${status}"
       case "${status}" in
         adopted|confirmed) ui_putw "${C_OK}" 16 "✓ ${status}"; colour="${C_MUTED}" ;;
+        unknown) ui_putw "${C_WARN}" 16 "? unknown"; colour="${C_WARN}" ;;
         leader)
           if [[ "${D_RESULTS}" == Y ]]; then
             ui_putw "${C_WARN}" 16 "? no result"; colour="${C_WARN}"; text="not checked yet"
@@ -5825,7 +5833,7 @@ glv_help_entries() {
         "The leader slots of your pool this epoch, from the block log: the ones to come first, soonest on top, then the ones that have passed."
       if [[ "${D_RESULTS}" == Y ]]; then
         glv_help_add "Status" \
-          "next and scheduled are still to come. ✓ adopted or confirmed: the block is on the chain. ? no result: the slot has passed and the block log has not been updated for it yet. ✗ with missed, ghosted, stolen, height battle or invalid: the block was lost."
+          "next and scheduled are still to come. ✓ adopted or confirmed: the block is on the chain. ? no result: the slot has passed and the block log has not been updated for it yet. ? unknown: nothing could tell yet whether our block is on the chain; on Amaru, when the journal no longer has the slot and Koios is not there or did not answer. It is checked again on every run. ✗ with missed, ghosted, stolen, height battle or invalid: the block was lost."
         glv_help_add "Battles" \
           "stolen: another pool led the same slot and its block won, a slot battle. height battle: another pool's block in a nearby slot was built on the same parent and won, so one of the two blocks did not reach the other pool in time. Winner later: the next leader had not received our block. Winner earlier: its block reached us after we forged. ghosted: our block was built on a block that lost a fork, or lost for another reason."
         glv_help_add "Note" \
@@ -6035,6 +6043,11 @@ glv_help_results() {
     glv_help_add "Missed · Ghosted · Stolen · Height battle · Invalid" \
       "Missed: the slot passed without a block from your node. Stolen: another pool led the same slot and won, a slot battle. Height battle: another pool's block in a nearby slot on the same parent won, so one of the two did not reach the other in time. Ghosted: the block was built on a block that lost a fork, or lost for another reason. Invalid: the node failed to make the block. The schedule list below says more about each." \
       "Missed, ghosted and invalid at 0. Stolen is chance; height battles that repeat point at slow block propagation."
+    if (( ${D_STATUS[unknown]:-0} > 0 )); then
+      glv_help_add "Unknown" \
+        "Leader slots that have passed, where nothing could tell yet whether our block is on the chain. Amaru's validation sets it when the journal no longer has the slot, or the chain database no longer holds our block, and Koios is not there or did not answer. These are not counted as lost. They are checked again on every run and decided once Koios answers." \
+        "0." "${D_STATUS[unknown]}" warn
+    fi
   else
     glv_help_add "Leader · Adopted" \
       "Counted by the node since it started: slots it led, and blocks it made and adopted. There is no leader schedule for this epoch yet, so nothing is known about slots to come."

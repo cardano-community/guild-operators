@@ -27,6 +27,7 @@ cntools_blocks_status_into() {
       _blocks_role=accent ;;
     stolen) _blocks_status='Stolen · slot battle'; _blocks_role=danger ;;
     heightbattle) _blocks_status='Height battle'; _blocks_role=danger ;;
+    unknown) _blocks_status='Unknown · not decided yet'; _blocks_role=warning ;;
     missed|ghosted|invalid) _blocks_status="${3^}"; _blocks_role=danger ;;
     *) _blocks_status="Unknown · $3" ;;
   esac
@@ -88,7 +89,9 @@ CNTOOLS_BLOCKS_DETAIL_JQ='
     "not_led": "The node found it was not the leader", "NodeCannotForge": "The node could not forge",
     "BlockFromFuture": "Block from the future: check the clock", "SlotIsImmutable": "The slot was already immutable",
     "NoLedgerState": "No ledger state for the slot", "NoLedgerView": "No ledger state for the slot",
-    "ForgedInvalidBlock": "The node forged an invalid block"}[.] // gsub("_"; " ");
+    "ForgedInvalidBlock": "The node forged an invalid block",
+    "no_koios": "Nothing can tell yet whether our block is on the chain, and there is no Koios to ask",
+    "koios_failed": "Nothing can tell yet whether our block is on the chain: Koios could not tell, checked again"}[.] // gsub("_"; " ");
   def gap($from; $to): ($to - $from) | if . > 0 then "\(.) s later" elif . < 0 then "\(-.) s earlier" else "same slot" end;
   def battle($slot; $status; $d):
     if $status == "heightbattle" and $d.winner_slot != null then
@@ -97,7 +100,7 @@ CNTOOLS_BLOCKS_DETAIL_JQ='
       [["Battle", "Slot battle with \(who($d.winner_ticker; $d.winner_pool))" +
         (if $d.vrf_lower == 1 then ", their VRF was lower" elif $d.vrf_lower == 0 then ", our VRF was lower" else "" end)]]
     elif $status == "ghosted" and $d.reason == "fork" then [["Battle", "Our block was built on a block that lost a fork"]]
-    elif ($status == "missed" or $status == "invalid") and ($d.reason // "") != "" then [["Reason", ($d.reason | reason_text)]]
+    elif ($status == "missed" or $status == "invalid" or $status == "unknown") and ($d.reason // "") != "" then [["Reason", ($d.reason | reason_text)]]
     else [] end;
   def around($label; $slot; $at; $ticker; $pool; $ms):
     if $at == null then [] else
