@@ -1,6 +1,6 @@
 {
   "kind": "action",
-  "label": "Derive Keys",
+  "label": "Key Derivation",
   "description": "Derive governance keys",
   "shortcut": "k",
   "order": 80,

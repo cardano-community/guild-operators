@@ -1,6 +1,6 @@
 {
   "kind": "action",
-  "label": "Remove",
+  "label": "Permanently Remove",
   "description": "Remove a wallet from CNTools",
   "shortcut": "x",
   "order": 70,

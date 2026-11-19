@@ -1,6 +1,6 @@
 {
   "kind": "action",
-  "label": "UTxO List",
+  "label": "View UTxOs",
   "description": "Browse unspent outputs through Koios or a local node",
   "shortcut": "u",
   "order": 110,

@@ -1715,6 +1715,149 @@ cntools_gum_filter() {
   return "${_cntools_status}"
 }
 
+# The menu picker can run on fzf instead of "gum filter". gum matches a typed
+# query against the whole visible row (name + description), so it cannot
+# prioritise rows whose *name* begins with what was typed. fzf can: it searches
+# only the name field (--nth) while still displaying the description
+# (--with-nth), and --tiebreak=begin floats name-prefix matches to the top.
+# gum still renders everything else (headers, prompts, styled output); fzf is
+# used solely for this one list selection, and only when it is installed.
+#
+# CNTOOLS_PICKER selects the backend: "fzf" prefers fzf, "gum" forces the
+# built-in gum filter, and "auto" (the default) uses fzf when present and falls
+# back to gum otherwise.
+cntools_fzf_available() {
+  local picker="${CNTOOLS_PICKER:-auto}"
+
+  case "${picker}" in
+    gum) return 1 ;;
+    fzf | auto) ;;
+    *) return 1 ;;
+  esac
+  command -v fzf >/dev/null 2>&1 || {
+    [[ "${picker}" != "fzf" ]] ||
+      cntools_gum_log ERROR "CNTOOLS_PICKER=fzf but fzf was not found on PATH"
+    return 1
+  }
+}
+
+# Build an fzf --color spec from the active theme, skipping any role whose
+# value is not a #rrggbb hex colour so a partial theme cannot break fzf.
+cntools_fzf_color() {
+  local spec="" role="" value="" pair=""
+  local -a pairs=(
+    "prompt:${CNTOOLS_GUM_COLOR_BRAND:-}"
+    "pointer:${CNTOOLS_GUM_COLOR_BRAND:-}"
+    "hl:${CNTOOLS_GUM_COLOR_SUCCESS:-}"
+    "hl+:${CNTOOLS_GUM_COLOR_SUCCESS:-}"
+    "fg+:${CNTOOLS_GUM_COLOR_TEXT:-}"
+    "info:${CNTOOLS_GUM_COLOR_MUTED:-}"
+  )
+
+  for pair in "${pairs[@]}"; do
+    role="${pair%%:*}"
+    value="${pair#*:}"
+    [[ "${value}" =~ ^#[0-9A-Fa-f]{6}$ ]] || continue
+    spec="${spec:+${spec},}${role}:${value}"
+  done
+  printf '%s\n' "${spec}"
+}
+
+# True when this fzf understands the "one" event (added in fzf 0.39.0), which
+# the picker binds to accept so a query that narrows to a single row opens it
+# without a further keypress. Older fzf would abort on the unknown event, so
+# the bind is only added when this returns success.
+cntools_fzf_supports_one() {
+  local bin="${1:-fzf}"
+  local raw="" version="" major="" minor=""
+
+  raw="$("${bin}" --version 2>/dev/null)" || return 1
+  version="${raw%% *}"
+  major="${version%%.*}"
+  minor="${version#*.}"
+  minor="${minor%%.*}"
+  [[ "${major}" =~ ^[0-9]+$ && "${minor}" =~ ^[0-9]+$ ]] || return 1
+  (( major > 0 )) && return 0
+  (( minor >= 39 ))
+}
+
+# Name-field menu picker backed by fzf. Mirrors cntools_gum_filter's contract:
+# the chosen display row is written to the named variable, and the status code
+# matches gum's (0 selected, 1 cancelled/back, 130 interrupted). Each input
+# line is "<match-key>TAB<display-row>"; fzf searches only the key and displays
+# only the row, and the key is stripped back off the selection so the caller's
+# row-to-index mapping is unchanged.
+cntools_fzf_filter() {
+  cntools_ui_seen
+  local _cntools_output_name="${1:-}"
+  local _cntools_height="${2:-12}"
+  local _cntools_keys_name="${3:-}"
+  local _cntools_rows_name="${4:-}"
+  local _cntools_fzf_bin="" _cntools_tab=$'\t' _cntools_color=""
+  local _cntools_result="" _cntools_status=0
+  local _cntools_pressed="" _cntools_chosen="" _cntools_index=0
+  local -a _cntools_fzf_args=() _cntools_out_lines=()
+
+  [[ "${_cntools_output_name}" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || return 2
+  [[ "${_cntools_keys_name}" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || return 2
+  [[ "${_cntools_rows_name}" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || return 2
+  local -n _cntools_output_ref="${_cntools_output_name}"
+  local -n _cntools_keys_ref="${_cntools_keys_name}"
+  local -n _cntools_rows_ref="${_cntools_rows_name}"
+  _cntools_output_ref=""
+  (( ${#_cntools_rows_ref[@]} > 0 )) || return 2
+  (( ${#_cntools_keys_ref[@]} == ${#_cntools_rows_ref[@]} )) || return 2
+  _cntools_fzf_bin="$(command -v fzf 2>/dev/null)" || return 127
+
+  _cntools_color="$(cntools_fzf_color)"
+  _cntools_fzf_args=(
+    --delimiter="${_cntools_tab}" --nth=1 --with-nth=2
+    --tiebreak=begin --no-multi
+    # Always case-insensitive: menu names are capitalised, so a lower-case
+    # query must still match (and auto-open). Explicit so neither fzf's
+    # smart-case default nor FZF_DEFAULT_OPTS can turn it case-sensitive.
+    --ignore-case
+    --height="${_cntools_height}" --layout=reverse --info=inline
+    # Esc and Left both leave for the parent menu (like the Back row); --expect
+    # makes fzf accept on either key and report which one on the first line.
+    --prompt='› ' --pointer='▸ ' --expect=esc,left
+  )
+  [[ -z "${_cntools_color}" ]] ||
+    _cntools_fzf_args+=(--color="${_cntools_color}")
+  # Auto-open the moment the live filter narrows to a single row (opt out with
+  # CNTOOLS_PICKER_AUTOSELECT=N; needs fzf 0.39+ for the "one" event).
+  if [[ "${CNTOOLS_PICKER_AUTOSELECT:-Y}" == "Y" ]] &&
+     cntools_fzf_supports_one "${_cntools_fzf_bin}"; then
+    _cntools_fzf_args+=(--bind=one:accept)
+  fi
+
+  _cntools_result="$(
+    for (( _cntools_index = 0;
+           _cntools_index < ${#_cntools_rows_ref[@]};
+           _cntools_index++ )); do
+      printf '%s\t%s\n' "${_cntools_keys_ref[_cntools_index]}" \
+        "${_cntools_rows_ref[_cntools_index]}"
+    done | "${_cntools_fzf_bin}" "${_cntools_fzf_args[@]}"
+  )" || _cntools_status=$?
+
+  # Ctrl+C / Ctrl+G abort; carry that through as gum's interrupt status.
+  (( _cntools_status != 130 )) || return 130
+  # A non-zero exit here means no row was accepted (empty query match); treat
+  # it like gum's cancel so the caller steps back a level.
+  (( _cntools_status == 0 )) || return 1
+
+  mapfile -t _cntools_out_lines <<< "${_cntools_result}"
+  # With --expect, Escape and Left accept and print the key name on the first
+  # line; map both to cancel so either one means "go back", as Escape does
+  # under gum.
+  _cntools_pressed="${_cntools_out_lines[0]:-}"
+  [[ "${_cntools_pressed}" != "esc" && "${_cntools_pressed}" != "left" ]] || return 1
+  _cntools_chosen="${_cntools_out_lines[1]:-}"
+  [[ -n "${_cntools_chosen}" ]] || return 1
+  _cntools_output_ref="${_cntools_chosen#*"${_cntools_tab}"}"
+  return 0
+}
+
 cntools_gum_menu_row_into() {
   local output_name="${1:-}"
   local index="${2:-0}"
@@ -1776,6 +1919,12 @@ cntools_gum_menu_run() {
   local jump_part=0
   local menu_close="N"
   local -a jump_parts=()
+  # Parallel to rows[]: the key fzf searches on (gum ignores it). It carries the
+  # two-digit number and the name's first letter only ("01 W"), so filtering
+  # matches that "NN + initial" prefix — a typed digit or initial narrows the
+  # list, while the rest of the name and the description are not searched.
+  local -a match_keys=()
+  local match_key=""
 
   if [[ "${CNTOOLS_MENU_CACHE_READY:-N}" != "Y" ]] &&
      ! cntools_menu_cache_build; then
@@ -1858,6 +2007,7 @@ cntools_gum_menu_run() {
     rows=()
     row_types=()
     row_indices=()
+    match_keys=()
     for (( index = 0; index < count; index++ )); do
       row_key="${cache_menu_id}:${index}"
       row_signature="${index}"$'\037'"${CNTOOLS_MENU_KINDS[index]:-action}"$'\037'\
@@ -1875,6 +2025,9 @@ cntools_gum_menu_run() {
       rows+=("${row}")
       row_types+=("item")
       row_indices+=("${index}")
+      printf -v match_key '%02d %s' "$((index + 1))" \
+        "${CNTOOLS_MENU_LABELS[index]:0:1}"
+      match_keys+=("${match_key}")
     done
     # 00 is never an item number, so typing it always finds this row.
     printf -v goto_row '%02d  %s %-22s  %s' 0 "↗" "Go to" \
@@ -1882,21 +2035,27 @@ cntools_gum_menu_run() {
     rows+=("${goto_row}")
     row_types+=("goto")
     row_indices+=("-1")
+    match_keys+=("00 G")
     if [[ "${context}" == "Y" ]]; then
       rows+=("← Back" "⌂ Home")
       row_types+=("back" "home")
       row_indices+=("-1" "-1")
+      # No number, so their initial is the only way to filter to them.
+      match_keys+=("B" "H")
     fi
     rows+=("✕ Quit CNTools")
     row_types+=("quit")
     row_indices+=("-1")
+    match_keys+=("Q")
     height="$(cntools_gum_filter_height \
       "${#rows[@]}" "${rows_above_filter}")" || return 1
 
     selected_row=""
-    if cntools_gum_filter selected_row "${height}" "${rows[@]}"; then
-      filter_status=0
+    if cntools_fzf_available; then
+      cntools_fzf_filter selected_row "${height}" match_keys rows
+      filter_status=$?
     else
+      cntools_gum_filter selected_row "${height}" "${rows[@]}"
       filter_status=$?
     fi
     if (( filter_status == 1 )); then

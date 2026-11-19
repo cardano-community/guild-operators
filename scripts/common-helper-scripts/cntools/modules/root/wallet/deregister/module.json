@@ -1,6 +1,6 @@
 {
   "kind": "action",
-  "label": "De-Register",
+  "label": "Unregister",
   "description": "De-register a wallet stake address",
   "shortcut": "z",
   "order": 40,

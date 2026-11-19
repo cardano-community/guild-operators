@@ -1,6 +1,6 @@
 {
   "kind": "action",
-  "label": "Theme",
+  "label": "Appearance",
   "description": "Select and persist the CNTools color theme",
   "shortcut": "t",
   "order": 20,

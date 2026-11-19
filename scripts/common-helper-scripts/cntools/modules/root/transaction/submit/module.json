@@ -1,6 +1,6 @@
 {
   "kind": "action",
-  "label": "Submit",
+  "label": "Post / Submit",
   "description": "Review and submit a transaction artifact",
   "shortcut": "t",
   "order": 20,

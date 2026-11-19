@@ -1,6 +1,6 @@
 {
   "kind": "action",
-  "label": "DRep Retire",
+  "label": "Retire DRep",
   "description": "Retire a registered DRep",
   "shortcut": "x",
   "order": 60,

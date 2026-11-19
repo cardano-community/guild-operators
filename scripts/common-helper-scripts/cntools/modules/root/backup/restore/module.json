@@ -1,6 +1,6 @@
 {
   "kind": "action",
-  "label": "Restore",
+  "label": "Perform Restore",
   "description": "Restore CNTools data from a backup",
   "shortcut": "r",
   "order": 20,

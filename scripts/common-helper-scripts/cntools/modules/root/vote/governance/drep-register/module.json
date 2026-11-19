@@ -1,6 +1,6 @@
 {
   "kind": "action",
-  "label": "DRep Registration / Update",
+  "label": "Update/Create DRep",
   "description": "Register or update a DRep",
   "shortcut": "r",
   "order": 50,

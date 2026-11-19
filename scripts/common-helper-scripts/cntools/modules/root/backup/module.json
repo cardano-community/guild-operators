@@ -1,6 +1,6 @@
 {
   "kind": "menu",
-  "label": "Backup & Restore",
+  "label": "Restore & Backup",
   "description": "Back up or restore CNTools data",
   "shortcut": "z",
   "order": 70

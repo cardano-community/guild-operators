@@ -1,6 +1,6 @@
 {
   "kind": "action",
-  "label": "Burn Asset",
+  "label": "Perform Asset Burn",
   "description": "Burn native assets",
   "shortcut": "x",
   "order": 70,

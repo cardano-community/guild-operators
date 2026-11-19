@@ -1,6 +1,6 @@
 {
   "kind": "menu",
-  "label": "Governance",
+  "label": "On-chain Governance",
   "description": "Inspect governance and manage voting credentials",
   "shortcut": "g",
   "order": 10
