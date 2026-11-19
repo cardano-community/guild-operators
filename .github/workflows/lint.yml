@@ -62,6 +62,8 @@ jobs:
       run: bash files/tests/cntools-pickers.sh
     - name: CNTools KES reload hint tests
       run: bash files/tests/cntools-kes-reload-hint.sh
+    - name: CNTools KES period tests
+      run: bash files/tests/cntools-kes-period.sh
   jsonlint:
     name: JSON and YAML Check
     runs-on: ubuntu-latest

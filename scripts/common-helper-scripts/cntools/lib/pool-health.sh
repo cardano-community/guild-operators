@@ -157,7 +157,14 @@ cntools_pool_health_collect() {
     evolutions="$(jq -r '.maxKESEvolutions // ""' "${genesis}")"
     [[ -n "${slots}" ]] || slots="$(jq -r '.slotsPerKESPeriod // ""' "${genesis}")"
   fi
+  # Without a genesis file (Amaru), startup took the network's constants.
+  [[ -n "${evolutions}" ]] || evolutions="${CNTOOLS_MAX_KES_EVOLUTIONS:-}"
   [[ "${slots}" =~ ^[1-9][0-9]{0,9}$ && "${evolutions}" =~ ^[1-9][0-9]{0,3}$ ]] || return 0
+  # A node without a local query (Amaru) still reports the period in its metrics.
+  if [[ -z "${current}" && "${query_node}" == Y && "${CNTOOLS_MODE:-offline}" != offline ]] &&
+      cntools_health_local_metric_into current cardano_node_metrics_currentKESPeriod_int; then
+    CNTOOLS_POOL_KES_SOURCE[index]='Node metrics'
+  fi
   if [[ -z "${current}" ]]; then
     now="$(cntools_health_now)"; period="$(cntools_health_reference_slot "${CNTOOLS_NETWORK}" "${now}")" || return 0
     current=$((period / slots)); CNTOOLS_POOL_KES_SOURCE[index]='Certificate + wall-clock estimate'

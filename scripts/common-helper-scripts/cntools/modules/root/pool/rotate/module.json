@@ -34,6 +34,7 @@
     "pool-health.sh",
     "pool-opcert-validation.sh",
     "pool-kes.sh",
+    "blocklog.sh",
     "pool-kes-ui.sh"
   ]
 }

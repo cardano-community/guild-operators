@@ -77,6 +77,10 @@ cntools_kes_period_collect() {
   [[ "${slots}" =~ ^[1-9][0-9]{0,9}$ && "${CNTOOLS_MODE:-offline}" != offline ]] || return 0
   if cntools_transaction_local_backend_ready && cntools_funding_tip_into tip local; then
     CNTOOLS_KES_PERIOD_SOURCE='Local node'
+  elif cntools_health_local_metric_into tip cardano_node_metrics_currentKESPeriod_int; then
+    # A node without a local query (Amaru) reports the period itself.
+    CNTOOLS_KES_CURRENT="${tip}" CNTOOLS_KES_PERIOD_SOURCE='Node metrics'
+    return 0
   elif [[ "${CNTOOLS_KOIOS_ENABLED:-N}" == Y ]] && cntools_funding_tip_into tip koios; then
     CNTOOLS_KES_PERIOD_SOURCE='Koios API'
   else return 0; fi
@@ -528,8 +532,14 @@ cntools_kes_publish() {
     cntools_kes_error 'The staged KES signing key, public key or start period does not match the signed certificate.'; return 1;
   }
   cntools_kes_period_collect || return 1
-  if [[ -n "${CNTOOLS_KES_CURRENT}" ]] && cntools_pool_public_file_safe "${genesis}" 1048576; then
-    evolutions="$(jq -r '.maxKESEvolutions // empty' "${genesis}")"
+  # A genesis file without the constant fails the check below; without a
+  # genesis file (Amaru), startup took the network's constants.
+  if cntools_pool_public_file_safe "${genesis}" 1048576; then
+    evolutions="$(jq -r '.maxKESEvolutions // "missing"' "${genesis}")" || evolutions=missing
+  else
+    evolutions="${CNTOOLS_MAX_KES_EVOLUTIONS:-}"
+  fi
+  if [[ -n "${CNTOOLS_KES_CURRENT}" && -n "${evolutions}" ]]; then
     [[ "${evolutions}" =~ ^[1-9][0-9]{0,3}$ ]] &&
       ((CNTOOLS_KES_START <= CNTOOLS_KES_CURRENT && CNTOOLS_KES_CURRENT < CNTOOLS_KES_START+evolutions)) || {
       cntools_kes_error 'The replacement KES start is future or expired. Keep recovery/counters intact and review a new rotation.'; return 1;

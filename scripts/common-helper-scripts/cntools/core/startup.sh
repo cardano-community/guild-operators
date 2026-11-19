@@ -280,6 +280,23 @@ cntools_startup_shelley_genesis() {
   printf '%s\n' "${genesis}"
 }
 
+# Amaru deployments have no Shelley genesis file. For the public networks the
+# common network table holds the same KES constants, so CNTools takes them
+# from there when no genesis file is readable. A genesis file always wins.
+cntools_startup_kes_constants() {
+  local constants='' slots='' evolutions=''
+
+  [[ -z "${CNTOOLS_SHELLEY_GENESIS}" || ! -f "${CNTOOLS_SHELLEY_GENESIS}" ||
+     ! -r "${CNTOOLS_SHELLEY_GENESIS}" ]] || return 0
+  declare -F common_configure_known_network >/dev/null 2>&1 || return 0
+  constants="$(common_configure_known_network "${CNTOOLS_NETWORK}" >/dev/null 2>&1 &&
+    printf '%s %s\n' "${SLOTS_PER_KES_PERIOD:-}" "${MAX_KES_EVOLUTIONS:-}")" || return 0
+  read -r slots evolutions <<< "${constants}"
+  [[ "${slots}" =~ ^[1-9][0-9]{0,9}$ && "${evolutions}" =~ ^[1-9][0-9]{0,3}$ ]] || return 0
+  [[ -n "${CNTOOLS_SLOTS_PER_KES_PERIOD}" ]] || CNTOOLS_SLOTS_PER_KES_PERIOD="${slots}"
+  [[ -n "${CNTOOLS_MAX_KES_EVOLUTIONS}" ]] || CNTOOLS_MAX_KES_EVOLUTIONS="${evolutions}"
+}
+
 cntools_startup_normalize_session() {
   local node_home="${NODE_HOME:-${CNODE_HOME:-}}"
   local cli_candidate="${CCLI:-}"
@@ -357,7 +374,9 @@ cntools_startup_normalize_session() {
   CNTOOLS_POOL_CONFIG_FILENAME="${POOL_CONFIG_FILENAME:-pool.config}"
   CNTOOLS_POOL_KES_START_FILENAME="${POOL_CURRENT_KES_START:-kes.start}"
   CNTOOLS_SLOTS_PER_KES_PERIOD="${SLOTS_PER_KES_PERIOD:-}"
+  CNTOOLS_MAX_KES_EVOLUTIONS="${MAX_KES_EVOLUTIONS:-}"
   CNTOOLS_SHELLEY_GENESIS="$(cntools_startup_shelley_genesis "${CNTOOLS_CONFIG}")"
+  cntools_startup_kes_constants
   CNTOOLS_CONFIGURED_POOL_NAME="${POOL_NAME:-}"
   CNTOOLS_ASSET_DIR="${ASSET_FOLDER:-${CNTOOLS_NODE_HOME}/priv/asset}"
   CNTOOLS_POLICY_VKEY_FILENAME="${ASSET_POLICY_VK_FILENAME:-policy.vkey}"
@@ -599,7 +618,8 @@ cntools_startup_normalize_session() {
   export CNTOOLS_POOL_KES_VKEY_FILENAME CNTOOLS_POOL_KES_SKEY_FILENAME
   export CNTOOLS_POOL_VRF_VKEY_FILENAME CNTOOLS_POOL_VRF_SKEY_FILENAME
   export CNTOOLS_POOL_COUNTER_FILENAME CNTOOLS_POOL_OPCERT_FILENAME CNTOOLS_POOL_CONFIG_FILENAME
-  export CNTOOLS_POOL_KES_START_FILENAME CNTOOLS_SLOTS_PER_KES_PERIOD CNTOOLS_SHELLEY_GENESIS CNTOOLS_CONFIGURED_POOL_NAME
+  export CNTOOLS_POOL_KES_START_FILENAME CNTOOLS_SLOTS_PER_KES_PERIOD CNTOOLS_MAX_KES_EVOLUTIONS
+  export CNTOOLS_SHELLEY_GENESIS CNTOOLS_CONFIGURED_POOL_NAME
   export CNTOOLS_DBSYNC_QUERY_DIR CNTOOLS_UPDATE_CHECK CNTOOLS_KOIOS_ENABLED
   export CNTOOLS_ENABLE_CHATTR
   export CNTOOLS_KOIOS_API CNTOOLS_CURL_TIMEOUT CNTOOLS_CLI_TIMEOUT CNTOOLS_QUERY_TIMEOUT

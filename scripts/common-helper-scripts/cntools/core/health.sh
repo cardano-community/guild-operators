@@ -228,6 +228,20 @@ cntools_health_local_metrics_url() {
   printf '%s\n' "${url}"
 }
 
+# One non-negative integer from the local node's metrics, such as
+# cardano_node_metrics_currentKESPeriod_int. Fails when the node does not
+# export it or its metrics cannot be read.
+cntools_health_local_metric_into() {
+  local _cntools_hlm_output="$1" _cntools_hlm_url='' _cntools_hlm_metrics='' _cntools_hlm_value=''
+  shift || return 2
+  (( $# > 0 )) || return 2
+  _cntools_hlm_url="$(cntools_health_local_metrics_url)" || return 1
+  _cntools_hlm_metrics="$(cntools_health_fetch_local "${_cntools_hlm_url}" 2>/dev/null)" || return 1
+  _cntools_hlm_value="$(cntools_health_prometheus_value "${_cntools_hlm_metrics}" "$@")" || return 1
+  _cntools_hlm_value="$(cntools_health_nonnegative_integer "${_cntools_hlm_value}")" || return 1
+  printf -v "${_cntools_hlm_output}" '%s' "${_cntools_hlm_value}"
+}
+
 cntools_health_fetch_local() {
   local url="${1:-}"
   local response_file=""

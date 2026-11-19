@@ -503,14 +503,29 @@ until it reloads or restarts. Don't restart it while the files are replaced;
 if installation is interrupted, continue the recorded recovery operation
 rather than issuing another certificate.
 
-After installation, a cnode running as an active systemd unit can be reloaded
-from CNTools with SIGHUP, which loads the new key without a restart. CNTools
-then checks the node's metrics for the new certificate. Otherwise reload the
-node yourself (`"${CNODE_HOME}"/scripts/cnode.sh systemd reload`, which sends
-the same signal) or restart it, and verify its health. Dingo reloads with
-`dingo.sh reload`. Amaru reads the files only at startup and stops on SIGHUP,
-so restart it with `amaru.sh restart`, see
-[Amaru](../Build/amaru.md#relay-and-block-producer-modes).
+After installation, CNTools offers to load the new set when the node runs as
+an active systemd unit, and then checks the node's metrics for the new
+certificate:
+
+- **cardano-node:** CNTools reloads it with SIGHUP, which loads the new key
+  without a restart. Otherwise reload it yourself
+  (`"${CNODE_HOME}"/scripts/cnode.sh systemd reload`, which sends the same
+  signal) or restart it.
+- **Dingo:** CNTools runs `dingo.sh reload` and checks the certificate counter
+  Dingo reports. Dingo keeps the previous set if the new one fails its checks.
+- **Amaru:** Amaru reads the files only when it starts and ends on SIGHUP, so
+  CNTools restarts it with `amaru.sh restart`, where sudo may ask for your
+  password. Amaru produces no blocks while it restarts, so CNTools first shows
+  the node's next leader slot from its block log. When that slot is less than
+  10 minutes away, it suggests restarting after it. See
+  [Amaru](../Build/amaru.md#relay-and-block-producer-modes).
+
+Verify the node's health afterwards.
+
+Amaru deployments have no Shelley genesis file and no local node query. On
+mainnet, preprod and preview CNTools takes the KES constants from Guild's
+network table and the current KES period from Amaru's metrics, so KES health
+and Rotate work there without a typed period.
 
 For offline cold-key signing:
 

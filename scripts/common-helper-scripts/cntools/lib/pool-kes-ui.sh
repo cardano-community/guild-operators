@@ -219,12 +219,11 @@ cntools_kes_install() {
   cntools_kes_reload_offer
 }
 
-# PID of the cnode block producer's active systemd unit, if it runs that way.
+# PID of the node's active systemd unit, if it runs that way.
 cntools_kes_systemd_pid_into() {
   # Locals avoid "pid": callers pass that name to be assigned by printf -v.
   local output="$1" unit="$2" main_pid=''
-  [[ "${CNTOOLS_IMPLEMENTATION:-}" == cnode && "${unit}" =~ ^[A-Za-z0-9_.@-]+\.service$ ]] &&
-    command -v systemctl >/dev/null 2>&1 || return 1
+  [[ "${unit}" =~ ^[A-Za-z0-9_.@-]+\.service$ ]] && command -v systemctl >/dev/null 2>&1 || return 1
   [[ "$(systemctl show --property LoadState --value -- "${unit}" 2>/dev/null)" == loaded &&
      "$(systemctl show --property ActiveState --value -- "${unit}" 2>/dev/null)" == active ]] || return 1
   main_pid="$(systemctl show --property MainPID --value -- "${unit}" 2>/dev/null)" || return 1
@@ -232,17 +231,19 @@ cntools_kes_systemd_pid_into() {
   printf -v "${output}" '%s' "${main_pid}"
 }
 
-# Wait briefly for node metrics to report the new certificate's start period.
+# Wait for node metrics to report the new set: by default the certificate's
+# start period, within 15 seconds. Dingo reports the certificate counter.
 cntools_kes_reload_confirmed() {
-  local url='' metrics='' seen='' attempt=0
-  url="$(cntools_health_local_metrics_url)" || return 2
-  for ((attempt = 0; attempt < 15; attempt++)); do
-    metrics="$(cntools_health_fetch_local "${url}" 2>/dev/null)" &&
-      seen="$(sed -nE 's/^cardano_node_metrics_operationalCertificateStartKESPeriod_int[[:space:]]+([0-9]+).*/\1/p' <<< "${metrics}" | head -n 1)"
-    [[ "${seen}" != "${CNTOOLS_KES_START}" ]] || return 0
+  local metric="${1:-cardano_node_metrics_operationalCertificateStartKESPeriod_int}"
+  local expected="${2:-${CNTOOLS_KES_START}}" seconds="${3:-15}" seen='' deadline=0
+  cntools_health_local_metrics_url >/dev/null || return 2
+  deadline=$(( $(cntools_health_now) + seconds ))
+  while true; do
+    seen=''
+    if cntools_health_local_metric_into seen "${metric}" && [[ "${seen}" == "${expected}" ]]; then return 0; fi
+    (( $(cntools_health_now) < deadline )) || return 1
     sleep 1
   done
-  return 1
 }
 
 # What an installed rotation changed, and whether the node runs it yet.
@@ -258,17 +259,172 @@ cntools_kes_installed_summary() {
     cntools_table_pair Unchanged 'Cold and VRF keys' muted
     [[ -z "${CNTOOLS_KES_STAGE}" ]] || cntools_table_pair 'Recovery copy' "${CNTOOLS_KES_STAGE}" identifier
   } | cntools_table_render 'KES rotation installed'
-  local load='reload it'
-  [[ "${CNTOOLS_IMPLEMENTATION:-}" != amaru ]] || load='restart it'
-  cntools_ui_render_status info "If another system runs this pool as block producer, copy the new hot.skey and op.cert there and ${load}. Never roll the issue counter back."
+  # The other system may run another implementation than this node.
+  cntools_ui_render_status info 'If another system runs this pool as block producer, copy the new hot.skey and op.cert there, then reload cardano-node or Dingo, or restart Amaru. Never roll the issue counter back.'
   cntools_ui_wait
 }
 
-# cardano-node re-reads its KES key and operational certificate on SIGHUP, and
-# Dingo through dingo.sh reload. Amaru has no reload and needs a restart.
+# "4 minutes", "2 hours 5 minutes", "3 days 1 hour".
+cntools_kes_duration_into() {
+  local _cntools_kd_output="$1" _cntools_kd_seconds="$2" _cntools_kd_big=0 _cntools_kd_small=0 _cntools_kd_text=''
+  local _cntools_kd_big_unit='' _cntools_kd_small_unit=''
+  if ((_cntools_kd_seconds >= 86400)); then
+    _cntools_kd_big=$((_cntools_kd_seconds / 86400)) _cntools_kd_small=$((_cntools_kd_seconds % 86400 / 3600))
+    _cntools_kd_big_unit=day _cntools_kd_small_unit=hour
+  elif ((_cntools_kd_seconds >= 3600)); then
+    _cntools_kd_big=$((_cntools_kd_seconds / 3600)) _cntools_kd_small=$((_cntools_kd_seconds % 3600 / 60))
+    _cntools_kd_big_unit=hour _cntools_kd_small_unit=minute
+  elif ((_cntools_kd_seconds >= 60)); then
+    _cntools_kd_big=$((_cntools_kd_seconds / 60)) _cntools_kd_big_unit=minute
+  else
+    printf -v "${_cntools_kd_output}" '%s' 'less than a minute'; return 0
+  fi
+  _cntools_kd_text="${_cntools_kd_big} ${_cntools_kd_big_unit}"
+  ((_cntools_kd_big == 1)) || _cntools_kd_text+=s
+  if ((_cntools_kd_small > 0)); then
+    _cntools_kd_text+=" ${_cntools_kd_small} ${_cntools_kd_small_unit}"
+    ((_cntools_kd_small == 1)) || _cntools_kd_text+=s
+  fi
+  printf -v "${_cntools_kd_output}" '%s' "${_cntools_kd_text}"
+}
+
+# Seconds until this node's next leader slot in its block log (cncli.sh or
+# amaru-leaderlog.sh). Returns 1 when the stored schedule has no upcoming
+# slot, and 2 when there is no readable schedule.
+cntools_kes_next_leader_into() {
+  local _cntools_knl_output="$1" _cntools_knl_result='' _cntools_knl_seconds='' _cntools_knl_status=0
+  declare -F cntools_blocklog_prepare >/dev/null 2>&1 || return 2
+  if cntools_blocklog_prepare >/dev/null 2>&1; then
+    cntools_blocklog_sql _cntools_knl_result "SELECT json_object('seconds', (SELECT
+      min(cast(strftime('%s', at) AS INTEGER)) - cast(strftime('%s', 'now') AS INTEGER) FROM main.blocklog
+      WHERE status = 'leader' AND cast(strftime('%s', at) AS INTEGER) > cast(strftime('%s', 'now') AS INTEGER)));" \
+      >/dev/null 2>&1 || _cntools_knl_status=2
+  else
+    _cntools_knl_status=2
+  fi
+  cntools_blocklog_cleanup
+  ((_cntools_knl_status == 0)) || return 2
+  _cntools_knl_seconds="$(jq -r '.seconds // empty' <<< "${_cntools_knl_result}" 2>/dev/null)" || return 2
+  [[ "${_cntools_knl_seconds}" =~ ^[1-9][0-9]{0,9}$ ]] || return 1
+  printf -v "${_cntools_knl_output}" '%s' "${_cntools_knl_seconds}"
+}
+
+# Runs one command of the node's own helper script, such as amaru.sh restart.
+# SUDO=N keeps the script from calling sudo.
+cntools_kes_script_exec() {
+  local sudo="$1" script="$2" command="$3" output="$4" errors="$5"
+  SUDO="${sudo}" "${script}" "${command}" > "${output}" 2> "${errors}"
+}
+
+# The first line the script wrote to stderr, without control characters.
+cntools_kes_script_error_into() {
+  local _cntools_kse_output="$1" _cntools_kse_errors="$2" _cntools_kse_line=''
+  IFS= read -r -n 300 _cntools_kse_line < "${_cntools_kse_errors}" || true
+  _cntools_kse_line="${_cntools_kse_line//[^[:print:]]/}"
+  printf -v "${_cntools_kse_output}" '%s' "${_cntools_kse_line#ERROR: }"
+}
+
+# Amaru reads its KES key and operational certificate only when it starts and
+# has no reload: SIGHUP ends it without its orderly shutdown. It produces no
+# blocks while it restarts, so the offer first looks at the leader schedule.
+cntools_kes_restart_amaru_offer() {
+  local unit="$1" pid='' choice='' status=0 seconds=0 when='' output='' errors='' detail=''
+  local script="${CNTOOLS_NODE_HOME}/scripts/amaru.sh" restart='Restart Amaru now' later='I will restart it myself'
+  local -a choices=("${restart}" "${later}")
+  local avoid="Do not send it SIGHUP, which ends Amaru without its orderly shutdown."
+  if ! cntools_kes_systemd_pid_into pid "${unit}"; then
+    cntools_ui_render_status info "No active systemd unit ${unit} was found for this node. Amaru reads the KES key and operational certificate only when it starts, so restart it with ${script} restart, away from a leader slot. ${avoid}"
+    cntools_kes_installed_summary 'Still using the previous key · restart it' warning; return 0
+  fi
+  cntools_ui_render_status info "Amaru reads the KES key and operational certificate only when it starts, and produces no blocks while it restarts. ${avoid}"
+  cntools_kes_next_leader_into seconds || status=$?
+  if ((status == 0)); then
+    cntools_kes_duration_into when "${seconds}"
+    if ((seconds < 600)); then
+      cntools_ui_render_status warn "The next leader slot of this node is in ${when}. Restart Amaru after that slot."
+      choices=("${later}" "${restart}")
+    else
+      cntools_ui_render_status info "The next leader slot of this node is in ${when}."
+    fi
+  elif ((status == 1)); then
+    cntools_ui_render_status info 'The stored leader schedule has no upcoming slot for this node.'
+  else
+    cntools_ui_render_status info 'CNTools could not read the leader schedule of this node, so check that no leader slot is due before you restart it.'
+  fi
+  status=0
+  cntools_kes_choose choice 'Load the new KES key' "${choices[@]}" || choice=''
+  if [[ "${choice}" != "${restart}" ]]; then
+    cntools_ui_render_status info "Restart it with ${script} restart, away from a leader slot."
+    cntools_kes_installed_summary 'Still using the previous key · restart it' warning; return 0
+  fi
+  cntools_transaction_temp_file output kes-restart && cntools_transaction_temp_file errors kes-restart-errors || return 1
+  if [[ ${EUID} -eq 0 ]] || { command -v sudo >/dev/null 2>&1 && sudo -n true 2>/dev/null; }; then
+    cntools_ui_spin_function 'Restarting Amaru…' cntools_kes_script_exec Y "${script}" restart "${output}" "${errors}" || status=$?
+  else
+    # Not under a spinner: sudo needs the terminal to ask for the password.
+    cntools_ui_render_status info "Restarting ${unit}. sudo may ask for your password."
+    cntools_kes_script_exec Y "${script}" restart "${output}" "${errors}" || status=$?
+  fi
+  if ((status != 0)); then
+    cntools_kes_script_error_into detail "${errors}"
+    cntools_transaction_log WARN "KES restart failed unit=${unit} status=${status}: ${detail}"
+    cntools_ui_render_status warn "CNTools could not restart ${unit}${detail:+ (${detail})}. Run: ${script} restart"
+    cntools_kes_installed_summary 'Still using the previous key · restart it' warning; return 0
+  fi
+  cntools_transaction_log POOL "KES restart unit=${unit}"
+  cntools_ui_spin_function 'Waiting for Amaru to start with the new certificate…' cntools_kes_reload_confirmed \
+    cardano_node_metrics_operationalCertificateStartKESPeriod_int "${CNTOOLS_KES_START}" 180 || status=$?
+  if ((status == 0)); then
+    cntools_kes_installed_summary 'Restarted · now using the new key (confirmed by node metrics)' success; return 0
+  fi
+  cntools_ui_render_status warn "Amaru restarted, but within 3 minutes its metrics did not show start period ${CNTOOLS_KES_START}. Check gLiveView or the node log (${script} logs)."
+  cntools_kes_installed_summary 'Restarted · not confirmed' warning
+}
+
+# Dingo re-reads its KES key, VRF key and operational certificate when
+# dingo.sh reload signals it, and keeps the current set if the new one fails
+# its checks. Its metrics report the counter of the certificate it holds.
+cntools_kes_reload_dingo_offer() {
+  local unit="$1" pid='' choice='' status=0 output='' errors='' detail=''
+  local script="${CNTOOLS_NODE_HOME}/scripts/dingo.sh" reload='Reload Dingo now (dingo.sh reload)'
+  if ! cntools_kes_systemd_pid_into pid "${unit}"; then
+    cntools_ui_render_status info "No active systemd unit ${unit} was found for this node. Load the new set with ${script} reload, or restart the node."
+    cntools_kes_installed_summary 'Still using the previous key · reload or restart it' warning; return 0
+  fi
+  cntools_kes_choose choice 'Load the new KES key' "${reload}" 'I will reload or restart it myself' || choice=''
+  if [[ "${choice}" != "${reload}" ]]; then
+    cntools_ui_render_status info "Load the new set with ${script} reload, or restart the node."
+    cntools_kes_installed_summary 'Still using the previous key · reload or restart it' warning; return 0
+  fi
+  cntools_transaction_temp_file output kes-reload && cntools_transaction_temp_file errors kes-reload-errors || return 1
+  # The reload signals the process directly, which needs no sudo as the
+  # service user; CNTools never asks for a password here.
+  cntools_ui_spin_function 'Asking Dingo to reload…' cntools_kes_script_exec N "${script}" reload "${output}" "${errors}" || status=$?
+  if ((status != 0)); then
+    cntools_kes_script_error_into detail "${errors}"
+    cntools_transaction_log WARN "KES reload failed unit=${unit} status=${status}: ${detail}"
+    cntools_ui_render_status warn "dingo.sh reload failed${detail:+ (${detail})}. Run ${script} reload yourself, or restart the node."
+    cntools_kes_installed_summary 'Still using the previous key · reload or restart it' warning; return 0
+  fi
+  cntools_transaction_log POOL "KES reload requested unit=${unit} pid=${pid}"
+  cntools_ui_spin_function 'Waiting for Dingo to load the new certificate…' cntools_kes_reload_confirmed \
+    dingo_forge_opcert_counter_loaded "${CNTOOLS_KES_NEXT}" 15 || status=$?
+  if ((status == 0)); then
+    cntools_kes_installed_summary 'Reloaded · now using the new key (confirmed by node metrics)' success; return 0
+  fi
+  cntools_ui_render_status warn "Dingo was asked to reload, but its metrics did not show certificate counter ${CNTOOLS_KES_NEXT}. Dingo keeps the previous set when the new one fails its checks, so look at its log (${script} logs)."
+  cntools_kes_installed_summary 'Reload requested · not confirmed' warning
+}
+
+# cardano-node re-reads its KES key and operational certificate on SIGHUP.
+# Dingo reloads through dingo.sh, and Amaru needs a restart.
 cntools_kes_reload_offer() {
   local unit="${CNTOOLS_SERVICE%.service}.service" pid='' choice='' status=0
   local manual="sudo kill -SIGHUP \$(systemctl show --property MainPID --value ${unit})"
+  case "${CNTOOLS_IMPLEMENTATION:-}" in
+    amaru) cntools_kes_restart_amaru_offer "${unit}"; return $? ;;
+    dingo) cntools_kes_reload_dingo_offer "${unit}"; return $? ;;
+  esac
   if cntools_kes_systemd_pid_into pid "${unit}"; then
     cntools_kes_choose choice 'Load the new KES key' 'Reload the node now (SIGHUP)' 'I will reload or restart it myself' || choice=''
     if [[ "${choice}" == 'Reload the node now (SIGHUP)' ]]; then
@@ -293,20 +449,7 @@ cntools_kes_reload_offer() {
     fi
     cntools_ui_render_status info "Load the new set by reloading the node (${manual}) or restarting it."
   else
-    case "${CNTOOLS_IMPLEMENTATION:-}" in
-      amaru)
-        # Amaru reads its KES key and certificate at startup only, and SIGHUP ends the process.
-        cntools_ui_render_status info "Amaru loads the KES key and operational certificate when it starts. Restart it to use the new set (${CNTOOLS_NODE_HOME}/scripts/amaru.sh restart), away from a leader slot: its schedule takes a few minutes after a start. Do not send SIGHUP, which stops Amaru."
-        cntools_kes_installed_summary 'Still using the previous key · restart it' warning
-        return 0
-        ;;
-      dingo)
-        cntools_ui_render_status info "Load the new set with ${CNTOOLS_NODE_HOME}/scripts/dingo.sh reload, or restart the node."
-        ;;
-      *)
-        cntools_ui_render_status info "No active systemd unit ${unit} was found for this node. Load the new set by sending SIGHUP to the cardano-node process or restarting it."
-        ;;
-    esac
+    cntools_ui_render_status info "No active systemd unit ${unit} was found for this node. Load the new set by sending SIGHUP to the cardano-node process or restarting it."
   fi
   cntools_kes_installed_summary 'Still using the previous key · reload or restart it' warning
 }
