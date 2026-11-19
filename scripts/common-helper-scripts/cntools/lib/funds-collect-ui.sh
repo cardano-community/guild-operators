@@ -139,7 +139,7 @@ cntools_collect_workflow() {
   cntools_collect_begin
   cntools_transaction_require_cli || return 2
   cntools_wallet_catalog_build || return 2
-  cntools_wallet_choose selected Cancel collect || return $?
+  cntools_wallet_choose selected 'Wallet whose UTxOs to consolidate · it pays the fee' Cancel collect || return $?
   cntools_send_prepare_wallet "${CNTOOLS_WALLET_PATHS[selected]}" multisig || return 2
   [[ "${CNTOOLS_SEND_TYPE}" != Hardware ]] || cntools_transaction_require_hwcli || return 2
   # Check first: a wallet with nothing to collect asks nothing more, not even

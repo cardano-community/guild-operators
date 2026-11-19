@@ -105,7 +105,7 @@ cntools_catalyst_registration_workflow() {
   # Cardano Signer creates, signs and verifies every authorization: checked
   # before any choice.
   cntools_wallet_catalog_build && cntools_transaction_require_cli && cntools_catalyst_signer_require || return 2
-  cntools_wallet_choose selected Cancel catalyst || return $?
+  cntools_wallet_choose selected 'Wallet to register for Catalyst voting · it pays the fee' Cancel catalyst || return $?
   cntools_catalyst_identity "${CNTOOLS_WALLET_PATHS[selected]}" || return 2
   CNTOOLS_CATALYST_DIRECTORY="${CNTOOLS_WALLET_PATHS[selected]}" wallet="${CNTOOLS_WALLET_PATHS[selected]##*/}"
   # A hardware wallet needs cardano-hw-cli: say so before any input.
@@ -226,7 +226,7 @@ cntools_catalyst_action_registration() {
 cntools_catalyst_qr_workflow() {
   local selected='' pin='' repeated='' status=0 directory='' wallet=''
   cntools_wallet_catalog_build && cntools_transaction_require_cli || return 2
-  cntools_wallet_choose selected Cancel catalyst-qr || return $?
+  cntools_wallet_choose selected 'Wallet whose Catalyst registration QR code to show' Cancel catalyst-qr || return $?
   directory="${CNTOOLS_WALLET_PATHS[selected]}" wallet="${CNTOOLS_WALLET_PATHS[selected]##*/}"
   # Toolbox and an unencrypted voting key are checked before any PIN.
   cntools_ui_spin_function 'Checking the voting key and Catalyst Toolbox…' cntools_catalyst_qr_preflight "${directory}" || return 2

@@ -6,9 +6,9 @@ cntools_policy_manage_begin() { cntools_ui_action_begin "$1" "/ Advanced / Asset
 # 3 = nothing to choose: the reason is shown and acknowledged here, once.
 # 1 stays a plain Cancel. The filter is passed to cntools_policy_choose_into.
 cntools_policy_selection_into() {
-  local output="$1" filter="${2:-}" chosen='' status=0 reason=''
+  local output="$1" filter="${2:-}" purpose="${3:-}" chosen='' status=0 reason=''
   cntools_policy_catalog_build || { cntools_policy_error 'The asset directory could not be inspected safely.'; return 2; }
-  cntools_policy_choose_into chosen "${filter}" || status=$?
+  cntools_policy_choose_into chosen "${filter}" "${purpose}" || status=$?
   if ((status == 3)); then
     if (( ${#CNTOOLS_POLICY_NAMES[@]} == 0 )); then reason='No policy folders are available. Use Create Policy first.'
     elif [[ -n "${filter}" ]]; then cntools_policy_ineligible_reason_into reason "${filter}"; fi
@@ -48,15 +48,18 @@ cntools_policy_asset_input_into() {
   done
 }
 
+# cntools_policy_asset_choose_into <output> <policy id> <purpose>: picks a
+# known asset of the policy or asks for a new name; <purpose> is shown above.
 cntools_policy_asset_choose_into() {
-  local output="$1" policy="$2" selected='' label='' index=0 encoded=''
+  local output="$1" policy="$2" purpose="${3:-}" selected='' label='' index=0 encoded=''
   local -a choices=()
   for index in "${!CNTOOLS_POLICY_ASSET_IDS[@]}"; do
     cntools_asset_label_into label "${CNTOOLS_POLICY_ASSET_IDS[index]}" "$((index+1))" || return 2
     choices+=("$((index+1)) · ${label} · ${CNTOOLS_POLICY_ASSET_IDS[index]#*.}")
   done
   if (( ${#choices[@]} > 0 )); then
-    cntools_ui_choose selected Asset "${choices[@]}" 'Enter asset name' Cancel || return $?
+    [[ -n "${purpose}" ]] || return 2
+    cntools_ui_choose_for selected "${purpose}" 'Filter assets…' "${choices[@]}" 'Enter asset name' Cancel || return $?
     [[ "${selected}" != Cancel ]] || return 1
     for index in "${!choices[@]}"; do
       [[ "${choices[index]}" != "${selected}" ]] || { printf -v "${output}" '%s' "${CNTOOLS_POLICY_ASSET_IDS[index]}"; return 0; }
@@ -163,7 +166,7 @@ cntools_policy_action_list() {
 cntools_policy_action_show() {
   local selected='' identity='' view='' status=0 record='' position=0
   cntools_policy_manage_begin 'Show Asset'
-  cntools_policy_selection_into selected || status=$?
+  cntools_policy_selection_into selected '' 'Policy of the asset to show' || status=$?
   ((status != 3)) || return 0
   ((status != 2)) || { cntools_policy_show_error; return 1; }
   ((status == 0)) || return "${status}"
@@ -176,7 +179,7 @@ cntools_policy_action_show() {
     cntools_ui_wait
     return 1
   fi
-  cntools_policy_asset_choose_into identity "${CNTOOLS_POLICY_IDS[selected]}" || return $?
+  cntools_policy_asset_choose_into identity "${CNTOOLS_POLICY_IDS[selected]}" 'Asset to show' || return $?
   cntools_policy_asset_enrich "${identity}"
   # Both views match without metadata; Quick shows every known field.
   if [[ -z "${CNTOOLS_WALLET_ASSET_METADATA_JSON[${identity}]:-}" ]]; then
@@ -202,7 +205,7 @@ cntools_policy_action_protection_inner() {
   local operation="$1" title='' selected='' directory='' key='' password='' confirmation='' status=0 result='' feedback=''
   [[ "${operation}" == encrypt ]] && title='Encrypt / Lock Policy' || title='Decrypt / Unlock Policy'
   cntools_policy_manage_begin "${title}"
-  cntools_policy_selection_into selected || status=$?
+  cntools_policy_selection_into selected '' "$([[ "${operation}" == encrypt ]] && printf 'Policy whose signing key to encrypt or files to lock' || printf 'Policy whose signing key to decrypt or files to unlock')" || status=$?
   ((status != 3)) || return 0
   ((status != 2)) || { cntools_policy_show_error; return 1; }
   ((status == 0)) || return "${status}"

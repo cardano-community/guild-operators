@@ -58,6 +58,8 @@ jobs:
       run: bash files/tests/cntools-dijkstra.sh
     - name: CNTools shortcut tests
       run: bash files/tests/cntools-shortcuts.sh
+    - name: CNTools picker tests
+      run: bash files/tests/cntools-pickers.sh
   jsonlint:
     name: JSON and YAML Check
     runs-on: ubuntu-latest

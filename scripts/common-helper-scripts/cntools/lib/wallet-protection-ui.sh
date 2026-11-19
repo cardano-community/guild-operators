@@ -117,7 +117,9 @@ cntools_wallet_protection_choose() {
       "auto-selected only wallet=${_cntools_output_ref##*/} operation=${_cntools_operation}"
     return 0
   fi
-  if cntools_ui_choose _cntools_selected \
+  if cntools_ui_choose_for _cntools_selected \
+      "$([[ "${_cntools_operation}" == encrypt ]] && printf 'Wallet whose signing keys to encrypt or files to lock' ||
+        printf 'Wallet whose signing keys to decrypt or files to unlock')" \
       "Filter wallets…" "${_cntools_rows[@]}"; then
     _cntools_status=0
   else

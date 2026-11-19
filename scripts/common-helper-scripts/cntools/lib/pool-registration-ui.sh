@@ -159,16 +159,24 @@ cntools_pool_registration_hardware_notice() {
   else cntools_ui_render_status info 'Pool operator signing needs the funding payment key and cold key on the same Ledger. Every hardware owner signs separately, including owners on that Ledger.'; fi
 }
 
-# "owners" as $3 skips wallets that are already owners.
+# <role> is owner (a new owner; wallets that already own are skipped),
+# owner-match (the key of a listed owner) or reward (the reward account).
 cntools_pool_registration_select_stake_into() {
-  local output="$1" title="$2" skip="${3:-}" choice='' selected='' file='' stake_record='' pick_status=0
-  cntools_pool_registration_choose choice "${title}" 'CNTools wallet' 'External stake public key (offline signer)' Cancel || return $?
+  local output="$1" role="$2" choice='' selected='' file='' stake_record='' pick_status=0 key_purpose='' wallet_purpose=''
+  case "${role}" in
+    owner) key_purpose='Stake key of the owner to add'; wallet_purpose='Wallet whose stake key becomes a pool owner' ;;
+    owner-match) key_purpose="Stake key of this owner, to add its public key"; wallet_purpose="Wallet that holds this owner's stake key" ;;
+    reward) key_purpose='Stake key of the reward account, which receives the pool rewards'; wallet_purpose='Wallet whose stake address receives the pool rewards' ;;
+    *) return 2 ;;
+  esac
+  cntools_ui_choose_for choice "${key_purpose}" 'Key source…' 'CNTools wallet' 'External stake public key (offline signer)' Cancel || return $?
+  cntools_transaction_log CHOICE "Pool stake key role=${role} source=${choice}"
   case "${choice}" in
     'CNTools wallet')
       CNTOOLS_WALLET_SELECTION_EXCLUDE_DIRS=()
-      [[ "${skip}" != owners ]] ||
+      [[ "${role}" != owner ]] ||
         mapfile -t CNTOOLS_WALLET_SELECTION_EXCLUDE_DIRS < <(jq -r '.[].walletDirectory // empty' <<< "${CNTOOLS_POOL_REG_OWNERS}")
-      cntools_wallet_choose selected Cancel pool-owner || pick_status=$?
+      cntools_wallet_choose selected "${wallet_purpose}" Cancel pool-owner || pick_status=$?
       CNTOOLS_WALLET_SELECTION_EXCLUDE_DIRS=()
       ((pick_status == 0)) || return "${pick_status}"
       # The editor redraws next and repeats this warning under its header.
@@ -205,7 +213,7 @@ cntools_pool_registration_edit_owners() {
     case "${choice}" in
       Done|Back) return 0 ;;
       'Add owner')
-        status=0; cntools_pool_registration_select_stake_into record 'Owner stake key' owners || status=$?
+        status=0; cntools_pool_registration_select_stake_into record owner || status=$?
         ((status != 1 && status != 3)) || continue; ((status == 0)) || return "${status}"
         cntools_pool_owner_add "${record}" || return 2 ;;
       *)
@@ -221,7 +229,7 @@ cntools_pool_registration_edit_owners() {
           'Remove owner') CNTOOLS_POOL_REG_OWNERS="$(jq -c --argjson index "${index}" 'del(.[$index])' <<< "${CNTOOLS_POOL_REG_OWNERS}")" ;;
           'Make main owner') CNTOOLS_POOL_REG_OWNERS="$(jq -c --argjson index "${index}" '[.[$index]] + del(.[$index])' <<< "${CNTOOLS_POOL_REG_OWNERS}")" ;;
           'Supply public key')
-            status=0; cntools_pool_registration_select_stake_into record 'Matching owner stake key' || status=$?
+            status=0; cntools_pool_registration_select_stake_into record owner-match || status=$?
             ((status != 1 && status != 3)) || continue; ((status == 0)) || return "${status}"
             if [[ "$(jq -r .hash <<< "${record}")" != "${expected}" ]]; then
               cntools_ui_render_status warn 'This key is not the selected owner. Remove the old owner and add a new one to change ownership.'; continue
@@ -357,7 +365,7 @@ cntools_pool_registration_edit_settings() {
         elif ! cntools_pool_margin_meets_minimum "${amount}" "${CNTOOLS_POOL_REG_MIN_MARGIN:-0}"; then cntools_ui_render_status warn "Minimum margin on this network: ${minimum} %."
         else CNTOOLS_POOL_REG_MARGIN="${amount}"; fi ;;
       'Reward account')
-        cntools_pool_registration_select_stake_into record 'Reward account stake key' || status=$?
+        cntools_pool_registration_select_stake_into record reward || status=$?
         ((status != 1 && status != 3)) || continue; ((status == 0)) || return "${status}"
         cntools_pool_reward_record_use "${record}" ;;
       Owners) cntools_pool_registration_edit_owners || status=$? ;;
@@ -444,13 +452,18 @@ cntools_pool_registration_funds_needed_into() {
 # (shown and acknowledged).
 cntools_pool_registration_choose_funding_into() {
   local pcf_output="$1" pcf_context='' pcf_wallet='' pcf_status=0 pcf_needed='' pcf_index=0 pcf_note='' pcf_other=0 pcf_tried='' pcf_message=''
-  local pcf_next=''
+  local pcf_next='' pcf_purpose=''
   local -a pcf_skipped=()
   pcf_context="$(cntools_pool_registration_funding_context)"
+  case "${CNTOOLS_WALLET_REGISTER_OPERATION}" in
+    pool-register) pcf_purpose='Wallet that pays the pool deposit and the transaction fee' ;;
+    pool-retire) pcf_purpose='Wallet that pays the transaction fee for the retirement' ;;
+    *) pcf_purpose='Wallet that pays the transaction fee for this pool update' ;;
+  esac
   while true; do
     pcf_status=0
     CNTOOLS_WALLET_SELECTION_EXCLUDE_DIRS=("${pcf_skipped[@]}")
-    cntools_wallet_choose pcf_wallet Cancel "${pcf_context}" || pcf_status=$?
+    cntools_wallet_choose pcf_wallet "${pcf_purpose}" Cancel "${pcf_context}" || pcf_status=$?
     CNTOOLS_WALLET_SELECTION_EXCLUDE_DIRS=()
     ((pcf_status == 0)) || return "${pcf_status}"
     cntools_pool_registration_prepare_funding "${CNTOOLS_WALLET_PATHS[pcf_wallet]}" || return 2

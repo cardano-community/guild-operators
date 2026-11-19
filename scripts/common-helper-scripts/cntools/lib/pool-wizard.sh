@@ -3,7 +3,7 @@
 # shellcheck disable=SC2034
 # 3: no pool fits; the reason was shown as one info line and acknowledged.
 cntools_pool_registration_choose_eligible_into() {
-  local output="$1" index=0 row='' selected_choice='' status='' unchecked=0 reason=''
+  local output="$1" index=0 row='' selected_choice='' status='' unchecked=0 reason='' purpose=''
   local -a rows=() indices=()
   cntools_ui_spin_function 'Checking pool eligibility…' cntools_pool_inspect_catalog || return 2
   for index in "${!CNTOOLS_POOL_NAMES[@]}"; do
@@ -35,7 +35,13 @@ cntools_pool_registration_choose_eligible_into() {
     cntools_transaction_log CHOICE "Pool auto-selected=${CNTOOLS_POOL_NAMES[indices[0]]}"
     return 0
   fi
-  cntools_pool_registration_choose selected_choice 'Select pool' "${rows[@]}" Cancel || return $?
+  case "${CNTOOLS_WALLET_REGISTER_OPERATION}" in
+    pool-register) purpose='Pool to register on chain' ;;
+    pool-modify) purpose='Pool whose registration to update' ;;
+    *) purpose='Pool to retire' ;;
+  esac
+  cntools_ui_choose_for selected_choice "${purpose}" 'Filter pools…' "${rows[@]}" Cancel || return $?
+  cntools_transaction_log CHOICE "Pool selected=${selected_choice}"
   [[ "${selected_choice}" != Cancel ]] || return 1
   for index in "${!rows[@]}"; do
     [[ "${rows[index]}" != "${selected_choice}" ]] || { printf -v "${output}" '%s' "${indices[index]}"; return 0; }

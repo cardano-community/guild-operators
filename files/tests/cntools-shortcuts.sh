@@ -178,8 +178,9 @@ cntools_ui_input() {
 cntools_ui_choose_matching() {
   local _tc_out="$1" _tc_want="${PICKS[0]-}" _tc_row=""
   CHOOSE_CALLS+=("$3|$4")
+  [[ "$5" == "Menu or action to open" ]] || CHOOSE_CALLS+=("unexpected purpose '$5'")
   PICKS=("${PICKS[@]:1}")
-  shift 4
+  shift 5
   [[ "${_tc_want}" != ESC ]] || return 1
   for _tc_row in "$@"; do
     [[ "${_tc_row}" == *"${_tc_want}"* ]] || continue

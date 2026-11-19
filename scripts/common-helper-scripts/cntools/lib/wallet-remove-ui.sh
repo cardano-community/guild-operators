@@ -200,7 +200,7 @@ cntools_wallet_action_remove() {
     return 1
   fi
   # Removal always asks for an explicit pick, even with one wallet.
-  if cntools_wallet_choose selected_index "" "" N; then
+  if cntools_wallet_choose selected_index 'Wallet to remove' "" "" N; then
     status=0
   else
     status=$?

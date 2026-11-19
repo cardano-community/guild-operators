@@ -238,7 +238,7 @@ cntools_wallet_register_recheck_marked() {
 cntools_wallet_register_workflow() {
   local selected_index="" wallet_directory="" wallet_name="" workflow="" proceed="" choice=""
   local staged="" signed="" saved="" backend="" signed_body="" txid="" status=0 collecting='Checking stake state and spendable funds…' prefix='stake '
-  local building='' signing=''
+  local building='' signing='' purpose='Wallet for this transaction · it pays the fee'
   CNTOOLS_WALLET_REGISTER_RESULT_SHOWN=N
   CNTOOLS_WALLET_REGISTER_SAVED_PACKAGE=""
   case "${CNTOOLS_WALLET_REGISTER_OPERATION}" in
@@ -248,13 +248,25 @@ cntools_wallet_register_workflow() {
     drep-*) collecting='Checking DRep registration, deposit and spendable funds…'; prefix='' ;;
     gov-vote) collecting='Checking DRep registration, active proposals and spendable funds…'; prefix='' ;;
   esac
+  # What the chosen wallet is for: the deposit and fee are paid from it, and
+  # a refunded deposit returns to it.
+  case "${CNTOOLS_WALLET_REGISTER_OPERATION}" in
+    register) purpose='Wallet whose stake address to register · it pays the deposit and the fee' ;;
+    deregister) purpose='Wallet whose stake address to de-register · it pays the fee and gets the deposit back' ;;
+    delegate) purpose='Wallet to delegate to a stake pool · it pays the fee and any stake deposit' ;;
+    vote-delegate) purpose='Wallet whose voting power to delegate · it pays the fee and any stake deposit' ;;
+    drep-register) purpose='Wallet whose DRep key to register · it pays the deposit and the fee' ;;
+    drep-update) purpose='Wallet whose DRep registration to update · it pays the fee' ;;
+    drep-retire) purpose='Wallet whose DRep to retire · it pays the fee and gets the deposit back' ;;
+    gov-vote) purpose='Wallet whose DRep key casts the vote · it pays the fee' ;;
+  esac
   cntools_wallet_register_begin
   cntools_transaction_require_cli || return 2
   cntools_wallet_catalog_build || return 2
   # Check the chain first; signers are chosen only once the action can go ahead.
   while true; do
     # No (suitable) wallet returns 3: the reason was shown and acknowledged.
-    cntools_wallet_choose selected_index Cancel "${CNTOOLS_WALLET_REGISTER_OPERATION}" || return $?
+    cntools_wallet_choose selected_index "${purpose}" Cancel "${CNTOOLS_WALLET_REGISTER_OPERATION}" || return $?
     wallet_directory="${CNTOOLS_WALLET_PATHS[selected_index]}"
     wallet_name="${CNTOOLS_WALLET_NAMES[selected_index]}"
     status=0

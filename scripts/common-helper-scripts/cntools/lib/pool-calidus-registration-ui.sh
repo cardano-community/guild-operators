@@ -240,9 +240,8 @@ cntools_calidus_registration_workflow() {
   # An empty wallet is named, and another offered, before the authorization.
   cntools_wallet_catalog_build || return 2
   while true; do
-    cntools_ui_render_detail 'Funding wallet'
     CNTOOLS_WALLET_SELECTION_EXCLUDE_DIRS=("${skipped[@]}")
-    status=0; cntools_wallet_choose selected Cancel send || status=$?
+    status=0; cntools_wallet_choose selected 'Wallet that pays the transaction fee for the Calidus key registration' Cancel send || status=$?
     CNTOOLS_WALLET_SELECTION_EXCLUDE_DIRS=()
     ((status == 0)) || return "${status}"
     cntools_send_prepare_wallet "${CNTOOLS_WALLET_PATHS[selected]}" multisig || return 2

@@ -36,7 +36,7 @@ cntools_delegate_pool_local_into() {
     # The review names it in its 'Local pool' row.
     selected="${labels[0]}"
   else
-    cntools_ui_choose selected 'Local stake pool' "${labels[@]}" Cancel || return $?
+    cntools_ui_choose_for selected 'Pool to delegate to' 'Filter local pools…' "${labels[@]}" Cancel || return $?
     [[ "${selected}" != Cancel ]] || return 1
   fi
   for index in "${!labels[@]}"; do [[ "${labels[index]}" != "${selected}" ]] || break; done
@@ -97,7 +97,7 @@ cntools_delegate_choose_target() {
       entered="${entered//[[:space:]]/}"
       choice='Enter pool ID'; [[ -n "${entered}" ]] || choice='Local pool'
     else
-      cntools_ui_choose choice 'Stake pool' 'Enter pool ID' 'Local pool' Cancel || return $?
+      cntools_ui_choose_for choice 'Pool to delegate to' 'Stake pool…' 'Enter pool ID' 'Local pool' Cancel || return $?
     fi
     cntools_transaction_log CHOICE "Delegate target source=${choice}"
     case "${choice}" in

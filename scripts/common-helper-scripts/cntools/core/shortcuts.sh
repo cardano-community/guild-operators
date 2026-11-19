@@ -370,24 +370,26 @@ cntools_shortcuts_entries_collect() {
   done
 }
 
-# Picks a menu or action from cntools_shortcuts_entries_collect's rows. With
-# <text>, the list opens filtered by it, and a single match is picked without
-# showing the list. Returns as cntools_ui_choose does.
+# Picks a menu or action from cntools_shortcuts_entries_collect's rows, with
+# <purpose> above the list. With <text>, the list opens filtered by it, and a
+# single match is picked without showing the list. Returns as
+# cntools_ui_choose does.
 cntools_shortcuts_pick_entry_into() {
   local _cspe_output="${1:-}"
-  local _cspe_placeholder="${2:-Menu or action…}"
+  local _cspe_purpose="${2:-}"
   local _cspe_text="${3:-}"
   local _cspe_row=""
   local _cspe_select="N"
   local _cspe_index=0
 
-  [[ "${_cspe_output}" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || return 2
+  [[ "${_cspe_output}" =~ ^[A-Za-z_][A-Za-z0-9_]*$ && -n "${_cspe_purpose}" ]] ||
+    return 2
   printf -v "${_cspe_output}" '%s' ''
   (( ${#CNTOOLS_SHORTCUTS_ENTRY_ROWS[@]} > 0 )) || return 2
   [[ -z "${_cspe_text}" ]] || _cspe_select="Y"
-  cntools_ui_choose_matching _cspe_row "${_cspe_placeholder}" \
-    "${_cspe_text}" "${_cspe_select}" "${CNTOOLS_SHORTCUTS_ENTRY_ROWS[@]}" ||
-    return $?
+  cntools_ui_choose_matching _cspe_row "Filter menus and actions…" \
+    "${_cspe_text}" "${_cspe_select}" "${_cspe_purpose}" \
+    "${CNTOOLS_SHORTCUTS_ENTRY_ROWS[@]}" || return $?
   for (( _cspe_index = 0; _cspe_index < ${#CNTOOLS_SHORTCUTS_ENTRY_ROWS[@]}; _cspe_index++ )); do
     if [[ "${CNTOOLS_SHORTCUTS_ENTRY_ROWS[_cspe_index]}" == "${_cspe_row}" ]]; then
       printf -v "${_cspe_output}" '%s' "${CNTOOLS_SHORTCUTS_ENTRY_IDS[_cspe_index]}"
@@ -481,7 +483,7 @@ cntools_shortcuts_goto_into() {
     cntools_shortcuts_entries_collect || return 1
     cntools_ui_render_begin "Go to" "/ Go to" || return 1
     _csg_status=0
-    cntools_shortcuts_pick_entry_into _csg_target "Menu or action…" \
+    cntools_shortcuts_pick_entry_into _csg_target "Menu or action to open" \
       "${_csg_text}" || _csg_status=$?
     # Escape returns to the Go to prompt.
     (( _csg_status != 1 )) || continue

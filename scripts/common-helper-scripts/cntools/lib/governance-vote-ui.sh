@@ -132,7 +132,7 @@ cntools_gov_vote_choose() {
       selection="${choices[0]}"
       cntools_transaction_log CHOICE "Governance proposal auto-selected only open=${selection}"
     else
-      cntools_ui_choose selection 'Select governance proposal' "${choices[@]}" || return $?
+      cntools_ui_choose_for selection 'Proposal to vote on' 'Filter proposals…' "${choices[@]}" || return $?
       [[ "${selection}" != Cancel ]] || return 1
     fi
     cntools_proposal_select "${selection%% *}" || return 2

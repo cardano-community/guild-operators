@@ -331,7 +331,7 @@ cntools_pool_action_show() {
     cntools_ui_render_status error "The pool directory could not be read safely. See ${CNTOOLS_LOG}."; cntools_ui_wait; return 1
   fi
   if (( ${#CNTOOLS_POOL_NAMES[@]} == 0 )); then cntools_pool_empty_notice; return 0; fi
-  cntools_pool_choose_into selected || status=$?
+  cntools_pool_choose_into selected 'Pool to show' || status=$?
   ((status != 1)) || return 0
   ((status == 0)) || return "${status}"
   cntools_pool_local_json_into config "${selected}" config || return 1

@@ -79,7 +79,7 @@ cntools_vote_choose_target() {
       cntools_transaction_ui_styled_row 'Current voting delegation' "$(cntools_vote_label "${CNTOOLS_VOTE_CURRENT}")" identifier
     } | cntools_ui_table --separator $'\t' --widths "${widths}" || return 2
     cntools_ui_render_status info "${notice}"
-    cntools_ui_choose choice 'Voting delegation' "${options[@]}" || return $?
+    cntools_ui_choose_for choice 'Where to delegate the voting power of this wallet' 'Voting delegation…' "${options[@]}" || return $?
     cntools_transaction_log CHOICE "Voting delegation target choice=${choice}"
     status=0
     case "${choice}" in
@@ -144,7 +144,7 @@ cntools_vote_choose_local_into() {
     cntools_transaction_log CHOICE "Local DRep wallet auto-selected only=${CNTOOLS_VOTE_LOCAL_LABELS[0]}"
     return 0
   fi
-  cntools_ui_choose selection 'Local DRep wallet · registration checked next' "${CNTOOLS_VOTE_LOCAL_LABELS[@]}" Cancel || return $?
+  cntools_ui_choose_for selection 'DRep to delegate voting power to · its registration is checked next' 'Filter DRep wallets…' "${CNTOOLS_VOTE_LOCAL_LABELS[@]}" Cancel || return $?
   [[ "${selection}" != Cancel ]] || return 1
   for index in "${!CNTOOLS_VOTE_LOCAL_LABELS[@]}"; do
     [[ "${selection}" != "${CNTOOLS_VOTE_LOCAL_LABELS[index]}" ]] || { printf -v "${destination}" '%s' "${CNTOOLS_VOTE_LOCAL_IDS[index]}"; return 0; }

@@ -1136,24 +1136,42 @@ cntools_ui_choose() {
   shift 2 || return 2
 
   cntools_ui_choose_matching "${_cntools_choose_output}" \
-    "${_cntools_choose_placeholder}" "" N "$@"
+    "${_cntools_choose_placeholder}" "" N "" "$@"
+}
+
+# A chooser that picks a thing (a wallet, pool, policy, transaction …) and
+# says what it is for: <purpose> is drawn in bold above the filter, such as
+# "Wallet that pays the transaction fee". The placeholder stays a filter hint.
+cntools_ui_choose_for() {
+  local _cntools_for_output="${1:-}"
+  local _cntools_for_purpose="${2:-}"
+  local _cntools_for_placeholder="${3:-Select…}"
+  shift 3 || return 2
+
+  [[ -n "${_cntools_for_purpose}" ]] || return 2
+  cntools_ui_choose_matching "${_cntools_for_output}" \
+    "${_cntools_for_placeholder}" "" N "${_cntools_for_purpose}" "$@"
 }
 
 # cntools_ui_choose that opens filtered by <initial>. With <select_if_one> Y,
 # an <initial> that leaves a single choice returns it without showing the list.
+# A non-empty <header> is drawn in bold above the filter; Gum counts it in
+# the widget's height, so the list keeps its room on screen.
 cntools_ui_choose_matching() {
   cntools_ui_seen
   local _cntools_output_name="${1:-}"
   local _cntools_placeholder="${2:-Select…}"
   local _cntools_initial="${3:-}"
   local _cntools_select_if_one="${4:-N}"
+  local _cntools_header="${5:-}"
   local _cntools_value=""
   local _cntools_status=0
   local _cntools_width=""
   local _cntools_height=0
   local _cntools_rows_above=""
+  local _cntools_header_rows=0
   local -a _cntools_matching=()
-  shift 4 || return 2
+  shift 5 || return 2
 
   [[ "${_cntools_output_name}" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || return 2
   [[ "${_cntools_select_if_one}" == Y || "${_cntools_select_if_one}" == N ]] ||
@@ -1164,9 +1182,20 @@ cntools_ui_choose_matching() {
   [[ -z "${_cntools_initial}" ]] || _cntools_matching+=(--value "${_cntools_initial}")
   [[ "${_cntools_select_if_one}" != Y ]] || _cntools_matching+=(--select-if-one)
   _cntools_width="$(cntools_gum_width)" || return 1
+  if [[ -n "${_cntools_header}" ]]; then
+    # Wrapped here, inside the widget's padding, so the row count is exact.
+    (( _cntools_width > 24 )) &&
+      _cntools_header="$(printf '%s\n' "${_cntools_header}" | fold -s -w "$((_cntools_width - 4))")"
+    _cntools_header="${_cntools_header%$'\n'}"
+    _cntools_header_rows="$(printf '%s\n' "${_cntools_header}" | wc -l)"
+    _cntools_header_rows="${_cntools_header_rows//[[:space:]]/}"
+    _cntools_matching+=(--header "${_cntools_header}"
+      --header.foreground "${CNTOOLS_GUM_COLOR_BRAND}" --header.bold)
+  fi
   _cntools_rows_above="$(cntools_gum_header_rows)" || return 1
   _cntools_height="$(cntools_gum_filter_height \
-    "$#" "${_cntools_rows_above}")" || return 1
+    "$#" "$((_cntools_rows_above + _cntools_header_rows))")" || return 1
+  _cntools_height=$((_cntools_height + _cntools_header_rows))
   if _cntools_value="$(printf '%s\n' "$@" | cntools_gum filter \
       "${_cntools_matching[@]}" \
       --limit 1 --height "${_cntools_height}" --width "${_cntools_width}" \
@@ -1329,10 +1358,13 @@ cntools_ui_file_selected() {
   done
 }
 
+# Optional <purpose> (sixth argument) names the file or folder being chosen
+# and stays above the list while browsing.
 cntools_ui_file() {
   local _cntools_output_name="${1:-}" _cntools_start="${2:-${PWD}}" _cntools_begin="${3:-}"
   local _cntools_kind="${4:-file}"
   local _cntools_file_actions="${5:-Y}"
+  local _cntools_file_purpose="${6:-}"
   local _cntools_file_status=0
   local _cntools_directory="" _cntools_entry="" _cntools_name="" _cntools_selected="" _cntools_index=0 _cntools_found=N
   local -a _cntools_paths=() _cntools_labels=()
@@ -1372,8 +1404,13 @@ cntools_ui_file() {
     done
     [[ "${_cntools_directory}" == / ]] || _cntools_labels+=('Parent folder')
     cntools_gum_log CHOICE "file browser directory=$(printf '%q' "${_cntools_directory}") entries=${#_cntools_paths[@]}"
-    cntools_ui_choose _cntools_selected "Browse ${_cntools_directory}" \
-      "${_cntools_labels[@]}" Back || return $?
+    if [[ -n "${_cntools_file_purpose}" ]]; then
+      cntools_ui_choose_for _cntools_selected "${_cntools_file_purpose}" "Browse ${_cntools_directory}" \
+        "${_cntools_labels[@]}" Back || return $?
+    else
+      cntools_ui_choose _cntools_selected "Browse ${_cntools_directory}" \
+        "${_cntools_labels[@]}" Back || return $?
+    fi
     case "${_cntools_selected}" in
       Back) return 1 ;;
       'Select this folder')
@@ -1462,7 +1499,7 @@ cntools_ui_pick_path() {
         path_picker_status=0
         # Picking an input uses it; deleting keys or inputs from here is
         # never wanted. Saved packages offer Delete in their own review.
-        cntools_ui_file path_picker_value "${path_picker_start}" cntools_ui_path_begin "${path_picker_kind}" N || path_picker_status=$?
+        cntools_ui_file path_picker_value "${path_picker_start}" cntools_ui_path_begin "${path_picker_kind}" N "${path_picker_prompt}" || path_picker_status=$?
         ((path_picker_status == 0 || path_picker_status == 1)) || return "${path_picker_status}"
         ((path_picker_status == 0)) || continue
         ;;

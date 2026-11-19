@@ -140,8 +140,10 @@ cntools_policy_ineligible_reason_into() {
   printf -v "${_ineligible_output}" '%s' "${_ineligible_text}"
 }
 
+# cntools_policy_choose_into <output> <filter> <purpose>: <purpose> says what
+# the policy is for and is shown above the list.
 cntools_policy_choose_into() {
-  local output="$1" filter="${2:-}" selected='' index=0 row=''
+  local output="$1" filter="${2:-}" purpose="${3:-}" selected='' index=0 row=''
   local -a choices=() indices=()
   for index in "${!CNTOOLS_POLICY_NAMES[@]}"; do
     cntools_policy_eligible "${index}" "${filter}" || continue
@@ -158,7 +160,8 @@ cntools_policy_choose_into() {
     cntools_transaction_log CHOICE "Policy auto-selected=${CNTOOLS_POLICY_NAMES[indices[0]]}"
     return 0
   fi
-  cntools_ui_choose selected Policy "${choices[@]}" Cancel || return $?
+  [[ -n "${purpose}" ]] || return 2
+  cntools_ui_choose_for selected "${purpose}" 'Filter policies…' "${choices[@]}" Cancel || return $?
   [[ "${selected}" != Cancel ]] || return 1
   for index in "${!choices[@]}"; do
     [[ "${choices[index]}" != "${selected}" ]] || { printf -v "${output}" '%s' "${indices[index]}"; return 0; }

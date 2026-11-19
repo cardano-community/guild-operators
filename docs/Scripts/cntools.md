@@ -73,6 +73,9 @@ Check the network before performing any transaction.
 
 Type to filter menu choices, use the arrow keys to move, and press Enter to
 select. Filtering keeps the rows that contain the typed text, in menu order.
+A list that picks a wallet, pool, policy, asset, proposal or transaction says
+above it what the choice is for, such as "Wallet that pays the transaction fee
+for this pool update".
 Use the displayed Back, Home and Quit choices to navigate. When only one wallet
 or pool suits an action, CNTools selects it instead of asking; Wallet → Remove
 always asks. When no wallet suits an action, CNTools says why and returns to the

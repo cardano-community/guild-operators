@@ -171,7 +171,7 @@ cntools_action_main() {
         cntools_shortcuts_entries_collect || return 2
         cntools_ui_action_begin "Shortcuts" "${CNTOOLS_SHORTCUTS_ACTION_PATH} / Add"
         cntools_shortcuts_pick_entry_into target \
-          "Menu or action for the shortcut…" || status=$?
+          "Menu or action the new shortcut opens" || status=$?
         if (( status == 0 )); then
           cntools_shortcuts_target_name_into name "${target}" || return 2
           current=""

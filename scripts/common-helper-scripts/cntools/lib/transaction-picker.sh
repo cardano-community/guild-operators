@@ -68,12 +68,12 @@ cntools_transaction_picker_begin() {
 
 cntools_transaction_picker_into() {
   local output_name="${1:-}" mode="${2:-}" feedback="${3:-}" method="" chosen="" status=0 index=0
-  local start="${CNTOOLS_ROOT:-}" picker_input="" width="" saved_first=N
+  local start="${CNTOOLS_ROOT:-}" picker_input="" width="" saved_first=N purpose=""
   # Quick opens the saved packages first; Back returns to the full menu.
   CNTOOLS_TRANSACTION_PICKER_AUTO_PICKED=N
   [[ -n "${feedback}" || "${CNTOOLS_TRANSACTION_PICKER_NO_AUTO:-N}" == Y ]] || ! cntools_flow_quick || saved_first=Y
   [[ "${output_name}" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || return 2
-  case "${mode}" in sign|submit) ;; *) return 2 ;; esac
+  case "${mode}" in sign) purpose="Transaction to sign" ;; submit) purpose="Transaction to submit" ;; *) return 2 ;; esac
   local -n picker_result="${output_name}"
   picker_result=""
   [[ ! -d "${start}/.transactions" || -L "${start}/.transactions" ]] || start="${start}/.transactions"
@@ -89,7 +89,7 @@ cntools_transaction_picker_into() {
     if [[ "${saved_first}" == Y ]]; then
       saved_first=N; method='Saved CNTools packages'
     else
-      cntools_ui_choose method 'Choose a transaction file' 'Saved CNTools packages' \
+      cntools_ui_choose_for method "${purpose}" 'Where is the file?' 'Saved CNTools packages' \
         'Browse files' 'Enter file path' Cancel || return $?
     fi
     cntools_transaction_log CHOICE "Transaction file selection mode=${mode} method=${method}"
@@ -111,7 +111,7 @@ cntools_transaction_picker_into() {
           return 0
         else
           status=0
-          cntools_ui_choose chosen 'Saved packages · newest first · type to filter' "${CNTOOLS_TRANSACTION_PICKER_ROWS[@]}" Back || status=$?
+          cntools_ui_choose_for chosen "${purpose} · saved packages, newest first" 'Filter packages…' "${CNTOOLS_TRANSACTION_PICKER_ROWS[@]}" Back || status=$?
           (( status == 0 || status == 1 )) || return "${status}"
           if (( status == 0 )) && [[ "${chosen}" != Back ]]; then
             for index in "${!CNTOOLS_TRANSACTION_PICKER_ROWS[@]}"; do
@@ -124,7 +124,7 @@ cntools_transaction_picker_into() {
         ;;
       'Browse files')
         status=0
-        cntools_ui_file picker_input "${start}" "cntools_transaction_ui_${mode}_begin" file N || status=$?
+        cntools_ui_file picker_input "${start}" "cntools_transaction_ui_${mode}_begin" file N "${purpose}" || status=$?
         (( status == 0 || status == 1 )) || return "${status}"
         if (( status == 0 )); then picker_result="${picker_input}"; return 0; fi
         cntools_transaction_log CHOICE 'Transaction file browser cancelled'

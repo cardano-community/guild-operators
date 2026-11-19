@@ -102,7 +102,7 @@ cntools_asset_tx_burn_choose() {
     cntools_asset_label_into label "${identities[index]}" "$((index+1))" || return 2
     choices+=("$((index+1)) · ${label} · ${identities[index]#*.} · $(cntools_number_format "${CNTOOLS_FUNDING_ASSETS[${identities[index]}]}") units")
   done
-  cntools_ui_choose chosen 'Asset to burn' "${choices[@]}" Cancel || return $?
+  cntools_ui_choose_for chosen 'Asset to burn from this wallet' 'Filter assets…' "${choices[@]}" Cancel || return $?
   [[ "${chosen}" != Cancel ]] || return 1
   for index in "${!choices[@]}"; do
     [[ "${choices[index]}" != "${chosen}" ]] || { CNTOOLS_ASSET_TX_ID="${identities[index]}"; return 0; }
@@ -115,7 +115,7 @@ cntools_asset_tx_burn_choose() {
 cntools_asset_tx_change_asset() {
   local previous_id="${CNTOOLS_ASSET_TX_ID}" previous_quantity="${CNTOOLS_ASSET_TX_QUANTITY}" chosen='' status=0
   if [[ "${CNTOOLS_ASSET_TX_OPERATION}" == mint ]]; then
-    cntools_policy_asset_choose_into chosen "${CNTOOLS_POLICY_ID}" || status=$?
+    cntools_policy_asset_choose_into chosen "${CNTOOLS_POLICY_ID}" 'Asset to mint' || status=$?
     ((status != 0)) || CNTOOLS_ASSET_TX_ID="${chosen}"
   else
     cntools_asset_tx_burn_choose N || status=$?
@@ -229,12 +229,16 @@ cntools_asset_tx_workflow() {
   local -a changes=('Change quantity' 'Change metadata' 'Change expiry') previous_metadata=()
   cntools_asset_tx_begin
   # 3 = no usable policy (reason shown and acknowledged); 1 stays a plain Cancel.
-  cntools_policy_selection_into selected transact || return $?
+  cntools_policy_selection_into selected transact "$([[ "${CNTOOLS_ASSET_TX_OPERATION}" == mint ]] && printf 'Policy to mint with' || printf 'Policy of the assets to burn')" || return $?
   CNTOOLS_ASSET_TX_DIRECTORY="${CNTOOLS_POLICY_PATHS[selected]}"
   cntools_policy_prepare "${CNTOOLS_ASSET_TX_DIRECTORY}" || { cntools_asset_tx_fail "${CNTOOLS_POLICY_ERROR:-Policy authority could not be verified.}"; return 2; }
   cntools_asset_tx_policy_window || return 2
   cntools_wallet_catalog_build || return 2
-  cntools_wallet_choose selected Cancel funding || return $?
+  if [[ "${CNTOOLS_ASSET_TX_OPERATION}" == mint ]]; then
+    cntools_wallet_choose selected 'Wallet that receives the minted assets · it pays the fee' Cancel funding || return $?
+  else
+    cntools_wallet_choose selected 'Wallet that holds the assets to burn · it pays the fee' Cancel funding || return $?
+  fi
   cntools_send_prepare_wallet "${CNTOOLS_WALLET_PATHS[selected]}" || return 2
   # A hardware wallet needs cardano-hw-cli: say so before any further input.
   if [[ "${CNTOOLS_SEND_TYPE:-}" == Hardware && -n "${CNTOOLS_SEND_SOURCE}" ]]; then cntools_transaction_require_hwcli || return 2; fi
@@ -248,7 +252,7 @@ cntools_asset_tx_workflow() {
   } | cntools_table_render 'Source wallet' || return 2
   if [[ "${CNTOOLS_ASSET_TX_OPERATION}" == mint ]]; then
     cntools_policy_asset_catalog "${CNTOOLS_ASSET_TX_DIRECTORY}" "${CNTOOLS_POLICY_ID}" || return 2
-    cntools_policy_asset_choose_into CNTOOLS_ASSET_TX_ID "${CNTOOLS_POLICY_ID}" || return $?
+    cntools_policy_asset_choose_into CNTOOLS_ASSET_TX_ID "${CNTOOLS_POLICY_ID}" 'Asset to mint' || return $?
   else cntools_asset_tx_burn_choose || return $?; fi
   # Another asset can be picked from the review when there is a choice.
   [[ "${CNTOOLS_ASSET_TX_OPERATION}" != mint && "${CNTOOLS_ASSET_TX_CHOICES}" -le 1 ]] || changes=('Change asset' "${changes[@]}")
