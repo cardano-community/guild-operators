@@ -400,9 +400,10 @@ service installed by `-d` runs it and checks every `SLEEP_RATE` seconds.
 
 It reads three sources:
 
-- **The node's journal.** Amaru logs every led slot: `forged` with the block
-  hash and parent, `missed_slot` with a reason such as `woke_late` or
-  `tip_ahead`, and `forge_failed`. Its `blockperf` traces say when the header
+- **The node's journal.** Amaru logs every led slot as a consensus event:
+  `forge.forged` with the block hash and parent, `forge.missed_slot` with a
+  reason such as `woke_late` or `tip_ahead`, and `forge.forge_failed`. Its
+  `blockperf` traces say when the header
   of each block was first announced to the node, in milliseconds after that
   block's slot started. When no header was logged, the time its body arrived
   is used instead.
@@ -416,6 +417,8 @@ It reads three sources:
   releases.
 - **Koios**, when it is available. It names the pool of each competing block,
   gives tickers, and answers for slots older than the chain database holds.
+  When the journal no longer has a led slot, the block in that slot counts as
+  ours if Koios names our pool for it.
 
 A slot is decided `CONFIRM_SLOT_CNT` slots after it passed (600 by default),
 and a forged block once `CONFIRM_BLOCK_CNT` blocks are built on it (15 by

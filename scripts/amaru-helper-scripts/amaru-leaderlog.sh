@@ -482,7 +482,7 @@ leaderlog() {
 ######################################
 
 # What Amaru logs about a led slot, and the blocks it receives, come from the
-# node's journal (amaru::consensus::forge and amaru::blockperf traces). Which
+# node's journal (the consensus forge events and the amaru::blockperf traces). Which
 # block is on the best chain comes from Amaru's chain database, opened
 # read-only beside the running node; it holds the last k blocks, and Koios
 # answers for older ones and names the pool of each block.
@@ -552,43 +552,106 @@ amaruKoiosBlocks() {
     | [.block_height, .abs_slot, .hash, (.pool // ""), (.parent_hash // "")] | map(tostring) | join("|")' <<< "${answer}" 2>/dev/null
 }
 
+# amaruForgeEvent <variable> <trace line>: the name of the forge event a line
+# is, or empty for any other line. Amaru's text log writes the target
+# amaru::consensus and the event as forge.<name>, for example
+# "INFO amaru::consensus: forge.forged slot=… header_hash=… parent=…", like
+# its other consensus events (tip.adopt); a JSON log (AMARU_LOG_JSON) quotes
+# the same name. Amaru's trace list names the target amaru::consensus::forge,
+# which is accepted too.
+amaruForgeEvent() {
+  local text='consensus[a-z_:]*:[[:space:]]+forge\.([a-z_]+)' json='"forge\.([a-z_]+)"'
+  printf -v "$1" '%s' ''
+  if [[ $2 =~ ${text} ]] || [[ $2 == *'"amaru::consensus'* && $2 =~ ${json} ]]; then
+    printf -v "$1" '%s' "${BASH_REMATCH[1]}"
+  elif [[ $2 == *consensus::forge* ]]; then
+    case $2 in
+      # A failed transaction selection still forges a block, an empty one.
+      *take_for_forge_failed*) printf -v "$1" '%s' take_for_forge_failed ;;
+      *forge_failed*) printf -v "$1" '%s' forge_failed ;;
+      *missed_slot*) printf -v "$1" '%s' missed_slot ;;
+      *forged*) printf -v "$1" '%s' forged ;;
+    esac
+  fi
+  return 0
+}
+
 # What the node logged when it led one slot.
 # Sets forge_kind (forged, missed_slot or forge_failed, empty when nothing was
 # logged), forge_hash, forge_parent, forge_reason and forge_ms (milliseconds
 # after the slot started).
 amaruForgeRecord() {
-  local slot="$1" start ts message value at frac line
+  local slot="$1" start ts message value at frac line event
+  local iso='(^|"timestamp":")([0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2})(\.([0-9]+))?Z'
   forge_kind=''; forge_hash=''; forge_parent=''; forge_reason=''; forge_ms=''
   start=$(blocklogSlotStartMs "${slot}") || return 0
   while IFS= read -r line; do
     ts="${line%% *}"
     message="${line#*: }"
-    [[ ${message} == *consensus::forge* ]] || continue
+    amaruForgeEvent event "${message}"
+    [[ ${event} == forged || ${event} == missed_slot || ${event} == forge_failed ]] || continue
     amaruField value slot "${message}"
     [[ ${value} == "${slot}" ]] || continue
-    if [[ ${message} == *forge_failed* ]]; then
+    if [[ ${event} == forge_failed ]]; then
       forge_kind=forge_failed
       amaruField forge_reason step "${message}"
-    elif [[ ${message} == *missed_slot* ]]; then
+    elif [[ ${event} == missed_slot ]]; then
       [[ ${forge_kind} == forged ]] && continue
       forge_kind=missed_slot
       amaruField forge_reason reason "${message}"
-    elif [[ ${message} == *forged* ]]; then
+    else
       amaruField forge_hash header_hash "${message}"
       amaruField forge_parent parent "${message}"
       [[ ${forge_hash} =~ ^[0-9a-f]{64}$ ]] || { forge_hash=''; continue; }
       [[ ${forge_parent} =~ ^[0-9a-f]{64}$ ]] || forge_parent=''
       forge_kind=forged
-      # Amaru's own timestamp starts a text trace; else the journal's.
-      if [[ ${message} =~ ^([0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2})(\.([0-9]+))?Z ]] &&
-         at=$(date -u -d "${BASH_REMATCH[1]}Z" +%s 2>/dev/null); then
-        frac="${BASH_REMATCH[3]}000"
+      # Amaru's own timestamp, which starts a text trace and is the first
+      # field of a JSON one; else the journal's.
+      if [[ ${message} =~ ${iso} ]] && at=$(date -u -d "${BASH_REMATCH[2]}Z" +%s 2>/dev/null); then
+        frac="${BASH_REMATCH[4]}000"
       else
         at="${ts%.*}"; frac="${ts#*.}000"
       fi
       [[ ${at} =~ ^[0-9]+$ ]] && forge_ms=$(( at * 1000 + 10#${frac:0:3} - start ))
     fi
   done < <(blocklogJournalWindow "${AMARU_NODE_UNIT}" $(( start / 1000 - 5 )) $(( start / 1000 + 60 )) | grep -F "${slot}")
+}
+
+# Our pool's id in bech32, as Koios names the pool of a block: from the bech32
+# tool, else from Koios. Sets AMARU_POOL_BECH32, returns 1 when neither knows.
+amaruOurPool() {
+  local answer
+  [[ -z ${AMARU_POOL_BECH32:-} ]] || return 0
+  AMARU_POOL_BECH32=$(blocklogPoolBech32 "${POOL_ID}") || AMARU_POOL_BECH32=''
+  if [[ -z ${AMARU_POOL_BECH32} && -n ${KOIOS_API} && ${POOL_ID} =~ ^[0-9a-f]{56}$ ]]; then
+    answer=$(curl -sSL -f -m 15 "${KOIOS_API_HEADERS[@]}" \
+      "${KOIOS_API}/pool_list?pool_id_hex=eq.${POOL_ID}&select=pool_id_bech32" 2>/dev/null) || answer=''
+    AMARU_POOL_BECH32=$(jq -r '.[0].pool_id_bech32 // empty' <<< "${answer}" 2>/dev/null) || AMARU_POOL_BECH32=''
+  fi
+  [[ ${AMARU_POOL_BECH32} =~ ^pool1[02-9ac-hj-np-z]+$ ]] || { AMARU_POOL_BECH32=''; return 1; }
+}
+
+# A journal that no longer has a led slot (it was rotated) says nothing about
+# our block, but the block in that slot on the chain may still be ours. Koios
+# names the pool of each block: when it is our pool, the block is taken as the
+# one we forged. Without Koios nothing changes. Uses block_slot and the best
+# chain from amaruLoadBestChain; sets forge_kind, forge_hash and forge_parent.
+amaruOwnBlockInSlot() {
+  local line slot hash pool parent
+  [[ -n ${KOIOS_API} ]] || return 0
+  if [[ -n ${CHAIN_AT_SLOT[${block_slot}]+set} ]]; then
+    IFS= read -r line < <(amaruKoiosBlocks "${CHAIN_AT_SLOT[${block_slot}]}")
+  elif [[ -z ${CHAIN_LOW_HEIGHT} || ${block_slot} -lt ${CHAIN_SLOT[${CHAIN_LOW_HEIGHT}]:-0} ]]; then
+    IFS= read -r line < <(amaruKoiosBlocks --filter "abs_slot=eq.${block_slot}") # older than the chain database
+  else
+    return 0 # no block in the slot on the best chain
+  fi
+  IFS='|' read -r _ slot hash pool parent <<< "${line}"
+  [[ ${slot} == "${block_slot}" && ${hash} =~ ^[0-9a-f]{64}$ && -n ${pool} ]] || return 0
+  amaruOurPool || return 0
+  [[ ${pool} == "${AMARU_POOL_BECH32}" ]] || return 0
+  forge_kind=forged; forge_hash="${hash}"; forge_parent=''; forge_reason=''; forge_ms=''
+  [[ ! ${parent} =~ ^[0-9a-f]{64}$ ]] || forge_parent="${parent}"
 }
 
 # When each block's header first reached our node, in milliseconds after the
@@ -727,9 +790,15 @@ amaruValidateSlot() {
     forge_reason=''; forge_ms="${stored[forge_ms]:-}"
   else
     amaruForgeRecord "${block_slot}"
-    if [[ -z ${forge_kind} && -n ${stored[reason]:-} && ${stored[source]:-} == amaru ]]; then
-      forge_kind=missed_slot; forge_reason="${stored[reason]}" # an older run read it from the journal
-      [[ ${forge_reason} != slot_battle ]] || forge_reason=''
+    # An older run read the reason from the journal. A slot battle was decided
+    # from the chain, not from the journal, so it is decided again.
+    if [[ -z ${forge_kind} && ${stored[source]:-} == amaru && -n ${stored[reason]:-} && ${stored[reason]} != slot_battle ]]; then
+      forge_kind=missed_slot; forge_reason="${stored[reason]}"
+    fi
+    # Nothing in the journal about a slot old enough to decide: the block in
+    # it may still be ours.
+    if [[ -z ${forge_kind} ]] && (( block_slot + CONFIRM_SLOT_CNT < slotnum )); then
+      amaruOwnBlockInSlot
     fi
   fi
   if [[ ${forge_kind} == forged ]]; then
