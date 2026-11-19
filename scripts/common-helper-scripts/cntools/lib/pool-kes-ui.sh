@@ -258,11 +258,14 @@ cntools_kes_installed_summary() {
     cntools_table_pair Unchanged 'Cold and VRF keys' muted
     [[ -z "${CNTOOLS_KES_STAGE}" ]] || cntools_table_pair 'Recovery copy' "${CNTOOLS_KES_STAGE}" identifier
   } | cntools_table_render 'KES rotation installed'
-  cntools_ui_render_status info 'If another system runs this pool as block producer, copy the new hot.skey and op.cert there and reload it. Never roll the issue counter back.'
+  local load='reload it'
+  [[ "${CNTOOLS_IMPLEMENTATION:-}" != amaru ]] || load='restart it'
+  cntools_ui_render_status info "If another system runs this pool as block producer, copy the new hot.skey and op.cert there and ${load}. Never roll the issue counter back."
   cntools_ui_wait
 }
 
-# cardano-node re-reads its KES key and operational certificate on SIGHUP.
+# cardano-node re-reads its KES key and operational certificate on SIGHUP, and
+# Dingo through dingo.sh reload. Amaru has no reload and needs a restart.
 cntools_kes_reload_offer() {
   local unit="${CNTOOLS_SERVICE%.service}.service" pid='' choice='' status=0
   local manual="sudo kill -SIGHUP \$(systemctl show --property MainPID --value ${unit})"
@@ -290,7 +293,20 @@ cntools_kes_reload_offer() {
     fi
     cntools_ui_render_status info "Load the new set by reloading the node (${manual}) or restarting it."
   else
-    cntools_ui_render_status info "No active systemd unit ${unit} was found for this node. Load the new set by sending SIGHUP to the cardano-node process or restarting it."
+    case "${CNTOOLS_IMPLEMENTATION:-}" in
+      amaru)
+        # Amaru reads its KES key and certificate at startup only, and SIGHUP ends the process.
+        cntools_ui_render_status info "Amaru loads the KES key and operational certificate when it starts. Restart it to use the new set (${CNTOOLS_NODE_HOME}/scripts/amaru.sh restart), away from a leader slot: its schedule takes a few minutes after a start. Do not send SIGHUP, which stops Amaru."
+        cntools_kes_installed_summary 'Still using the previous key · restart it' warning
+        return 0
+        ;;
+      dingo)
+        cntools_ui_render_status info "Load the new set with ${CNTOOLS_NODE_HOME}/scripts/dingo.sh reload, or restart the node."
+        ;;
+      *)
+        cntools_ui_render_status info "No active systemd unit ${unit} was found for this node. Load the new set by sending SIGHUP to the cardano-node process or restarting it."
+        ;;
+    esac
   fi
   cntools_kes_installed_summary 'Still using the previous key · reload or restart it' warning
 }

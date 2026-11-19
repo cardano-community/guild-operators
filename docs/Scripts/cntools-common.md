@@ -507,7 +507,10 @@ After installation, a cnode running as an active systemd unit can be reloaded
 from CNTools with SIGHUP, which loads the new key without a restart. CNTools
 then checks the node's metrics for the new certificate. Otherwise reload the
 node yourself (`"${CNODE_HOME}"/scripts/cnode.sh systemd reload`, which sends
-the same signal) or restart it, and verify its health.
+the same signal) or restart it, and verify its health. Dingo reloads with
+`dingo.sh reload`. Amaru reads the files only at startup and stops on SIGHUP,
+so restart it with `amaru.sh restart`, see
+[Amaru](../Build/amaru.md#relay-and-block-producer-modes).
 
 For offline cold-key signing:
 

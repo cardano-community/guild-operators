@@ -56,6 +56,8 @@ jobs:
       run: bash files/tests/block-validation.sh
     - name: CNTools Dijkstra tests
       run: bash files/tests/cntools-dijkstra.sh
+    - name: CNTools KES reload hint tests
+      run: bash files/tests/cntools-kes-reload-hint.sh
   jsonlint:
     name: JSON and YAML Check
     runs-on: ubuntu-latest
