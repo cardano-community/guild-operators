@@ -397,12 +397,14 @@ statuses that `cncli.sh validate` uses on cardano-node: `adopted`, `confirmed`,
 `missed`, `stolen`, `heightbattle`, `ghosted` and `invalid`. Explanations
 are in the [CNCLI guide](../Scripts/cncli.md#battles-and-block-details). The
 service installed by `-d` runs it and checks every `SLEEP_RATE` seconds.
+A slot that nothing can decide yet is `unknown`, described below.
 
 It reads three sources:
 
-- **The node's journal.** Amaru logs every led slot: `forged` with the block
-  hash and parent, `missed_slot` with a reason such as `woke_late` or
-  `tip_ahead`, and `forge_failed`. Its `blockperf` traces say when the header
+- **The node's journal.** Amaru logs every led slot as a consensus event:
+  `forge.forged` with the block hash and parent, `forge.missed_slot` with a
+  reason such as `woke_late` or `tip_ahead`, and `forge.forge_failed`. Its
+  `blockperf` traces say when the header
   of each block was first announced to the node, in milliseconds after that
   block's slot started. When no header was logged, the time its body arrived
   is used instead.
@@ -416,6 +418,19 @@ It reads three sources:
   releases.
 - **Koios**, when it is available. It names the pool of each competing block,
   gives tickers, and answers for slots older than the chain database holds.
+  When the journal no longer has a led slot, the block in that slot counts as
+  ours if Koios names our pool for it.
+
+Without the journal, the chain database alone can't tell whose block is in a
+slot. A slot is `unknown` when nothing can tell yet whether our block is on
+the chain: the journal no longer has the slot and a block is in it, or the
+slot is older than the chain database holds, or the chain database no longer
+holds a block we forged, and Koios is not available or did not answer. Its
+reason in the block details is `no_koios` or `koios_failed`. It is not counted
+as lost. The service checks unknown slots of the current and previous epoch
+again on every run, and decides them once Koios answers; `validate <epoch>`
+checks older ones. Running the service keeps this rare, since it decides each
+slot within minutes, while the journal and the chain database still have it.
 
 A slot is decided `CONFIRM_SLOT_CNT` slots after it passed (600 by default),
 and a forged block once `CONFIRM_BLOCK_CNT` blocks are built on it (15 by

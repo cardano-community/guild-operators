@@ -62,7 +62,7 @@ cntools_pool_action_calidus() {
   cntools_ui_action_begin Calidus '/ Pool / Calidus'
   cntools_pool_catalog_build || { cntools_ui_render_status error 'The pool directory could not be read safely.'; cntools_ui_wait; return 1; }
   (( ${#CNTOOLS_POOL_NAMES[@]} > 0 )) || { cntools_pool_empty_notice; return 0; }
-  cntools_pool_choose_into selected || status=$?
+  cntools_pool_choose_into selected 'Pool whose Calidus key to manage' || status=$?
   ((status != 1)) || return 0; ((status == 0)) || return "${status}"
   directory="${CNTOOLS_POOL_DIRECTORIES[selected]}"
   while true; do

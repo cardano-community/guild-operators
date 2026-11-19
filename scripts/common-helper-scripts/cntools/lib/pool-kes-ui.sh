@@ -400,7 +400,7 @@ cntools_pool_action_rotate() {
   cntools_kes_environment || { cntools_kes_result "${CNTOOLS_POOL_WRITE_ERROR:-${CNTOOLS_TRANSACTION_ERROR:-KES prerequisites unavailable}}" danger; return 0; }
   cntools_ui_spin_function 'Reading pool identities…' cntools_pool_catalog_build || return 1
   (( ${#CNTOOLS_POOL_NAMES[@]} != 0 )) || { cntools_pool_empty_notice; return 0; }
-  cntools_pool_choose_into selected || status=$?
+  cntools_pool_choose_into selected 'Pool whose KES keys to rotate' || status=$?
   ((status != 1)) || return 0; ((status == 0)) || return "${status}"
   if ! cntools_ui_spin_function 'Validating pool cold identity and counter…' cntools_kes_identity "${selected}"; then
     cntools_kes_result "${CNTOOLS_POOL_WRITE_ERROR:-${CNTOOLS_TRANSACTION_ERROR:-Invalid pool signing material or counter.}}" danger; return 0

@@ -158,8 +158,10 @@ cntools_pool_catalog_build() {
   done
 }
 
+# cntools_pool_choose_into <output> <purpose>: <purpose> says what the pool
+# is for, such as "Pool to show", and is shown above the list.
 cntools_pool_choose_into() {
-  local _pool_output="$1" _pool_choice="" _pool_index=0 _pool_row=""
+  local _pool_output="$1" _pool_purpose="${2:-}" _pool_choice="" _pool_index=0 _pool_row=""
   local -a _pool_rows=()
   for _pool_index in "${!CNTOOLS_POOL_NAMES[@]}"; do
     printf -v _pool_row '%02d  %s · %s' "$((_pool_index + 1))" "${CNTOOLS_POOL_NAMES[_pool_index]}" "${CNTOOLS_POOL_PROTECTIONS[_pool_index]}"
@@ -172,7 +174,8 @@ cntools_pool_choose_into() {
     cntools_transaction_log CHOICE "Pool auto-selected=${CNTOOLS_POOL_NAMES[0]}"
     return 0
   fi
-  cntools_ui_choose _pool_choice 'Filter pools…' "${_pool_rows[@]}" Cancel || return $?
+  [[ -n "${_pool_purpose}" ]] || return 2
+  cntools_ui_choose_for _pool_choice "${_pool_purpose}" 'Filter pools…' "${_pool_rows[@]}" Cancel || return $?
   [[ "${_pool_choice}" != Cancel ]] || return 1
   for _pool_index in "${!_pool_rows[@]}"; do
     if [[ "${_pool_choice}" == "${_pool_rows[_pool_index]}" ]]; then

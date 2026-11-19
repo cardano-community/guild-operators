@@ -73,6 +73,9 @@ Check the network before performing any transaction.
 
 Type to filter menu choices, use the arrow keys to move, and press Enter to
 select. Filtering keeps the rows that contain the typed text, in menu order.
+A list that picks a wallet, pool, policy, asset, proposal or transaction says
+above it what the choice is for, such as "Wallet that pays the transaction fee
+for this pool update".
 Use the displayed Back, Home and Quit choices to navigate. When only one wallet
 or pool suits an action, CNTools selects it instead of asking; Wallet → Remove
 always asks. When no wallet suits an action, CNTools says why and returns to the
@@ -80,6 +83,13 @@ menu. Escape first leaves the filter input. Cancelling returns straight to the
 menu without a further prompt; inside a review's **Change …** step, Escape keeps
 the current value and returns to the review. Warnings stay on screen until you
 reach the next prompt, even when the screen is redrawn in between.
+
+Every menu has **Go to**: type `00` and press Enter. Type a saved shortcut
+and press Enter to jump straight to its menu or action, or type part of a name
+to search every menu and action. A search with one match opens it directly,
+and Enter alone lists everything. The jump does what Enter on that row would
+do and leaves you in the menu that holds it, so Back and Home work as usual.
+Escape returns to the menu you came from. See [Shortcuts](#shortcuts).
 
 Tables expand to the available terminal width and wrap long addresses only
 when needed. Numbers use US formatting: commas for thousands and a period for
@@ -97,7 +107,7 @@ Dates follow `BLOCKLOG_TZ` in `env`, defaulting to UTC.
 | Transaction | Review and sign portable packages, or submit completed packages and supported external signed transactions. |
 | Backup & Restore | Create full or public-only backups and restore without overwriting existing folders. |
 | Blocks | Read block-production summaries and epoch details from the configured blocklog (CNCLI on cardano-node, `amaru-leaderlog.sh` on Amaru). |
-| Settings | Choose the Quick or Detailed flow style, set transaction defaults and, with `-a`, choose a theme. |
+| Settings | Choose the Quick or Detailed flow style, set transaction defaults, save Go to shortcuts and, with `-a`, choose a theme. |
 | Update | Check availability, read changes and refresh the deployment through Guild Deploy. |
 | Advanced (`-a`) | Manage native assets and policies, create multisig identities, clear asset metadata cache and explicitly delete private keys. |
 
@@ -232,11 +242,32 @@ by Koios, or **Hydra After Dark**, a navy/cyan Cardano-inspired theme.
 The choice persists. A non-empty `NO_COLOR` environment variable disables
 color output.
 
+### Shortcuts
+
+A shortcut is a code of 1 to 4 letters or digits, such as `pr` or `w1`, for one
+menu or action. Manage them in **Settings → Shortcuts**:
+
+- **Add a shortcut** lists every menu and action. Pick one and type its code.
+  Each entry has one code, and a code already in use moves to the new entry
+  only after you confirm.
+- **Change a code**, **Remove a shortcut** and **Remove all shortcuts** manage
+  the saved ones.
+
+To use one, type `00`, Enter, the code and Enter in any menu. Shortcuts work
+from menus, not inside an action's own prompts. If the target can't run right
+now, for example in a mode it doesn't support, its menu opens and says why.
+Shortcuts to Advanced entries work when CNTools starts with `-a`, and the list
+marks a shortcut whose target no longer exists.
+
+Shortcuts are saved in `.state/shortcuts.json`. A file CNTools cannot read is
+left unchanged; **Start again with no shortcuts** moves it aside as
+`shortcuts.json.invalid-<time>`.
+
 ## Stored data and privacy
 
 Wallet, pool and policy folders follow `WALLET_FOLDER`, `POOL_FOLDER` and
 `ASSET_FOLDER` in `env`. Their defaults are beneath `${NODE_HOME}/priv/`.
-Theme, flow style and transaction preferences live beneath
+Theme, flow style, transaction preferences and shortcuts live beneath
 `${NODE_HOME}/scripts/cntools/.state/` and are preserved by script deployments.
 Backups, saved transactions and asset-registry exports have their own reported
 locations.

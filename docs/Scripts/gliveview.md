@@ -237,6 +237,7 @@ Shown on a producer, in the overview and on the Production page.
 | Passed, To come | With a leader schedule but no block results in the block log: leader slots of this epoch that have passed and that are still to come. |
 | Adopted, Confirmed | Blocks the node made and put on its chain, and the adopted blocks later verified to be on the chain. |
 | Missed, Ghosted, Stolen, Height battle, Invalid | The slot passed without a block; the block was built on a block that lost a fork, or lost for another reason; another pool led the same slot and won (slot battle); another pool's block in a nearby slot on the same parent won (height battle); the node failed to make the block. |
+| Unknown | Shown only when there are any, in amber: passed slots where nothing could tell yet whether our block is on the chain. Amaru's validation sets it when the journal no longer has the slot and Koios is not there or did not answer. They are not counted as lost, and are checked again on every run. |
 | KES | Remaining KES periods. Amber at 15, red at 5. |
 | Op cert | The certificate counter on disk and the last one used on chain. It is marked wrong unless the disk counter equals the chain counter or exceeds it by one. |
 | Missed chk | Leadership checks the node skipped. Sustained growth can indicate CPU, I/O, GC, or timekeeping pressure. |

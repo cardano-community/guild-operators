@@ -196,7 +196,7 @@ cntools_history_action() {
     return 1
   fi
   status=0
-  cntools_wallet_choose selected || status=$?
+  cntools_wallet_choose selected "$([[ "${kind}" == utxos ]] && printf 'Wallet whose unspent outputs to list' || printf 'Wallet whose transactions to list')" || status=$?
   # 3: no wallets, already shown and acknowledged.
   (( status != 1 && status != 3 && status != 130 )) || return 0
   (( status == 0 )) || return "${status}"

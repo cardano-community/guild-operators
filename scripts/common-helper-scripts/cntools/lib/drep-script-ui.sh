@@ -48,7 +48,7 @@ cntools_drep_script_local_participant() {
   local selected='' directory='' status=0
   cntools_wallet_catalog_build || return 2
   cntools_drep_script_added_dirs_into CNTOOLS_WALLET_SELECTION_EXCLUDE_DIRS
-  cntools_wallet_choose selected Cancel drep-key || status=$?
+  cntools_wallet_choose selected 'Wallet whose DRep key joins the multisig DRep as a participant' Cancel drep-key || status=$?
   CNTOOLS_WALLET_SELECTION_EXCLUDE_DIRS=()
   ((status == 0)) || return "${status}"
   directory="${CNTOOLS_WALLET_PATHS[selected]}"
@@ -138,7 +138,7 @@ cntools_drep_script_workflow() {
   local directory='' wallet='' choice='' threshold='' entered='' note='' status=0
   local -a choices=() saved_hashes=() saved_labels=() saved_sources=()
   CNTOOLS_DREP_SCRIPT_HASHES=(); CNTOOLS_DREP_SCRIPT_LABELS=(); CNTOOLS_DREP_SCRIPT_SOURCES=()
-  cntools_governance_wallet_select_into directory 'MultiSig DRep' drep-script-create || return $?
+  cntools_governance_wallet_select_into directory 'MultiSig DRep' 'Wallet to store the new multisig DRep identity in' drep-script-create || return $?
   wallet="${directory##*/}"
   cntools_drep_script_preflight "${directory}" && cntools_transaction_require_cli || return 2
   # Participants, then the threshold (Esc returns to the participants), then

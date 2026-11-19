@@ -38,11 +38,11 @@ cntools_registry_workflow() {
   cntools_ui_render_status info 'Prepare a signed Token Registry submission file. This does not mint tokens, attach transaction metadata or publish to a registry.'
   cntools_registry_require_tool || return 2
   # Only policies whose signing key is open here can sign the attestations.
-  cntools_policy_selection_into selected sign || return $?
+  cntools_policy_selection_into selected sign 'Policy of the asset to prepare registry metadata for' || return $?
   cntools_policy_prepare "${CNTOOLS_POLICY_PATHS[selected]}" || return 2
   [[ -n "${CNTOOLS_POLICY_SELECTED_SOURCE}" ]] || { cntools_policy_error 'Decrypt the policy before signing registry metadata.'; return 2; }
   cntools_policy_asset_catalog "${CNTOOLS_POLICY_PATHS[selected]}" "${CNTOOLS_POLICY_ID}" || return 2
-  cntools_policy_asset_choose_into identity "${CNTOOLS_POLICY_ID}" || return $?
+  cntools_policy_asset_choose_into identity "${CNTOOLS_POLICY_ID}" 'Asset to prepare registry metadata for' || return $?
   cntools_ui_choose kind 'Registry entry' New 'Update existing entry' Cancel || return $?
   [[ "${kind}" != Cancel ]] || return 1
   if [[ "${kind}" == 'Update existing entry' ]]; then

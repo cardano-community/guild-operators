@@ -58,6 +58,10 @@ jobs:
       run: bash files/tests/block-validation.sh
     - name: Test CNTools Dijkstra support
       run: bash files/tests/cntools-dijkstra.sh
+    - name: Test CNTools Go to and shortcuts
+      run: bash files/tests/cntools-shortcuts.sh
+    - name: Test CNTools pickers state their purpose
+      run: bash files/tests/cntools-pickers.sh
     - name: Test CNTools KES reload hint
       run: bash files/tests/cntools-kes-reload-hint.sh
     - name: Test cnode pre-release networks

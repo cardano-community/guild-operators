@@ -56,6 +56,10 @@ jobs:
       run: bash files/tests/block-validation.sh
     - name: CNTools Dijkstra tests
       run: bash files/tests/cntools-dijkstra.sh
+    - name: CNTools shortcut tests
+      run: bash files/tests/cntools-shortcuts.sh
+    - name: CNTools picker tests
+      run: bash files/tests/cntools-pickers.sh
     - name: CNTools KES reload hint tests
       run: bash files/tests/cntools-kes-reload-hint.sh
   jsonlint:

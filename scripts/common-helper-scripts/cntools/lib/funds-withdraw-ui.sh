@@ -88,7 +88,7 @@ cntools_withdraw_workflow() {
   cntools_withdraw_begin
   cntools_transaction_require_cli || return 2
   cntools_wallet_catalog_build || return 2
-  cntools_wallet_choose selected Cancel withdraw || return $?
+  cntools_wallet_choose selected 'Wallet whose rewards to withdraw · it receives them and pays the fee' Cancel withdraw || return $?
   cntools_stake_prepare_wallet "${CNTOOLS_WALLET_PATHS[selected]}" "${CNTOOLS_WALLET_NAMES[selected]}" || return 2
   [[ "${CNTOOLS_STAKE_WALLET_TYPE:-}" != Hardware ]] || cntools_transaction_require_hwcli || return 2
   # Check rewards first: a wallet with nothing to withdraw asks nothing more,

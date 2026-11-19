@@ -656,20 +656,26 @@ cntools_wallet_derivation_confirm() {
   esac
 }
 
+# cntools_wallet_choose <output> <purpose> [cancel label] [context] [auto]
+# <purpose> says what the wallet is for, such as "Wallet that pays the
+# transaction fee", and is shown above the list. <context> filters the list
+# to wallets that suit the action; auto N always asks, even for one wallet.
 cntools_wallet_choose() {
   local _cntools_output_name="${1:-}"
-  local _cntools_cancel="${2:-}"
+  local _cntools_purpose="${2:-}"
+  local _cntools_cancel="${3:-}"
   local _cntools_index=0
   local _cntools_selected=""
   local _cntools_row=""
   local _cntools_status=0
-  local _cntools_context="${3:-}" _cntools_annotation=''
-  local _cntools_auto_single="${4:-Y}" _cntools_excluded=0 _cntools_excluded_dir=''
+  local _cntools_context="${4:-}" _cntools_annotation=''
+  local _cntools_auto_single="${5:-Y}" _cntools_excluded=0 _cntools_excluded_dir=''
   local -a _cntools_rows=()
   local -a _cntools_indices=()
   local -A _cntools_excluded_set=()
 
   [[ "${_cntools_output_name}" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || return 2
+  [[ -n "${_cntools_purpose}" ]] || return 2
   local -n _cntools_output_ref="${_cntools_output_name}"
   _cntools_output_ref=""
   # 3 = nothing to choose: the reason is shown here, once.
@@ -724,8 +730,8 @@ cntools_wallet_choose() {
     return 0
   fi
   [[ -z "${_cntools_cancel}" ]] || _cntools_rows+=("${_cntools_cancel}")
-  if cntools_ui_choose \
-      _cntools_selected "Filter wallets…" "${_cntools_rows[@]}"; then
+  if cntools_ui_choose_for _cntools_selected "${_cntools_purpose}" \
+      "Filter wallets…" "${_cntools_rows[@]}"; then
     _cntools_status=0
   else
     _cntools_status=$?

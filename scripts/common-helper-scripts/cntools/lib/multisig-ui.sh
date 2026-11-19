@@ -65,7 +65,7 @@ cntools_multisig_derive_workflow() {
   cntools_multisig_begin 'Derive Keys'
   # Only open wallets without participant keys can take new ones.
   cntools_wallet_catalog_build || return 2
-  cntools_wallet_choose selected Cancel multisig-derive || return $?
+  cntools_wallet_choose selected 'Wallet to derive multisig participant keys for' Cancel multisig-derive || return $?
   directory="${CNTOOLS_WALLET_PATHS[selected]}"
   cntools_multisig_key_preflight "${directory}" || return 2
   # Offer only the sources whose tool is installed, and say which are missing.
@@ -177,7 +177,7 @@ cntools_multisig_local_participant() {
   # Wallets already added are not offered again.
   CNTOOLS_WALLET_SELECTION_EXCLUDE_DIRS=()
   for directory in "${CNTOOLS_MULTISIG_DIRECTORIES[@]}"; do [[ -z "${directory}" ]] || CNTOOLS_WALLET_SELECTION_EXCLUDE_DIRS+=("${directory}"); done
-  cntools_wallet_choose selected Cancel multisig-participant || status=$?
+  cntools_wallet_choose selected 'Wallet whose payment key joins the multisig wallet as a participant' Cancel multisig-participant || status=$?
   CNTOOLS_WALLET_SELECTION_EXCLUDE_DIRS=()
   ((status == 0)) || return "${status}"
   directory="${CNTOOLS_WALLET_PATHS[selected]}"
@@ -191,7 +191,7 @@ cntools_multisig_local_participant() {
       choice="${pairs[0]}"
       cntools_log CHOICE "Multisig participant key pair auto-selected=${choice}" || true
       CNTOOLS_MULTISIG_NOTICE="Used ${choice,}, the only key pair in ${directory##*/}." ;;
-    *) cntools_ui_choose choice 'Participant key pair' "${pairs[@]}" Cancel || return $? ;;
+    *) cntools_ui_choose_for choice "Key pair of ${directory##*/} that joins the multisig wallet" 'Participant key pair…' "${pairs[@]}" Cancel || return $? ;;
   esac
   case "${choice}" in
     'Multisig participant keys') prefix="${CNTOOLS_WALLET_MULTISIG_PREFIX:-ms_}" ;;

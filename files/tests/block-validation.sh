@@ -214,8 +214,8 @@ assert_eq "$(status_of 1090)|$(detail "reason" 1090)" "missed|NodeCannotForge" "
 #############################################################################
 
 load_functions "${REPO_ROOT}/scripts/amaru-helper-scripts/amaru-leaderlog.sh" \
-  amaruField amaruLoadBestChain amaruBlockState amaruKoiosBlocks amaruForgeRecord amaruArrivals \
-  amaruChainAt amaruChainAround amaruSaveDetail amaruSetStatus amaruValidateSlot amaruValidateRows
+  amaruField amaruLoadBestChain amaruBlockState amaruKoiosBlocks amaruForgeEvent amaruForgeRecord \
+  amaruKoiosWhy amaruOurPool amaruOwnBlockInSlot amaruArrivals amaruChainAt amaruChainAround amaruSaveDetail amaruSetStatus amaruValidateSlot amaruValidateRows
 
 pool_of() { printf 'pool1%049dq%s' 0 "$1"; }   # a well-formed bech32 pool id per letter
 OUR_POOL="$(pool_of p)"
@@ -228,6 +228,8 @@ for (( height = 200; height <= 240; height++ )); do
   a_pool[${height}]="$(pool_of "$(printf '%x' $(( height % 5 + 2 )))")"
 done
 a_hash[203]="$(hash_of b 203)"; a_pool[203]="${OUR_POOL}"
+# Ours too, with nothing in the journal about it (rotated away).
+a_hash[214]="$(hash_of b 214)"; a_pool[214]="${OUR_POOL}"
 # chain_line <slot> <hash> <height> <yes|no>
 chain_line() { printf '%s.%s(%s) height=%s block=yes valid=valid best-chain=%s\n' "$1" "$2" "$3" "$3" "$4"; }
 amaruChain() {
@@ -248,37 +250,51 @@ amaruChain() {
 # Koios: block_info and blocks name the pool of each block, pool_info the ticker.
 curl() {
   local url="${*: -1}" payload='' argument previous=''
+  [[ ${KOIOS_DOWN:-N} == N ]] || return 22
   for argument in "$@"; do [[ ${previous} == -d ]] && payload="${argument}"; previous="${argument}"; done
   case "${url}" in
     */block_info*)
       jq -c --argjson blocks "${KOIOS_BLOCKS}" '._block_hashes as $h | [$blocks[] | select(.hash | IN($h[]))]' <<< "${payload}" ;;
     */pool_info*)
       jq -c '[._pool_bech32_ids[] | {pool_id_bech32: ., meta_json: {ticker: ("T" + .[-1:])}}]' <<< "${payload}" ;;
+    */pool_list?pool_id_hex=eq.${POOL_ID}\&*)
+      printf '[{"pool_id_bech32":"%s"}]\n' "${OUR_POOL}" ;;
+    */blocks\?abs_slot=eq.*)
+      argument="${url#*abs_slot=eq.}"
+      jq -nc --argjson blocks "${KOIOS_BLOCKS_OLD}" --argjson slot "${argument%%[!0-9]*}" '[$blocks[] | select(.abs_slot == $slot)]' ;;
     *) printf '[]\n' ;;
   esac
 }
 KOIOS_API="https://koios.invalid/api/v1"
+POOL_ID="$(printf 'ab%.0s' {1..28})"
+bech32() { return 1; } # not installed: our pool's bech32 id comes from Koios
+# Blocks older than the chain database: one of ours, one of another pool.
+KOIOS_BLOCKS_OLD="$(jq -nc --arg ours "${OUR_POOL}" --arg other "$(pool_of 9)" --arg h1 "$(hash_of a 195)" --arg h2 "$(hash_of a 196)" \
+  '[{hash: $h1, abs_slot: 1950, block_height: 195, pool: $ours}, {hash: $h2, abs_slot: 1960, block_height: 196, pool: $other}]')"
 KOIOS_BLOCKS="$(for (( height = 200; height <= 240; height++ )); do
   printf '{"hash":"%s","abs_slot":%s,"block_height":%s,"pool":"%s"}\n' "${a_hash[${height}]}" "${a_slot[${height}]}" "${height}" "${a_pool[${height}]}"
-done | jq -sc .)"
+done | jq -sc --argjson old "${KOIOS_BLOCKS_OLD}" '. + $old')"
 
 amaru_line() { printf '%s ai-playground amaru[7]: %s  %s %s\n' "$(slot_unix "$1" "$2")" "$(slot_iso "$1" "$2" | sed 's/000000Z$/000Z/')" "$3" "$4"; }
 {
-  amaru_line 2030 120 INFO "amaru::consensus::forge: forged slot=2030 header_hash=\"${a_hash[203]}\" parent=\"${a_hash[202]}\""
-  amaru_line 2060 140 INFO "amaru::consensus::forge: forged slot=2060 header_hash=\"$(hash_of b 206)\" parent=\"${a_hash[205]}\""
+  amaru_line 2030 90 WARN "amaru::consensus: forge.take_for_forge_failed slot=2030 error=\"no ledger state\""
+  amaru_line 2030 120 INFO "amaru::consensus: forge.forged slot=2030 header_hash=\"${a_hash[203]}\" parent=\"${a_hash[202]}\""
+  amaru_line 2060 140 INFO "amaru::consensus: forge.forged slot=2060 header_hash=\"$(hash_of b 206)\" parent=\"${a_hash[205]}\""
   amaru_line 2063 300 INFO "amaru::blockperf: header.announced peer=\"1.2.3.4:3001\" header_hash=\"${a_hash[206]}\" rank=1 slot_latency_ms=300"
   amaru_line 2063 700 INFO "amaru::blockperf: block.received peer=\"1.2.3.4:3001\" header_hash=\"${a_hash[206]}\" rank=1 slot_latency_ms=700 fetch_latency_ms=200"
   amaru_line 2040 450 INFO "amaru::blockperf: block.received peer=\"1.2.3.4:3001\" header_hash=\"${a_hash[204]}\" rank=1 slot_latency_ms=450 fetch_latency_ms=200"
   amaru_line 2063 760 INFO "amaru::blockperf: block.received peer=\"1.2.3.5:3001\" header_hash=\"${a_hash[206]}\" rank=2 slot_latency_ms=760 fetch_latency_ms=210"
   amaru_line 2080 130 INFO "amaru::consensus::forge: forged slot=2080 header_hash=\"$(hash_of b 209)\" parent=\"$(hash_of d 208)\""
-  amaru_line 2090 1500 WARN "amaru::consensus::forge: missed_slot slot=2090 reason=woke_late"
-  amaru_line 2120 110 INFO "amaru::consensus::forge: forged slot=2120 header_hash=\"$(hash_of b 212)\" parent=\"${a_hash[211]}\""
-  amaru_line 2150 100 ERROR "amaru::consensus::forge: forge_failed slot=2150 step=store_header error=\"disk full\""
-  amaru_line 2450 80 INFO "amaru::consensus::forge: forged slot=2450 header_hash=\"$(hash_of b 245)\" parent=\"${a_hash[240]}\""
+  amaru_line 2090 1500 WARN "amaru::consensus: forge.missed_slot slot=2090 reason=woke_late"
+  amaru_line 2120 110 INFO "amaru::consensus: forge.forged slot=2120 header_hash=\"$(hash_of b 212)\" parent=\"${a_hash[211]}\""
+  amaru_line 2150 100 ERROR "amaru::consensus: forge.forge_failed slot=2150 step=store_header error=\"disk full\""
+  # A JSON trace, which the journal stamped 15 ms after Amaru did.
+  printf '%s ai-playground amaru[7]: {"timestamp":"%s","level":"INFO","fields":{"header_hash":"%s","message":"forge.forged","parent":"%s","slot":2450},"target":"amaru::consensus"}\n' \
+    "$(slot_unix 2450 95)" "$(slot_iso 2450 80 | sed 's/000000Z$/000Z/')" "$(hash_of b 245)" "${a_hash[240]}"
 } > "${JOURNAL}"
 
 new_blocklog amaru
-for slot in 2030 2060 2080 2090 2120 2150 2175 2450; do add_leader_slot "${slot}"; done
+for slot in 1950 1960 2030 2060 2080 2090 2120 2140 2150 2160 2175 2450; do add_leader_slot "${slot}"; done
 AMARU_NODE_UNIT=amaru
 LEADERLOG_AMARU_DB_CHAIN=/nonexistent
 CONFIRM_SLOT_CNT=100
@@ -295,13 +311,100 @@ assert_eq "$(status_of 2120)|$(detail "reason,winner_slot,winner_pool" 2120)" \
   "stolen|slot_battle|2120|${a_pool[212]}" "amaru: slot battle"
 assert_eq "$(status_of 2150)|$(detail "reason" 2150)" "invalid|store_header" "amaru: forging failed"
 assert_eq "$(status_of 2175)|$(detail "reason" 2175)" "missed|" "amaru: no forge record at all"
+# The journal no longer has these slots: Koios names the pool of the block in each.
+assert_eq "$(status_of 2140)|$(sqlite3 "${BLOCKLOG_DB}" 'SELECT block, hash FROM blocklog WHERE slot = 2140;')|$(detail "hash,winner_hash" 2140)" \
+  "confirmed|214|${a_hash[214]}|${a_hash[214]}|" "amaru: our pool's block in the slot, no forge record"
+assert_eq "$(status_of 2160)|$(detail "reason,winner_pool" 2160)" "stolen|slot_battle|${a_pool[216]}" \
+  "amaru: another pool's block in the slot, no forge record"
+assert_eq "$(status_of 1950)|$(sqlite3 "${BLOCKLOG_DB}" 'SELECT block FROM blocklog WHERE slot = 1950;')" "confirmed|195" \
+  "amaru: our pool's block older than the chain database"
+assert_eq "$(status_of 1960)|$(detail "reason,winner_pool" 1960)" "stolen|slot_battle|$(pool_of 9)" \
+  "amaru: another pool's block older than the chain database"
 assert_eq "$(status_of 2450)|$(detail "hash,forge_ms" 2450)" "adopted|$(hash_of b 245)|80" "amaru: recent block forged, waiting"
 [[ "${amaru_output}" == *"HEIGHT BATTLE: Leader for slot '2060'"* ]] || fail "amaru: no height battle message: ${amaru_output}"
 
+# A run before the forge records were read marked our block stolen, with
+# itself as the winner, and the journal has since been rotated.
+sqlite3 "${BLOCKLOG_DB}" "UPDATE blocklog SET status = 'stolen', block = 0, hash = '' WHERE slot = 2140;
+  UPDATE blockdetail SET hash = '', parent = '', block = NULL, reason = 'slot_battle', winner_hash = '${a_hash[214]}', winner_pool = '${OUR_POOL}' WHERE slot = 2140;" ||
+  fail "amaru: could not mark slot 2140 stolen"
 : > "${JOURNAL}"
+AMARU_POOL_BECH32=''
 amaruValidateRows "1" reset >/dev/null 2>&1
+assert_eq "$(status_of 2140)|$(detail "hash,reason,winner_hash,winner_pool" 2140)" "confirmed|${a_hash[214]}|||" \
+  "amaru: re-validation corrects our block marked stolen"
+assert_eq "$(status_of 2160)|$(detail "reason" 2160)" "stolen|slot_battle" "amaru: re-validation keeps a slot battle"
 assert_eq "$(status_of 2060)|$(detail "forge_ms,winner_ms" 2060)" "heightbattle|140|300" "amaru: re-validation keeps journal times"
 assert_eq "$(status_of 2090)|$(detail "reason" 2090)" "missed|woke_late" "amaru: re-validation keeps the missed reason"
+
+# Without Koios, a slot the journal no longer has is unknown when a block is
+# in it, or when it is older than the chain database. So is a forged block
+# the chain database no longer holds. What the journal and the chain
+# database tell is still decided.
+{
+  amaru_line 1970 100 INFO "amaru::consensus: forge.forged slot=1970 header_hash=\"$(hash_of b 197)\" parent=\"$(hash_of a 196)\""
+  amaru_line 2030 120 INFO "amaru::consensus: forge.forged slot=2030 header_hash=\"${a_hash[203]}\" parent=\"${a_hash[202]}\""
+  amaru_line 2090 1500 WARN "amaru::consensus: forge.missed_slot slot=2090 reason=woke_late"
+  amaru_line 2120 110 INFO "amaru::consensus: forge.forged slot=2120 header_hash=\"$(hash_of b 212)\" parent=\"${a_hash[211]}\""
+} > "${JOURNAL}"
+new_blocklog amaru-unknown
+for slot in 1950 1970 2030 2090 2120 2140 2160 2175; do add_leader_slot "${slot}"; done
+koios="${KOIOS_API}"; KOIOS_API=''; AMARU_POOL_BECH32=''
+amaru_output="$(amaruValidateRows "1" 2>&1)"
+assert_eq "$(status_of 1950)|$(detail "reason" 1950)" "unknown|no_koios" "amaru without Koios: older than the chain database"
+assert_eq "$(status_of 1970)|$(sqlite3 "${BLOCKLOG_DB}" 'SELECT hash FROM blocklog WHERE slot = 1970;')|$(detail "hash,reason" 1970)" \
+  "unknown|$(hash_of b 197)|$(hash_of b 197)|no_koios" "amaru without Koios: forged, no longer in the chain database"
+assert_eq "$(status_of 2140)|$(detail "reason,winner_hash" 2140)" "unknown|no_koios|" "amaru without Koios: our block in the slot"
+assert_eq "$(status_of 2160)|$(detail "reason,winner_hash" 2160)" "unknown|no_koios|" "amaru without Koios: another pool's block in the slot"
+assert_eq "$(status_of 2175)" "missed" "amaru without Koios: no block in the slot"
+assert_eq "$(status_of 2030)|$(status_of 2090)|$(detail "reason" 2090)|$(status_of 2120)" "confirmed|missed|woke_late|stolen" \
+  "amaru without Koios: the journal and the chain database still decide"
+[[ "${amaru_output}" == *"UNKNOWN: Leader for slot '2140' but the journal no longer says whether a block was forged, and there is no Koios to ask"* ]] ||
+  fail "amaru without Koios: no unknown message: ${amaru_output}"
+service="status IN ('leader','adopted','unknown')"
+amaru_output="$(amaruValidateRows "${service}" 2>&1)"
+[[ "${amaru_output}" != *UNKNOWN* ]] || fail "amaru without Koios: unknown said again: ${amaru_output}"
+assert_eq "$(status_of 1950)|$(status_of 1970)|$(status_of 2140)|$(status_of 2160)|$(detail "reason" 2140)" "unknown|unknown|unknown|unknown|no_koios" \
+  "amaru without Koios: still unknown on the next run"
+
+# Koios is there but does not answer.
+KOIOS_API="${koios}"; KOIOS_DOWN=Y
+amaru_output="$(amaruValidateRows "${service}" 2>&1)"
+assert_eq "$(status_of 2140)|$(detail "reason" 2140)|$(status_of 1970)|$(detail "reason" 1970)" "unknown|koios_failed|unknown|koios_failed" \
+  "amaru, Koios not answering"
+[[ "${amaru_output}" == *"UNKNOWN: Leader for slot '1970' and block forged, but the chain database no longer holds it, and Koios could not tell"* ]] ||
+  fail "amaru, Koios not answering: no unknown message: ${amaru_output}"
+
+# Koios answers again: the next run decides them.
+KOIOS_DOWN=N
+amaruValidateRows "${service}" >/dev/null 2>&1
+assert_eq "$(status_of 1950)|$(status_of 2140)|$(sqlite3 "${BLOCKLOG_DB}" 'SELECT hash FROM blocklog WHERE slot = 2140;')|$(detail "reason" 2140)" \
+  "confirmed|confirmed|${a_hash[214]}|" "amaru, Koios back: our blocks"
+assert_eq "$(status_of 2160)|$(detail "reason,winner_pool" 2160)" "stolen|slot_battle|${a_pool[216]}" "amaru, Koios back: another pool's block"
+assert_eq "$(status_of 1970)|$(detail "reason" 1970)" "ghosted|" "amaru, Koios back: our block is not on the chain"
+
+# Forge events in the text log, the JSON log and Amaru's trace list form.
+for line in 'INFO amaru::consensus: forge.forged slot=5 header_hash="abc"|forged' \
+  'WARN amaru::consensus: forge.take_for_forge_failed slot=5 error="x"|take_for_forge_failed' \
+  'ERROR amaru::consensus: forge.forge_failed slot=5 step=store_header|forge_failed' \
+  'INFO amaru::consensus::forge: missed_slot slot=5 reason=not_led|missed_slot' \
+  'WARN amaru::consensus::forge: take_for_forge_failed slot=5|take_for_forge_failed' \
+  '{"level":"INFO","fields":{"message":"forge.forged","slot":5},"target":"amaru::consensus"}|forged' \
+  'INFO amaru::consensus: tip.adopt slot=5 header_hash="abc"|' \
+  'INFO amaru::blockperf: header.announced slot=5 rank=1|'; do
+  amaruForgeEvent value "${line%|*}"
+  assert_eq "${value}" "${line##*|}" "forge event of: ${line%|*}"
+done
+
+# Our pool's bech32 id: from the bech32 tool when it is there.
+bech32() { [[ $1 == pool && $(cat) == "${POOL_ID}" ]] && printf '%s\n' "$(pool_of t)"; }
+AMARU_POOL_BECH32=''
+amaruOurPool
+assert_eq "${AMARU_POOL_BECH32}" "$(pool_of t)" "our pool's id from the bech32 tool"
+bech32() { return 1; }
+KOIOS_API=''; AMARU_POOL_BECH32=''
+amaruOurPool && fail "our pool's id without bech32 or Koios"
+assert_eq "${AMARU_POOL_BECH32}" "" "no pool id without bech32 or Koios"
 
 # The field reader takes text and JSON traces.
 value=''

@@ -1131,25 +1131,73 @@ cntools_ui_password() {
 }
 
 cntools_ui_choose() {
+  local _cntools_choose_output="${1:-}"
+  local _cntools_choose_placeholder="${2:-Select…}"
+  shift 2 || return 2
+
+  cntools_ui_choose_matching "${_cntools_choose_output}" \
+    "${_cntools_choose_placeholder}" "" N "" "$@"
+}
+
+# A chooser that picks a thing (a wallet, pool, policy, transaction …) and
+# says what it is for: <purpose> is drawn in bold above the filter, such as
+# "Wallet that pays the transaction fee". The placeholder stays a filter hint.
+cntools_ui_choose_for() {
+  local _cntools_for_output="${1:-}"
+  local _cntools_for_purpose="${2:-}"
+  local _cntools_for_placeholder="${3:-Select…}"
+  shift 3 || return 2
+
+  [[ -n "${_cntools_for_purpose}" ]] || return 2
+  cntools_ui_choose_matching "${_cntools_for_output}" \
+    "${_cntools_for_placeholder}" "" N "${_cntools_for_purpose}" "$@"
+}
+
+# cntools_ui_choose that opens filtered by <initial>. With <select_if_one> Y,
+# an <initial> that leaves a single choice returns it without showing the list.
+# A non-empty <header> is drawn in bold above the filter; Gum counts it in
+# the widget's height, so the list keeps its room on screen.
+cntools_ui_choose_matching() {
   cntools_ui_seen
   local _cntools_output_name="${1:-}"
   local _cntools_placeholder="${2:-Select…}"
+  local _cntools_initial="${3:-}"
+  local _cntools_select_if_one="${4:-N}"
+  local _cntools_header="${5:-}"
   local _cntools_value=""
   local _cntools_status=0
   local _cntools_width=""
   local _cntools_height=0
   local _cntools_rows_above=""
-  shift 2 || return 2
+  local _cntools_header_rows=0
+  local -a _cntools_matching=()
+  shift 5 || return 2
 
   [[ "${_cntools_output_name}" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || return 2
+  [[ "${_cntools_select_if_one}" == Y || "${_cntools_select_if_one}" == N ]] ||
+    return 2
   local -n _cntools_output_ref="${_cntools_output_name}"
   _cntools_output_ref=""
   (( $# > 0 )) || return 2
+  [[ -z "${_cntools_initial}" ]] || _cntools_matching+=(--value "${_cntools_initial}")
+  [[ "${_cntools_select_if_one}" != Y ]] || _cntools_matching+=(--select-if-one)
   _cntools_width="$(cntools_gum_width)" || return 1
+  if [[ -n "${_cntools_header}" ]]; then
+    # Wrapped here, inside the widget's padding, so the row count is exact.
+    (( _cntools_width > 24 )) &&
+      _cntools_header="$(printf '%s\n' "${_cntools_header}" | fold -s -w "$((_cntools_width - 4))")"
+    _cntools_header="${_cntools_header%$'\n'}"
+    _cntools_header_rows="$(printf '%s\n' "${_cntools_header}" | wc -l)"
+    _cntools_header_rows="${_cntools_header_rows//[[:space:]]/}"
+    _cntools_matching+=(--header "${_cntools_header}"
+      --header.foreground "${CNTOOLS_GUM_COLOR_BRAND}" --header.bold)
+  fi
   _cntools_rows_above="$(cntools_gum_header_rows)" || return 1
   _cntools_height="$(cntools_gum_filter_height \
-    "$#" "${_cntools_rows_above}")" || return 1
+    "$#" "$((_cntools_rows_above + _cntools_header_rows))")" || return 1
+  _cntools_height=$((_cntools_height + _cntools_header_rows))
   if _cntools_value="$(printf '%s\n' "$@" | cntools_gum filter \
+      "${_cntools_matching[@]}" \
       --limit 1 --height "${_cntools_height}" --width "${_cntools_width}" \
       --padding "0 2 1 2" --no-show-help --no-fuzzy \
       --placeholder "${_cntools_placeholder}" \
@@ -1310,10 +1358,13 @@ cntools_ui_file_selected() {
   done
 }
 
+# Optional <purpose> (sixth argument) names the file or folder being chosen
+# and stays above the list while browsing.
 cntools_ui_file() {
   local _cntools_output_name="${1:-}" _cntools_start="${2:-${PWD}}" _cntools_begin="${3:-}"
   local _cntools_kind="${4:-file}"
   local _cntools_file_actions="${5:-Y}"
+  local _cntools_file_purpose="${6:-}"
   local _cntools_file_status=0
   local _cntools_directory="" _cntools_entry="" _cntools_name="" _cntools_selected="" _cntools_index=0 _cntools_found=N
   local -a _cntools_paths=() _cntools_labels=()
@@ -1353,8 +1404,13 @@ cntools_ui_file() {
     done
     [[ "${_cntools_directory}" == / ]] || _cntools_labels+=('Parent folder')
     cntools_gum_log CHOICE "file browser directory=$(printf '%q' "${_cntools_directory}") entries=${#_cntools_paths[@]}"
-    cntools_ui_choose _cntools_selected "Browse ${_cntools_directory}" \
-      "${_cntools_labels[@]}" Back || return $?
+    if [[ -n "${_cntools_file_purpose}" ]]; then
+      cntools_ui_choose_for _cntools_selected "${_cntools_file_purpose}" "Browse ${_cntools_directory}" \
+        "${_cntools_labels[@]}" Back || return $?
+    else
+      cntools_ui_choose _cntools_selected "Browse ${_cntools_directory}" \
+        "${_cntools_labels[@]}" Back || return $?
+    fi
     case "${_cntools_selected}" in
       Back) return 1 ;;
       'Select this folder')
@@ -1443,7 +1499,7 @@ cntools_ui_pick_path() {
         path_picker_status=0
         # Picking an input uses it; deleting keys or inputs from here is
         # never wanted. Saved packages offer Delete in their own review.
-        cntools_ui_file path_picker_value "${path_picker_start}" cntools_ui_path_begin "${path_picker_kind}" N || path_picker_status=$?
+        cntools_ui_file path_picker_value "${path_picker_start}" cntools_ui_path_begin "${path_picker_kind}" N "${path_picker_prompt}" || path_picker_status=$?
         ((path_picker_status == 0 || path_picker_status == 1)) || return "${path_picker_status}"
         ((path_picker_status == 0)) || continue
         ;;
@@ -1712,6 +1768,14 @@ cntools_gum_menu_run() {
   local row=""
   local row_key=""
   local row_signature=""
+  local goto_row=""
+  local goto_target=""
+  local goto_status=0
+  local jump_id=""
+  local jump_prefix=""
+  local jump_part=0
+  local menu_close="N"
+  local -a jump_parts=()
 
   if [[ "${CNTOOLS_MENU_CACHE_READY:-N}" != "Y" ]] &&
      ! cntools_menu_cache_build; then
@@ -1743,6 +1807,27 @@ cntools_gum_menu_run() {
     else
       cntools_gum_log ERROR "Cached menu path is outside the module root: ${current}"
       return 1
+    fi
+
+    if [[ -n "${jump_id}" ]]; then
+      # Go to chose an action: run it from the menu that holds it, as Enter
+      # there would. Afterwards that menu is shown, with Back and Home.
+      selected_index=-1
+      for (( index = 0; index < count; index++ )); do
+        if [[ "${CNTOOLS_MENU_IDS[index]}" == "${jump_id}" ]]; then
+          selected_index="${index}"
+          break
+        fi
+      done
+      jump_id=""
+      if (( selected_index < 0 )); then
+        status_level="warn"
+        status_message="That action is not in this menu."
+        continue
+      fi
+      cntools_gum_menu_activate "${selected_index}"
+      [[ "${menu_close}" != "Y" ]] || return "${action_status}"
+      continue
     fi
 
     if [[ "${context}" == "N" ]] &&
@@ -1791,6 +1876,12 @@ cntools_gum_menu_run() {
       row_types+=("item")
       row_indices+=("${index}")
     done
+    # 00 is never an item number, so typing it always finds this row.
+    printf -v goto_row '%02d  %s %-22s  %s' 0 "↗" "Go to" \
+      "Jump to any menu or action, or use a shortcut"
+    rows+=("${goto_row}")
+    row_types+=("goto")
+    row_indices+=("-1")
     if [[ "${context}" == "Y" ]]; then
       rows+=("← Back" "⌂ Home")
       row_types+=("back" "home")
@@ -1861,6 +1952,38 @@ cntools_gum_menu_run() {
         cntools_gum_log MENU "quit"
         return 0
         ;;
+      goto)
+        goto_target=""
+        goto_status=0
+        cntools_shortcuts_goto_into goto_target || goto_status=$?
+        (( goto_status != 0 )) || [[ -n "${goto_target}" ]] || goto_status=2
+        if (( goto_status != 0 )); then
+          # Escape and Ctrl+C both leave Go to for the menu it was opened from.
+          if (( goto_status != 1 && goto_status != 130 )); then
+            status_level="error"
+            status_message="Go to failed (status ${goto_status}). See ${CNTOOLS_LOG:-the CNTools log}."
+            cntools_gum_log ERROR "go to failed with status ${goto_status}"
+          fi
+          cntools_gum_clear
+          continue
+        fi
+        # Open every menu on the way, so Back and Home work as if you had
+        # navigated there. A menu target is opened; an action target is run
+        # from its own menu on the next pass.
+        menu_stack=("${root_directory}")
+        IFS='/' read -r -a jump_parts <<< "${goto_target}"
+        jump_prefix=""
+        for (( jump_part = 0; jump_part < ${#jump_parts[@]}; jump_part++ )); do
+          jump_prefix="${jump_prefix:+${jump_prefix}/}${jump_parts[jump_part]}"
+          [[ -n "${CNTOOLS_MENU_CACHE_MENU_DIRS[${jump_prefix}]:-}" ]] || break
+          menu_stack+=("${CNTOOLS_MENU_CACHE_MENU_DIRS[${jump_prefix}]}")
+        done
+        if [[ -z "${CNTOOLS_MENU_CACHE_MENU_DIRS[${goto_target}]:-}" ]]; then
+          jump_id="${goto_target}"
+        fi
+        cntools_gum_log MENU "go to ${goto_target}"
+        continue
+        ;;
       item) ;;
       *)
         cntools_gum_log ERROR "Unknown Gum menu row type: ${selected_type}"
@@ -1873,52 +1996,65 @@ cntools_gum_menu_run() {
       menu_stack+=("${CNTOOLS_MENU_PATHS[selected_index]}")
       continue
     fi
-    if [[ "${CNTOOLS_MENU_ENABLED[selected_index]}" != "Y" ]]; then
-      status_level="warn"
-      status_message="${CNTOOLS_MENU_DISABLED_REASONS[selected_index]}"
-      cntools_gum_log ACTION \
-        "blocked ${CNTOOLS_MENU_IDS[selected_index]}: ${CNTOOLS_MENU_DISABLED_REASONS[selected_index]}"
-      continue
-    fi
-
-    cntools_gum_log MENU "selected ${CNTOOLS_MENU_IDS[selected_index]}"
-    if cntools_action_run "${CNTOOLS_MENU_PATHS[selected_index]}"; then
-      action_status=0
-    else
-      action_status=$?
-    fi
-    if declare -F cntools_startup_deployment_was_started >/dev/null 2>&1 &&
-       cntools_startup_deployment_was_started; then
-      cntools_gum_log SESSION \
-        "Guild Deploy completed with status ${action_status}; closing the current CNTools process"
-      return "${action_status}"
-    fi
-    # Settings actions run in an isolated shell. Reload only the state that a
-    # selected Settings action can have changed in the parent menu process.
-    case "${CNTOOLS_MENU_IDS[selected_index]}" in
-      settings/theme)
-        if declare -F cntools_theme_reload >/dev/null 2>&1 &&
-           ! cntools_theme_reload; then
-          cntools_gum_log ERROR \
-            "Could not activate the saved CNTools theme in the parent session"
-          (( action_status != 0 )) || action_status=2
-        fi
-        ;;
-      settings/transaction-defaults|settings/flow-style)
-        if declare -F cntools_settings_reload >/dev/null 2>&1 &&
-           ! cntools_settings_reload; then
-          cntools_gum_log ERROR \
-            "Could not activate the saved transaction settings in the parent session"
-          (( action_status != 0 )) || action_status=2
-        fi
-        ;;
-    esac
-    # 1 and 130 are cancels (or an outcome the action already showed).
-    if (( action_status != 0 && action_status != 1 && action_status != 130 )); then
-      status_level="error"
-      status_message="${CNTOOLS_MENU_LABELS[selected_index]} failed (status ${action_status}). See ${CNTOOLS_LOG:-the CNTools log}."
-      cntools_gum_log ERROR \
-        "action ${CNTOOLS_MENU_IDS[selected_index]} failed with status ${action_status}"
-    fi
+    cntools_gum_menu_activate "${selected_index}"
+    [[ "${menu_close}" != "Y" ]] || return "${action_status}"
   done
+}
+
+# Runs the action at <index> of the open menu, as Enter on its row does. It
+# sets status_level, status_message, action_status and menu_close of its
+# caller, cntools_gum_menu_run, through Bash's dynamic scope. menu_close=Y
+# means CNTools must close with action_status.
+cntools_gum_menu_activate() {
+  local selected_index="${1:-0}"
+
+  menu_close="N"
+  if [[ "${CNTOOLS_MENU_ENABLED[selected_index]}" != "Y" ]]; then
+    status_level="warn"
+    status_message="${CNTOOLS_MENU_DISABLED_REASONS[selected_index]}"
+    cntools_gum_log ACTION \
+      "blocked ${CNTOOLS_MENU_IDS[selected_index]}: ${CNTOOLS_MENU_DISABLED_REASONS[selected_index]}"
+    return 0
+  fi
+
+  cntools_gum_log MENU "selected ${CNTOOLS_MENU_IDS[selected_index]}"
+  if cntools_action_run "${CNTOOLS_MENU_PATHS[selected_index]}"; then
+    action_status=0
+  else
+    action_status=$?
+  fi
+  if declare -F cntools_startup_deployment_was_started >/dev/null 2>&1 &&
+     cntools_startup_deployment_was_started; then
+    cntools_gum_log SESSION \
+      "Guild Deploy completed with status ${action_status}; closing the current CNTools process"
+    menu_close="Y"
+    return 0
+  fi
+  # Settings actions run in an isolated shell. Reload only the state that a
+  # selected Settings action can have changed in the parent menu process.
+  case "${CNTOOLS_MENU_IDS[selected_index]}" in
+    settings/theme)
+      if declare -F cntools_theme_reload >/dev/null 2>&1 &&
+         ! cntools_theme_reload; then
+        cntools_gum_log ERROR \
+          "Could not activate the saved CNTools theme in the parent session"
+        (( action_status != 0 )) || action_status=2
+      fi
+      ;;
+    settings/transaction-defaults|settings/flow-style)
+      if declare -F cntools_settings_reload >/dev/null 2>&1 &&
+         ! cntools_settings_reload; then
+        cntools_gum_log ERROR \
+          "Could not activate the saved transaction settings in the parent session"
+        (( action_status != 0 )) || action_status=2
+      fi
+      ;;
+  esac
+  # 1 and 130 are cancels (or an outcome the action already showed).
+  if (( action_status != 0 && action_status != 1 && action_status != 130 )); then
+    status_level="error"
+    status_message="${CNTOOLS_MENU_LABELS[selected_index]} failed (status ${action_status}). See ${CNTOOLS_LOG:-the CNTools log}."
+    cntools_gum_log ERROR \
+      "action ${CNTOOLS_MENU_IDS[selected_index]} failed with status ${action_status}"
+  fi
 }

@@ -122,7 +122,7 @@ cntools_send_prompt_recipient() {
   fi
   if [[ "${choice}" == "CNTools wallet" ]]; then
     # Never auto-pick the recipient: a lone wallet would be the source itself.
-    cntools_wallet_choose selected "${CNTOOLS_SEND_EDIT_CANCEL:-Cancel}" "" N || {
+    cntools_wallet_choose selected 'Wallet to send to' "${CNTOOLS_SEND_EDIT_CANCEL:-Cancel}" "" N || {
       status=$?; (( status != 3 )) || status=1; return "${status}";
     }
     directory="${CNTOOLS_WALLET_PATHS[selected]}"
@@ -605,8 +605,7 @@ cntools_send_workflow() {
   cntools_metadata_reset
   cntools_transaction_require_cli || return 2
   cntools_wallet_catalog_build || return 2
-  cntools_ui_render_detail "Source wallet"
-  cntools_wallet_choose selected Cancel send || return $?
+  cntools_wallet_choose selected 'Wallet to send from · it pays the fee' Cancel send || return $?
   cntools_send_prepare_wallet "${CNTOOLS_WALLET_PATHS[selected]}" multisig || return 2
   # Prerequisites and funds come first: a wallet that cannot send asks
   # nothing more, not even for signers or a change address.

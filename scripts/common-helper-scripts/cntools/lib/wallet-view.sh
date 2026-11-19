@@ -374,7 +374,7 @@ cntools_wallet_action_show_impl() {
     cntools_ui_wait
     return 1
   fi
-  if cntools_wallet_choose selected_index; then
+  if cntools_wallet_choose selected_index 'Wallet to show'; then
     selector_status=0
   else
     selector_status=$?
@@ -469,7 +469,7 @@ cntools_wallet_action_show_impl() {
   if [[ "${CNTOOLS_WALLET_ASSET_COUNT:-}" =~ ^[1-9][0-9]*$ ]]; then
     # Essentials first (both styles); the full metadata is one step away.
     cntools_wallet_render_asset_details_table simple || return 1
-    if cntools_ui_choose asset_choice "Wallet" \
+    if cntools_ui_choose asset_choice "Assets" \
         "Done" "Show detailed asset metadata"; then
       asset_status=0
     else
