@@ -2978,6 +2978,53 @@ dispatcher_layout_shared_users() {
   done
 }
 
+# The command that moves each item still on ~/.local/bin over. On cnode only
+# the Mithril signer names a binary path: its unit (written by -d) and
+# mithril.env's CARDANO_CLI_PATH (written by -e). Every other cnode unit starts
+# a script, so one that names ~/.local/bin was made by hand.
+dispatcher_binary_layout_unit_advice() {
+  local item="" signer="N" reinstall="N"
+  local signer_unit="${NODE_SERVICE}-mithril-signer.service"
+  local -a commands=() custom=()
+
+  for item in "$@"; do
+    case "${item}" in
+      "${NODE_HOME}/mithril/mithril.env")
+        commands+=("${NODE_HOME}/scripts/mithril-signer.sh -e   # asks the relay and metrics questions again")
+        signer="Y"
+        ;;
+      "${signer_unit}")
+        commands+=("${NODE_HOME}/scripts/mithril-signer.sh -d")
+        signer="Y"
+        ;;
+      *)
+        if [[ "${NODE_IMPLEMENTATION}" == dingo || "${NODE_IMPLEMENTATION}" == amaru ]]; then
+          [[ "${reinstall}" == "Y" ]] ||
+            commands+=("${NODE_HOME}/scripts/${NODE_IMPLEMENTATION}.sh install")
+          reinstall="Y"
+        else
+          custom+=("${item}")
+        fi
+        ;;
+    esac
+  done
+  if [[ "${signer}" == "Y" ]]; then
+    if [[ -f "${SYSTEMD_UNIT_DIR:-/etc/systemd/system}/${signer_unit}" ]]; then
+      commands+=("sudo systemctl restart ${signer_unit}")
+    else
+      commands+=("# then restart mithril-signer")
+    fi
+  fi
+  if [[ ${#commands[@]} -gt 0 ]]; then
+    printf "  To move them over, run:\n"
+    printf "    %s\n" "${commands[@]}"
+  fi
+  if [[ ${#custom[@]} -gt 0 ]]; then
+    printf "  The guild scripts didn't write %s; change the path in it to %s/bin by hand.\n" \
+      "${custom[*]}" "${NODE_HOME}"
+  fi
+}
+
 # What is left for the operator after a deployment. Nothing here changes files:
 # ~/.local/bin may be serving other deployments, custom units or hand-kept tools.
 dispatcher_binary_layout_report() {
@@ -3012,15 +3059,7 @@ dispatcher_binary_layout_report() {
   if [[ ${#units[@]} -gt 0 ]]; then
     printf "\n  These still run binaries from %s:\n" "${shared}"
     printf "    %s\n" "${units[@]}"
-    printf "  To move them over, regenerate them:\n"
-    case "${NODE_IMPLEMENTATION}" in
-      dingo|amaru)
-        printf "    %s/scripts/%s.sh install\n" "${NODE_HOME}" "${NODE_IMPLEMENTATION}"
-        ;;
-      *)
-        printf "    %s/scripts/mithril-signer.sh -d\n" "${NODE_HOME}"
-        ;;
-    esac
+    dispatcher_binary_layout_unit_advice "${units[@]}"
   fi
   [[ ${#old_copies[@]} -gt 0 ]] || return 0
   printf "\n  Old copies in %s are no longer used by this deployment:\n" "${shared}"

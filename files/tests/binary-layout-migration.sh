@@ -329,8 +329,42 @@ done
   exit 0
 ) || exit 1
 
-# Units still on the old path are named, with the command for that implementation.
-for spec in cnode:mithril-signer.sh\ -d dingo:dingo.sh\ install amaru:amaru.sh\ install; do
+# On cnode only the Mithril signer names a binary path: -d rewrites its unit,
+# -e rewrites mithril.env, and the signer then needs a restart. Any other unit
+# on the old path was made by hand.
+(
+  new_target report_units_cnode
+  NODE_IMPLEMENTATION="cnode"
+  mkdir -p "${NODE_HOME}/bin" "${NODE_HOME}/mithril"
+  SYSTEMD_UNIT_DIR="${TEST_ROOT}/report_units_cnode/units"
+  mkdir -p "${SYSTEMD_UNIT_DIR}"
+  printf 'ExecStart=/bin/bash -l -c "exec %s/.local/bin/mithril-signer -vv"\n' "${HOME}" \
+    > "${SYSTEMD_UNIT_DIR}/${NODE_SERVICE}-mithril-signer.service"
+  printf 'ExecStart=%s/.local/bin/tool\n' "${HOME}" > "${SYSTEMD_UNIT_DIR}/${NODE_SERVICE}-custom.service"
+  printf 'ExecStart=/bin/bash -l -c "exec %s/scripts/cnode.sh"\n' "${NODE_HOME}" > "${SYSTEMD_UNIT_DIR}/${NODE_SERVICE}.service"
+  printf 'CARDANO_CLI_PATH=%s/.local/bin/cardano-cli\n' "${HOME}" > "${NODE_HOME}/mithril/mithril.env"
+  report="$(dispatcher_binary_layout_report 2>&1)"
+  for text in "${NODE_SERVICE}-mithril-signer.service" "${NODE_HOME}/mithril/mithril.env" \
+    "${NODE_HOME}/scripts/mithril-signer.sh -d" "${NODE_HOME}/scripts/mithril-signer.sh -e" \
+    "sudo systemctl restart ${NODE_SERVICE}-mithril-signer.service" \
+    "didn't write ${NODE_SERVICE}-custom.service; change the path in it to ${NODE_HOME}/bin by hand"; do
+    grep -qF -- "${text}" <<< "${report}" || fail "cnode report lacks '${text}': ${report}"
+  done
+  grep -qE "^    ${NODE_SERVICE}\.service$" <<< "${report}" && fail "named a unit that starts a script: ${report}"
+  [[ "$(grep -n 'mithril-signer.sh -d' <<< "${report}" | cut -d: -f1)" -lt \
+     "$(grep -n 'systemctl restart' <<< "${report}" | cut -d: -f1)" ]] || fail "restart comes before the fixes: ${report}"
+
+  # Only mithril.env left (the unit was already rewritten), and no service.
+  rm -f "${SYSTEMD_UNIT_DIR}/${NODE_SERVICE}-mithril-signer.service" "${SYSTEMD_UNIT_DIR}/${NODE_SERVICE}-custom.service"
+  report="$(dispatcher_binary_layout_report 2>&1)"
+  grep -qF "${NODE_HOME}/scripts/mithril-signer.sh -e" <<< "${report}" || fail "mithril.env not told -e: ${report}"
+  grep -qF "mithril-signer.sh -d" <<< "${report}" && fail "-d does not rewrite mithril.env: ${report}"
+  grep -qF "then restart mithril-signer" <<< "${report}" || fail "no restart note without a service: ${report}"
+  exit 0
+) || exit 1
+
+# Dingo and Amaru units on the old path are rewritten by their install command.
+for spec in dingo:dingo.sh\ install amaru:amaru.sh\ install; do
   (
     implementation="${spec%%:*}"
     command_text="${spec#*:}"
