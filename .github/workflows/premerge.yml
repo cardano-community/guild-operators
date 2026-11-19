@@ -62,6 +62,8 @@ jobs:
       run: bash files/tests/cntools-shortcuts.sh
     - name: Test CNTools pickers state their purpose
       run: bash files/tests/cntools-pickers.sh
+    - name: Test CNTools KES reload hint
+      run: bash files/tests/cntools-kes-reload-hint.sh
     - name: Test cnode pre-release networks
       run: bash files/tests/cnode-prerelease-networks.sh
     - name: Test binary layout migration
