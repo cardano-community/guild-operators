@@ -135,6 +135,8 @@ cntools_main() {
   cntools_startup_use_utf8_locale || return 1
   cntools_gum_require || return 1
   cntools_gum_require_terminal || return 1
+  # Optional: offers fzf for the menu picker; never blocks startup.
+  cntools_fzf_require || true
   cntools_update_init
   cntools_ui_init || return 1
   cntools_flow_style_first_run
