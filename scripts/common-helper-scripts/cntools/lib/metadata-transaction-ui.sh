@@ -48,7 +48,7 @@ cntools_metadata_transaction_save_unsigned() {
   local su_saved=''
   cntools_transaction_save_into su_saved "$1" unsigned "${mt_action}" || return 2
   "${mt_begin}"
-  cntools_transaction_ui_render_result success 'Ready for offline signing · Transaction → Sign, then Submit' "${CNTOOLS_TRANSACTION_ID}" "${su_saved}"
+  cntools_transaction_ui_render_result success 'Ready for offline signing · Transaction → Sign, then Post / Submit' "${CNTOOLS_TRANSACTION_ID}" "${su_saved}"
 }
 
 cntools_metadata_transaction_workflow() {
@@ -126,7 +126,7 @@ cntools_metadata_transaction_workflow() {
   cntools_transaction_save_into saved "${signed}" signed "${mt_action}" || return 2
   if [[ "${workflow}" == 'Create and sign' ]]; then
     "${mt_begin}"
-    cntools_transaction_ui_render_result success 'Signed · ready for Transaction → Submit' "${CNTOOLS_TRANSACTION_ID}" "${saved}"
+    cntools_transaction_ui_render_result success 'Signed · ready for Transaction → Post / Submit' "${CNTOOLS_TRANSACTION_ID}" "${saved}"
     return $?
   fi
   cntools_transaction_submit_input_prepare "${saved}" || return 2

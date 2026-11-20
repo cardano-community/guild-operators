@@ -2,7 +2,11 @@
 # Guided mint/burn with the shared transaction review/sign/export/submit UX.
 # shellcheck disable=SC2034,SC2015
 CNTOOLS_ASSET_TX_RESULT_SHOWN=N CNTOOLS_ASSET_TX_SAVED='' CNTOOLS_ASSET_TX_CHOICES=0
-cntools_asset_tx_begin() { cntools_policy_manage_begin "${CNTOOLS_ASSET_TX_OPERATION^} Asset"; }
+cntools_asset_tx_begin() {
+  local title="${CNTOOLS_ASSET_TX_OPERATION^} Asset"
+  [[ "${CNTOOLS_ASSET_TX_OPERATION}" != burn ]] || title='Perform Asset Burn'
+  cntools_policy_manage_begin "${title}"
+}
 
 # Smallest units, plus the decimal amount when Koios metadata gives decimals.
 cntools_asset_tx_amount_into() {
@@ -176,7 +180,7 @@ cntools_asset_tx_save_unsigned() {
   local saved=''
   cntools_transaction_save_into saved "$1" unsigned "asset-${CNTOOLS_ASSET_TX_OPERATION}" || return 2
   CNTOOLS_ASSET_TX_SAVED="${saved}"; cntools_asset_tx_begin
-  cntools_asset_tx_result success 'Ready for Transaction → Sign, then Submit. The policy witness is required in addition to wallet spending.' "${CNTOOLS_TRANSACTION_ID}" "${saved}"
+  cntools_asset_tx_result success 'Ready for Transaction → Sign, then Post / Submit. The policy witness is required in addition to wallet spending.' "${CNTOOLS_TRANSACTION_ID}" "${saved}"
   cntools_asset_tx_remember "${CNTOOLS_TRANSACTION_ID}" Unsigned
   return 0
 }
@@ -329,7 +333,7 @@ cntools_asset_tx_workflow() {
   cntools_transaction_save_into saved "${signed}" signed "asset-${CNTOOLS_ASSET_TX_OPERATION}" || return 2
   CNTOOLS_ASSET_TX_SAVED="${saved}"; txid="${CNTOOLS_TRANSACTION_ID}"
   if [[ "${workflow}" == 'Create and sign' ]]; then
-    cntools_asset_tx_begin; cntools_asset_tx_result success 'Signed · ready for Transaction → Submit' "${txid}" "${saved}"
+    cntools_asset_tx_begin; cntools_asset_tx_result success 'Signed · ready for Transaction → Post / Submit' "${txid}" "${saved}"
     cntools_asset_tx_remember "${txid}" Signed; return 0
   fi
   cntools_transaction_submit_input_prepare "${saved}" || return 2

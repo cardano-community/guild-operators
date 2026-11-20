@@ -92,8 +92,9 @@ cntools_wallet_mnemonic_sha256_stdin_into() {
 }
 
 # BIP39 checksum check of a recovery phrase held in a word array (lower-case
-# words, 12–24 of them). Shared by every phrase entry (Wallet, Governance
-# Derive Keys, MultiSig) so a wrong word is caught before any derivation.
+# words, 12–24 of them). Shared by every phrase entry (Wallet, On-chain
+# Governance Key Derivation, MultiSig) so a wrong word is caught before any
+# derivation.
 # Returns 0 valid, 1 checksum mismatch (CNTools keeps the words for a
 # correction), 2 cannot be checked here (word list or SHA-256 tool missing,
 # unknown word, unsupported length); Cardano CLI then still validates.
@@ -474,8 +475,8 @@ cntools_wallet_mnemonic_derive_role() {
   local detail=""
   local -a command=()
 
-  # The flag describes this derivation only (callers such as Governance
-  # Derive Keys call this directly, without a result reset).
+  # The flag describes this derivation only (callers such as On-chain
+  # Governance Key Derivation call this directly, without a result reset).
   CNTOOLS_WALLET_MNEMONIC_PHRASE_REJECTED="N"
   cntools_wallet_create_stage_safe "${stage}" || return 1
   cntools_wallet_mnemonic_index_into account "${account}" || return 2

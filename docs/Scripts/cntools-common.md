@@ -41,7 +41,7 @@ Supported lengths are 12, 15, 18, 21 and 24 words. A pasted word that is not
 in the English word list is reported by position (never echoed). The phrase
 checksum is verified right after entry: on a mismatch your words are kept and
 you can re-enter the last word, another word, or all words. The same entry and
-check is used by Governance Derive Keys and MultiSig Derive Keys.
+check is used by On-chain Governance Key Derivation and MultiSig Derive Keys.
 
 Account number and address key index default to **0** when you press Enter
 (Quick uses 0). The plan step names the wallet and offers **Change account and
@@ -56,11 +56,11 @@ is not a guarantee that terminal recording or scrollback has been erased.
 
 ### Import a hardware wallet
 
-Open **Wallet → Import → HW Wallet** with the supported device connected,
-unlocked and ready for its Cardano application. Review the account and key
-index, both defaulting to **0**, and follow the device prompts. If the device
-is locked, the app is closed or the export is rejected, CNTools returns to the
-plan with the reason; choose **Import wallet** again to retry.
+Open **Wallet → Import → Cold Storage/HW Wallet** with the supported device
+connected, unlocked and ready for its Cardano application. Review the account
+and key index, both defaulting to **0**, and follow the device prompts. If the
+device is locked, the app is closed or the export is rejected, CNTools returns
+to the plan with the reason; choose **Import wallet** again to retry.
 
 CNTools saves public keys, addresses and hardware signing references.
 Private keys stay on the device. Hardware signing needs that device connected
@@ -82,7 +82,7 @@ and names its source. Koios metadata is optional even when your
 balances come from the local node. An unused wallet shows zero balances;
 unavailable data is not presented as a confirmed zero.
 
-**Wallet → Transaction List** requires Koios. **Wallet → UTxO List** prefers
+**Wallet → Transaction List** requires Koios. **Wallet → View UTxOs** prefers
 Koios and can fall back to a simpler local-node view. After selecting a wallet,
 choose payment-credential or stake-address lookup when both are available
 (Quick uses payment-credential lookup; use **Change lookup** on the page menu).
@@ -99,7 +99,7 @@ votes—under section headings, with a separate numbered table for each entry.
 Absent optional fields and zero treasury/collateral totals are omitted; meaningful
 zeros in amounts, indices, votes and metadata remain visible.
 
-UTxO List shows unspent outputs only. Its summaries include ADA, asset counts
+View UTxOs shows unspent outputs only. Its summaries include ADA, asset counts
 and asset names; details show individual asset information beneath each output.
 Koios results warn when the returned count reaches its 1,000-result limit.
 Reopen the action to refresh the snapshot. The local fallback covers the
@@ -117,7 +117,8 @@ confirmation. Any other `.skey` file in the folder is named and stays
 plaintext; the wallet then shows **Partly protected**. Optional immutable
 locking follows `ENABLE_CHATTR` in `env`; when unavailable, read-only
 protection is retained with a warning. A protected wallet whose files became
-writable again (for example after Restore) is offered **lock files only**.
+writable again (for example after Perform Restore) is offered
+**lock files only**.
 A wallet with encrypted keys next to plaintext wallet keys (CNTools v13
 encrypted only the payment and stake keys) is offered too: enter its existing
 passphrase, and the remaining keys are encrypted with it. A hardware wallet's
@@ -136,9 +137,9 @@ offered **unlock files only**.
 CNTools runs `chattr` directly or through `sudo -n`, and never asks for a sudo
 password. Files locked immutable with a password-protected sudo (as CNTools
 v13 did) are detected before any confirmation or passphrase in Wallet →
-Encrypt, Decrypt and Remove, Pool → Decrypt, Advanced → Decrypt / Unlock
-Policy and Delete Private Keys. The message names one command that unlocks
-every affected folder (`sudo chattr -i <folder>/* …`).
+Encrypt, Decrypt and Permanently Remove, Pool → Decrypt, Advanced → Decrypt /
+Unlock Policy and Delete Private Keys. The message names one command that
+unlocks every affected folder (`sudo chattr -i <folder>/* …`).
 
 Keep the passphrase separately from the backup. Encryption is not a backup.
 
@@ -150,17 +151,17 @@ sign only, or unsigned package) before building; Quick starts with the most
 direct one. Review the deposit, fee and return address; the review proceeds
 with that workflow and offers **Change workflow**.
 
-**Wallet → De-Register** requires zero claimable rewards. Withdraw rewards
+**Wallet → Unregister** requires zero claimable rewards. Withdraw rewards
 first if needed. The transaction refunds the deposit recorded for that stake
 credential and ends its delegation. Rewards earned but not yet credited are
 forfeited, even if the visible reward balance is zero.
 
 ### Remove a wallet
 
-**Wallet → Remove** checks available funds, stake registration and DRep
-registration, and shows any warnings or unavailable checks before confirmation.
-You can explicitly proceed despite warnings, but must have an independent
-recovery backup.
+**Wallet → Permanently Remove** checks available funds, stake registration and
+DRep registration, and shows any warnings or unavailable checks before
+confirmation. You can explicitly proceed despite warnings, but must have an
+independent recovery backup.
 
 Removal deletes local wallet files. It does not send funds, withdraw rewards
 or unregister anything on-chain. Do not remove the only copy of keys that
@@ -253,8 +254,9 @@ that is missing.
 
 From protocol 10, the end of the Conway bootstrap phase, and in the Dijkstra
 era, withdrawals require a voting delegation. Set it first through
-**Vote → Governance → Delegate**, including a predefined abstention option
-if appropriate. The withdrawal flow does not add voting delegation implicitly.
+**Vote → On-chain Governance → Delegate**, including a predefined abstention
+option if appropriate. The withdrawal flow does not add voting delegation
+implicitly.
 
 Review rewards, fee and net benefit. If rewards or inputs change while a package
 is being signed elsewhere, rebuild rather than reuse stale withdrawal data.
@@ -293,7 +295,7 @@ and delegation are unchanged.
    devices, which are always shown first. Choose a verified match, select a file manually, or skip
    a signer and save a partial package for them to sign elsewhere.
 5. Return the completed package to an online system and use
-   **Transaction → Submit**.
+   **Transaction → Post / Submit**.
 
 Multisig participants can sign in separate sessions. Continue with the newest
 saved package until every selected signer has contributed. Partial packages
@@ -307,21 +309,23 @@ Changing a transaction requires rebuilding and collecting new signatures.
 
 ### Submit or monitor a transaction
 
-Sign and Submit both offer **Saved CNTools packages**, **Browse files** and
-**Enter file path**. Saved packages for the current network are listed newest
-first with action, signing progress, a short transaction ID and when they were
-saved. Sign lists unsigned/partial
-packages; Submit lists signed packages. Quick opens the saved list directly and
-uses a lone package without a list; if that package fails validation, the list
-is shown instead. Imported files can be browsed without knowing their full path, including
-hidden folders. Back or Escape returns to file selection; Cancel leaves the action.
+**Sign** and **Post / Submit** both offer **Saved CNTools packages**,
+**Browse files** and **Enter file path**. Saved packages for the current
+network are listed newest first with action, signing progress, a short
+transaction ID and when they were saved. Sign lists unsigned/partial
+packages; Post / Submit lists signed packages. Quick opens the saved list
+directly and uses a lone package without a list; if that package fails
+validation, the list is shown instead. Imported files can be browsed without
+knowing their full path, including hidden folders. Back or Escape returns to
+file selection; Cancel leaves the action.
 Listing a package is not proof that it is valid: CNTools validates the selected
 file before the existing review, signing or submission flow.
 
-Sign and Submit show a compact transaction information table: the declared
-purpose, outputs, certificates (with their pool or DRep target), withdrawals,
-minted and burned assets, votes, proposals, fee and expiry. Submitting a pool
-retirement or a token burn always asks first (default No). **Review transaction** opens the same detail layout as wallet transaction history:
+**Sign** and **Post / Submit** show a compact transaction information table:
+the declared purpose, outputs, certificates (with their pool or DRep target),
+withdrawals, minted and burned assets, votes, proposals, fee and expiry.
+Submitting a pool retirement or a token burn always asks first (default No).
+**Review transaction** opens the same detail layout as wallet transaction history:
 separate inputs/outputs, nested asset tables, and relevant metadata, certificate,
 withdrawal and governance sections. This view is decoded locally from the selected
 transaction and works offline. It cannot resolve input addresses or their original
@@ -333,8 +337,8 @@ accurate. Rebuild an expired transaction with a new expiry before signing it.
 Selecting a transaction file opens this review directly, without a separate
 **Use selected file** step. **Delete** in the review menu opens the file/package
 deletion choices. Back or declining deletion lets you continue reviewing;
-successful deletion ends Sign/Submit and returns to the Transaction menu, so a
-cached copy cannot accidentally be signed or submitted afterward.
+successful deletion ends Sign or Post / Submit and returns to the Transaction
+menu, so a cached copy cannot accidentally be signed or submitted afterward.
 
 Signing offers matching local wallet keys with their wallet name, key type and
 signing method. Source choices show only the wallet name and filename.
@@ -377,20 +381,22 @@ not create folders. A browsed file is used directly; these pickers never offer
 to delete keys or other inputs. Typed values are trimmed, so a pasted path,
 address or amount with surrounding spaces is accepted.
 
-Saved transaction packages can be deleted from the Sign/Submit review with
-**Delete**. Deletion is available for owned regular files in safe, owned
+Saved transaction packages can be deleted from the Sign or Post / Submit review
+with **Delete**. Deletion is available for owned regular files in safe, owned
 writable folders. Generated package folders directly under `.transactions`
 additionally offer **Delete saved transaction folder**, which removes the
 complete package and its contents. Custom folders, `.transactions` itself, and
 symlinks cannot be deleted. A separate confirmation defaults to No, and changed
 or unsafe targets are refused. Deletion is permanent and cannot be undone
-through CNTools. Sign/Submit ends the current action after deletion. Deleted
-paths are never used afterward. Locked files are not unlocked automatically.
+through CNTools. Sign or Post / Submit ends the current action after deletion.
+Deleted paths are never used afterward. Locked files are not unlocked
+automatically.
 
-**Transaction → Submit** accepts a completed CNTools package or a supported
-external signed Cardano transaction. Review the effects, network and named
-submission backend before confirming. External transactions cannot always
-prove signer completeness in the interface; the ledger makes the final decision.
+**Transaction → Post / Submit** accepts a completed CNTools package or a
+supported external signed Cardano transaction. Review the effects, network and
+named submission backend before confirming. External transactions cannot
+always prove signer completeness in the interface; the ledger makes the final
+decision.
 
 The result shows status, transaction ID and any saved recovery path.
 If Koios is available, Detailed asks whether to monitor block inclusion;
@@ -419,9 +425,10 @@ fetches it directly. Unavailable data is identified rather than treated as zero.
 signing keys. GnuPG is checked first. For Encrypt, entering the password is the
 confirmation (Escape cancels); Decrypt confirms first, asks again only after a
 wrong password, and says when there is nothing to decrypt. An encrypted pool
-whose files became writable again (for example after Restore) is offered
-**Lock the files**, without decrypting anything. Operational KES/VRF files needed by the running node are not a
-substitute for cold-key recovery backups.
+whose files became writable again (for example after Perform Restore) is
+offered **Lock the files**, without decrypting anything. Operational KES/VRF
+files needed by the running node are not a substitute for cold-key recovery
+backups.
 
 ### Register or modify a pool
 
@@ -479,9 +486,9 @@ and the registration carries no BLS key for now. See
 
 ### Rotate KES keys
 
-**Pool → Rotate** replaces the pool's KES key and operational certificate. It
-does not restart the node. Verify the pool, issue counter and start period; if
-chain data is unavailable, independently confirm the requested values.
+**Pool → KES Rotate** replaces the pool's KES key and operational certificate.
+It does not restart the node. Verify the pool, issue counter and start period;
+if chain data is unavailable, independently confirm the requested values.
 
 With a local node or Koios, the new certificate always uses the ledger's
 certificate counter + 1, whatever `cold.counter` holds. If `cold.counter` is
@@ -490,15 +497,15 @@ deploy them. Without a ledger counter (offline, or a pool that has not made a
 block yet), enter the issue counter yourself; the prompt defaults to
 `cold.counter`, and it may not be below the counter of the installed
 `op.cert`. An `op.cert` issued for another KES key (for example after a
-rotation outside CNTools) does not block Rotate: the new certificate replaces
-it. An offline signing system uses the counter in the node's request, then
-sets its own `cold.counter` to that counter + 1.
+rotation outside CNTools) does not block KES Rotate: the new certificate
+replaces it. An offline signing system uses the counter in the node's request,
+then sets its own `cold.counter` to that counter + 1.
 
 When the cold signing key or hardware wallet file is on the same system,
 choose **Rotate now**. One confirmation generates the new KES keys and issues
 the certificate, which permanently advances the issue counter. CNTools then
 asks once whether to install the new set, or you can install later from
-**Pool → Rotate**. The node can keep running: it uses its current KES key
+**Pool → KES Rotate**. The node can keep running: it uses its current KES key
 until it reloads or restarts. Don't restart it while the files are replaced;
 if installation is interrupted, continue the recorded recovery operation
 rather than issuing another certificate.
@@ -525,7 +532,7 @@ Verify the node's health afterwards.
 Amaru deployments have no Shelley genesis file and no local node query. On
 mainnet, preprod and preview CNTools takes the KES constants from Guild's
 network table and the current KES period from Amaru's metrics, so KES health
-and Rotate work there without a typed period.
+and KES Rotate work there without a typed period.
 
 For offline cold-key signing:
 
@@ -534,8 +541,8 @@ For offline cold-key signing:
    releases it without changing active keys or the counter.
 2. Copy only the reported public request directory to the signing system.
    Never transfer the new KES private key or the parent recovery directory.
-3. Use **Pool → Rotate → Sign an offline request** there with the independently
-   held cold key and current issue counter.
+3. Use **Pool → KES Rotate → Sign an offline request** there with the
+   independently held cold key and current issue counter.
 4. Return only the reported certificate and advanced counter, import the
    response on the node, approve installation, then reload or restart the node.
 
@@ -543,19 +550,21 @@ A used issue counter is never rolled back. Keep recovery copies securely;
 never restore an older counter to make an old certificate usable.
 
 If an earlier operation left a certificate lock (for example the Ledger was
-not connected, or a preparation was interrupted), Rotate shows the lock and
-recovery paths and offers **Release lock** only when no certificate was issued
-or `cold.counter` is already past the recovered certificate's counter. An
-interrupted issuance that produced no certificate returns to Issue / Discard.
+not connected, or a preparation was interrupted), KES Rotate shows the lock
+and recovery paths and offers **Release lock** only when no certificate was
+issued or `cold.counter` is already past the recovered certificate's counter.
+An interrupted issuance that produced no certificate returns to
+Issue / Discard.
 An encrypted cold key points to **Pool → Decrypt**, and cardano-hw-cli is
 checked before any question.
 
 ### Retire a pool
 
-**Pool → Retire** selects a registered pool, funding wallet and permitted future
-epoch. Enter defaults to the next epoch (Quick uses it without asking; use
-**Change retirement epoch** in the review). The review identifies any existing
-scheduled retirement that will be replaced, and submitting always asks first.
+**Pool → Unregister** selects a registered pool, funding wallet and permitted
+future epoch. Enter defaults to the next epoch (Quick uses it without asking;
+use **Change retirement epoch** in the review). The review identifies any
+existing scheduled retirement that will be replaced, and submitting always
+asks first.
 
 Only the fee is spent by this transaction. The pool deposit is returned to its
 registered reward account when retirement takes effect, not when the retirement
@@ -588,19 +597,19 @@ Check previous transaction IDs before creating another authorization.
 
 ### Manage a DRep or voting delegation
 
-**Vote → Governance → Derive Keys** creates random CLI DRep keys or derives
-them from a software recovery phrase, after confirming "Add DRep keys to
-<wallet>?" in both styles. The Cardano CLI is checked first. For a mnemonic
-wallet, Quick offers its recorded account or another account. A phrase that
-does not match is asked again, keeping the wallet, method and account. Back up
-their own keys or phrase/account: they need not use the same recovery
-information as the payment wallet.
+**Vote → On-chain Governance → Key Derivation** creates random CLI DRep keys
+or derives them from a software recovery phrase, after confirming "Add DRep
+keys to <wallet>?" in both styles. The Cardano CLI is checked first. For a
+mnemonic wallet, Quick offers its recorded account or another account. A
+phrase that does not match is asked again, keeping the wallet, method and
+account. Back up their own keys or phrase/account: they need not use the same
+recovery information as the payment wallet.
 
 **Info & Status** shows identity, key availability and available registration
-information. **DRep Registration / Update** registers a new identity or updates
-an existing one, with optional published metadata. CNTools can hash a local
+information. **Update/Create DRep** registers a new identity or updates an
+existing one, with optional published metadata. CNTools can hash a local
 document but does not upload it. Registration charges the current DRep deposit;
-updates charge the fee, and **DRep Retire** refunds the recorded deposit. Its
+updates charge the fee, and **Retire DRep** refunds the recorded deposit. Its
 review shows the DRep's voting power and delegators, from Koios when enabled
 (also with a local node).
 
@@ -616,10 +625,10 @@ remains separate.
 
 ### Browse proposals and vote
 
-**Vote → Governance → List Proposals** browses active proposals with pagination,
-details and vote information. Page-wide facts (source, snapshot epoch,
-threshold source) are shown once above the list; pick any proposal from the
-whole list (labelled number · short ID · type · title) to see its details.
+**Vote → On-chain Governance → List Proposals** browses active proposals with
+pagination, details and vote information. Page-wide facts (source, snapshot
+epoch, threshold source) are shown once above the list; pick any proposal from
+the whole list (labelled number · short ID · type · title) to see its details.
 Vote counts appear only for the roles that can vote on that action type.
 Ratified actions awaiting enactment are marked and cannot be voted on. With a
 local node and Koios enabled, titles come from Koios; otherwise a proposal is
@@ -738,10 +747,11 @@ stake address** and **Change time bounds** before the wallet is written.
 While creating, Escape (or **Back** in a time-bound menu) returns to the
 previous question and keeps the participants.
 
-Use **Vote → Governance → MultiSig DRep** for a separate threshold DRep
-identity; its review offers **Change threshold** and **Change participants**,
-and Escape at the threshold returns to the participants. Transaction actions choose payment, stake and DRep signing subsets
-as applicable. Public-only participants can sign packages elsewhere.
+Use **Vote → On-chain Governance → MultiSig DRep** for a separate threshold
+DRep identity; its review offers **Change threshold** and
+**Change participants**, and Escape at the threshold returns to the
+participants. Transaction actions choose payment, stake and DRep signing
+subsets as applicable. Public-only participants can sign packages elsewhere.
 
 ### Native assets
 
@@ -762,13 +772,14 @@ is the confirmation for encrypting, decrypting warns and confirms first, a
 wrong password asks again, and a folder with both plain and encrypted keys is
 refused before any password. Asset records stay writable.
 
-**Mint Asset / Burn Asset** select the policy, asset name and funding wallet.
-Asset names are text by default; enter `0x` followed by hex for a hex name, or
-leave it empty. A CIP-68 label prefix gets a warning, because CNTools mints
-only that one token. Quantities are exact smallest units; Burn can select all
-available units. Unrelated assets are preserved. Review the fee, quantity and
-policy/transaction expiry through the shared flow; the review offers
-**Change asset** and **Change quantity** (Enter keeps the current value).
+**Mint Asset / Perform Asset Burn** select the policy, asset name and funding
+wallet. Asset names are text by default; enter `0x` followed by hex for a hex
+name, or leave it empty. A CIP-68 label prefix gets a warning, because CNTools
+mints only that one token. Quantities are exact smallest units;
+Perform Asset Burn can select all available units. Unrelated assets are
+preserved. Review the fee, quantity and policy/transaction expiry through the
+shared flow; the review offers **Change asset** and **Change quantity** (Enter
+keeps the current value).
 Metadata strings longer than 64 bytes are rejected when you attach the file
 (split them into a list).
 
@@ -795,8 +806,8 @@ secure erasure from SSDs, snapshots or other backups.
 
 ## Backups and restoration
 
-**Backup & Restore → Backup** offers full or public-only archives, with GPG
-encryption recommended for full backups; without GnuPG only an unencrypted
+**Restore & Backup → Create Backup** offers full or public-only archives, with
+GPG encryption recommended for full backups; without GnuPG only an unencrypted
 archive is possible. The folders are checked right after you choose the
 contents. Names may contain spaces and `~ + @ , =`; a file or folder with
 other characters (for example non-ASCII letters, quotes or `*`) is skipped and
@@ -822,21 +833,21 @@ operations while creating a backup. Scripts, `env`, node configuration/database,
 settings, logs, caches and transaction packages are not included; save those
 separately as needed.
 
-**Restore** previews the archive and conflicts before importing: folders
-that already exist are shown as "Exists here · not changed" and are never
-merged or overwritten. When nothing would be imported, Restore says so. A
-recovery copy of the folders that were not imported is optional (default No);
-it is labelled "unencrypted, contains private keys" for full backups, so
-protect or delete it. Restore only trusted archives.
+**Perform Restore** previews the archive and conflicts before importing:
+folders that already exist are shown as "Exists here · not changed" and are
+never merged or overwritten. When nothing would be imported, Perform Restore
+says so. A recovery copy of the folders that were not imported is optional
+(default No); it is labelled "unencrypted, contains private keys" for full
+backups, so protect or delete it. Restore only trusted archives.
 
 Restored files do not regain immutable locking automatically. Use
 **Wallet → Encrypt**, which offers **lock files only** for protected wallets,
 and **Pool → Encrypt**, which offers **Lock the files** for encrypted pools. Do not start a pool with old operational
 files or an older issue counter: verify current state and rotate KES safely.
 Full backups also include KES and operational-certificate recovery from
-`${NODE_HOME}/.cntools/recovery/`. Restore lists it as "KES/recovery data · not
-activated" and keeps it only in the optional recovery copy for manual
-recovery; it is never activated automatically.
+`${NODE_HOME}/.cntools/recovery/`. Perform Restore lists it as "KES/recovery
+data · not activated" and keeps it only in the optional recovery copy for
+manual recovery; it is never activated automatically.
 
 ## Block production history
 

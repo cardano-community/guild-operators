@@ -64,6 +64,8 @@ jobs:
       run: bash files/tests/cntools-kes-reload-hint.sh
     - name: CNTools KES period tests
       run: bash files/tests/cntools-kes-period.sh
+    - name: CNTools fzf picker tests
+      run: bash files/tests/cntools-fzf-picker.sh
   jsonlint:
     name: JSON and YAML Check
     runs-on: ubuntu-latest

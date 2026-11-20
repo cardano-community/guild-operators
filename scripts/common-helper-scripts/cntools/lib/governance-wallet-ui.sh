@@ -7,7 +7,7 @@
 # Returns 3 when no wallet qualifies (the picker showed why and waited).
 cntools_governance_wallet_select_into() {
   local output_name="$1" selected="" title="$2" purpose="$3" context="${4:-}"
-  cntools_ui_action_begin "${title}" "/ Vote / Governance / ${title}"
+  cntools_ui_action_begin "${title}" "/ Vote / On-chain Governance / ${title}"
   cntools_wallet_catalog_build || return 2
   cntools_wallet_choose selected "${purpose}" Cancel "${context}" || return $?
   printf -v "${output_name}" '%s' "${CNTOOLS_WALLET_PATHS[selected]}"
@@ -36,8 +36,8 @@ cntools_governance_keys_workflow() {
   local recorded="" backup="" choice=""
   local -a sources=()
   # Existing mnemonic controls share presentation but keep the governance path.
-  local CNTOOLS_MNEMONIC_INPUT_PATH='/ Vote / Governance / Derive Keys'
-  cntools_governance_wallet_select_into directory 'Derive Keys' 'Wallet to create DRep keys in' drep-create || return $?
+  local CNTOOLS_MNEMONIC_INPUT_PATH='/ Vote / On-chain Governance / Key Derivation'
+  cntools_governance_wallet_select_into directory 'Key Derivation' 'Wallet to create DRep keys in' drep-create || return $?
   wallet="${directory##*/}"
   # Wallet type, open keys, Cardano CLI and no existing DRep: before any input.
   cntools_drep_key_preflight "${directory}" || { cntools_governance_wallet_failure; return $?; }
@@ -66,7 +66,7 @@ cntools_governance_keys_workflow() {
         ;;
       'Derive from recovery phrase'*)
         method=mnemonic method_label='Recovery phrase'
-        cntools_wallet_mnemonic_prompt_index_into account Account 'Derive Keys' "${CNTOOLS_MNEMONIC_INPUT_PATH}" "${recorded:-0}" || status=$?
+        cntools_wallet_mnemonic_prompt_index_into account Account 'Key Derivation' "${CNTOOLS_MNEMONIC_INPUT_PATH}" "${recorded:-0}" || status=$?
         ;;
       'Generate new CLI keys') method=cli method_label='New CLI keys' ;;
       Cancel) return 1 ;;
@@ -75,7 +75,7 @@ cntools_governance_keys_workflow() {
     # Esc at the account returns to the source menu.
     ((status == 0)) && break
     ((status == 1)) || return "${status}"
-    cntools_ui_action_begin 'Derive Keys' "${CNTOOLS_MNEMONIC_INPUT_PATH}"
+    cntools_ui_action_begin 'Key Derivation' "${CNTOOLS_MNEMONIC_INPUT_PATH}"
   done
   if [[ "${method}" == mnemonic ]]; then
     path="1852H/1815H/${account}H/3/0"
@@ -92,7 +92,7 @@ cntools_governance_keys_workflow() {
       cntools_ui_render_status warn 'This independently generated DRep key cannot be recovered from a wallet recovery phrase. Back up the new signing key.'
     fi
   else
-    cntools_ui_action_begin 'Derive Keys' "${CNTOOLS_MNEMONIC_INPUT_PATH}"
+    cntools_ui_action_begin 'Key Derivation' "${CNTOOLS_MNEMONIC_INPUT_PATH}"
     {
       printf 'DRep keys\tValue\n'
       cntools_transaction_ui_styled_row Wallet "${wallet}" identifier
@@ -112,7 +112,7 @@ cntools_governance_keys_workflow() {
     if [[ "${method}" == mnemonic ]]; then
       cntools_wallet_mnemonic_collect_import_into phrase || return $?
     fi
-    cntools_ui_action_begin 'Derive Keys' "${CNTOOLS_MNEMONIC_INPUT_PATH}"
+    cntools_ui_action_begin 'Key Derivation' "${CNTOOLS_MNEMONIC_INPUT_PATH}"
     # The spinner runs the function in this shell: the phrase never reaches
     # an external process's argv, the log or the screen.
     status=0
@@ -128,7 +128,7 @@ cntools_governance_keys_workflow() {
     fi
     cntools_governance_wallet_failure; return $?
   done
-  cntools_ui_action_begin 'Derive Keys' "${CNTOOLS_MNEMONIC_INPUT_PATH}"
+  cntools_ui_action_begin 'Key Derivation' "${CNTOOLS_MNEMONIC_INPUT_PATH}"
   cntools_drep_key_inspect "${directory}" || { cntools_governance_wallet_failure; return $?; }
   {
     printf 'DRep keys\tValue\n'
@@ -225,7 +225,7 @@ cntools_governance_info_workflow() {
   cntools_governance_wallet_select_into directory 'Info & Status' 'Wallet whose DRep keys and registration to show' drep-info || return $?
   cntools_drep_key_inspect "${directory}" || status=$?
   if ((status == 4)); then
-    cntools_ui_render_status info 'No usable DRep identity found. Create keys through Governance → Derive Keys if none exist. Missing public files require Cardano CLI and an open key; restore the public verification key for encrypted/hardware keys.'
+    cntools_ui_render_status info 'No usable DRep identity found. Create keys through On-chain Governance → Key Derivation if none exist. Missing public files require Cardano CLI and an open key; restore the public verification key for encrypted/hardware keys.'
     cntools_ui_wait; return 0
   fi
   ((status == 0)) || { cntools_governance_wallet_failure; return $?; }
@@ -234,7 +234,7 @@ cntools_governance_info_workflow() {
   else
     cntools_ui_spin_function 'Checking DRep status…' cntools_governance_status_collect || return 2
   fi
-  cntools_ui_action_begin 'Info & Status' '/ Vote / Governance / Info & Status'
+  cntools_ui_action_begin 'Info & Status' '/ Vote / On-chain Governance / Info & Status'
   [[ ! -f "${directory}/${CNTOOLS_WALLET_DREP_VKEY_FILENAME:-drep.vkey}" ]] || verification=Available
   [[ ! -f "${directory}/${CNTOOLS_WALLET_DREP_SKEY_FILENAME:-drep.skey}" ]] || protection='Unencrypted signing key'
   [[ ! -f "${directory}/${CNTOOLS_WALLET_DREP_SKEY_FILENAME:-drep.skey}.gpg" ]] || protection=Encrypted

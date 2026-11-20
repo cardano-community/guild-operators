@@ -59,7 +59,7 @@ assert_eq "$(jq -r '[.shortcuts[].code] | join(",")' "${SHORTCUTS}")" "1,pr,w" "
 assert_eq "${CNTOOLS_SHORTCUTS_STATE}:${CNTOOLS_SHORTCUTS_CODES[*]}" "ok:1 pr w" "loaded after a save"
 cntools_shortcuts_assign wn wallet/new || fail "a new code for Wallet / New"
 assert_eq "$(jq -r '[.shortcuts[] | select(.target == "wallet/new") | .code] | join(",")' "${SHORTCUTS}")" "wn" "an entry keeps one code"
-cntools_shortcuts_assign pr pool/retire || fail "move pr to Pool / Retire"
+cntools_shortcuts_assign pr pool/retire || fail "move pr to Pool / Unregister"
 assert_eq "$(jq -r '[.shortcuts[] | select(.code == "pr") | .target] | join(",")' "${SHORTCUTS}")" "pool/retire" "a code goes to one entry"
 assert_eq "$(jq '.shortcuts | length' "${SHORTCUTS}")" "3" "moving a code leaves the old entry without one"
 for bad in "" ABCDE a-b "p r" 12345; do
@@ -203,7 +203,7 @@ goto PR --
 assert_eq "${GOTO_STATUS}:${GOTO_TARGET}:${#CHOOSE_CALLS[@]}" "0:pool/register:0" "a code, in any case, goes straight to its entry"
 goto regis -- "Pool / Register"
 assert_eq "${GOTO_STATUS}:${GOTO_TARGET}:${CHOOSE_CALLS[*]}" "0:pool/register:regis|Y" "text searches, and a single match is picked"
-goto "" -- "› Vote / Governance "
+goto "" -- "› Vote / On-chain Governance "
 assert_eq "${GOTO_STATUS}:${GOTO_TARGET}:${CHOOSE_CALLS[*]}" "0:vote/governance:|N" "Enter alone lists everything"
 goto ESC --
 assert_eq "${GOTO_STATUS}:${GOTO_TARGET}" "1:" "Escape leaves Go to"

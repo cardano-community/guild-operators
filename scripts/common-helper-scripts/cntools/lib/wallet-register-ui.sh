@@ -165,7 +165,7 @@ cntools_wallet_register_signers_rebuild_into() {
   cntools_ui_render_status warn "The new signers could not be built, so the previous ones are kept. ${wsr_reason}"
 }
 
-# De-Register: 0 when the wallet picker already knows the wallet holds rewards.
+# Unregister: 0 when the wallet picker already knows the wallet holds rewards.
 cntools_wallet_register_known_rewards() {
   local known_address=''
   [[ "${CNTOOLS_WALLET_REGISTER_OPERATION}" == deregister ]] &&
@@ -406,14 +406,14 @@ cntools_wallet_register_workflow() {
     cntools_transaction_save_into saved "${staged}" unsigned "${CNTOOLS_WALLET_REGISTER_FILE_SUFFIX}" || return 2
     CNTOOLS_WALLET_REGISTER_SAVED_PACKAGE="${saved}"
     cntools_wallet_register_begin
-    cntools_wallet_register_result success 'Ready for offline signing · Transaction → Sign, then Submit' "${CNTOOLS_TRANSACTION_ID}" "${saved}"
+    cntools_wallet_register_result success 'Ready for offline signing · Transaction → Sign, then Post / Submit' "${CNTOOLS_TRANSACTION_ID}" "${saved}"
     return $?
   fi
   cntools_transaction_save_into saved "${signed}" signed "${CNTOOLS_WALLET_REGISTER_FILE_SUFFIX}" || return 2
   CNTOOLS_WALLET_REGISTER_SAVED_PACKAGE="${saved}"
   if [[ "${workflow}" == 'Create and sign' ]]; then
     cntools_wallet_register_begin
-    cntools_wallet_register_result success 'Signed · ready for Transaction → Submit' "${CNTOOLS_TRANSACTION_ID}" "${saved}"
+    cntools_wallet_register_result success 'Signed · ready for Transaction → Post / Submit' "${CNTOOLS_TRANSACTION_ID}" "${saved}"
     return $?
   fi
   cntools_transaction_submit_input_prepare "${saved}" || return 2
@@ -434,7 +434,7 @@ cntools_wallet_register_workflow() {
   fi
   cntools_wallet_register_result success "${CNTOOLS_TRANSACTION_SUBMIT_MESSAGE} Submission is not confirmation of inclusion." "${txid}" || return 2
   if [[ "${CNTOOLS_WALLET_REGISTER_OPERATION}" == drep-register ]]; then
-    cntools_ui_render_status info "DRep registration does not delegate this wallet's voting power. Use Governance → Delegate to choose this DRep if you want to self-delegate."
+    cntools_ui_render_status info "DRep registration does not delegate this wallet's voting power. Use On-chain Governance → Delegate to choose this DRep if you want to self-delegate."
   fi
   cntools_transaction_ui_offer_monitor "${txid}"
 }

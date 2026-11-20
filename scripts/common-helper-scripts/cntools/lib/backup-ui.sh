@@ -2,8 +2,11 @@
 # Compact, shared-table backup wizard. Works without a node or Cardano CLI.
 # shellcheck disable=SC2034
 
+# <operation> is Create or Restore; the header shows its menu label.
 cntools_backup_begin() {
-  cntools_ui_action_begin "$1" "/ Backup / $1"
+  local title="Create Backup"
+  [[ "$1" != Restore ]] || title="Perform Restore"
+  cntools_ui_action_begin "${title}" "/ Restore & Backup / ${title}"
 }
 
 cntools_backup_interact() {

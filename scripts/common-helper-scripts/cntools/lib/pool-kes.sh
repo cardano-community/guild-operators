@@ -481,7 +481,7 @@ cntools_kes_issue() {
     if [[ "${stage##*/}" == kes-sign.* ]]; then
       cntools_kes_error 'Certificate issuance failed or timed out. No certificate was accepted and the issue counter is unchanged.'
     else
-      cntools_kes_error 'Certificate issuance failed or timed out. No certificate was accepted and the issue counter is unchanged. The prepared request is kept; reopen Pool → Rotate to issue it again or discard it.'
+      cntools_kes_error 'Certificate issuance failed or timed out. No certificate was accepted and the issue counter is unchanged. The prepared request is kept; reopen Pool → KES Rotate to issue it again or discard it.'
     fi
     return 1
   fi

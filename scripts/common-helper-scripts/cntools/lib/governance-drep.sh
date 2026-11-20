@@ -21,9 +21,9 @@ cntools_drep_lifecycle_operation_set() {
     *) return 2 ;;
   esac
   CNTOOLS_WALLET_REGISTER_OPERATION="${operation}"
-  CNTOOLS_WALLET_REGISTER_TITLE='DRep Registration / Update'
-  [[ "${operation}" != drep-retire ]] || CNTOOLS_WALLET_REGISTER_TITLE='DRep Retire'
-  CNTOOLS_WALLET_REGISTER_PATH="/ Vote / Governance / ${CNTOOLS_WALLET_REGISTER_TITLE}"
+  CNTOOLS_WALLET_REGISTER_TITLE='Update/Create DRep'
+  [[ "${operation}" != drep-retire ]] || CNTOOLS_WALLET_REGISTER_TITLE='Retire DRep'
+  CNTOOLS_WALLET_REGISTER_PATH="/ Vote / On-chain Governance / ${CNTOOLS_WALLET_REGISTER_TITLE}"
   CNTOOLS_WALLET_REGISTER_NOUN="DRep ${noun}"
   CNTOOLS_WALLET_REGISTER_VERB="perform DRep ${noun}"
   CNTOOLS_WALLET_REGISTER_PAST="${noun}"
@@ -39,7 +39,7 @@ cntools_drep_lifecycle_prepare_wallet() {
   local directory="$1" source="" kind=""
   cntools_payment_prepare_wallet "${directory}" multisig || return 1
   cntools_drep_key_inspect "${directory}" || {
-    cntools_wallet_register_set_error "${CNTOOLS_DREP_KEY_ERROR:-This wallet needs DRep keys. Use Vote → Governance → Derive Keys first.}"; return 1;
+    cntools_wallet_register_set_error "${CNTOOLS_DREP_KEY_ERROR:-This wallet needs DRep keys. Use Vote → On-chain Governance → Key Derivation first.}"; return 1;
   }
   [[ "${CNTOOLS_DREP_KEY_VERIFIED}" == Y && "${CNTOOLS_DREP_KEY_KIND}" =~ ^(key|script)$ ]] || {
     cntools_wallet_register_set_error 'The DRep identity must be verified against its public key or native script.'; return 1;

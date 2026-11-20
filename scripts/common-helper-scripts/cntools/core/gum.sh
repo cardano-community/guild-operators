@@ -10,15 +10,6 @@ CNTOOLS_GUM_SHA256_ARM64="8ebf8b54ec1e8c81f2bb58b59ff9b70998186a4d11375f0cf357b8
 CNTOOLS_GUM_BIN="${CNTOOLS_GUM_BIN:-}"
 CNTOOLS_GUM_INSTALL_TMP=""
 CNTOOLS_GUM_INSTALL_STAGE=""
-# fzf is an optional extra: it powers the menu picker when present (see
-# cntools_fzf_filter) and CNTools offers to install it next to Gum.
-CNTOOLS_FZF_VERSION="0.75.0"
-CNTOOLS_FZF_RELEASE_ROOT="https://github.com/junegunn/fzf/releases/download/v${CNTOOLS_FZF_VERSION}"
-CNTOOLS_FZF_SHA256_AMD64="0d6640f83582d991cf429754baad64b07e3a4e439a6019670f4b91da1314141c"
-CNTOOLS_FZF_SHA256_ARM64="bd0717badb6a5620387e014bb94209aac4d9eab6ab77b5348eabb0833aeb4d59"
-CNTOOLS_FZF_BIN="${CNTOOLS_FZF_BIN:-}"
-CNTOOLS_FZF_INSTALL_TMP=""
-CNTOOLS_FZF_INSTALL_STAGE=""
 CNTOOLS_GUM_LAST_HEADER_ROWS=""
 CNTOOLS_GUM_LAST_HEADER_MODE=""
 CNTOOLS_GUM_STATIC_HEADER_KEY=""
@@ -509,288 +500,6 @@ cntools_gum_require() {
       return 1
       ;;
   esac
-}
-
-# --- fzf (optional) ---------------------------------------------------------
-# Unlike Gum, fzf is never required: without it the menu uses "gum filter". The
-# install offer mirrors Gum's (same directory, pinned version and checksum,
-# staged and verified before it replaces anything) but every failure is a
-# warning, never a reason to stop CNTools.
-
-cntools_fzf_warn() {
-  local detail="${1:-}"
-
-  [[ -z "${detail}" ]] || printf 'CNTools: %s\n' "${detail}" >&2
-  cntools_gum_log ERROR "fzf install: ${detail}"
-  return 1
-}
-
-# Prints "<release-arch> <pinned-sha256>" for this machine; fails on anything
-# the pinned release cannot serve (non-Linux, other architectures).
-cntools_fzf_release_target() {
-  local system="" machine=""
-
-  system="$(uname -s 2>/dev/null)" || return 1
-  machine="$(uname -m 2>/dev/null)" || return 1
-  [[ "${system}" == "Linux" ]] || return 1
-  case "${machine}" in
-    x86_64|amd64) printf 'amd64 %s\n' "${CNTOOLS_FZF_SHA256_AMD64}" ;;
-    aarch64|arm64) printf 'arm64 %s\n' "${CNTOOLS_FZF_SHA256_ARM64}" ;;
-    *) return 1 ;;
-  esac
-}
-
-cntools_fzf_version_exact() {
-  local candidate="${1:-}"
-  local raw=""
-
-  [[ -n "${candidate}" && "${candidate}" = /* && -x "${candidate}" ]] ||
-    return 1
-  raw="$("${candidate}" --version 2>/dev/null)" || return 1
-  [[ "${raw}" == "${CNTOOLS_FZF_VERSION}" ||
-     "${raw}" == "${CNTOOLS_FZF_VERSION} "* ]]
-}
-
-cntools_fzf_install_cleanup() {
-  local temporary="${CNTOOLS_FZF_INSTALL_TMP:-}"
-  local stage="${CNTOOLS_FZF_INSTALL_STAGE:-}"
-
-  if [[ -n "${stage}" && "${stage}" = */.fzf.* &&
-        -f "${stage}" && ! -L "${stage}" && -O "${stage}" ]]; then
-    rm -f -- "${stage}" 2>/dev/null || true
-  fi
-  if [[ -n "${temporary}" && -d "${temporary}" &&
-        ! -L "${temporary}" && -O "${temporary}" ]]; then
-    rm -f -- \
-      "${temporary}/extract/fzf" \
-      "${temporary}/archive.tar.gz" 2>/dev/null || true
-    rmdir -- "${temporary}/extract" 2>/dev/null || true
-    rmdir -- "${temporary}" 2>/dev/null || true
-  fi
-  CNTOOLS_FZF_INSTALL_TMP=""
-  CNTOOLS_FZF_INSTALL_STAGE=""
-}
-
-cntools_fzf_install() {
-  local target_info=""
-  local release_arch=""
-  local pinned_digest=""
-  local archive_name=""
-  local archive_url=""
-  local install_directory=""
-  local target=""
-  local archive=""
-  local extract_directory=""
-  local member=""
-  local actual=""
-  local previous_umask=""
-  local command_name=""
-  local -a missing=()
-
-  if [[ "${CNTOOLS_MODE:-}" == "offline" ]]; then
-    cntools_fzf_warn "Automatic fzf installation is unavailable in offline mode."
-    return 1
-  fi
-  for command_name in curl tar install uname mktemp mkdir chmod mv rm rmdir; do
-    command -v "${command_name}" >/dev/null 2>&1 || missing+=("${command_name}")
-  done
-  if ! command -v sha256sum >/dev/null 2>&1 &&
-     ! command -v shasum >/dev/null 2>&1; then
-    missing+=("sha256sum")
-  fi
-  if (( ${#missing[@]} > 0 )); then
-    cntools_fzf_warn "Cannot install fzf; required command(s) missing: ${missing[*]}."
-    return 1
-  fi
-  target_info="$(cntools_fzf_release_target)" || {
-    cntools_fzf_warn "Automatic fzf installation supports Linux on x86_64 and arm64 only."
-    return 1
-  }
-  release_arch="${target_info%% *}"
-  pinned_digest="${target_info#* }"
-
-  install_directory="$(cntools_gum_install_directory 2>/dev/null)" || {
-    cntools_fzf_warn "The install directory must be an absolute, single-line path."
-    return 1
-  }
-  if declare -F cntools_filesystem_path_components_safe >/dev/null 2>&1 &&
-     ! cntools_filesystem_path_components_safe "${install_directory}"; then
-    cntools_fzf_warn "The install directory contains an unsafe symbolic link: ${install_directory}."
-    return 1
-  fi
-  previous_umask="$(umask)"
-  umask 077
-  if ! mkdir -p -- "${install_directory}"; then
-    umask "${previous_umask}"
-    cntools_fzf_warn "Could not create the install directory: ${install_directory}."
-    return 1
-  fi
-  umask "${previous_umask}"
-  [[ -d "${install_directory}" && ! -L "${install_directory}" &&
-     -O "${install_directory}" && -w "${install_directory}" ]] || {
-    cntools_fzf_warn "The install directory is not a safe user-owned directory: ${install_directory}."
-    return 1
-  }
-  install_directory="$(cd -- "${install_directory}" && pwd -P)" || return 1
-  target="${install_directory}/fzf"
-  if [[ -e "${target}" || -L "${target}" ]]; then
-    [[ -f "${target}" && ! -L "${target}" && -O "${target}" ]] || {
-      cntools_fzf_warn "The local fzf target is unsafe and was not replaced: ${target}."
-      return 1
-    }
-  fi
-
-  archive_name="fzf-${CNTOOLS_FZF_VERSION}-linux_${release_arch}.tar.gz"
-  archive_url="${CNTOOLS_FZF_RELEASE_ROOT}/${archive_name}"
-  previous_umask="$(umask)"
-  umask 077
-  CNTOOLS_FZF_INSTALL_TMP="$(mktemp -d "${TMPDIR:-/tmp}/cntools-fzf-install.XXXXXX")" || {
-    umask "${previous_umask}"
-    cntools_fzf_warn "Could not create a private fzf staging directory."
-    return 1
-  }
-  umask "${previous_umask}"
-  archive="${CNTOOLS_FZF_INSTALL_TMP}/archive.tar.gz"
-  extract_directory="${CNTOOLS_FZF_INSTALL_TMP}/extract"
-  mkdir -- "${extract_directory}" || {
-    cntools_fzf_install_cleanup
-    return 1
-  }
-
-  cntools_gum_log DEPENDENCY \
-    "install fzf v${CNTOOLS_FZF_VERSION} archive=${archive_name}"
-  cntools_gum_log API \
-    "GET /junegunn/fzf/releases/download/v${CNTOOLS_FZF_VERSION}/${archive_name}"
-  if ! curl --fail --silent --show-error --location --proto '=https' \
-      --proto-redir '=https' --tlsv1.2 --connect-timeout 10 --max-time 180 \
-      --max-filesize 16777216 --output "${archive}" "${archive_url}"; then
-    cntools_fzf_install_cleanup
-    cntools_fzf_warn "Could not download the official fzf archive."
-    return 1
-  fi
-  # The digest is pinned in this file (from the release's own checksum list),
-  # so a tampered or substituted download cannot pass.
-  actual="$(cntools_gum_sha256 "${archive}" 2>/dev/null)" || actual=""
-  if [[ -z "${actual}" || "${actual}" != "${pinned_digest}" ]]; then
-    cntools_fzf_install_cleanup
-    cntools_fzf_warn "The downloaded fzf archive failed checksum verification."
-    return 1
-  fi
-  member="$(cntools_gum_archive_member "${archive}" "fzf" 2>/dev/null)" || {
-    cntools_fzf_install_cleanup
-    cntools_fzf_warn "The downloaded fzf archive has an unsafe structure."
-    return 1
-  }
-  if ! tar -xOzf "${archive}" -- "${member}" > "${extract_directory}/fzf" ||
-     [[ ! -f "${extract_directory}/fzf" ||
-        -L "${extract_directory}/fzf" ||
-        ! -s "${extract_directory}/fzf" ]]; then
-    cntools_fzf_install_cleanup
-    cntools_fzf_warn "Could not safely extract the fzf executable."
-    return 1
-  fi
-  CNTOOLS_FZF_INSTALL_STAGE="$(mktemp "${install_directory}/.fzf.XXXXXX")" || {
-    cntools_fzf_install_cleanup
-    cntools_fzf_warn "Could not stage fzf in ${install_directory}."
-    return 1
-  }
-  if ! install -m 0755 "${extract_directory}/fzf" "${CNTOOLS_FZF_INSTALL_STAGE}" ||
-     ! cntools_fzf_version_exact "${CNTOOLS_FZF_INSTALL_STAGE}"; then
-    cntools_fzf_install_cleanup
-    cntools_fzf_warn "The staged fzf executable is not v${CNTOOLS_FZF_VERSION}."
-    return 1
-  fi
-  if ! mv -f -- "${CNTOOLS_FZF_INSTALL_STAGE}" "${target}" ||
-     ! chmod 0755 "${target}" ||
-     ! cntools_fzf_version_exact "${target}"; then
-    cntools_fzf_install_cleanup
-    cntools_fzf_warn "Could not activate fzf at ${target}."
-    return 1
-  fi
-  CNTOOLS_FZF_INSTALL_STAGE=""
-  CNTOOLS_FZF_BIN="${target}"
-  export CNTOOLS_FZF_BIN
-  cntools_fzf_install_cleanup
-  cntools_gum_log DEPENDENCY \
-    "installed fzf v${CNTOOLS_FZF_VERSION} path=${CNTOOLS_FZF_BIN}"
-  printf 'CNTools: installed fzf v%s at %s.\n' \
-    "${CNTOOLS_FZF_VERSION}" "${CNTOOLS_FZF_BIN}"
-}
-
-# Where a "no" is remembered, so the offer is not repeated on every launch. It
-# records the version that was declined, so a newer pinned fzf is offered again.
-cntools_fzf_declined_file() {
-  declare -F cntools_settings_state_directory_ready >/dev/null 2>&1 || return 1
-  cntools_settings_state_directory_ready || return 1
-  printf '%s/fzf-offer-declined\n' "${CNTOOLS_SETTINGS_STATE_DIR}"
-}
-
-cntools_fzf_declined() {
-  local file="" recorded=""
-
-  file="$(cntools_fzf_declined_file 2>/dev/null)" || return 1
-  [[ -f "${file}" && ! -L "${file}" && -O "${file}" ]] || return 1
-  IFS= read -r recorded < "${file}" || true
-  [[ "${recorded}" == "${CNTOOLS_FZF_VERSION}" ]]
-}
-
-cntools_fzf_remember_decline() {
-  local file="" previous_umask=""
-
-  file="$(cntools_fzf_declined_file 2>/dev/null)" || return 0
-  previous_umask="$(umask)"
-  umask 077
-  printf '%s\n' "${CNTOOLS_FZF_VERSION}" > "${file}" 2>/dev/null || true
-  umask "${previous_umask}"
-}
-
-# Offer to install fzf when it is missing or too old to auto-open a single
-# match. Always succeeds: fzf is optional, so a decline, an unsupported
-# platform, offline mode or a failed download all just keep the Gum picker.
-cntools_fzf_require() {
-  local answer=""
-  local install_directory=""
-  local found_version=""
-
-  [[ "${CNTOOLS_PICKER:-auto}" != "gum" ]] || return 0
-  if cntools_fzf_find && cntools_fzf_supports_one "${CNTOOLS_FZF_BIN}"; then
-    cntools_gum_log DEPENDENCY "using fzf path=${CNTOOLS_FZF_BIN}"
-    return 0
-  fi
-  [[ -t 0 && -t 1 ]] || return 0
-  [[ "${CNTOOLS_MODE:-}" != "offline" ]] || return 0
-  cntools_fzf_release_target >/dev/null 2>&1 || return 0
-  ! cntools_fzf_declined || return 0
-  install_directory="$(cntools_gum_install_directory 2>/dev/null)" || return 0
-
-  if [[ -n "${CNTOOLS_FZF_BIN:-}" ]]; then
-    found_version="$("${CNTOOLS_FZF_BIN}" --version 2>/dev/null || true)"
-    found_version="${found_version%% *}"
-    printf 'CNTools found fzf %s at %s.\n' \
-      "${found_version:-of unknown version}" "${CNTOOLS_FZF_BIN}"
-    printf 'A single matching menu item opens automatically with fzf 0.39 or newer.\n'
-  else
-    printf 'CNTools can use fzf to pick menu items by number or first letter.\n'
-    printf 'fzf is optional and was not found.\n'
-  fi
-  printf 'Install fzf v%s in %s? [y/N]: ' \
-    "${CNTOOLS_FZF_VERSION}" "${install_directory}"
-  IFS= read -r answer || answer=""
-  case "${answer,,}" in
-    y|yes)
-      cntools_gum_log DEPENDENCY "fzf installation accepted"
-      CNTOOLS_FZF_BIN=""
-      if ! cntools_fzf_install; then
-        printf 'CNTools: continuing without fzf.\n' >&2
-        cntools_fzf_find || true
-      fi
-      ;;
-    *)
-      cntools_gum_log DEPENDENCY "fzf installation declined"
-      cntools_fzf_remember_decline
-      ;;
-  esac
-  return 0
 }
 
 cntools_gum_require_terminal() {
@@ -2006,220 +1715,6 @@ cntools_gum_filter() {
   return "${_cntools_status}"
 }
 
-# The menu picker can run on fzf instead of "gum filter". gum matches a typed
-# query against the whole visible row (name + description), so it cannot
-# prioritise rows whose *name* begins with what was typed. fzf can: it searches
-# only the name field (--nth) while still displaying the description
-# (--with-nth), and --tiebreak=begin floats name-prefix matches to the top.
-# gum still renders everything else (headers, prompts, styled output); fzf is
-# used solely for this one list selection, and only when it is installed.
-#
-# CNTOOLS_PICKER selects the backend: "fzf" prefers fzf, "gum" forces the
-# built-in gum filter, and "auto" (the default) uses fzf when present and falls
-# back to gum otherwise.
-cntools_fzf_available() {
-  local picker="${CNTOOLS_PICKER:-auto}"
-
-  case "${picker}" in
-    gum) return 1 ;;
-    fzf | auto) ;;
-    *) return 1 ;;
-  esac
-  cntools_fzf_find || {
-    [[ "${picker}" != "fzf" ]] ||
-      cntools_gum_log ERROR "CNTOOLS_PICKER=fzf but fzf was not found"
-    return 1
-  }
-}
-
-# Locate fzf: CNTOOLS_FZF_BIN if already resolved, else the deployment's own
-# install directory (where cntools_fzf_install puts it), else PATH. A copy new
-# enough for auto-open wins; an older one is still used if it is all there is.
-cntools_fzf_find() {
-  local candidate=""
-  local fallback=""
-  local install_directory=""
-  local command_path=""
-  local -a candidates=()
-
-  if [[ -n "${CNTOOLS_FZF_BIN:-}" && -x "${CNTOOLS_FZF_BIN}" &&
-        ! -d "${CNTOOLS_FZF_BIN}" ]]; then
-    return 0
-  fi
-  CNTOOLS_FZF_BIN=""
-  install_directory="$(cntools_gum_install_directory 2>/dev/null || true)"
-  [[ -z "${install_directory}" ]] || candidates+=("${install_directory}/fzf")
-  command_path="$(type -P fzf 2>/dev/null || true)"
-  [[ -z "${command_path}" ]] || candidates+=("${command_path}")
-  for candidate in "${candidates[@]}"; do
-    candidate="$(cntools_gum_absolute_command "${candidate}" 2>/dev/null)" ||
-      continue
-    if cntools_fzf_supports_one "${candidate}"; then
-      CNTOOLS_FZF_BIN="${candidate}"
-      export CNTOOLS_FZF_BIN
-      return 0
-    fi
-    [[ -n "${fallback}" ]] || fallback="${candidate}"
-  done
-  [[ -n "${fallback}" ]] || return 1
-  CNTOOLS_FZF_BIN="${fallback}"
-  export CNTOOLS_FZF_BIN
-}
-
-# Build an fzf --color spec from the active theme, skipping any role whose
-# value is not a #rrggbb hex colour so a partial theme cannot break fzf.
-cntools_fzf_color() {
-  local spec="" role="" value="" pair=""
-  local -a pairs=(
-    "prompt:${CNTOOLS_GUM_COLOR_BRAND:-}"
-    "pointer:${CNTOOLS_GUM_COLOR_BRAND:-}"
-    "hl:${CNTOOLS_GUM_COLOR_SUCCESS:-}"
-    "hl+:${CNTOOLS_GUM_COLOR_SUCCESS:-}"
-    "fg+:${CNTOOLS_GUM_COLOR_TEXT:-}"
-    "info:${CNTOOLS_GUM_COLOR_MUTED:-}"
-  )
-
-  for pair in "${pairs[@]}"; do
-    role="${pair%%:*}"
-    value="${pair#*:}"
-    [[ "${value}" =~ ^#[0-9A-Fa-f]{6}$ ]] || continue
-    spec="${spec:+${spec},}${role}:${value}"
-  done
-  printf '%s\n' "${spec}"
-}
-
-# True when this fzf understands the "one" event (added in fzf 0.39.0), which
-# the picker binds to accept so a query that narrows to a single row opens it
-# without a further keypress. Older fzf would abort on the unknown event, so
-# the bind is only added when this returns success.
-cntools_fzf_supports_one() {
-  local bin="${1:-fzf}"
-  local raw="" version="" major="" minor=""
-
-  raw="$("${bin}" --version 2>/dev/null)" || return 1
-  version="${raw%% *}"
-  major="${version%%.*}"
-  minor="${version#*.}"
-  minor="${minor%%.*}"
-  [[ "${major}" =~ ^[0-9]+$ && "${minor}" =~ ^[0-9]+$ ]] || return 1
-  (( major > 0 )) && return 0
-  (( minor >= 39 ))
-}
-
-# Name-prefix menu picker backed by fzf. Mirrors cntools_gum_filter's contract:
-# the chosen display row is written to the named variable, and the status code
-# matches gum's (0 selected, 1 cancelled/back, 130 interrupted).
-#
-# fzf only draws the list and handles keys (--disabled turns its own matching
-# off); on every keystroke it re-runs a tiny awk filter that decides which rows
-# stay. The rule is deliberately narrow, so menu numbers and the first letters
-# of names are the whole vocabulary:
-#   - a query starting with a digit matches rows whose number contains it;
-#   - any other query matches rows whose NAME STARTS WITH it (case-insensitive).
-# Descriptions and the rest of each name are never searched. Each match key is
-# "<number>TAB<name>" (number empty for rows that have none); the input line fed
-# to fzf is "<number>TAB<name>TAB<display row>" and --with-nth=3 shows only the
-# row, which is mapped back to the caller's original row on selection.
-cntools_fzf_filter() {
-  cntools_ui_seen
-  local _cntools_output_name="${1:-}"
-  local _cntools_height="${2:-12}"
-  local _cntools_keys_name="${3:-}"
-  local _cntools_rows_name="${4:-}"
-  local _cntools_fzf_bin="" _cntools_tab=$'\t' _cntools_color=""
-  local _cntools_result="" _cntools_status=0
-  local _cntools_pressed="" _cntools_chosen="" _cntools_index=0
-  local _cntools_work=""
-  local -a _cntools_fzf_args=() _cntools_out_lines=() _cntools_lines=()
-
-  [[ "${_cntools_output_name}" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || return 2
-  [[ "${_cntools_keys_name}" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || return 2
-  [[ "${_cntools_rows_name}" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || return 2
-  local -n _cntools_output_ref="${_cntools_output_name}"
-  local -n _cntools_keys_ref="${_cntools_keys_name}"
-  local -n _cntools_rows_ref="${_cntools_rows_name}"
-  _cntools_output_ref=""
-  (( ${#_cntools_rows_ref[@]} > 0 )) || return 2
-  (( ${#_cntools_keys_ref[@]} == ${#_cntools_rows_ref[@]} )) || return 2
-  cntools_fzf_find || return 127
-  _cntools_fzf_bin="${CNTOOLS_FZF_BIN}"
-
-  for (( _cntools_index = 0;
-         _cntools_index < ${#_cntools_rows_ref[@]};
-         _cntools_index++ )); do
-    _cntools_lines+=("${_cntools_keys_ref[_cntools_index]}${_cntools_tab}${_cntools_rows_ref[_cntools_index]}")
-  done
-
-  # The filter runs in a child process per keystroke, so it reads the rows and
-  # its awk program from a private scratch directory removed below.
-  _cntools_work="$(mktemp -d "${TMPDIR:-/tmp}/cntools-fzf.XXXXXX")" || return 1
-  if [[ "${_cntools_work}" == *\'* ]]; then
-    rm -rf -- "${_cntools_work}"
-    return 1
-  fi
-  printf '%s\n' "${_cntools_lines[@]}" >"${_cntools_work}/rows"
-  cat >"${_cntools_work}/filter.awk" <<'AWK'
-BEGIN {
-  FS = "\t"
-  q = tolower(ENVIRON["Q"])
-  sub(/^ +/, "", q)
-  sub(/ +$/, "", q)
-}
-q == "" { print; next }
-q ~ /^[0-9]/ { if (index($1, q) > 0) print; next }
-{ if (index(tolower($2), q) == 1) print }
-AWK
-
-  _cntools_color="$(cntools_fzf_color)"
-  # shellcheck disable=SC2054 # the commas are inside fzf option values
-  _cntools_fzf_args=(
-    --disabled --delimiter="${_cntools_tab}" --with-nth=3 --no-multi
-    --bind="change:reload:env Q={q} awk -f '${_cntools_work}/filter.awk' '${_cntools_work}/rows'"
-    --height="${_cntools_height}" --layout=reverse --info=inline
-    # Esc and Left both leave for the parent menu (like the Back row); --expect
-    # makes fzf accept on either key and report which one on the first line.
-    --prompt='› ' --pointer='▸ ' --expect=esc,left
-  )
-  [[ -z "${_cntools_color}" ]] ||
-    _cntools_fzf_args+=(--color="${_cntools_color}")
-  # Auto-open the moment the live filter narrows to a single row (opt out with
-  # CNTOOLS_PICKER_AUTOSELECT=N; needs fzf 0.39+ for the "one" event).
-  if [[ "${CNTOOLS_PICKER_AUTOSELECT:-Y}" == "Y" ]] &&
-     cntools_fzf_supports_one "${_cntools_fzf_bin}"; then
-    _cntools_fzf_args+=(--bind=one:accept)
-  fi
-
-  _cntools_result="$(
-    "${_cntools_fzf_bin}" "${_cntools_fzf_args[@]}" <"${_cntools_work}/rows"
-  )" || _cntools_status=$?
-  rm -rf -- "${_cntools_work}"
-
-  # Ctrl+C / Ctrl+G abort; carry that through as gum's interrupt status.
-  (( _cntools_status != 130 )) || return 130
-  # A non-zero exit here means no row was accepted (empty query match); treat
-  # it like gum's cancel so the caller steps back a level.
-  (( _cntools_status == 0 )) || return 1
-
-  mapfile -t _cntools_out_lines <<< "${_cntools_result}"
-  # With --expect, Escape and Left accept and print the key name on the first
-  # line; map both to cancel so either one means "go back", as Escape does
-  # under gum.
-  _cntools_pressed="${_cntools_out_lines[0]:-}"
-  [[ "${_cntools_pressed}" != "esc" && "${_cntools_pressed}" != "left" ]] || return 1
-  _cntools_chosen="${_cntools_out_lines[1]:-}"
-  [[ -n "${_cntools_chosen}" ]] || return 1
-  # Map the chosen line back to the caller's original row.
-  for (( _cntools_index = 0;
-         _cntools_index < ${#_cntools_lines[@]};
-         _cntools_index++ )); do
-    if [[ "${_cntools_lines[_cntools_index]}" == "${_cntools_chosen}" ]]; then
-      _cntools_output_ref="${_cntools_rows_ref[_cntools_index]}"
-      return 0
-    fi
-  done
-  return 1
-}
-
 cntools_gum_menu_row_into() {
   local output_name="${1:-}"
   local index="${2:-0}"
@@ -2414,12 +1909,24 @@ cntools_gum_menu_run() {
       "${#rows[@]}" "${rows_above_filter}")" || return 1
 
     selected_row=""
-    if cntools_fzf_available; then
-      cntools_fzf_filter selected_row "${height}" match_keys rows
-      filter_status=$?
+    filter_status=0
+    if declare -F cntools_fzf_available >/dev/null 2>&1 &&
+       cntools_fzf_available; then
+      cntools_fzf_filter selected_row "${height}" match_keys rows \
+        "${cache_menu_id}" || filter_status=$?
+      if (( filter_status != 0 && filter_status != 1 &&
+            filter_status != 130 )); then
+        # A broken fzf must not leave the menu unusable: use the Gum filter
+        # for the rest of this session.
+        CNTOOLS_FZF_VERIFIED=""
+        status_level="warn"
+        status_message="fzf stopped working (status ${filter_status}), so menus use the Gum filter until CNTools restarts. See ${CNTOOLS_LOG:-the CNTools log}."
+        cntools_gum_clear
+        continue
+      fi
     else
-      cntools_gum_filter selected_row "${height}" "${rows[@]}"
-      filter_status=$?
+      cntools_gum_filter selected_row "${height}" "${rows[@]}" ||
+        filter_status=$?
     fi
     if (( filter_status == 1 )); then
       # Gum v2 reports its second-Escape cancellation as status 1 and writes
@@ -2563,12 +2070,17 @@ cntools_gum_menu_activate() {
         (( action_status != 0 )) || action_status=2
       fi
       ;;
-    settings/transaction-defaults|settings/flow-style)
+    settings/transaction-defaults|settings/flow-style|settings/navigation)
       if declare -F cntools_settings_reload >/dev/null 2>&1 &&
          ! cntools_settings_reload; then
         cntools_gum_log ERROR \
           "Could not activate the saved transaction settings in the parent session"
         (( action_status != 0 )) || action_status=2
+      fi
+      # Navigation may have installed fzf for this session to pick up.
+      if [[ "${CNTOOLS_MENU_IDS[selected_index]}" == settings/navigation ]] &&
+         declare -F cntools_fzf_find >/dev/null 2>&1; then
+        cntools_fzf_find || true
       fi
       ;;
   esac

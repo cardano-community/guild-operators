@@ -20,7 +20,7 @@ cntools_pool_registration_choose_eligible_into() {
     case "${CNTOOLS_WALLET_REGISTER_OPERATION}" in
       pool-register) reason='No pool is ready to register. Register needs a pool with a verified cold public key that is not registered on chain.' ;;
       pool-modify) reason='No registered pool to modify. Modify needs a registered pool with a verified cold public key.' ;;
-      *) reason='No registered pool to retire. Retire needs a registered pool with a verified cold public key.' ;;
+      *) reason='No registered pool to retire. Unregister needs a registered pool with a verified cold public key.' ;;
     esac
     if ((unchecked > 0)); then
       reason+=" The registration of $(cntools_number_format "${unchecked}") pool$( ((unchecked == 1)) || printf s) could not be checked; see ${CNTOOLS_LOG}."
@@ -133,12 +133,12 @@ cntools_pool_wizard_followups() {
     if [[ "${CNTOOLS_POOL_OPCERT_OFFLINE:-N}" == Y ]]; then
       cntools_pool_file_name_into cert opcert; cntools_pool_file_name_into counter counter
       if cntools_pool_registration_cold_encrypted; then
-        cntools_table_pair 'Operational certificate' "The cold signing key is encrypted. Use Pool → Decrypt, then Pool → Rotate to issue ${cert}; or issue it on the signing system with the real ${counter}." warning
+        cntools_table_pair 'Operational certificate' "The cold signing key is encrypted. Use Pool → Decrypt, then Pool → KES Rotate to issue ${cert}; or issue it on the signing system with the real ${counter}." warning
       elif [[ -n "${CNTOOLS_POOL_REG_COLD_SOURCE}" ]]; then
         # Unsigned package, cold key on this system: Rotate issues it here.
-        cntools_table_pair 'Operational certificate' "Issue ${cert} with Pool → Rotate on this system; it uses the cold key here and the real ${counter}." warning
+        cntools_table_pair 'Operational certificate' "Issue ${cert} with Pool → KES Rotate on this system; it uses the cold key here and the real ${counter}." warning
       else
-        cntools_table_pair 'Operational certificate' "Use Pool → Rotate → Prepare offline request here, sign it with Pool → Rotate → Sign an offline request on the system that holds the cold key, then reopen Pool → Rotate here to install ${cert}. Never copy the cold signing key to the node." warning
+        cntools_table_pair 'Operational certificate' "Use Pool → KES Rotate → Prepare offline request here, sign it with Pool → KES Rotate → Sign an offline request on the system that holds the cold key, then reopen Pool → KES Rotate here to install ${cert}. Never copy the cold signing key to the node." warning
       fi
     elif [[ -n "${CNTOOLS_POOL_OPCERT_NOTE:-}" ]]; then
       cntools_table_pair 'Operational certificate' "${CNTOOLS_POOL_OPCERT_NOTE}" warning

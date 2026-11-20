@@ -61,7 +61,7 @@ cntools_wallet_register_operation_set() {
       CNTOOLS_VOTE_REGISTER=N CNTOOLS_VOTE_REGISTRATION_CONFIRMED=N
       CNTOOLS_WALLET_REGISTER_OPERATION=vote-delegate
       CNTOOLS_WALLET_REGISTER_TITLE=Delegate
-      CNTOOLS_WALLET_REGISTER_PATH='/ Vote / Governance / Delegate'
+      CNTOOLS_WALLET_REGISTER_PATH='/ Vote / On-chain Governance / Delegate'
       CNTOOLS_WALLET_REGISTER_NOUN='voting delegation'
       CNTOOLS_WALLET_REGISTER_VERB='delegate voting power'
       CNTOOLS_WALLET_REGISTER_PAST=delegated
@@ -102,8 +102,8 @@ cntools_wallet_register_operation_set() {
       ;;
     deregister)
       CNTOOLS_WALLET_REGISTER_OPERATION="deregister"
-      CNTOOLS_WALLET_REGISTER_TITLE="De-Register"
-      CNTOOLS_WALLET_REGISTER_PATH="/ Wallet / De-Register"
+      CNTOOLS_WALLET_REGISTER_TITLE="Unregister"
+      CNTOOLS_WALLET_REGISTER_PATH="/ Wallet / Unregister"
       CNTOOLS_WALLET_REGISTER_NOUN="de-registration"
       CNTOOLS_WALLET_REGISTER_VERB="de-register"
       CNTOOLS_WALLET_REGISTER_PAST="de-registered"

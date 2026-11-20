@@ -738,7 +738,7 @@ cntools_send_workflow() {
   if [[ "${choice}" == 'Create unsigned package' ]]; then
     cntools_send_save_into saved "${staged}" unsigned || return 2
     cntools_send_begin
-    cntools_send_render_result success 'Ready for offline signing · Transaction → Sign, then Submit' "${CNTOOLS_TRANSACTION_ID}" "${saved}"
+    cntools_send_render_result success 'Ready for offline signing · Transaction → Sign, then Post / Submit' "${CNTOOLS_TRANSACTION_ID}" "${saved}"
     return $?
   fi
   cntools_transaction_package_load "${signed}" || return 2
@@ -748,7 +748,7 @@ cntools_send_workflow() {
   cntools_send_save_into saved "${signed}" signed || return 2
   if [[ "${choice}" == 'Create and sign' ]]; then
     cntools_send_begin
-    cntools_send_render_result success 'Signed · ready for Transaction → Submit' "${CNTOOLS_TRANSACTION_ID}" "${saved}"
+    cntools_send_render_result success 'Signed · ready for Transaction → Post / Submit' "${CNTOOLS_TRANSACTION_ID}" "${saved}"
     return $?
   fi
   cntools_transaction_submit_input_prepare "${saved}" || return 2

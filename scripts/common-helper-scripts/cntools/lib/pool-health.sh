@@ -32,7 +32,7 @@ cntools_pool_health_mismatch() {
   encoded="$(jq -esr 'select(length == 1 and .[0].type == "NodeOperationalCertificate") | .[0].cborHex | ascii_downcase' "${cert}" 2>/dev/null)" || encoded=''
   pattern="^82845820[0-9a-f]{64}${CNTOOLS_POOL_HEALTH_UINT}${CNTOOLS_POOL_HEALTH_UINT}5840[0-9a-f]{128}5820${cold_hex}\$"
   if [[ -n "${encoded}" && "${encoded}" =~ ${pattern} ]]; then
-    cntools_pool_warning_add "${index}" "${opcert} was issued for another KES key than ${hot}, so the node cannot use them together. Restore the matching KES key pair, or issue a new certificate with Pool → Rotate"
+    cntools_pool_warning_add "${index}" "${opcert} was issued for another KES key than ${hot}, so the node cannot use them together. Restore the matching KES key pair, or issue a new certificate with Pool → KES Rotate"
   elif [[ "${encoded}" =~ ^82845820[0-9a-f]{64} ]]; then
     cntools_pool_warning_add "${index}" "${opcert} was not issued by this pool's cold key"
   else

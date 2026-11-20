@@ -67,7 +67,8 @@ cntools_wallet_delegation_info_render() {
         cntools_table_pair "${key}" "${value}" "${role}"
       done
     } | cntools_table_render 'Delegated DRep · Koios'
-    # Quick skips the third-party download; Governance → Info still offers it.
+    # Quick skips the third-party download; On-chain Governance → Info & Status
+    # still offers it.
     cntools_flow_quick ||
       cntools_public_metadata_offer "$(jq -r '.meta_url // ""' <<< "${record}")" "$(jq -r '.meta_hash // ""' <<< "${record}")"
   fi

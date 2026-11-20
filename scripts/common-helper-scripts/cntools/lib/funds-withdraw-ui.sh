@@ -171,7 +171,7 @@ cntools_withdraw_workflow() {
     cntools_transaction_save_into saved "${staged}" unsigned withdraw-rewards || return 2
     CNTOOLS_WITHDRAW_SAVED_PACKAGE="${saved}"
     cntools_withdraw_begin
-    cntools_withdraw_result success 'Ready for offline signing · Transaction → Sign, then Submit' "${CNTOOLS_TRANSACTION_ID}" "${saved}"
+    cntools_withdraw_result success 'Ready for offline signing · Transaction → Sign, then Post / Submit' "${CNTOOLS_TRANSACTION_ID}" "${saved}"
     return $?
   fi
   cntools_transaction_package_load "${signed}" || return 2
@@ -180,7 +180,7 @@ cntools_withdraw_workflow() {
   CNTOOLS_WITHDRAW_SAVED_PACKAGE="${saved}"
   if [[ "${workflow}" == 'Create and sign' ]]; then
     cntools_withdraw_begin
-    cntools_withdraw_result success 'Signed · ready for Transaction → Submit' "${CNTOOLS_TRANSACTION_ID}" "${saved}"
+    cntools_withdraw_result success 'Signed · ready for Transaction → Post / Submit' "${CNTOOLS_TRANSACTION_ID}" "${saved}"
     return $?
   fi
   cntools_transaction_submit_input_prepare "${saved}" || return 2

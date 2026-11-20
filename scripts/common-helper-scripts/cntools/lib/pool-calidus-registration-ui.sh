@@ -327,7 +327,7 @@ cntools_calidus_registration_workflow() {
   if [[ "${workflow}" == 'Create unsigned package' ]]; then
     cntools_transaction_save_into saved "${staged}" unsigned "calidus-${CNTOOLS_CALIDUS_OPERATION}" || return 2
     cntools_calidus_registration_begin
-    cntools_transaction_ui_render_result success 'Ready for offline funding-wallet signing · Transaction → Sign, then Submit' "${CNTOOLS_TRANSACTION_ID}" "${saved}"
+    cntools_transaction_ui_render_result success 'Ready for offline funding-wallet signing · Transaction → Sign, then Post / Submit' "${CNTOOLS_TRANSACTION_ID}" "${saved}"
     return $?
   fi
   cntools_transaction_package_load "${signed}" || return 2
@@ -335,7 +335,7 @@ cntools_calidus_registration_workflow() {
   cntools_transaction_save_into saved "${signed}" signed "calidus-${CNTOOLS_CALIDUS_OPERATION}" || return 2
   if [[ "${workflow}" == 'Create and sign' ]]; then
     cntools_calidus_registration_begin
-    cntools_transaction_ui_render_result success 'Signed · ready for Transaction → Submit' "${CNTOOLS_TRANSACTION_ID}" "${saved}"
+    cntools_transaction_ui_render_result success 'Signed · ready for Transaction → Post / Submit' "${CNTOOLS_TRANSACTION_ID}" "${saved}"
     return $?
   fi
   cntools_transaction_submit_input_prepare "${saved}" || return 2

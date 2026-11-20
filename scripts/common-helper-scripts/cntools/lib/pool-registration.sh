@@ -29,11 +29,15 @@ CNTOOLS_POOL_REG_BLS_NOTE=''
 CNTOOLS_POOL_BLS_REGISTRATION=N
 
 cntools_pool_registration_operation_set() {
-  case "$1" in pool-register) CNTOOLS_WALLET_REGISTER_TITLE=Register ;; pool-modify) CNTOOLS_WALLET_REGISTER_TITLE=Modify ;; pool-retire) CNTOOLS_WALLET_REGISTER_TITLE=Retire ;; *) return 2 ;; esac
+  # The title is the menu label; the noun and intent keep the verb.
+  local verb=''
+  case "$1" in pool-register) verb=Register ;; pool-modify) verb=Modify ;; pool-retire) verb=Retire ;; *) return 2 ;; esac
+  CNTOOLS_WALLET_REGISTER_TITLE="${verb}"
+  [[ "$1" != pool-retire ]] || CNTOOLS_WALLET_REGISTER_TITLE=Unregister
   CNTOOLS_WALLET_REGISTER_OPERATION="$1"
   CNTOOLS_WALLET_REGISTER_PATH="/ Pool / ${CNTOOLS_WALLET_REGISTER_TITLE}"
-  CNTOOLS_WALLET_REGISTER_NOUN="pool ${CNTOOLS_WALLET_REGISTER_TITLE,,}"
-  CNTOOLS_WALLET_REGISTER_INTENT="Pool ${CNTOOLS_WALLET_REGISTER_TITLE,,}"
+  CNTOOLS_WALLET_REGISTER_NOUN="pool ${verb,,}"
+  CNTOOLS_WALLET_REGISTER_INTENT="Pool ${verb,,}"
   CNTOOLS_WALLET_REGISTER_FILE_SUFFIX="$1"
   CNTOOLS_WALLET_REGISTER_DEPOSIT_EFFECT=charged
   CNTOOLS_WALLET_REGISTER_DEPOSIT_LABEL='Pool deposit'

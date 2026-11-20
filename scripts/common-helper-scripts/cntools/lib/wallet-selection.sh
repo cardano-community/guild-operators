@@ -151,7 +151,7 @@ cntools_wallet_selection_empty_reason_into() {
     catalyst) reason='No wallet has the payment and stake keys needed for Catalyst registration.' ;;
     catalyst-key) reason='No wallet has a Catalyst voting public key. Register for Catalyst first.' ;;
     catalyst-qr) reason='No wallet has an unencrypted Catalyst voting signing key. Register for Catalyst, or decrypt the wallet first.' ;;
-    drep-info|drep-register|drep-update|drep-retire|gov-vote) reason='No wallet has a DRep key or DRep script. Use Vote → Governance → Derive Keys or MultiSig DRep first.' ;;
+    drep-info|drep-register|drep-update|drep-retire|gov-vote) reason='No wallet has a DRep key or DRep script. Use Vote → On-chain Governance → Key Derivation or MultiSig DRep first.' ;;
     drep-key) reason='No wallet has a DRep verification key.' ;;
     drep-create) reason='No wallet can take new DRep keys: it must be an open CLI or mnemonic wallet without existing DRep files.' ;;
     drep-script-create) reason='No wallet can take a DRep script: every wallet already has DRep files.' ;;

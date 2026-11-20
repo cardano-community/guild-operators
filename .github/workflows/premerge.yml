@@ -66,6 +66,8 @@ jobs:
       run: bash files/tests/cntools-kes-reload-hint.sh
     - name: Test CNTools KES period without a genesis file
       run: bash files/tests/cntools-kes-period.sh
+    - name: Test CNTools hotkey menus and the fzf picker
+      run: bash files/tests/cntools-fzf-picker.sh
     - name: Test cnode pre-release networks
       run: bash files/tests/cnode-prerelease-networks.sh
     - name: Test binary layout migration

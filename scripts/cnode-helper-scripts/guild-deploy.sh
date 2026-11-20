@@ -2802,7 +2802,7 @@ dispatcher_layout_check_cnode() {
 dispatcher_layout_select_copies() {
   local want_download="$1"
   local tool="" shared="${HOME}/.local/bin"
-  local -a tools=(cardano-hw-cli gum)
+  local -a tools=(cardano-hw-cli gum fzf)
 
   if [[ "${NODE_IMPLEMENTATION}" = "cnode" ]]; then
     tools+=(cncli ogmios cardano-signer mithril-signer mithril-client)
@@ -3035,7 +3035,7 @@ dispatcher_binary_layout_report() {
   [[ -d "${NODE_HOME}/bin" ]] || return 0
   for tool in cardano-node cardano-cli cardano-submit-api bech32 cardano-address cardano-db-sync \
     cncli ogmios cardano-signer mithril-signer mithril-client cardano-hw-cli HID.node HID_hidraw.node \
-    gum dingo amaru otelcol-contrib; do
+    gum fzf dingo amaru otelcol-contrib; do
     [[ -f "${shared}/${tool}" && -f "${NODE_HOME}/bin/${tool}" ]] || continue
     old_copies+=("${tool}")
     cmp -s -- "${shared}/${tool}" "${NODE_HOME}/bin/${tool}" || differs+=("${tool}")

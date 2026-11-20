@@ -11,6 +11,7 @@ and this adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Complete Bash rewrite with a stable launcher, modular menus and focused libraries loaded on demand, retaining the CNTools name and wallet layout.
 - Responsive Charm Gum interface with searchable navigation, consistent guided workflows, readable tables, persistent themes and transaction settings.
 - Go to in every menu (type `00`): search every menu and action, or jump with saved shortcut codes managed in Settings → Shortcuts.
+- Hotkey menus: type the highlighted start of a name, usually one letter, or the row number to open it at once. This uses fzf 0.75.0, which startup offers to install; Settings → Navigation chooses Hotkeys, Hotkeys with Enter or the Gum filter. Menu items were renamed so each starts with its own letter in its menu.
 - Local-node, Koios light and offline operation, with optional metadata enrichment and clear backend availability.
 - Wallet creation/import for CLI, mnemonic and hardware identities; balance, asset, transaction and UTxO inspection; stake registration and key protection/removal.
 - Shared transaction review, exact fee balancing, CLI/hardware/multisig signing, portable offline packages, submission and optional Koios block-inclusion monitoring.

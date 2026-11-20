@@ -174,7 +174,7 @@ cntools_proposal_page_stats() {
 cntools_governance_action_proposals() {
   local size=5 resized='' page=0 total=0 first=0 last=0 index=0 record='' choice='' selection='' status=0
   local -a choices=()
-  cntools_ui_action_begin 'List Proposals' '/ Vote / Governance / List Proposals'
+  cntools_ui_action_begin 'List Proposals' '/ Vote / On-chain Governance / List Proposals'
   if ! cntools_ui_spin_function 'Collecting active governance proposals…' cntools_proposals_query; then
     cntools_ui_render_status error "${CNTOOLS_TRANSACTION_ERROR:-Proposal lookup failed.}"; cntools_ui_wait; return 1
   fi
@@ -187,7 +187,7 @@ cntools_governance_action_proposals() {
     total="$(jq length <<< "${CNTOOLS_PROPOSALS}")" || return 1
     first=$((page*size)); last=$((first+size)); ((last <= total)) || last="${total}"
     cntools_proposal_page_stats "${first}" "${last}"
-    cntools_ui_action_begin 'List Proposals' '/ Vote / Governance / List Proposals'
+    cntools_ui_action_begin 'List Proposals' '/ Vote / On-chain Governance / List Proposals'
     cntools_proposal_page_header "${total}" "${first}" "${last}" || return 1
     for ((index=first; index<last; index++)); do
       record="$(jq -c --argjson n "${index}" '.[$n]' <<< "${CNTOOLS_PROPOSALS}")" || return 1
@@ -220,7 +220,7 @@ cntools_governance_action_proposals() {
         ((status != 130)) || return 130
         ((status == 0)) || continue
         cntools_proposal_select "${selection}" || return 1
-        cntools_ui_action_begin 'Proposal details' '/ Vote / Governance / List Proposals'
+        cntools_ui_action_begin 'Proposal details' '/ Vote / On-chain Governance / List Proposals'
         status=0
         cntools_proposal_details "${CNTOOLS_PROPOSAL_SELECTED}" || status=$?
         ((status != 130)) || return 130

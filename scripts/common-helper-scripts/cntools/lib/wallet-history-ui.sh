@@ -180,7 +180,7 @@ cntools_history_action() {
   local choice="" record="" number=0 target=0 stake="" lookup=payment summary_title=""
   local payment_credential="" status=0 shown="" addresses=0
   local -a choices=()
-  [[ "${kind}" != utxos ]] || title="UTxO List"
+  [[ "${kind}" != utxos ]] || title="View UTxOs"
   cntools_ui_action_begin "${title}" "/ Wallet / ${title}"
   if ! cntools_history_available && ! { [[ "${kind}" == utxos ]] && cntools_history_local_available; }; then
     cntools_ui_render_status warn "Koios is unavailable. These views require an online Koios connection."

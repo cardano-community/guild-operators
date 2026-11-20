@@ -6,7 +6,7 @@ declare -ag CNTOOLS_DREP_SCRIPT_SOURCES=()
 
 cntools_drep_script_begin() {
   cntools_gum_clear
-  cntools_ui_action_begin 'MultiSig DRep' '/ Vote / Governance / MultiSig DRep'
+  cntools_ui_action_begin 'MultiSig DRep' '/ Vote / On-chain Governance / MultiSig DRep'
 }
 
 cntools_drep_script_render_participants() {
@@ -168,7 +168,7 @@ cntools_drep_script_workflow() {
       { cntools_table_pair Wallet "${wallet}" identifier; cntools_table_pair Threshold "${threshold} of ${#CNTOOLS_DREP_SCRIPT_HASHES[@]}" number; } |
         cntools_table_render 'DRep identity' || return 2
       [[ -z "${note}" ]] || cntools_ui_render_status info "${note}"
-      cntools_ui_render_status warn 'The participants and threshold permanently define this DRep ID. This creates the identity only; register it through DRep Registration / Update.'
+      cntools_ui_render_status warn 'The participants and threshold permanently define this DRep ID. This creates the identity only; register it through Update/Create DRep.'
       choices=('Create this DRep identity')
       ((${#CNTOOLS_DREP_SCRIPT_HASHES[@]} == 1)) || choices+=('Change threshold')
       choices+=('Change participants' Cancel)
@@ -215,7 +215,7 @@ cntools_drep_script_workflow() {
     cntools_table_pair Threshold "${threshold} of ${#CNTOOLS_DREP_SCRIPT_HASHES[@]}" number
     cntools_table_pair 'Saved in' "${directory}" identifier
   } | cntools_table_render 'DRep identity' || return 2
-  cntools_ui_render_status success "DRep script and ID saved in ${wallet}. No transaction was made. The participants and threshold permanently define this ID: back up both public files and keep each participant signing key separately protected. Register it through DRep Registration / Update."
+  cntools_ui_render_status success "DRep script and ID saved in ${wallet}. No transaction was made. The participants and threshold permanently define this ID: back up both public files and keep each participant signing key separately protected. Register it through Update/Create DRep."
 }
 
 cntools_drep_script_action_create() {

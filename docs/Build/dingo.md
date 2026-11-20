@@ -222,7 +222,8 @@ Dingo re-reads the credential files and switches to them only if the new set
 validates; otherwise it keeps forging with the current set and logs why. The
 command refuses to signal a service that was started as a relay, because a
 relay exits on that signal. Use `restart` to change between relay and producer
-mode. CNTools **Pool → Rotate** offers this reload after it installs a new set.
+mode. CNTools **Pool → KES Rotate** offers this reload after it installs a new
+set.
 
 `dingo.sh bootstrap` always forces relay mode and does not require hot keys.
 This permits state import before the operational credentials are copied. The

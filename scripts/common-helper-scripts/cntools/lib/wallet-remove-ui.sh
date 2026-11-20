@@ -192,7 +192,7 @@ cntools_wallet_action_remove() {
   local protection=""
   local status=0
 
-  cntools_ui_action_begin "Remove" "/ Wallet / Remove"
+  cntools_ui_action_begin "Permanently Remove" "/ Wallet / Permanently Remove"
   if ! cntools_wallet_catalog_build; then
     cntools_ui_render_status error \
       "The wallet directory could not be read safely. See ${CNTOOLS_LOG}."
@@ -220,7 +220,7 @@ cntools_wallet_action_remove() {
   wallet_name="${CNTOOLS_WALLET_NAMES[selected_index]}"
   wallet_type="${CNTOOLS_WALLET_TYPES[selected_index]}"
   protection="${CNTOOLS_WALLET_PROTECTIONS[selected_index]}"
-  cntools_ui_action_begin "Remove" "/ Wallet / Remove"
+  cntools_ui_action_begin "Permanently Remove" "/ Wallet / Permanently Remove"
   if ! cntools_wallet_prepare_selected_material "${wallet_directory}"; then
     cntools_wallet_remove_log WARN \
       "Some public wallet material could not be prepared before removal wallet=${wallet_name}"
@@ -245,7 +245,7 @@ cntools_wallet_action_remove() {
     return 1
   fi
 
-  cntools_ui_action_begin "Remove" "/ Wallet / Remove"
+  cntools_ui_action_begin "Permanently Remove" "/ Wallet / Permanently Remove"
   cntools_wallet_remove_render_review \
     "${wallet_directory}" "${wallet_type}" "${protection}" || return 1
   cntools_wallet_remove_render_warnings
@@ -270,7 +270,7 @@ cntools_wallet_action_remove() {
   else
     status=$?
   fi
-  cntools_ui_action_begin "Remove" "/ Wallet / Remove"
+  cntools_ui_action_begin "Permanently Remove" "/ Wallet / Permanently Remove"
   if (( status != 0 )); then
     cntools_ui_render_status error \
       "${CNTOOLS_WALLET_REMOVE_ERROR:-Wallet removal failed. See ${CNTOOLS_LOG}.}"

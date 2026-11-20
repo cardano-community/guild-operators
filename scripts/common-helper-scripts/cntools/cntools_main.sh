@@ -44,7 +44,7 @@ unset CNTOOLS_SHARED_LIBRARY
 
 for CNTOOLS_CORE_FILE in \
   startup.sh log.sh update.sh menu.sh action.sh theme.sh settings.sh gum.sh \
-  shortcuts.sh health.sh; do
+  fzf.sh shortcuts.sh health.sh; do
   if [[ ! -f "${CNTOOLS_CORE_DIR}/${CNTOOLS_CORE_FILE}" ||
         -L "${CNTOOLS_CORE_DIR}/${CNTOOLS_CORE_FILE}" ||
         ! -s "${CNTOOLS_CORE_DIR}/${CNTOOLS_CORE_FILE}" ]]; then
@@ -135,7 +135,7 @@ cntools_main() {
   cntools_startup_use_utf8_locale || return 1
   cntools_gum_require || return 1
   cntools_gum_require_terminal || return 1
-  # Optional: offers fzf for the menu picker; never blocks startup.
+  # Optional: offers fzf for single-key menus; never blocks startup.
   cntools_fzf_require || true
   cntools_update_init
   cntools_ui_init || return 1

@@ -167,7 +167,7 @@ cntools_wallet_protection_lock_only_action() {
     return 1
   fi
   if [[ "${mode}" == relock ]]; then
-    cntools_ui_render_status info "${directory##*/} is encrypted, but its files are writable again (as after Restore). Only its file permissions and immutable flags change; no key is decrypted or encrypted again."
+    cntools_ui_render_status info "${directory##*/} is encrypted, but its files are writable again (as after Perform Restore). Only its file permissions and immutable flags change; no key is decrypted or encrypted again."
   elif [[ "${mode}" == unlock ]]; then
     cntools_ui_render_status info "${directory##*/} has plaintext signing keys in locked files. Only its file permissions and immutable flags change; no key is decrypted or encrypted."
   else

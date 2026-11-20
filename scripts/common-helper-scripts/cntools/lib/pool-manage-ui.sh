@@ -173,7 +173,7 @@ cntools_pool_action_protection() {
   # After Restore an encrypted pool's files are writable again: lock them
   # without decrypting anything, as Wallet → Encrypt does.
   if [[ "${operation}" == encrypt && "${encrypted}" == Y ]] && (( ${#keys[@]} == 0 )) && ! cntools_pool_directory_locked "${directory}"; then
-    cntools_ui_render_status info "${CNTOOLS_POOL_NAMES[selected]} is encrypted, but its files are writable again (as after Restore). Only its file permissions and immutable flags change; no key is decrypted or encrypted again."
+    cntools_ui_render_status info "${CNTOOLS_POOL_NAMES[selected]} is encrypted, but its files are writable again (as after Perform Restore). Only its file permissions and immutable flags change; no key is decrypted or encrypted again."
     status=0; cntools_ui_flow_confirm "Lock the files of ${CNTOOLS_POOL_NAMES[selected]}?" false || status=$?
     ((status != 1)) || return 0; ((status == 0)) || return "${status}"
     cntools_transaction_log CHOICE "Pool relock started pool=${directory##*/}"

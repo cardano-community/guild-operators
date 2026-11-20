@@ -10,6 +10,9 @@ CNTOOLS_SETTINGS_STAGE_FILE=""
 # Empty until the user picks Quick or Detailed; kept apart from the
 # transaction defaults so restoring those never resets it.
 CNTOOLS_FLOW_STYLE=""
+# How menus answer typing (Settings → Navigation): hotkeys, hotkeys-enter or
+# filter. Empty means hotkeys; core/fzf.sh reads it.
+CNTOOLS_MENU_NAVIGATION=""
 
 cntools_settings_defaults() {
   CNTOOLS_SEND_CHOOSE_CHANGE=N
@@ -99,9 +102,11 @@ cntools_settings_file_valid() {
     type == "object" and
     (keys - ["coinSelection", "interaction", "schemaVersion", "tokenFragmentation", "utxoManagement"] | length == 0) and
     (if has("interaction") then (.interaction | type == "object" and
-      (keys - ["chooseSendChange", "defaultTtlSeconds", "flowStyle"] | length == 0) and
+      (keys - ["chooseSendChange", "defaultTtlSeconds", "flowStyle", "navigation"] | length == 0) and
       has("chooseSendChange") and has("defaultTtlSeconds") and
       ((has("flowStyle") | not) or .flowStyle == "quick" or .flowStyle == "detailed") and
+      ((has("navigation") | not) or .navigation == "hotkeys" or
+        .navigation == "hotkeys-enter" or .navigation == "filter") and
       (.chooseSendChange | type == "boolean") and
       (.defaultTtlSeconds | type == "number" and floor == . and . >= 0 and . <= 31536000)) else true end) and
     .schemaVersion == $schema and
@@ -134,6 +139,7 @@ cntools_settings_apply_file() {
   local file="${1:-}"
   local record=""
   local flow_style=""
+  local navigation=""
   local sentinel=""
 
   cntools_settings_file_valid "${file}" || return 1
@@ -153,6 +159,7 @@ cntools_settings_apply_file() {
       (if .interaction.chooseSendChange == true then "Y" else "N" end),
       ((.interaction.defaultTtlSeconds // 1800) | tostring),
       (.interaction.flowStyle // "unset"),
+      (.interaction.navigation // "unset"),
       "."
     ] | join("\u001f")
   ' "${file}")" || return 1
@@ -171,9 +178,11 @@ cntools_settings_apply_file() {
     CNTOOLS_SEND_CHOOSE_CHANGE \
     CNTOOLS_TX_DEFAULT_TTL \
     flow_style \
+    navigation \
     sentinel <<< "${record}"
   [[ "${sentinel}" == "." ]] || return 1
   [[ "${flow_style}" == unset ]] || CNTOOLS_FLOW_STYLE="${flow_style}"
+  [[ "${navigation}" == unset ]] || CNTOOLS_MENU_NAVIGATION="${navigation}"
   # One new output per percentage. Older saves could keep a stale lower count.
   if [[ -n "${CNTOOLS_TX_UTXO_PERCENTAGES}" ]]; then
     local -a percentages=()
@@ -196,7 +205,9 @@ cntools_settings_values_valid() {
   local -a percentages=()
   [[ "${CNTOOLS_SEND_CHOOSE_CHANGE:-N}" =~ ^[YN]$ &&
      "${CNTOOLS_TX_DEFAULT_TTL:-1800}" =~ ^(0|[1-9][0-9]{0,7})$ &&
-     "${CNTOOLS_FLOW_STYLE:-}" =~ ^(quick|detailed)?$ ]] || return 1
+     "${CNTOOLS_FLOW_STYLE:-}" =~ ^(quick|detailed)?$ &&
+     "${CNTOOLS_MENU_NAVIGATION:-}" =~ ^(hotkeys|hotkeys-enter|filter)?$ ]] ||
+    return 1
   (( ${CNTOOLS_TX_DEFAULT_TTL:-1800} <= 31536000 )) || return 1
 
   case "${CNTOOLS_TX_SELECTION_STRATEGY:-}" in
@@ -263,11 +274,13 @@ cntools_settings_json() {
     --arg collateralLovelace "${CNTOOLS_TX_COLLATERAL_LOVELACE}" \
     --arg chooseChange "${CNTOOLS_SEND_CHOOSE_CHANGE:-N}" \
     --argjson ttl "${CNTOOLS_TX_DEFAULT_TTL:-1800}" \
-    --arg flowStyle "${CNTOOLS_FLOW_STYLE:-}" '
+    --arg flowStyle "${CNTOOLS_FLOW_STYLE:-}" \
+    --arg navigation "${CNTOOLS_MENU_NAVIGATION:-}" '
       {
         schemaVersion: $schemaVersion,
         interaction: ({chooseSendChange: ($chooseChange == "Y"), defaultTtlSeconds: $ttl} +
-          (if $flowStyle == "" then {} else {flowStyle: $flowStyle} end)),
+          (if $flowStyle == "" then {} else {flowStyle: $flowStyle} end) +
+          (if $navigation == "" then {} else {navigation: $navigation} end)),
         coinSelection: {strategy: $strategy},
         tokenFragmentation: {
           enabled: $tokenEnabled,
@@ -467,6 +480,27 @@ cntools_flow_style_first_run() {
     CNTOOLS_GUM_STARTUP_STATUS_LEVEL=warn
     CNTOOLS_GUM_STARTUP_STATUS_MESSAGE="${earlier:+${earlier} }Using $(cntools_flow_style_name "${style}") for this session; it could not be saved. See ${CNTOOLS_LOG}."
   fi
+}
+
+cntools_navigation_name() {
+  case "${1:-${CNTOOLS_MENU_NAVIGATION:-}}" in
+    hotkeys|"") printf 'Hotkeys' ;;
+    hotkeys-enter) printf 'Hotkeys with Enter' ;;
+    filter) printf 'Filter' ;;
+    *) return 2 ;;
+  esac
+}
+
+cntools_navigation_save() {
+  local navigation="${1:-}" previous="${CNTOOLS_MENU_NAVIGATION:-}"
+
+  [[ "${navigation}" =~ ^(hotkeys|hotkeys-enter|filter)$ ]] || return 2
+  CNTOOLS_MENU_NAVIGATION="${navigation}"
+  if ! cntools_settings_save; then
+    cntools_settings_log WARN "Navigation could not be saved; using ${navigation} for this session"
+    return 1
+  fi
+  cntools_settings_log SETTINGS "navigation=${navigation} previous=${previous:-unset}"
 }
 
 cntools_settings_strategy_name() {

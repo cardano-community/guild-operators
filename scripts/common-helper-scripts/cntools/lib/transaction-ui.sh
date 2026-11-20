@@ -211,7 +211,7 @@ cntools_transaction_ui_review_into() {
           cntools_transaction_log REVIEW 'Transaction expiry unverified; signing/submission continuation disabled' ;;
         *)
           if [[ "${proceed_allowed}" == N ]]; then
-            cntools_ui_render_status info 'This package is already fully signed. Use Transaction → Submit to submit it.' || return 2
+            cntools_ui_render_status info 'This package is already fully signed. Use Transaction → Post / Submit to submit it.' || return 2
           fi ;;
       esac
     fi
@@ -755,7 +755,7 @@ cntools_transaction_ui_render_prepared_review() {
 }
 
 cntools_transaction_ui_sign_begin() { cntools_ui_action_begin Sign '/ Transaction / Sign'; }
-cntools_transaction_ui_submit_begin() { cntools_ui_action_begin Submit '/ Transaction / Submit'; }
+cntools_transaction_ui_submit_begin() { cntools_ui_action_begin 'Post / Submit' '/ Transaction / Post / Submit'; }
 
 
 cntools_transaction_ui_normalize_path_into() {
@@ -1325,7 +1325,7 @@ cntools_transaction_action_sign() {
     return 1
   fi
   if [[ "${CNTOOLS_TRANSACTION_COMPLETE}" == Y ]]; then
-    cntools_transaction_ui_render_result success 'Signed · ready for Transaction → Submit' "${CNTOOLS_TRANSACTION_ID}" "${saved_file}"
+    cntools_transaction_ui_render_result success 'Signed · ready for Transaction → Post / Submit' "${CNTOOLS_TRANSACTION_ID}" "${saved_file}"
   else
     cntools_transaction_ui_render_result success 'Partially signed · move this package to the next signer' "${CNTOOLS_TRANSACTION_ID}" "${saved_file}"
   fi
@@ -1545,7 +1545,7 @@ cntools_transaction_action_submit() {
       [[ "${review_choice}" != 'Choose another file' ]] || break
       # Inspection/deletion of expired transactions must not require a backend.
       if ! cntools_transaction_ui_submission_backend_into backend; then
-        cntools_ui_action_begin "Submit" "/ Transaction / Submit"
+        cntools_ui_action_begin "Post / Submit" "/ Transaction / Post / Submit"
         cntools_ui_render_status error "${CNTOOLS_TRANSACTION_ERROR}"
         cntools_ui_wait
         return 1
@@ -1573,7 +1573,7 @@ cntools_transaction_action_submit() {
   cntools_transaction_ui_log CHOICE \
     "transaction submission confirmed id=${transaction_id} backend=${backend}"
 
-  cntools_ui_action_begin "Submit" "/ Transaction / Submit"
+  cntools_ui_action_begin "Post / Submit" "/ Transaction / Post / Submit"
   if cntools_ui_spin_function "Submitting transaction…" \
       cntools_transaction_ui_submit_selected \
       "${backend}" "${signed_file}" "${transaction_id}"; then
@@ -1581,7 +1581,7 @@ cntools_transaction_action_submit() {
   else
     status=$?
   fi
-  cntools_ui_action_begin "Submit" "/ Transaction / Submit"
+  cntools_ui_action_begin "Post / Submit" "/ Transaction / Post / Submit"
   if (( status != 0 )); then
     cntools_transaction_ui_render_result danger \
       "${CNTOOLS_TRANSACTION_ERROR:-Transaction submission failed. See ${CNTOOLS_LOG}.}" "${transaction_id}" "${input_file}"

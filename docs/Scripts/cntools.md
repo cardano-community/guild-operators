@@ -23,6 +23,14 @@ install it. Declining leaves CNTools closed. Install Gum before entering
 offline mode, where CNTools says so instead of offering a download. Individual actions check their
 companion tools when needed and explain missing prerequisites.
 
+fzf 0.75.0 is optional. With it, menus open an item as soon as you type its
+highlighted letters; see [Navigation and display](#navigation-and-display).
+On Linux x86_64 and arm64, interactive startup offers to install it next to
+Gum. A "no" is remembered until CNTools pins a newer fzf, and
+**Settings → Navigation** can install it later. CNTools uses only that
+version, and leaves out your own `FZF_DEFAULT_OPTS` so the menus look the same
+for everyone.
+
 Use the deployed companion versions supplied by Guild Deploy. Hardware actions
 require `cardano-hw-cli`, which Guild Deploy can install with `-s w`.
 Some specialist actions also need Cardano Signer, Catalyst Toolbox,
@@ -71,18 +79,29 @@ when returning to the root menu. Offline mode hides that health section.
 The header shows CNTools version, current menu path, mode, backend and network.
 Check the network before performing any transaction.
 
-Type to filter menu choices, use the arrow keys to move, and press Enter to
-select. Filtering keeps the rows that contain the typed text, in menu order.
-A list that picks a wallet, pool, policy, asset, proposal or transaction says
+The start of each menu row's name is highlighted: the part no other row in
+that menu shares, usually the first letter. Type it, or the row's number, and
+the row opens at once. Back, Home, Go to and Quit work the same way with
+**B**, **H**, **G** and **Q**. The arrow keys and Enter also work, and Escape
+or Left goes back a menu. **Settings → Navigation** offers three styles:
+
+- **Hotkeys**, the default: the highlighted letters or the number open the row.
+- **Hotkeys with Enter**: the same keys narrow the list, and Enter opens the row.
+- **Filter**: typing keeps the rows that contain the text, in menu order, and
+  Enter opens the selected one.
+
+Both hotkey styles need fzf 0.75.0 and use the Filter style until it is
+installed. Lists inside actions always filter this way. A list that picks a wallet, pool, policy, asset, proposal or transaction says
 above it what the choice is for, such as "Wallet that pays the transaction fee
 for this pool update".
 Use the displayed Back, Home and Quit choices to navigate. When only one wallet
-or pool suits an action, CNTools selects it instead of asking; Wallet → Remove
-always asks. When no wallet suits an action, CNTools says why and returns to the
-menu. Escape first leaves the filter input. Cancelling returns straight to the
-menu without a further prompt; inside a review's **Change …** step, Escape keeps
-the current value and returns to the review. Warnings stay on screen until you
-reach the next prompt, even when the screen is redrawn in between.
+or pool suits an action, CNTools selects it instead of asking; Wallet →
+Permanently Remove always asks. When no wallet suits an action, CNTools says
+why and returns to the menu. Escape first leaves the filter input. Cancelling
+returns straight to the menu without a further prompt; inside a review's
+**Change …** step, Escape keeps the current value and returns to the review.
+Warnings stay on screen until you reach the next prompt, even when the screen
+is redrawn in between.
 
 Every menu has **Go to**: type `00` and press Enter. Type a saved shortcut
 and press Enter to jump straight to its menu or action, or type part of a name
@@ -105,9 +124,9 @@ Dates follow `BLOCKLOG_TZ` in `env`, defaulting to UTC.
 | Pool | Create/import pools, inspect state, register/modify/retire, rotate KES keys, protect keys and manage Calidus credentials. |
 | Vote | Manage DRep keys, registration and delegation, browse proposals, cast DRep votes and manage Catalyst registration/QR/snapshot checks. |
 | Transaction | Review and sign portable packages, or submit completed packages and supported external signed transactions. |
-| Backup & Restore | Create full or public-only backups and restore without overwriting existing folders. |
+| Restore & Backup | Create full or public-only backups and restore without overwriting existing folders. |
 | Blocks | Read block-production summaries and epoch details from the configured blocklog (CNCLI on cardano-node, `amaru-leaderlog.sh` on Amaru). |
-| Settings | Choose the Quick or Detailed flow style, set transaction defaults, save Go to shortcuts and, with `-a`, choose a theme. |
+| Settings | Choose the Quick or Detailed flow style, set transaction defaults, save Go to shortcuts, choose how menus answer typing and, with `-a`, choose a theme. |
 | Update | Check availability, read changes and refresh the deployment through Guild Deploy. |
 | Advanced (`-a`) | Manage native assets and policies, create multisig identities, clear asset metadata cache and explicitly delete private keys. |
 
@@ -237,8 +256,8 @@ These settings shape change from a transaction, not a background wallet
 maintenance job. Use **Funds → Collect UTxOs** for explicit consolidation.
 The transaction review shows what the settings actually produced.
 
-Start with `-a` and open **Settings → Theme** to choose **Default**, inspired
-by Koios, or **Hydra After Dark**, a navy/cyan Cardano-inspired theme.
+Start with `-a` and open **Settings → Appearance** to choose **Default**,
+inspired by Koios, or **Hydra After Dark**, a navy/cyan Cardano-inspired theme.
 The choice persists. A non-empty `NO_COLOR` environment variable disables
 color output.
 
@@ -267,7 +286,7 @@ left unchanged; **Start again with no shortcuts** moves it aside as
 
 Wallet, pool and policy folders follow `WALLET_FOLDER`, `POOL_FOLDER` and
 `ASSET_FOLDER` in `env`. Their defaults are beneath `${NODE_HOME}/priv/`.
-Theme, flow style, transaction preferences and shortcuts live beneath
+Theme, flow style, navigation, transaction preferences and shortcuts live beneath
 `${NODE_HOME}/scripts/cntools/.state/` and are preserved by script deployments.
 Backups, saved transactions and asset-registry exports have their own reported
 locations.

@@ -4,7 +4,7 @@
 
 cntools_wallet_hardware_screen_begin() {
   cntools_gum_clear
-  cntools_ui_action_begin "HW Wallet" "/ Wallet / Import / HW Wallet"
+  cntools_ui_action_begin "Cold Storage/HW Wallet" "/ Wallet / Import / Cold Storage/HW Wallet"
 }
 
 cntools_wallet_hardware_prompt_name_into() {

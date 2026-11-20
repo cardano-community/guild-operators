@@ -245,7 +245,7 @@ cntools_collect_workflow() {
     cntools_transaction_save_into saved "${staged}" unsigned collect-utxos || return 2
     CNTOOLS_COLLECT_SAVED_PACKAGE="${saved}"
     cntools_collect_begin
-    cntools_collect_result success 'Ready for offline signing · Transaction → Sign, then Submit' "${CNTOOLS_TRANSACTION_ID}" "${saved}" || return $?
+    cntools_collect_result success 'Ready for offline signing · Transaction → Sign, then Post / Submit' "${CNTOOLS_TRANSACTION_ID}" "${saved}" || return $?
     cntools_collect_remaining_note
     return 0
   fi
@@ -255,7 +255,7 @@ cntools_collect_workflow() {
   CNTOOLS_COLLECT_SAVED_PACKAGE="${saved}"
   if [[ "${workflow}" == 'Create and sign' ]]; then
     cntools_collect_begin
-    cntools_collect_result success 'Signed · ready for Transaction → Submit' "${CNTOOLS_TRANSACTION_ID}" "${saved}" || return $?
+    cntools_collect_result success 'Signed · ready for Transaction → Post / Submit' "${CNTOOLS_TRANSACTION_ID}" "${saved}" || return $?
     cntools_collect_remaining_note
     return 0
   fi

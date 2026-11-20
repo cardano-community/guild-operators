@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Guarded wallet state inspection and deletion for Wallet -> Remove.
+# Guarded wallet state inspection and deletion for Wallet -> Permanently Remove.
 # Loaded after wallet-query.sh only by the removal action.
 # shellcheck disable=SC2034
 

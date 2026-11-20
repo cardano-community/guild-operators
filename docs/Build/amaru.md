@@ -220,8 +220,8 @@ restart the service:
 
 The node does not produce blocks while it restarts, so pick a moment without
 an upcoming leader slot. Use `restart` as well to change between relay and
-producer mode. CNTools **Pool → Rotate** offers this restart after it installs
-a new set, and shows the next leader slot first.
+producer mode. CNTools **Pool → KES Rotate** offers this restart after it
+installs a new set, and shows the next leader slot first.
 
 `amaru.sh bootstrap` always forces relay mode and does not require hot keys.
 This permits state import before the operational credentials are copied. The

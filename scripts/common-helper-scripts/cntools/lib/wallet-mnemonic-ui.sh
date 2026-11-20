@@ -697,8 +697,8 @@ cntools_wallet_mnemonic_correct_into() {
 }
 
 # Collects an existing recovery phrase, then checks its BIP39 checksum at
-# once, before any plan or derivation. Shared by Wallet Import, Governance
-# Derive Keys and MultiSig participant keys. Sets
+# once, before any plan or derivation. Shared by Wallet Import, On-chain
+# Governance Key Derivation and MultiSig participant keys. Sets
 # CNTOOLS_WALLET_MNEMONIC_CHECKSUM_VERIFIED=Y when the check passed (N when
 # it could not run here; Cardano CLI then validates during derivation).
 cntools_wallet_mnemonic_collect_import_into() {

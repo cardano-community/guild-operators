@@ -602,7 +602,7 @@ cntools_pool_registration_rebuild_into() {
 }
 
 # Review "Change workflow" and "Change expiry", shared by Register, Modify and
-# Retire. 0: changed and rebuild needed (what in the second variable); 1:
+# Unregister. 0: changed and rebuild needed (what in the second variable); 1:
 # kept (Esc, or nothing to rebuild); others end the action.
 cntools_pool_registration_change_common() {
   local pcc_choice="$1" pcc_workflow_name="$2" pcc_can_sign="$3" pcc_status=0 pcc_before=
@@ -762,7 +762,7 @@ cntools_pool_transaction_finish() {
   if [[ "${workflow}" == 'Create unsigned package' ]]; then
     cntools_transaction_save_into saved "${staged}" unsigned "${CNTOOLS_WALLET_REGISTER_FILE_SUFFIX}" || return 2
     CNTOOLS_POOL_REG_SAVED="${saved}"; cntools_pool_registration_begin
-    cntools_transaction_ui_render_result success 'Ready for offline signing · Transaction → Sign, then Submit' "${CNTOOLS_TRANSACTION_ID}" "${saved}"
+    cntools_transaction_ui_render_result success 'Ready for offline signing · Transaction → Sign, then Post / Submit' "${CNTOOLS_TRANSACTION_ID}" "${saved}"
     CNTOOLS_POOL_REG_RESULT_SHOWN=Y; return 0
   fi
   cntools_transaction_package_load "${signed}" && [[ "${CNTOOLS_TRANSACTION_COMPLETE}" == Y ]] || return 2
@@ -770,7 +770,7 @@ cntools_pool_transaction_finish() {
   CNTOOLS_POOL_REG_SAVED="${saved}"
   if [[ "${workflow}" == 'Create and sign' ]]; then
     cntools_pool_registration_begin
-    cntools_transaction_ui_render_result success 'Signed · ready for Transaction → Submit' "${CNTOOLS_TRANSACTION_ID}" "${saved}"
+    cntools_transaction_ui_render_result success 'Signed · ready for Transaction → Post / Submit' "${CNTOOLS_TRANSACTION_ID}" "${saved}"
     CNTOOLS_POOL_REG_RESULT_SHOWN=Y; return 0
   fi
   cntools_transaction_submit_input_prepare "${saved}" || return 2

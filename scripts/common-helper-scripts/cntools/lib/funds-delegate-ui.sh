@@ -163,7 +163,7 @@ cntools_delegate_change_target() {
 # Only when the stake query showed no voting delegation; unknown stays quiet.
 cntools_delegate_reminder() {
   [[ -z "${CNTOOLS_WALLET_DREP_DELEGATION:-}" && "${CNTOOLS_WALLET_DREP_DELEGATION_VALID:-Y}" == Y ]] || return 0
-  cntools_ui_render_status info 'This wallet has no voting (DRep) delegation. Reward withdrawals need one: Vote → Governance → Delegate.'
+  cntools_ui_render_status info 'This wallet has no voting (DRep) delegation. Reward withdrawals need one: Vote → On-chain Governance → Delegate.'
 }
 
 cntools_funds_action_delegate() {

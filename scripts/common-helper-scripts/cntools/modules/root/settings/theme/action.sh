@@ -16,7 +16,7 @@ cntools_action_main() {
   local -a rows=()
   local -a row_ids=()
 
-  cntools_ui_action_begin "Theme" "/ Settings / Theme"
+  cntools_ui_action_begin "Appearance" "/ Settings / Appearance"
   for theme_id in "${CNTOOLS_THEME_IDS[@]}"; do
     # Not shown yet: 2 gives the menu banner.
     theme_name="$(cntools_theme_display_name "${theme_id}")" || return 2
@@ -59,7 +59,7 @@ cntools_action_main() {
     fi
     cntools_theme_invalidate_ui_cache
     cntools_log CHOICE "selected theme=${theme_id}" || true
-    cntools_ui_action_begin "Theme" "/ Settings / Theme"
+    cntools_ui_action_begin "Appearance" "/ Settings / Appearance"
     cntools_ui_render_status success \
       "$(cntools_theme_display_name "${theme_id}") is now the active CNTools theme."
     cntools_ui_wait
