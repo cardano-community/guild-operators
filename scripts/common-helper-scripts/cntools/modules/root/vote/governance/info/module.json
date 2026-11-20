@@ -2,7 +2,6 @@
   "kind": "action",
   "label": "Info & Status",
   "description": "Show governance information and status",
-  "shortcut": "i",
   "order": 10,
   "modes": [
     "local",

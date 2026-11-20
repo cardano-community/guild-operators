@@ -2,7 +2,6 @@
   "kind": "action",
   "label": "Decrypt",
   "description": "Decrypt protected stake pool keys",
-  "shortcut": "d",
   "order": 90,
   "modes": [
     "local",

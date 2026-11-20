@@ -2,7 +2,6 @@
   "kind": "action",
   "label": "Install Update",
   "description": "Install an update or refresh the current deployment snapshot",
-  "shortcut": "i",
   "order": 30,
   "modes": ["local", "light"],
   "libs": [

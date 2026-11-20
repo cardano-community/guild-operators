@@ -2,7 +2,6 @@
   "kind": "action",
   "label": "List",
   "description": "List available stake pools",
-  "shortcut": "l",
   "order": 60,
   "modes": [
     "local",

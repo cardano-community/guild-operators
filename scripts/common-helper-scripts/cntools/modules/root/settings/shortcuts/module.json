@@ -2,7 +2,6 @@
   "kind": "action",
   "label": "Shortcuts",
   "description": "Save short codes that jump to a menu or action from Go to",
-  "shortcut": "s",
   "order": 15,
   "modes": [
     "local",

@@ -2,7 +2,6 @@
   "kind": "action",
   "label": "CLI",
   "description": "Create a standard payment-and-stake wallet",
-  "shortcut": "c",
   "order": 20,
   "modes": [
     "local",

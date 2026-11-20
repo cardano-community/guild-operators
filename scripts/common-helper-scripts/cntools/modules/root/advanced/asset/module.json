@@ -2,6 +2,5 @@
   "kind": "menu",
   "label": "Asset",
   "description": "Create policies and manage native assets",
-  "shortcut": "a",
   "order": 20
 }

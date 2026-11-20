@@ -37,7 +37,6 @@ CNTOOLS_MENU_VALIDATED_DIRECTORY=""
 CNTOOLS_MENU_VALIDATED_KIND=""
 CNTOOLS_MENU_VALIDATED_LABEL=""
 CNTOOLS_MENU_VALIDATED_DESCRIPTION=""
-CNTOOLS_MENU_VALIDATED_SHORTCUT=""
 CNTOOLS_MENU_VALIDATED_ORDER=""
 CNTOOLS_MENU_VALIDATED_ADVANCED="false"
 CNTOOLS_MENU_VALIDATED_MODES=""
@@ -53,7 +52,6 @@ declare -ag CNTOOLS_MENU_CATALOG_IDS=()
 declare -ag CNTOOLS_MENU_CATALOG_KINDS=()
 declare -ag CNTOOLS_MENU_CATALOG_LABELS=()
 declare -ag CNTOOLS_MENU_CATALOG_DESCRIPTIONS=()
-declare -ag CNTOOLS_MENU_CATALOG_SHORTCUTS=()
 declare -ag CNTOOLS_MENU_CATALOG_ORDERS=()
 declare -ag CNTOOLS_MENU_CATALOG_ADVANCED=()
 declare -ag CNTOOLS_MENU_CATALOG_MODES=()
@@ -95,7 +93,7 @@ cntools_menu_validate_metadata() {
   local context="${2:-child}"
   local metadata="${module_directory}/module.json"
   local record=""
-  local kind="" label="" description="" shortcut="" order=""
+  local kind="" label="" description="" order=""
   local advanced="false" modes="" libs="" koios="false" sentinel=""
   local module_name=""
   local child=""
@@ -106,8 +104,7 @@ cntools_menu_validate_metadata() {
   CNTOOLS_MENU_VALIDATED_KIND=""
   CNTOOLS_MENU_VALIDATED_LABEL=""
   CNTOOLS_MENU_VALIDATED_DESCRIPTION=""
-  CNTOOLS_MENU_VALIDATED_SHORTCUT=""
-  CNTOOLS_MENU_VALIDATED_ORDER=""
+    CNTOOLS_MENU_VALIDATED_ORDER=""
   CNTOOLS_MENU_VALIDATED_ADVANCED="false"
   CNTOOLS_MENU_VALIDATED_MODES=""
   CNTOOLS_MENU_VALIDATED_LIBS=""
@@ -139,21 +136,19 @@ cntools_menu_validate_metadata() {
         def child_menu:
           type == "object" and
           has("kind") and has("label") and has("description") and
-          has("shortcut") and has("order") and
-          ((keys - ["advanced", "description", "kind", "label", "order", "shortcut"]) | length == 0) and
+          has("order") and
+          ((keys - ["advanced", "description", "kind", "label", "order"]) | length == 0) and
           .kind == "menu" and (.label | line) and (.description | line) and
-          (.shortcut | type == "string" and test("^[a-z0-9]$")) and
           (.order | type == "number" and floor == . and
             . >= 0 and . <= 2147483647) and
           ((has("advanced") | not) or (.advanced | type == "boolean"));
         def child_action:
           type == "object" and
           has("kind") and has("label") and has("description") and
-          has("shortcut") and has("order") and has("modes") and
-          ((keys - ["advanced", "description", "kind", "label", "libs", "modes", "order", "requiresKoios", "shortcut"]) | length == 0) and
+          has("order") and has("modes") and
+          ((keys - ["advanced", "description", "kind", "label", "libs", "modes", "order", "requiresKoios"]) | length == 0) and
           ((has("requiresKoios") | not) or (.requiresKoios | type == "boolean")) and
           .kind == "action" and (.label | line) and (.description | line) and
-          (.shortcut | type == "string" and test("^[a-z0-9]$")) and
           (.order | type == "number" and floor == . and
             . >= 0 and . <= 2147483647) and
           ((has("advanced") | not) or (.advanced | type == "boolean")) and
@@ -169,7 +164,6 @@ cntools_menu_validate_metadata() {
             .kind,
             .label,
             .description,
-            (.shortcut // ""),
             ((.order // 0) | tostring),
             ((.advanced // false) | tostring),
             ((.modes // []) | join(",")),
@@ -190,7 +184,7 @@ cntools_menu_validate_metadata() {
   }
   [[ -n "${record}" ]] ||
     cntools_menu_fail "Module metadata is invalid: ${metadata}" || return 1
-  IFS=$'\037' read -r kind label description shortcut order advanced modes libs \
+  IFS=$'\037' read -r kind label description order advanced modes libs \
     koios sentinel <<< "${record}"
   [[ "${sentinel}" == "." ]] ||
     cntools_menu_fail "Module metadata record is invalid: ${metadata}" || return 1
@@ -222,7 +216,6 @@ cntools_menu_validate_metadata() {
   CNTOOLS_MENU_VALIDATED_KIND="${kind}"
   CNTOOLS_MENU_VALIDATED_LABEL="${label}"
   CNTOOLS_MENU_VALIDATED_DESCRIPTION="${description}"
-  CNTOOLS_MENU_VALIDATED_SHORTCUT="${shortcut}"
   CNTOOLS_MENU_VALIDATED_ORDER="${order}"
   CNTOOLS_MENU_VALIDATED_ADVANCED="${advanced}"
   CNTOOLS_MENU_VALIDATED_MODES="${modes}"
@@ -279,8 +272,8 @@ cntools_menu_validate_action_libraries() {
 
 cntools_menu_insert_item() {
   local path="$1" id="$2" name="$3" kind="$4" label="$5"
-  local description="$6" shortcut="$7" order="$8" enabled="$9"
-  local reason="${10}" insert_at=0 index=0 count="${#CNTOOLS_MENU_PATHS[@]}"
+  local description="$6" order="$7" enabled="$8"
+  local reason="$9" insert_at=0 index=0 count="${#CNTOOLS_MENU_PATHS[@]}"
 
   insert_at="${count}"
   for (( index = 0; index < count; index++ )); do
@@ -298,7 +291,6 @@ cntools_menu_insert_item() {
     CNTOOLS_MENU_KINDS[index]="${CNTOOLS_MENU_KINDS[index-1]}"
     CNTOOLS_MENU_LABELS[index]="${CNTOOLS_MENU_LABELS[index-1]}"
     CNTOOLS_MENU_DESCRIPTIONS[index]="${CNTOOLS_MENU_DESCRIPTIONS[index-1]}"
-    CNTOOLS_MENU_SHORTCUTS[index]="${CNTOOLS_MENU_SHORTCUTS[index-1]}"
     CNTOOLS_MENU_ORDERS[index]="${CNTOOLS_MENU_ORDERS[index-1]}"
     CNTOOLS_MENU_ENABLED[index]="${CNTOOLS_MENU_ENABLED[index-1]}"
     CNTOOLS_MENU_DISABLED_REASONS[index]="${CNTOOLS_MENU_DISABLED_REASONS[index-1]}"
@@ -309,7 +301,6 @@ cntools_menu_insert_item() {
   CNTOOLS_MENU_KINDS[insert_at]="${kind}"
   CNTOOLS_MENU_LABELS[insert_at]="${label}"
   CNTOOLS_MENU_DESCRIPTIONS[insert_at]="${description}"
-  CNTOOLS_MENU_SHORTCUTS[insert_at]="${shortcut}"
   CNTOOLS_MENU_ORDERS[insert_at]="${order}"
   CNTOOLS_MENU_ENABLED[insert_at]="${enabled}"
   CNTOOLS_MENU_DISABLED_REASONS[insert_at]="${reason}"
@@ -320,9 +311,8 @@ cntools_menu_open() {
   local root_directory=""
   local physical_menu=""
   local context="child"
-  local seen='|'
   local child="" kind="" label="" description="" modes=""
-  local shortcut="" order=0 name="" id="" enabled="Y" reason=""
+  local order=0 name="" id="" enabled="Y" reason=""
   local advanced="false"
 
   CNTOOLS_MENU_PATHS=()
@@ -331,7 +321,6 @@ cntools_menu_open() {
   CNTOOLS_MENU_KINDS=()
   CNTOOLS_MENU_LABELS=()
   CNTOOLS_MENU_DESCRIPTIONS=()
-  CNTOOLS_MENU_SHORTCUTS=()
   CNTOOLS_MENU_ORDERS=()
   CNTOOLS_MENU_ENABLED=()
   CNTOOLS_MENU_DISABLED_REASONS=()
@@ -354,11 +343,6 @@ cntools_menu_open() {
     [[ -e "${child}" || -L "${child}" ]] || continue
     [[ -d "${child}" || -L "${child}" ]] || continue
     cntools_menu_validate_metadata "${child}" child || return 1
-    shortcut="${CNTOOLS_MENU_VALIDATED_SHORTCUT}"
-    [[ "${seen}" != *"|${shortcut}|"* ]] ||
-      cntools_menu_fail "Duplicate shortcut '${shortcut}' in ${physical_menu}" || return 1
-    seen+="${shortcut}|"
-
     kind="${CNTOOLS_MENU_VALIDATED_KIND}"
     label="${CNTOOLS_MENU_VALIDATED_LABEL}"
     description="${CNTOOLS_MENU_VALIDATED_DESCRIPTION}"
@@ -385,7 +369,7 @@ cntools_menu_open() {
     fi
     cntools_menu_insert_item \
       "${child}" "${id}" "${name}" "${kind}" "${label}" \
-      "${description}" "${shortcut}" "${order}" "${enabled}" "${reason}"
+      "${description}" "${order}" "${enabled}" "${reason}"
   done
 }
 
@@ -403,7 +387,6 @@ cntools_menu_catalog_reset() {
   CNTOOLS_MENU_CATALOG_KINDS=()
   CNTOOLS_MENU_CATALOG_LABELS=()
   CNTOOLS_MENU_CATALOG_DESCRIPTIONS=()
-  CNTOOLS_MENU_CATALOG_SHORTCUTS=()
   CNTOOLS_MENU_CATALOG_ORDERS=()
   CNTOOLS_MENU_CATALOG_ADVANCED=()
   CNTOOLS_MENU_CATALOG_MODES=()
@@ -468,7 +451,7 @@ cntools_menu_catalog_collect_directory() {
 cntools_menu_catalog_parse() {
   local output=""
   local record=""
-  local index="" source="" kind="" label="" description="" shortcut=""
+  local index="" source="" kind="" label="" description=""
   local order="" advanced="" modes="" libs="" koios="" sentinel=""
   local expected=0 count="${#CNTOOLS_MENU_CATALOG_METADATA[@]}" errors_file="" jq_error="" status=0
 
@@ -490,21 +473,19 @@ cntools_menu_catalog_parse() {
       def child_menu:
         type == "object" and
         has("kind") and has("label") and has("description") and
-        has("shortcut") and has("order") and
-        ((keys - ["advanced", "description", "kind", "label", "order", "shortcut"]) | length == 0) and
+        has("order") and
+        ((keys - ["advanced", "description", "kind", "label", "order"]) | length == 0) and
         .kind == "menu" and (.label | line) and (.description | line) and
-        (.shortcut | type == "string" and test("^[a-z0-9]$")) and
         (.order | type == "number" and floor == . and
           . >= 0 and . <= 2147483647) and
         ((has("advanced") | not) or (.advanced | type == "boolean"));
       def child_action:
         type == "object" and
         has("kind") and has("label") and has("description") and
-        has("shortcut") and has("order") and has("modes") and
-        ((keys - ["advanced", "description", "kind", "label", "libs", "modes", "order", "requiresKoios", "shortcut"]) | length == 0) and
+        has("order") and has("modes") and
+        ((keys - ["advanced", "description", "kind", "label", "libs", "modes", "order", "requiresKoios"]) | length == 0) and
         ((has("requiresKoios") | not) or (.requiresKoios | type == "boolean")) and
         .kind == "action" and (.label | line) and (.description | line) and
-        (.shortcut | type == "string" and test("^[a-z0-9]$")) and
         (.order | type == "number" and floor == . and
           . >= 0 and . <= 2147483647) and
         ((has("advanced") | not) or (.advanced | type == "boolean")) and
@@ -526,7 +507,6 @@ cntools_menu_catalog_parse() {
           $entry.kind,
           $entry.label,
           $entry.description,
-          ($entry.shortcut // ""),
           (($entry.order // 0) | tostring),
           (($entry.advanced // false) | tostring),
           (($entry.modes // []) | join(",")),
@@ -547,7 +527,7 @@ cntools_menu_catalog_parse() {
 
   while IFS= read -r record; do
     [[ -n "${record}" ]] || continue
-    IFS=$'\037' read -r index source kind label description shortcut order \
+    IFS=$'\037' read -r index source kind label description order \
       advanced modes libs koios sentinel <<< "${record}"
     [[ "${index}" =~ ^[0-9]+$ && "${index}" -eq "${expected}" &&
        "${source}" == "${CNTOOLS_MENU_CATALOG_METADATA[expected]}" &&
@@ -556,7 +536,6 @@ cntools_menu_catalog_parse() {
     CNTOOLS_MENU_CATALOG_KINDS[index]="${kind}"
     CNTOOLS_MENU_CATALOG_LABELS[index]="${label}"
     CNTOOLS_MENU_CATALOG_DESCRIPTIONS[index]="${description}"
-    CNTOOLS_MENU_CATALOG_SHORTCUTS[index]="${shortcut}"
     CNTOOLS_MENU_CATALOG_ORDERS[index]="${order}"
     CNTOOLS_MENU_CATALOG_ADVANCED[index]="${advanced}"
     CNTOOLS_MENU_CATALOG_MODES[index]="${modes}"
@@ -604,9 +583,9 @@ cntools_menu_catalog_build() {
 
 cntools_menu_catalog_open() {
   local menu_directory="${1:-}"
-  local menu_index="" child_index="" seen='|'
+  local menu_index="" child_index=""
   local path="" id="" name="" kind="" label="" description=""
-  local shortcut="" order="" advanced="" modes="" enabled="Y" reason=""
+  local order="" advanced="" modes="" enabled="Y" reason=""
 
   [[ -n "${CNTOOLS_MENU_CATALOG_INDEX_BY_DIR[${menu_directory}]+catalog}" ]] ||
     cntools_menu_fail "Menu is outside the module catalog: ${menu_directory}" || return 1
@@ -620,7 +599,6 @@ cntools_menu_catalog_open() {
   CNTOOLS_MENU_KINDS=()
   CNTOOLS_MENU_LABELS=()
   CNTOOLS_MENU_DESCRIPTIONS=()
-  CNTOOLS_MENU_SHORTCUTS=()
   CNTOOLS_MENU_ORDERS=()
   CNTOOLS_MENU_ENABLED=()
   CNTOOLS_MENU_DISABLED_REASONS=()
@@ -628,11 +606,6 @@ cntools_menu_catalog_open() {
   # Word splitting is intentional: this internal list contains only numeric
   # catalog indexes separated by spaces.
   for child_index in ${CNTOOLS_MENU_CATALOG_CHILDREN[${menu_index}]:-}; do
-    shortcut="${CNTOOLS_MENU_CATALOG_SHORTCUTS[child_index]}"
-    [[ "${seen}" != *"|${shortcut}|"* ]] ||
-      cntools_menu_fail "Duplicate shortcut '${shortcut}' in ${menu_directory}" || return 1
-    seen+="${shortcut}|"
-
     path="${CNTOOLS_MENU_CATALOG_DIRS[child_index]}"
     id="${CNTOOLS_MENU_CATALOG_IDS[child_index]}"
     name="${path##*/}"
@@ -659,7 +632,7 @@ cntools_menu_catalog_open() {
     fi
     cntools_menu_insert_item \
       "${path}" "${id}" "${name}" "${kind}" "${label}" \
-      "${description}" "${shortcut}" "${order}" "${enabled}" "${reason}"
+      "${description}" "${order}" "${enabled}" "${reason}"
   done
 }
 
@@ -684,7 +657,7 @@ cntools_menu_cache_stage_directory() {
   local item_key="" item_record="" item_breadcrumb=""
   local index=0 count=0
   local -a paths=() ids=() names=() kinds=() labels=() descriptions=()
-  local -a shortcuts=() orders=() enabled=() disabled_reasons=()
+  local -a orders=() enabled=() disabled_reasons=()
 
   cntools_menu_catalog_open "${menu_directory}" || return 1
   catalog_index="${CNTOOLS_MENU_CATALOG_INDEX_BY_DIR[${menu_directory}]}"
@@ -695,7 +668,6 @@ cntools_menu_cache_stage_directory() {
   kinds=("${CNTOOLS_MENU_KINDS[@]}")
   labels=("${CNTOOLS_MENU_LABELS[@]}")
   descriptions=("${CNTOOLS_MENU_DESCRIPTIONS[@]}")
-  shortcuts=("${CNTOOLS_MENU_SHORTCUTS[@]}")
   orders=("${CNTOOLS_MENU_ORDERS[@]}")
   enabled=("${CNTOOLS_MENU_ENABLED[@]}")
   disabled_reasons=("${CNTOOLS_MENU_DISABLED_REASONS[@]}")
@@ -715,10 +687,10 @@ cntools_menu_cache_stage_directory() {
       item_breadcrumb="${menu_breadcrumb} / ${labels[index]}"
     fi
     item_key="${menu_id}:${index}"
-    printf -v item_record '%s\037%s\037%s\037%s\037%s\037%s\037%s\037%s\037%s\037%s' \
+    printf -v item_record '%s\037%s\037%s\037%s\037%s\037%s\037%s\037%s\037%s' \
       "${paths[index]}" "${ids[index]}" "${names[index]}" \
       "${kinds[index]}" "${labels[index]}" "${descriptions[index]}" \
-      "${shortcuts[index]}" "${orders[index]}" "${enabled[index]}" \
+      "${orders[index]}" "${enabled[index]}" \
       "${disabled_reasons[index]}"
     CNTOOLS_MENU_STAGE_ITEMS["${item_key}"]="${item_record}"
     CNTOOLS_MENU_STAGE_ROUTE_BREADCRUMBS["${ids[index]}"]="${item_breadcrumb}"
@@ -816,7 +788,7 @@ cntools_menu_cache_open() {
   local menu_directory="${1:-}"
   local menu_id="" item_key="" item_record=""
   local path="" id="" name="" kind="" label="" description=""
-  local shortcut="" order="" item_enabled="" disabled_reason=""
+  local order="" item_enabled="" disabled_reason=""
   local index=0 count=0
 
   [[ "${CNTOOLS_MENU_CACHE_READY:-N}" == "Y" ]] ||
@@ -832,7 +804,6 @@ cntools_menu_cache_open() {
   CNTOOLS_MENU_KINDS=()
   CNTOOLS_MENU_LABELS=()
   CNTOOLS_MENU_DESCRIPTIONS=()
-  CNTOOLS_MENU_SHORTCUTS=()
   CNTOOLS_MENU_ORDERS=()
   CNTOOLS_MENU_ENABLED=()
   CNTOOLS_MENU_DISABLED_REASONS=()
@@ -841,7 +812,7 @@ cntools_menu_cache_open() {
   for (( index = 0; index < count; index++ )); do
     item_key="${menu_id}:${index}"
     item_record="${CNTOOLS_MENU_CACHE_ITEMS[${item_key}]}"
-    IFS=$'\037' read -r path id name kind label description shortcut order \
+    IFS=$'\037' read -r path id name kind label description order \
       item_enabled disabled_reason <<< "${item_record}"
     CNTOOLS_MENU_PATHS[index]="${path}"
     CNTOOLS_MENU_IDS[index]="${id}"
@@ -849,7 +820,6 @@ cntools_menu_cache_open() {
     CNTOOLS_MENU_KINDS[index]="${kind}"
     CNTOOLS_MENU_LABELS[index]="${label}"
     CNTOOLS_MENU_DESCRIPTIONS[index]="${description}"
-    CNTOOLS_MENU_SHORTCUTS[index]="${shortcut}"
     CNTOOLS_MENU_ORDERS[index]="${order}"
     CNTOOLS_MENU_ENABLED[index]="${item_enabled}"
     CNTOOLS_MENU_DISABLED_REASONS[index]="${disabled_reason}"

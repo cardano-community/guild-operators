@@ -2,7 +2,6 @@
   "kind": "action",
   "label": "Register Asset",
   "description": "Register native asset metadata",
-  "shortcut": "r",
   "order": 80,
   "modes": [
     "local",

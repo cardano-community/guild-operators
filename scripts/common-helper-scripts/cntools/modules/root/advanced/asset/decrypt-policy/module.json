@@ -2,7 +2,6 @@
   "kind": "action",
   "label": "Decrypt / Unlock Policy",
   "description": "Decrypt or unlock a minting policy",
-  "shortcut": "d",
   "order": 40,
   "modes": [
     "local",

@@ -2,7 +2,6 @@
   "kind": "action",
   "label": "Permanently Remove",
   "description": "Remove a wallet from CNTools",
-  "shortcut": "x",
   "order": 70,
   "modes": [
     "local",

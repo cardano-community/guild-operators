@@ -2,7 +2,6 @@
   "kind": "action",
   "label": "Key Derivation",
   "description": "Derive governance keys",
-  "shortcut": "k",
   "order": 80,
   "modes": [
     "local",

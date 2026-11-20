@@ -2,6 +2,5 @@
   "kind": "menu",
   "label": "Wallet",
   "description": "Create and manage payment, stake, and hardware wallets",
-  "shortcut": "w",
   "order": 10
 }

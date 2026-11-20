@@ -2,7 +2,6 @@
   "kind": "action",
   "label": "Collect UTxOs",
   "description": "Consolidate eligible funds within a wallet",
-  "shortcut": "c",
   "order": 40,
   "modes": [
     "local",

@@ -2,7 +2,6 @@
   "kind": "action",
   "label": "Show",
   "description": "Show stake pool details",
-  "shortcut": "s",
   "order": 70,
   "modes": [
     "local",

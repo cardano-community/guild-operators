@@ -2,7 +2,6 @@
   "kind": "action",
   "label": "Perform Asset Burn",
   "description": "Burn native assets",
-  "shortcut": "x",
   "order": 70,
   "modes": [
     "local",

@@ -2,7 +2,6 @@
   "kind": "action",
   "label": "Import",
   "description": "Import an existing stake pool",
-  "shortcut": "i",
   "order": 20,
   "modes": [
     "local",

@@ -2,7 +2,6 @@
   "kind": "action",
   "label": "Show Asset",
   "description": "Show native asset details",
-  "shortcut": "s",
   "order": 30,
   "modes": [
     "local",

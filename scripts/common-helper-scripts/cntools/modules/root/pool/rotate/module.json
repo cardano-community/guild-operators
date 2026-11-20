@@ -2,7 +2,6 @@
   "kind": "action",
   "label": "KES Rotate",
   "description": "Rotate stake pool KES keys",
-  "shortcut": "o",
   "order": 80,
   "modes": [
     "local",

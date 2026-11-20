@@ -2,7 +2,6 @@
   "kind": "action",
   "label": "Unregister",
   "description": "De-register a wallet stake address",
-  "shortcut": "z",
   "order": 40,
   "modes": [
     "local",

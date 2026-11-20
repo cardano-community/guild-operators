@@ -308,13 +308,13 @@ cntools_shortcuts_entries_walk() {
   local count=0
   local record=""
   local path="" id="" name="" kind="" label="" description=""
-  local shortcut="" order="" enabled="" reason="" route=""
+  local order="" enabled="" reason="" route=""
 
   count="${CNTOOLS_MENU_CACHE_MENU_COUNTS[${menu_id}]:-0}"
   for (( index = 0; index < count; index++ )); do
     record="${CNTOOLS_MENU_CACHE_ITEMS[${menu_id}:${index}]:-}"
     [[ -n "${record}" ]] || continue
-    IFS=$'\037' read -r path id name kind label description shortcut order \
+    IFS=$'\037' read -r path id name kind label description order \
       enabled reason <<< "${record}"
     route="${CNTOOLS_MENU_CACHE_ROUTE_BREADCRUMBS[${id}]:-/ ${label}}"
     CNTOOLS_SHORTCUTS_ENTRY_IDS+=("${id}")

@@ -2,7 +2,6 @@
   "kind": "action",
   "label": "Update/Create DRep",
   "description": "Register or update a DRep",
-  "shortcut": "r",
   "order": 50,
   "modes": [
     "local",

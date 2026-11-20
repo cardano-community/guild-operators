@@ -5,7 +5,6 @@
   "libs": [
     "number.sh"
   ],
-  "shortcut": "d",
   "order": 10,
   "modes": [
     "local",

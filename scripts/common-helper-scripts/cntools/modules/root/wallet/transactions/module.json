@@ -2,7 +2,6 @@
   "kind": "action",
   "label": "Transaction List",
   "description": "Browse wallet transactions through Koios",
-  "shortcut": "t",
   "order": 100,
   "modes": [
     "local",

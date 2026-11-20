@@ -2,7 +2,6 @@
   "kind": "action",
   "label": "View UTxOs",
   "description": "Browse unspent outputs through Koios or a local node",
-  "shortcut": "u",
   "order": 110,
   "modes": [
     "local",

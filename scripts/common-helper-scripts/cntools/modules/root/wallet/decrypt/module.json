@@ -2,7 +2,6 @@
   "kind": "action",
   "label": "Decrypt",
   "description": "Decrypt protected wallet signing keys",
-  "shortcut": "d",
   "order": 80,
   "modes": [
     "local",

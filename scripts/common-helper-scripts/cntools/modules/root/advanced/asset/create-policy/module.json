@@ -2,7 +2,6 @@
   "kind": "action",
   "label": "Create Policy",
   "description": "Create a native asset minting policy",
-  "shortcut": "c",
   "order": 10,
   "modes": [
     "local",

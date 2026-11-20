@@ -2,7 +2,6 @@
   "kind": "action",
   "label": "Delegate",
   "description": "Delegate governance voting power",
-  "shortcut": "d",
   "order": 20,
   "modes": [
     "local",

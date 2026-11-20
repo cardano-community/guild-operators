@@ -2,7 +2,6 @@
   "kind": "action",
   "label": "Withdraw Rewards",
   "description": "Withdraw staking rewards",
-  "shortcut": "w",
   "order": 30,
   "modes": [
     "local",

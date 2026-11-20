@@ -2,7 +2,6 @@
   "kind": "action",
   "label": "Mint Asset",
   "description": "Mint native assets",
-  "shortcut": "m",
   "order": 60,
   "modes": [
     "local",

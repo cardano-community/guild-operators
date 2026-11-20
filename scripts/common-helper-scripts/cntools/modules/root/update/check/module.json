@@ -2,7 +2,6 @@
   "kind": "action",
   "label": "Check Again",
   "description": "Check the selected Guild branch for a newer CNTools version",
-  "shortcut": "c",
   "order": 10,
   "modes": ["local", "light"],
   "libs": [

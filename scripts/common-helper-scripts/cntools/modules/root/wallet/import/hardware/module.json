@@ -2,7 +2,6 @@
   "kind": "action",
   "label": "Cold Storage/HW Wallet",
   "description": "Import a hardware wallet",
-  "shortcut": "w",
   "order": 20,
   "modes": [
     "local",

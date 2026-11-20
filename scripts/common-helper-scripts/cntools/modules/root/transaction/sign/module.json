@@ -2,7 +2,6 @@
   "kind": "action",
   "label": "Sign",
   "description": "Review and sign a CNTools transaction package",
-  "shortcut": "s",
   "order": 10,
   "modes": [
     "local",

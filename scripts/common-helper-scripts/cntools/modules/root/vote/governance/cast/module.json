@@ -2,7 +2,6 @@
   "kind": "action",
   "label": "Cast vote",
   "description": "Cast a governance vote",
-  "shortcut": "v",
   "order": 40,
   "modes": [
     "local",

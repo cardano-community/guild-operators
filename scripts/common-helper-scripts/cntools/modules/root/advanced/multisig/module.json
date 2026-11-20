@@ -2,6 +2,5 @@
   "kind": "menu",
   "label": "MultiSig",
   "description": "Create multisignature scripts and derive keys",
-  "shortcut": "s",
   "order": 30
 }

@@ -2,6 +2,5 @@
   "kind": "menu",
   "label": "Funds",
   "description": "Send and collect funds, delegate stake, and withdraw rewards",
-  "shortcut": "f",
   "order": 20
 }

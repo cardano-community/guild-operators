@@ -2,7 +2,6 @@
   "kind": "action",
   "label": "Unregister",
   "description": "Retire a registered stake pool",
-  "shortcut": "x",
   "order": 50,
   "modes": [
     "local",

@@ -2,6 +2,5 @@
   "kind": "menu",
   "label": "Catalyst",
   "description": "Register and verify Catalyst voting",
-  "shortcut": "c",
   "order": 20
 }

@@ -2,7 +2,6 @@
   "kind": "action",
   "label": "Derive Keys",
   "description": "Derive multisignature keys",
-  "shortcut": "d",
   "order": 20,
   "modes": [
     "local",
