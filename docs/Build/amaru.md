@@ -386,10 +386,10 @@ when its nonce is final, the next one:
 The database is `${NODE_HOME}/guild-db/blocklog/blocklog.db`; `BLOCKLOG_DIR`
 in `scripts/env` moves it and `BLOCKLOG_TZ` sets the time zone of the stored
 slot times. Each scheduled slot is a `blocklog` row with status `leader`, and
-`epochdata` holds the stake, ideal slot count, and luck of the epoch. The
-epoch nonce column stays empty because Amaru does not report it. CNTools reads
-the same file for its **Blocks** menu. A recalculated schedule keeps the
-result of every slot that stays in it.
+`epochdata` holds the stake, ideal slot count, luck, and nonce of the epoch.
+Amaru reports the nonce since 10.11.20261119, so with an older release that
+column stays empty. CNTools reads the same file for its **Blocks** menu. A
+recalculated schedule keeps the result of every slot that stays in it.
 
 ## Block validation
 

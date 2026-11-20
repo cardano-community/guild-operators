@@ -175,7 +175,8 @@ NEXT_EPOCH=$(( EPOCH + 1 ))
 # 4k/f slots before the end of the epoch, plus the margin of 600 slots.
 NEXT_EPOCH_GATE=$(( PREVIEW_EPOCH_LENGTH - 4 * 432 * 20 + 600 ))
 
-# $1 = epoch, remaining arguments = slots in the epoch (any order)
+# $1 = epoch, remaining arguments = slots in the epoch (any order). The report
+# carries SCHEDULE_NONCE when it is set, as Amaru 10.11.20261119 and later do.
 write_schedule() {
   local epoch="$1" slot_in_epoch slot entries=""
   shift
@@ -183,8 +184,8 @@ write_schedule() {
     slot=$(( epoch * PREVIEW_EPOCH_LENGTH + slot_in_epoch ))
     entries+="${entries:+,}{\"relative_slot\":${slot_in_epoch},\"slot\":${slot},\"time\":\"$(date -u -d "@$(( PREVIEW_START + slot ))" '+%FT%TZ')\"}"
   done
-  printf '{"active_stake":1000000000000000,"epoch":%s,"pool_stake":50000000000000,"schedule":[%s],"share":"5.00%%"}\n' \
-    "${epoch}" "${entries}" > "${STATE_ROOT}/schedule-${epoch}.json"
+  printf '{"active_stake":1000000000000000,"epoch":%s,%s"pool_stake":50000000000000,"schedule":[%s],"share":"5.00%%"}\n' \
+    "${epoch}" "${SCHEDULE_NONCE:+\"nonce\":\"${SCHEDULE_NONCE}\",}" "${entries}" > "${STATE_ROOT}/schedule-${epoch}.json"
 }
 
 run_leaderlog() {
@@ -351,7 +352,9 @@ for report in \
   "{\"active_stake\":0,\"epoch\":${EPOCH},\"pool_stake\":0,\"schedule\":[]}" \
   "{\"active_stake\":1000,\"epoch\":${EPOCH},\"pool_stake\":50}" \
   "{\"active_stake\":1000,\"epoch\":${EPOCH},\"pool_stake\":50,\"schedule\":[{\"relative_slot\":1,\"slot\":\"1\",\"time\":\"2026-01-01T00:00:00Z\"}]}" \
-  "{\"active_stake\":1000,\"epoch\":${EPOCH},\"pool_stake\":50,\"schedule\":[{\"relative_slot\":1,\"slot\":1,\"time\":\"x'); DROP TABLE blocklog; --\"}]}"; do
+  "{\"active_stake\":1000,\"epoch\":${EPOCH},\"pool_stake\":50,\"schedule\":[{\"relative_slot\":1,\"slot\":1,\"time\":\"x'); DROP TABLE blocklog; --\"}]}" \
+  "{\"active_stake\":1000,\"epoch\":${EPOCH},\"nonce\":null,\"pool_stake\":50,\"schedule\":[]}" \
+  "{\"active_stake\":1000,\"epoch\":${EPOCH},\"nonce\":\"x'); DROP TABLE epochdata; --\",\"pool_stake\":50,\"schedule\":[]}"; do
   printf '%s\n' "${report}" > "${STATE_ROOT}/schedule-${EPOCH}.json"
   run_leaderlog leaderlog force
   assert_eq "${status}" "1" "unexpected report '${report}'"
@@ -386,11 +389,12 @@ $(( first_slot + 86299 ))|86399|${EPOCH}|$(date -u -d "@$(( PREVIEW_START + firs
   fail "leaderlog summary: ${output}"
 
 # pool.id takes precedence over the certificate, BLOCKLOG_TZ sets the offset
-# of the stored times, and a forced run past the nonce point covers the next
-# epoch as well.
+# of the stored times, the epoch nonce is stored when Amaru reports it, and a
+# forced run past the nonce point covers the next epoch as well.
 POOL_ID_FROM_FILE="$(printf '0f%.0s' {1..28})"
+NONCE="$(printf 'a1%.0s' {1..32})"
 printf '%s\n' "${POOL_ID_FROM_FILE}" > "${POOL_DIR}/pool.id"
-write_schedule "${EPOCH}" 200 300
+SCHEDULE_NONCE="${NONCE}" write_schedule "${EPOCH}" 200 300
 write_schedule "${NEXT_EPOCH}"
 printf '%s\n' "${NEXT_EPOCH_GATE}" > "${STATE_ROOT}/slot-in-epoch"
 BLOCKLOG_TZ="XXX-2" run_leaderlog leaderlog force
@@ -398,9 +402,9 @@ assert_eq "${status}" "0" "forced leaderlog past the nonce point: ${output}"
 assert_eq "$(db "SELECT epoch, COUNT(*) FROM blocklog WHERE at LIKE '%+02:00' GROUP BY epoch;")" \
   "${EPOCH}|2" "leader slots after a forced run"
 assert_eq "$(db 'SELECT COUNT(*) FROM blocklog;')" "2" "replaced leader slots"
-assert_eq "$(db "SELECT epoch, max_performance FROM epochdata WHERE pool_id='${POOL_ID_FROM_FILE}' ORDER BY epoch;")" \
-  "${EPOCH}|0.93
-${NEXT_EPOCH}|0.0" "epoch data after a forced run"
+assert_eq "$(db "SELECT epoch, max_performance, epoch_nonce FROM epochdata WHERE pool_id='${POOL_ID_FROM_FILE}' ORDER BY epoch;")" \
+  "${EPOCH}|0.93|${NONCE}
+${NEXT_EPOCH}|0.0|" "epoch data after a forced run"
 [[ "${output}" == *"No leader slots found for epoch ${NEXT_EPOCH}"* ]] ||
   fail "an empty schedule is not reported: ${output}"
 rm -f "${POOL_DIR}/pool.id"
@@ -428,13 +432,17 @@ ${NEXT_EPOCH}|2" "leader slots stored by the service"
 stop_service
 
 # A restart keeps a stored schedule that is still valid, here with a status
-# another tool recorded for one of the slots.
+# another tool recorded for one of the slots. A schedule stored without a nonce
+# gets it once Amaru reports one.
 db "UPDATE blocklog SET status='confirmed', block=7 WHERE slot=${first_slot};"
+SCHEDULE_NONCE="${NONCE}" write_schedule "${EPOCH}" 40000 100 86399
 start_service
 wait_for_log "Leaderlogs already calculated for epoch ${EPOCH} and still valid, 3 leader slots"
 stop_service
 assert_eq "$(db "SELECT status, block FROM blocklog WHERE slot=${first_slot};")" "confirmed|7" \
   "slot status after a restart"
+assert_eq "$(db "SELECT epoch, epoch_nonce FROM epochdata ORDER BY epoch;")" "${EPOCH}|${NONCE}
+${NEXT_EPOCH}|" "epoch nonce added to a kept schedule"
 
 # A stored schedule that the node no longer agrees with is replaced; a failed
 # calculation is tried again.

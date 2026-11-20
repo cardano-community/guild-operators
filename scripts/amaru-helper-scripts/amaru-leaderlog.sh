@@ -322,7 +322,7 @@ storedEpochCount() {
 runLeaderlog() {
   local epoch="$1" overwrite="${2:-}"
   local leaderlog_json leaderlog_err error_msg
-  local pool_stake total_active_stake sigma epoch_slots_ideal max_performance
+  local pool_stake total_active_stake nonce sigma epoch_slots_ideal max_performance
   local slot_cnt new_slots stored_slots sql i slot_list
   local -a slots=() slots_in_epoch=() times=() ats=()
 
@@ -346,6 +346,7 @@ runLeaderlog() {
       .epoch == $epoch and
       (.pool_stake | type == "number") and
       (.active_stake | type == "number" and . > 0) and
+      ((has("nonce") | not) or (.nonce | type == "string" and test("^[0-9a-f]{64}$"))) and
       (.schedule | type == "array") and
       all(.schedule[];
         (.slot | type == "number") and
@@ -357,6 +358,9 @@ runLeaderlog() {
   fi
   pool_stake=$(jq -r '.pool_stake' <<< "${leaderlog_json}")
   total_active_stake=$(jq -r '.active_stake' <<< "${leaderlog_json}")
+  # Amaru reports the epoch nonce since 10.11.20261119; older releases leave
+  # it out, and the column stays empty.
+  nonce=$(jq -r '.nonce // ""' <<< "${leaderlog_json}")
   mapfile -t slots < <(jq -r '.schedule | sort_by(.slot)[] | .slot' <<< "${leaderlog_json}")
   mapfile -t slots_in_epoch < <(jq -r '.schedule | sort_by(.slot)[] | .relative_slot' <<< "${leaderlog_json}")
   mapfile -t times < <(jq -r '.schedule | sort_by(.slot)[] | .time' <<< "${leaderlog_json}")
@@ -376,6 +380,11 @@ runLeaderlog() {
     new_slots=$(printf '%s\n' "${slots[@]}")
     stored_slots=$(sqlite3 "${BLOCKLOG_DB}" "SELECT slot FROM blocklog WHERE epoch=${epoch} ORDER BY slot;" 2>/dev/null)
     if [[ "${new_slots}" == "${stored_slots}" ]]; then
+      # A schedule stored by an older Amaru release gets the nonce now.
+      if [[ -n ${nonce} ]] && ! sqlite3 -bail "${BLOCKLOG_DB}" <<< ".timeout 10000
+UPDATE epochdata SET epoch_nonce = '${nonce}' WHERE epoch = ${epoch} AND pool_id = '${POOL_ID}' AND epoch_nonce IS NOT '${nonce}';"; then
+        echo "WARN: failed to store the epoch nonce of epoch ${epoch} in ${BLOCKLOG_DB}"
+      fi
       echo "Leaderlogs already calculated for epoch ${epoch} and still valid, ${slot_cnt} leader slots"
       return 0
     fi
@@ -401,14 +410,13 @@ runLeaderlog() {
   # Slots that stay in the schedule keep their validation result.
   slot_list=0
   (( slot_cnt == 0 )) || slot_list=$(IFS=,; echo "${slots[*]}")
-  # Amaru does not report the epoch nonce, and the protocol has no
-  # decentralisation parameter any more.
+  # The protocol has no decentralisation parameter any more.
   sql=".timeout 10000
 BEGIN IMMEDIATE;
-UPDATE OR IGNORE epochdata SET epoch_nonce = '', sigma = '${sigma}', d = 0.0, epoch_slots_ideal = ${epoch_slots_ideal}, max_performance = ${max_performance}, active_stake = '${pool_stake}', total_active_stake = '${total_active_stake}'
+UPDATE OR IGNORE epochdata SET epoch_nonce = '${nonce}', sigma = '${sigma}', d = 0.0, epoch_slots_ideal = ${epoch_slots_ideal}, max_performance = ${max_performance}, active_stake = '${pool_stake}', total_active_stake = '${total_active_stake}'
 WHERE epoch = ${epoch} AND pool_id = '${POOL_ID}';
 INSERT OR IGNORE INTO epochdata (epoch, epoch_nonce, pool_id, sigma, d, epoch_slots_ideal, max_performance, active_stake, total_active_stake)
-VALUES (${epoch}, '', '${POOL_ID}', '${sigma}', 0.0, ${epoch_slots_ideal}, ${max_performance}, '${pool_stake}', '${total_active_stake}');
+VALUES (${epoch}, '${nonce}', '${POOL_ID}', '${sigma}', 0.0, ${epoch_slots_ideal}, ${max_performance}, '${pool_stake}', '${total_active_stake}');
 DELETE FROM blocklog WHERE epoch = ${epoch} AND slot NOT IN (${slot_list});"
   for i in "${!slots[@]}"; do
     sql+=$'\n'"INSERT OR IGNORE INTO blocklog (slot,at,slot_in_epoch,epoch,status) values (${slots[i]},'${ats[i]}',${slots_in_epoch[i]},${epoch},'leader');"
