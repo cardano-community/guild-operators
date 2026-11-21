@@ -59,9 +59,11 @@ glv_load "${GLIVEVIEW}" ui_colour_256 ui_colour ui_theme ui_put ui_gap ui_putw u
   ui_fmt_duration glv_is_int glv_logo_init glv_role_badge glv_identity_lines glv_rail glv_title_update \
   glv_data_init glv_data_blocklog glv_cell glv_schedule_split glv_production_cells \
   glv_status_label glv_ms_text glv_block_note glv_params_job_run glv_bls_text \
-  glv_binary_parse glv_binary_state glv_binary_pin
-eval "$(grep -E '^(GLV_RAIL_W|VIEW_KEYS|VIEW_NAMES|GLV_VERSION|UI_RESET|UI_BOLD|UI_L|UI_LW|GLV_TITLE_SHOWN|GLV_TITLE_PUSHED)=' "${GLIVEVIEW}")"
+  glv_binary_parse glv_binary_state glv_binary_pin glv_attention glv_notice_colour glv_pulse_now glv_notices_load
+eval "$(grep -E '^(GLV_RAIL_W|VIEW_KEYS|VIEW_NAMES|GLV_VERSION|UI_RESET|UI_BOLD|UI_REVERSE|UI_L|UI_LW|GLV_TITLE_SHOWN|GLV_TITLE_PUSHED)=' "${GLIVEVIEW}")"
 printf -v UI_SPACES '%500s' ''
+# No notices: gliveview-notices.sh covers the Attention lines.
+N_RAIL=(); N_OPEN=0; N_ERRORS=0; N_NEW=0
 
 # Stand-ins for the live parts of the rail.
 glv_vitals() {

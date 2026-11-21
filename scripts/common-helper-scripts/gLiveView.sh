@@ -20,6 +20,7 @@
 #POOL_ID=""                               # Pool ID, bech32 or hex, for the pool data on a block producer (default: from the pool folder)
 #POOL_HISTORY_EPOCHS=5                    # Epochs shown at a time in the epoch history on the Production page (1-20)
 #ENABLE_NODE_PEER_STATE=Y                 # Peer analysis reads the node's own view of its peers from its journal: cardano-node's log and state dump (SIGUSR1), or Amaru's log (N to disable)
+#GLV_PULSE=Y                              # A new error pulses in the side rail until the Notices page (!) has been open (N to keep it steady)
 
 ######################################
 # Do NOT modify code below           #
@@ -245,6 +246,7 @@ ui_locale_init() {
 # ── colours ──────────────────────────────────────────────────────────────────
 UI_RESET=$'\e[0m'
 UI_BOLD=$'\e[1m'
+UI_REVERSE=$'\e[7m'
 UI_COLOUR_DEPTH=256
 
 # ui_colour_256 <variable> <r> <g> <b>: nearest xterm-256 colour index.
@@ -328,7 +330,7 @@ ui_theme() {
       ui_colour NUM D8BC7A; ui_colour SURFACE 202127; ui_colour SELECT 2E3038
       ;;
   esac
-  if [[ "${UI_COLOUR_DEPTH}" == none ]]; then UI_RESET=''; UI_BOLD=''; fi
+  if [[ "${UI_COLOUR_DEPTH}" == none ]]; then UI_RESET=''; UI_BOLD=''; UI_REVERSE=''; fi
   UI_BASE_MAIN="${UI_RESET}${C_TEXT}"
   UI_BASE_RAIL="${UI_RESET}${CB_SURFACE}${C_TEXT}"
   UI_BASE_SELECT="${UI_RESET}${CB_SELECT}${C_TEXT}"
@@ -629,6 +631,7 @@ ui_flush() {
 
 GLV_HISTORY_MAX=120
 GLV_ROWS_MAX=60
+GLV_EVENTS_MAX=200
 
 glv_is_int() { [[ "${1:-}" =~ ^[0-9]+$ ]]; }
 
@@ -711,6 +714,17 @@ glv_data_init() {
   D_NEXT_EPOCH_SLOTS=0
   D_EPOCHS=()
   declare -gA D_RAW=()
+  declare -gA N_LEVEL=() N_TITLE=() N_TEXT=() N_KEY=() N_SINCE=() N_SEEN=() N_RAISED=() N_ACKED=()
+  N_IDS=()
+  N_RAIL=()
+  N_WORST=''
+  N_OPEN=0
+  N_NEW=0
+  N_ERRORS=0
+  D_EVENTS=()
+  D_PENDING_FILES=''
+  D_PENDING_REASON=''
+  glv_notices_load
   local stat_line
   if [[ -r /proc/stat ]]; then
     while read -r stat_line; do
@@ -759,12 +773,303 @@ glv_data_init() {
 
 glv_data_stamp() { printf -v "$1" '%(%H:%M:%S)T' -1; }
 
-# glv_data_event <headline> <detail>: a row for the block list and the footer.
+# glv_data_event <headline> <detail>: a row for the block list and the footer,
+# and for the longer list on the Notices page.
 glv_data_event() {
   local stamp
   glv_data_stamp stamp
   D_ROWS=("E|${stamp}|$1|${2:-}" "${D_ROWS[@]:0:GLV_ROWS_MAX-1}")
+  D_EVENTS=("E|${stamp}|$1|${2:-}" "${D_EVENTS[@]:0:GLV_EVENTS_MAX-1}")
   D_LAST_EVENT="${stamp} $1${2:+ · $2}"
+}
+
+# ── notices ──────────────────────────────────────────────────────────────────
+# A notice is something the operator should know about for as long as it
+# lasts: an error (act now), a warning (act soon) or info. The checks run on
+# every collection, and a notice that is not raised again clears; both moments
+# are events. Errors and warnings are shown in the side rail, info only on the
+# Notices page. There, x acknowledges the warnings and info: they leave the
+# rail until they change. Errors cannot be acknowledged, and a new one pulses
+# in the rail until the Notices page has been open.
+
+# Notices that need the node's metrics stay while it is away, so that a
+# restart does not clear and raise them again. The node's own notice has its
+# "node lost" and "node back" events already.
+GLV_NOTICE_NEEDS_NODE=' alert kes opcert pool peers restart release '
+GLV_NOTICE_QUIET=' node '
+
+# glv_notice <id> <error|warning|info> <title> <text> [key]: raises a notice or
+# updates it. The title is what the rail shows, so it keeps within 22
+# columns; the text says what it means and what to do. The key says when it
+# counts as a new notice for an acknowledgement; by default a change of level
+# does.
+glv_notice() {
+  local id="$1" level="$2"
+  N_RAISED["${id}"]=1
+  if [[ -z "${N_LEVEL[${id}]:-}" ]]; then
+    N_IDS+=("${id}")
+    N_SINCE["${id}"]="${D_COLLECTED_AT}"
+    [[ "${GLV_NOTICE_QUIET}" == *" ${id} "* ]] || glv_data_event "${level}" "$3"
+  elif [[ "${N_LEVEL[${id}]}" != "${level}" ]]; then
+    [[ "${GLV_NOTICE_QUIET}" == *" ${id} "* ]] || glv_data_event "${level}" "$3"
+  fi
+  N_LEVEL["${id}"]="${level}"
+  N_TITLE["${id}"]="$3"
+  N_TEXT["${id}"]="$4"
+  N_KEY["${id}"]="${5:-${id}|${level}}"
+}
+
+# glv_notices_sweep: clears the notices this collection did not raise.
+glv_notices_sweep() {
+  local id
+  local -a kept=()
+  for id in "${N_IDS[@]}"; do
+    if [[ -n "${N_RAISED[${id}]:-}" ]] ||
+       [[ "${D_OK}" != Y && "${GLV_NOTICE_NEEDS_NODE}" == *" ${id} "* ]]; then
+      kept+=("${id}")
+      continue
+    fi
+    [[ "${GLV_NOTICE_QUIET}" == *" ${id} "* ]] || glv_data_event cleared "${N_TITLE[${id}]}"
+    unset "N_LEVEL[${id}]" "N_TITLE[${id}]" "N_TEXT[${id}]" "N_KEY[${id}]" "N_SINCE[${id}]" "N_SEEN[${id}]"
+  done
+  N_IDS=("${kept[@]}")
+  glv_notices_tally
+}
+
+# glv_notices_tally: N_RAIL lists what the rail shows, errors first, then the
+# warnings not acknowledged. N_OPEN counts the notices not acknowledged and
+# N_WORST names the worst of them; N_NEW counts the errors the Notices page
+# has not shown yet, N_ERRORS all errors.
+glv_notices_tally() {
+  local id level
+  local -a errors=() warnings=()
+  N_WORST=''
+  N_OPEN=0
+  N_NEW=0
+  N_ERRORS=0
+  for id in "${N_IDS[@]}"; do
+    level="${N_LEVEL[${id}]}"
+    if [[ "${level}" == error ]]; then
+      errors+=("${id}")
+      N_ERRORS=$((N_ERRORS + 1))
+      N_OPEN=$((N_OPEN + 1))
+      N_WORST=error
+      [[ "${N_SEEN[${id}]:-}" == "${N_KEY[${id}]}" ]] || N_NEW=$((N_NEW + 1))
+      continue
+    fi
+    [[ -z "${N_ACKED[${N_KEY[${id}]}]:-}" ]] || continue
+    N_OPEN=$((N_OPEN + 1))
+    if [[ "${level}" == warning ]]; then
+      warnings+=("${id}")
+      [[ "${N_WORST}" == error ]] || N_WORST=warning
+    elif [[ -z "${N_WORST}" ]]; then
+      N_WORST=info
+    fi
+  done
+  N_RAIL=("${errors[@]}" "${warnings[@]}")
+}
+
+# glv_notices_seen: the Notices page is open, so no error is new any more.
+glv_notices_seen() {
+  local id
+  for id in "${N_IDS[@]}"; do
+    [[ "${N_LEVEL[${id}]}" != error ]] || N_SEEN["${id}"]="${N_KEY[${id}]}"
+  done
+  glv_notices_tally
+}
+
+# glv_notices_ackable: whether a warning or an info is not acknowledged yet.
+glv_notices_ackable() {
+  local id
+  for id in "${N_IDS[@]}"; do
+    [[ "${N_LEVEL[${id}]}" == error || -n "${N_ACKED[${N_KEY[${id}]}]:-}" ]] || return 0
+  done
+  return 1
+}
+
+# glv_notices_acknowledge: x on the Notices page. The acknowledgements of the
+# notices raised now are kept beside the script for the next start.
+glv_notices_acknowledge() {
+  local id
+  glv_notices_ackable || return 1
+  for id in "${N_IDS[@]}"; do
+    [[ "${N_LEVEL[${id}]}" == error ]] || N_ACKED["${N_KEY[${id}]}"]=1
+  done
+  glv_notices_save
+  glv_notices_tally
+}
+
+glv_notices_save() {
+  local id file="${GLV_NOTICE_STATE_FILE:-}"
+  [[ -n "${file}" ]] || return 0
+  if { for id in "${N_IDS[@]}"; do
+         [[ -z "${N_ACKED[${N_KEY[${id}]}]:-}" ]] || printf '%s\n' "${N_KEY[${id}]}"
+       done; } > "${file}.tmp" 2>/dev/null; then
+    mv -f -- "${file}.tmp" "${file}" 2>/dev/null || rm -f -- "${file}.tmp"
+  else
+    rm -f -- "${file}.tmp"
+  fi
+}
+
+glv_notices_load() {
+  local key file="${GLV_NOTICE_STATE_FILE:-}"
+  [[ -n "${file}" && -r "${file}" ]] || return 0
+  while IFS= read -r key; do
+    [[ -z "${key}" ]] || N_ACKED["${key}"]=1
+  done < "${file}"
+}
+
+# What the last guild-deploy.sh refresh kept although this release changes
+# it, from the deployment manifest. A file changed since then may have been
+# fixed by hand, so it is not reported; the next refresh looks again.
+glv_data_pending() {
+  local manifest="${NODE_HOME:-}/.deployment.json" reason='' files='' file
+  local -a pending_files=()
+  D_PENDING_FILES=''
+  D_PENDING_REASON=''
+  [[ -r "${manifest}" ]] && command -v jq >/dev/null 2>&1 || return 0
+  { IFS= read -r reason; IFS= read -r files; } < <(jq -r \
+    '(.pendingConfigUpdate.reason // ""), ((.pendingConfigUpdate.files // []) | join(" "))' "${manifest}" 2>/dev/null)
+  read -r -a pending_files <<< "${files}"
+  (( ${#pending_files[@]} > 0 )) || return 0
+  for file in "${pending_files[@]}"; do
+    [[ ! "${NODE_HOME}/${file}" -nt "${manifest}" ]] || return 0
+  done
+  D_PENDING_FILES="${files}"
+  D_PENDING_REASON="${reason}"
+}
+
+# glv_notices_check: raises what the collected figures call for and clears
+# the rest. Thresholds are the ones the panels colour by.
+glv_notices_check() {
+  local text colour names them service="${NODE_SERVICE:-}"
+  N_RAISED=()
+  if [[ "${D_OK}" != Y ]] && { [[ "${D_DOWN}" == "not running" ]] || (( D_FAILS >= 2 )); }; then
+    text="gLiveView reads no metrics from ${D_IMPL}: ${D_DOWN:-no metrics}."
+    [[ -z "${service}" ]] || text+=" See what its service reports with: sudo systemctl status ${service}"
+    if [[ "${D_DOWN}" == "not running" ]]; then
+      glv_notice node error "Node not running" "${text}"
+    else
+      glv_notice node error "No metrics from node" "${text}"
+    fi
+  fi
+  if [[ "${D_OK}" == Y ]]; then
+    if node_metric_has node_alert && [[ -n "${node_alert:-}" ]]; then
+      glv_notice alert error "Alert: ${node_alert}" "${D_IMPL} reports a problem: ${node_alert}." "alert|${node_alert}"
+    fi
+    if node_metric_has conn_outgoing && [[ "${conn_outgoing:-}" == 0 ]] &&
+       glv_is_int "${D_UPTIME}" && (( D_UPTIME >= 300 )); then
+      glv_notice peers error "No outgoing peers" \
+        "${D_IMPL} has no outgoing connection, so it receives no new blocks. Check its topology and that the host can reach the network."
+    fi
+    if [[ "${D_ROLE}" == Core ]]; then
+      if node_metric_has remaining_kes_periods; then
+        glv_kes_colour colour
+        text="${remaining_kes_periods} KES periods are left"
+        [[ -z "${D_KES_EXPIRES}" ]] || text+=", until ${D_KES_EXPIRES}"
+        text+=". Rotate the KES key and issue a new operational certificate before then, or the node stops making blocks."
+        case "${colour}" in
+          C_DANGER) glv_notice kes error "KES key expires soon" "${text}" ;;
+          C_WARN) glv_notice kes warning "KES key: rotate soon" "${text}" ;;
+        esac
+      fi
+      glv_opcert_text text colour
+      if [[ "${colour}" == C_DANGER ]]; then
+        glv_notice opcert error "Op cert counter wrong" \
+          "The operational certificate on disk has counter ${D_OPCERT_DISK}, the chain has ${D_OPCERT_CHAIN}. It must be the same or one higher, or the blocks this node makes are refused. Issue a new certificate with the right counter." \
+          "opcert|${D_OPCERT_DISK}|${D_OPCERT_CHAIN}"
+      fi
+      glv_pool_vital text colour
+      case "${text}" in
+        "pledge not met")
+          glv_notice pool error "Pledge not met" \
+            "The owners delegate less than the pool's pledge, so the pool earns no rewards for the epoch. Delegate more to the owner accounts, or lower the pledge." "pool|pledge" ;;
+        retired)
+          glv_notice pool error "Pool retired" "Koios lists the pool as retired, so it makes no more blocks." "pool|retired" ;;
+        "retiring "*)
+          glv_notice pool warning "Pool ${text}" "The pool is set to retire in epoch ${text#retiring }." "pool|${text}" ;;
+        *)
+          if [[ -n "${text}" && "${colour}" == "${C_WARN}" ]]; then
+            glv_notice pool warning "Pool over-saturated" \
+              "The pool holds more stake than its saturation point (${text#* · }), so its delegators earn less than they could." "pool|saturated"
+          fi ;;
+      esac
+    fi
+  fi
+  if [[ -n "${D_PENDING_FILES}" ]]; then
+    names="${D_PENDING_FILES//files\//}"
+    names="${names//scripts\//}"
+    if [[ "${names}" == *' '* ]]; then
+      text="The last refresh kept ${names// / and } as they were, although this release changes them"
+      them=them
+    else
+      text="The last refresh kept ${names} as it was, although this release changes it"
+      them=it
+    fi
+    [[ -z "${D_PENDING_REASON}" ]] || text+=" (${D_PENDING_REASON})"
+    text+=". Run guild-deploy.sh -s u to update ${them} in place, or -s f to replace ${them} with the shipped files; a backup is kept either way."
+    glv_notice config warning "Config update pending" "${text}" "config|${D_PENDING_FILES}|${D_PENDING_REASON}"
+  fi
+  if glv_is_int "${D_DISK}"; then
+    text="The disk with ${NODE_HOME} is ${D_DISK} % full. The node stops when it runs out of space; free some or grow the disk."
+    if (( D_DISK >= 95 )); then glv_notice disk error "Disk ${D_DISK} % full" "${text}" "disk|error"
+    elif (( D_DISK >= 90 )); then glv_notice disk warning "Disk ${D_DISK} % full" "${text}" "disk|warning"; fi
+  fi
+  if [[ -n "${D_PID}" && -n "${D_BIN_VERSION}" ]]; then
+    # The clock moves after the first collection; the node's start time needs it.
+    (( D_NOW >= D_COLLECTED_AT )) || D_NOW="${D_COLLECTED_AT}"
+    glv_binary_state text colour
+    # A new version waiting for a restart is a warning; the same version
+    # installed again, as a refresh with -s d does, is only worth knowing.
+    if [[ -n "${colour}" && "${colour}" == "${C_WARN}" ]]; then
+      if [[ "${D_BIN_VERSION#v}" != "${D_VERSION#v}" ]]; then
+        glv_notice restart warning "Restart for new binary" \
+          "The ${D_IMPL} binary on disk is ${D_BIN_VERSION}, but the node still runs ${D_VERSION}. Restart the node to run the new version." \
+          "restart|${D_BIN_VERSION}|${D_BIN_MTIME}"
+      else
+        glv_notice restart info "Binary reinstalled" \
+          "The ${D_IMPL} binary was installed again after the node started, with the same version (${D_BIN_VERSION}${D_BIN_REV:+, ${D_BIN_REV}}). The node runs the earlier copy until it restarts." \
+          "restart|${D_BIN_VERSION}|${D_BIN_MTIME}"
+      fi
+    fi
+    glv_binary_pin text colour
+    if [[ -n "${colour}" && "${colour}" == "${C_WARN}" && "${D_BIN_PIN#v}" != "${D_BIN_VERSION#v}" ]]; then
+      glv_notice release info "${D_IMPL} ${D_BIN_PIN} is pinned" \
+        "This deployment's release pins ${D_IMPL} ${D_BIN_PIN}; the node runs ${D_VERSION}. Install it with guild-deploy.sh -s d, then restart the node." \
+        "release|${D_BIN_PIN}"
+    fi
+  fi
+  glv_notices_sweep
+  # An error that comes up while the Notices page is open has been seen.
+  (( ${VIEW:-1} != 8 )) || glv_notices_seen
+}
+
+# glv_notice_colour <variable> [level]: the colour of a level, by default the
+# worst one not acknowledged.
+glv_notice_colour() {
+  local -n _notice_colour="$1"
+  case "${2:-${N_WORST:-}}" in
+    error) _notice_colour="${C_DANGER}" ;;
+    warning) _notice_colour="${C_WARN}" ;;
+    *) _notice_colour="${C_MUTED}" ;;
+  esac
+}
+
+# glv_pulse_now: whether a new error is drawn lit this second.
+glv_pulse_now() {
+  [[ "${GLV_PULSE:-Y}" != [Nn]* && "${UI_COLOUR_DEPTH}" != none ]] && (( ${N_NEW:-0} > 0 && ${D_NOW:-0} % 2 == 0 ))
+}
+
+# glv_event_colour <variable> <event>: notices that are raised take their
+# level's colour, cleared ones the good colour, other events amber.
+glv_event_colour() {
+  local -n _event_colour="$1"
+  case "$2" in
+    error) _event_colour="${C_DANGER}" ;;
+    info) _event_colour="${C_MUTED}" ;;
+    cleared) _event_colour="${C_OK}" ;;
+    *) _event_colour="${C_WARN}" ;;
+  esac
 }
 
 glv_data_cpu() {
@@ -1000,6 +1305,9 @@ glv_data_blocks() {
     (( delay <= 5000 )) || note="late"
     glv_data_stamp stamp
     D_ROWS=("B|${stamp}|${blocknum}|${slotnum:-}|${delay}|${note}" "${D_ROWS[@]:0:GLV_ROWS_MAX-1}")
+    if [[ "${note}" == "fork switch" || "${note}" == late ]]; then
+      D_EVENTS=("B|${stamp}|${blocknum}|${slotnum:-}|${delay}|${note}" "${D_EVENTS[@]:0:GLV_EVENTS_MAX-1}")
+    fi
     (( delay < 0 )) || glv_push H_DELAY "${delay}" "${GLV_HISTORY_MAX}"
   fi
   D_LAST_BLOCK="${blocknum}"
@@ -1947,12 +2255,15 @@ glv_data_collect() {
   if (( D_COLLECTED_AT - D_SLOW_AT >= 30 )); then
     D_SLOW_AT="${D_COLLECTED_AT}"
     glv_data_disk
+    glv_data_pending
+    glv_data_binary
     if [[ "${D_ROLE}" == Core ]]; then glv_data_blocklog; fi
   fi
   if [[ "${D_ROLE}" == Core ]] && (( D_COLLECTED_AT - D_KES_AT >= 60 )); then
     D_KES_AT="${D_COLLECTED_AT}"
     glv_data_kes
   fi
+  glv_notices_check
 
   glv_data_view
   D_COLLECT_MS=$(( (${EPOCHREALTIME/[.,]/} - start) / 1000 ))
@@ -2046,8 +2357,8 @@ GLV_RAIL_W=26
 GLV_SLIM_W=5
 
 VIEW=1
-VIEW_KEYS=('' 1 2 3 4 5 6 n)
-VIEW_NAMES=('' Overview Chain Peers Production System Logs "Node & network")
+VIEW_KEYS=('' 1 2 3 4 5 6 n '!')
+VIEW_NAMES=('' Overview Chain Peers Production System Logs "Node & network" Notices)
 
 glv_layout_class() {
   if (( COLS < GLV_MIN_COLS || ROWS < GLV_MIN_ROWS )); then LAYOUT=small
@@ -2598,8 +2909,9 @@ glv_panel_recent() {
     if [[ "${kind}" == E ]]; then
       ui_putw "${C_MUTED}" 12 "—" r; ui_putw "${C_MUTED}" 13 "—" r
       ui_putw "${C_MUTED}" 8 "—" r; ui_gap 2
+      glv_event_colour colour "${record%%|*}"
       record="${record/|/ · }"
-      ui_putw "${C_WARN}" $(( room < ${#record} ? room : ${#record} )) "${record}"
+      ui_putw "${colour}" $(( room < ${#record} ? room : ${#record} )) "${record}"
     else
       block="${record%%|*}"; record="${record#*|}"
       slot="${record%%|*}"; record="${record#*|}"
@@ -2647,7 +2959,7 @@ glv_panel_events() {
       record="${record#E|}"
       stamp="${record%%|*}"; record="${record#*|}"
       text="${record/|/ · }"
-      colour="${C_WARN}"
+      glv_event_colour colour "${record%%|*}"
     else
       note="${record##*|}"
       [[ "${note}" == "fork switch" || "${note}" == late ]] || continue
@@ -2820,13 +3132,43 @@ glv_identity_lines() {
   ui_putw "${C_MUTED}" "${width}" "${value}"; ui_endl "$1" "${width}"
 }
 
+# glv_attention <errors array> <warnings array> <width>: the rail's lines for
+# the notices that need attention, at most three, errors first. A new error
+# pulses (GLV_PULSE=N keeps it steady) until the Notices page has been open.
+glv_attention() {
+  local -n _att_errors="$1" _att_warnings="$2"
+  local width="$3" id shown=0 more style
+  _att_errors=()
+  _att_warnings=()
+  for id in "${N_RAIL[@]}"; do
+    (( shown < 3 )) || break
+    if [[ "${N_LEVEL[${id}]}" == error ]]; then
+      style="${C_DANGER}"
+      if [[ "${N_SEEN[${id}]:-}" != "${N_KEY[${id}]}" ]] && glv_pulse_now; then style+="${UI_REVERSE}"; fi
+      ui_put "${style}" "✗ "
+      ui_putw "${style}" $((width - 2)) "${N_TITLE[${id}]}"
+      ui_endl "$1" "${width}"
+    else
+      ui_put "${C_WARN}" "! "
+      ui_putw "${C_WARN}" $((width - 2)) "${N_TITLE[${id}]}"
+      ui_endl "$2" "${width}"
+    fi
+    shown=$((shown + 1))
+  done
+  more=$((${#N_RAIL[@]} - shown))
+  (( more > 0 )) || return 0
+  ui_putw "${C_MUTED}" "${width}" "+${more} more · ! Notices"
+  if (( ${#_att_warnings[@]} > 0 )); then ui_endl "$2" "${width}"; else ui_endl "$1" "${width}"; fi
+}
+
 # glv_rail <height>: the full rail, RAIL lines of GLV_RAIL_W columns. Sections
 # leave in this order when the terminal is short: logo, next block, more,
-# vitals.
+# warnings, vitals, errors.
 glv_rail() {
-  local height="$1" inner=$((GLV_RAIL_W - 2)) value i line needed
-  local show_logo=N show_vitals=N show_more=N show_next=N
+  local height="$1" inner=$((GLV_RAIL_W - 2)) value i line needed colour
+  local show_logo=N show_vitals=N show_more=N show_next=N show_errors=N show_warnings=N
   local -a title=() logo=() head=() vitals=() views=() more=() next=() body=()
+  local -a attention=() errors=() warnings=()
   UI_BASE="${UI_BASE_RAIL}"
 
   ui_put "${UI_BOLD}${C_ACCENT}" "Koios gLiveView"; ui_put "${C_MUTED}" " ${GLV_VERSION}"; ui_endl title "${inner}"
@@ -2839,13 +3181,19 @@ glv_rail() {
   fi
   glv_identity_lines head "${inner}"
 
+  glv_attention errors warnings "${inner}"
+  if (( ${#errors[@]} + ${#warnings[@]} > 0 )); then
+    ui_endl attention "${inner}"
+    ui_put "${C_MUTED}" "ATTENTION"; ui_endl attention "${inner}"
+  fi
+
   ui_endl vitals "${inner}"
   ui_put "${C_MUTED}" "VITALS"; ui_endl vitals "${inner}"
   glv_vitals vitals "${inner}"
 
   ui_endl views "${inner}"
   ui_put "${C_MUTED}" "VIEWS"; ui_endl views "${inner}"
-  for i in 1 2 3 4 5 6 7; do
+  for i in 1 2 3 4 5 6 7 8; do
     if (( i == VIEW )); then
       UI_BASE="${UI_BASE_SELECT}"
       ui_put "${UI_KEY}" "▸"; ui_gap 1
@@ -2860,6 +3208,13 @@ glv_rail() {
       else
         ui_put '' "${VIEW_NAMES[i]}"
       fi
+    fi
+    # The Notices entry counts what is not acknowledged, in the colour of the
+    # worst of it.
+    if (( i == 8 && ${N_OPEN:-0} > 0 )); then
+      glv_notice_colour colour
+      ui_gap $((inner - UI_LW - ${#N_OPEN}))
+      ui_put "${UI_BOLD}${colour}" "${N_OPEN}"
     fi
     ui_endl views "${inner}"
     UI_BASE="${UI_BASE_RAIL}"
@@ -2877,10 +3232,23 @@ glv_rail() {
   fi
 
   # Decide by importance what fits, then stack the sections in rail order.
+  # Errors come before the vitals, warnings after them.
   needed=$((${#title[@]} + ${#head[@]} + ${#views[@]}))
+  if (( ${#errors[@]} > 0 && needed + ${#attention[@]} + ${#errors[@]} <= height )); then
+    show_errors=Y
+    needed=$((needed + ${#attention[@]} + ${#errors[@]}))
+  fi
   if (( needed + ${#vitals[@]} <= height )); then
     show_vitals=Y
     needed=$((needed + ${#vitals[@]}))
+  fi
+  if (( ${#warnings[@]} > 0 )); then
+    value=${#warnings[@]}
+    [[ "${show_errors}" == Y ]] || value=$((value + ${#attention[@]}))
+    if (( needed + value <= height )); then
+      show_warnings=Y
+      needed=$((needed + value))
+    fi
   fi
   if (( needed + ${#more[@]} <= height )); then
     show_more=Y
@@ -2894,6 +3262,9 @@ glv_rail() {
   body=("${title[@]}")
   [[ "${show_logo}" == N ]] || body+=("${logo[@]}")
   body+=("${head[@]}")
+  [[ "${show_errors}${show_warnings}" == NN ]] || body+=("${attention[@]}")
+  [[ "${show_errors}" == N ]] || body+=("${errors[@]}")
+  [[ "${show_warnings}" == N ]] || body+=("${warnings[@]}")
   [[ "${show_vitals}" == N ]] || body+=("${vitals[@]}")
   body+=("${views[@]}")
   [[ "${show_more}" == N ]] || body+=("${more[@]}")
@@ -2909,17 +3280,25 @@ glv_rail() {
 
 # glv_rail_slim <height>: view numbers only, for 80 to 109 columns.
 glv_rail_slim() {
-  local height="$1" i line
+  local height="$1" i line colour
   local -a body=()
   UI_BASE="${UI_BASE_RAIL}"
-  for i in 1 2 3 4 5 6 7; do
+  for i in 1 2 3 4 5 6 7 8; do
     if (( i == VIEW )); then
       UI_BASE="${UI_BASE_SELECT}"
       ui_put "${UI_KEY}" "▸"
     else
       ui_gap 1
     fi
-    ui_put "${UI_KEY}" "${VIEW_KEYS[i]}"
+    # The Notices key takes the colour of the worst notice not acknowledged,
+    # and pulses for a new error.
+    if (( i == 8 && ${N_OPEN:-0} > 0 )); then
+      glv_notice_colour colour
+      ! glv_pulse_now || colour+="${UI_REVERSE}"
+      ui_put "${UI_BOLD}${colour}" "${VIEW_KEYS[i]}"
+    else
+      ui_put "${UI_KEY}" "${VIEW_KEYS[i]}"
+    fi
     ui_endl body 3
     UI_BASE="${UI_BASE_RAIL}"
   done
@@ -3113,7 +3492,9 @@ glv_page_full() {
     drawer) glv_footer footer "←→ Panel" "↑↓ Scroll text" "? Close help" "1-6 Jump" "q Quit" ;;
     page) glv_footer footer "↑↓ Scroll" "? Close help" "1-6 Jump" "q Quit" ;;
     *)
-      if (( VIEW == 1 )); then
+      if (( VIEW == 1 && ${#N_IDS[@]} > 0 )); then
+        glv_footer footer "↑↓ View" "1-6 Jump" "! Notices" "? Help" "${GLV_EXTRA_KEYS[@]}" "r Redraw" "q Quit"
+      elif (( VIEW == 1 )); then
         glv_footer footer "↑↓ View" "1-6 Jump" "? Help" "${GLV_EXTRA_KEYS[@]}" "r Redraw" "q Quit"
       else
         glv_footer_page footer "↑↓ View" "1-6 Jump"
@@ -3258,6 +3639,8 @@ glv_page_compact() {
     glv_footer footer "↑↓ Scroll" "? Close help" "1-6 View" "q Quit"
   elif (( VIEW != 1 )); then
     glv_footer_page footer "1-6 View"
+  elif (( ${#N_IDS[@]} > 0 )); then
+    glv_footer footer "1-6 View" "! Notices" "? Help" "${GLV_EXTRA_KEYS[@]}" "r Redraw" "q Quit"
   else
     glv_footer footer "1-6 View" "? Help" "${GLV_EXTRA_KEYS[@]}" "r Redraw" "q Quit"
   fi
@@ -3275,6 +3658,10 @@ glv_page_mini() {
   glv_status status colour
   ui_put "${UI_BOLD}${C_ACCENT}" "Koios gLiveView"; ui_put "${C_MUTED}" " ${GLV_VERSION}"; ui_endl lines "${inner}"
   ui_putw "${colour}" "${inner}" "● ${status}"; ui_endl lines "${inner}"
+  glv_attention next foot "${inner}"
+  lines+=("${next[@]}" "${foot[@]}")
+  next=()
+  foot=()
   ui_endl lines "${inner}"
   glv_identity_lines lines "${inner}"
 
@@ -4111,8 +4498,8 @@ PAGE_TOTAL=0
 # to mark), and PAGE_FOCUS_AT which of them has the focus.
 PAGE_FOCUS=N
 PAGE_FOCUS_AT=0
-PAGE_FOCUSABLE=('' N Y Y Y N Y Y)
-PAGE_LISTS=('' '' recent peerlist "schedule history" '' log '')
+PAGE_FOCUSABLE=('' N Y Y Y N Y Y Y)
+PAGE_LISTS=('' '' recent peerlist "schedule history" '' log '' eventlist)
 
 # glv_focus_key: GLV_FOCUS_KEY names the list that has the focus, or is empty.
 glv_focus_key() {
@@ -5224,6 +5611,102 @@ glv_view_logs() {
   glv_main_add P_A
 }
 
+# ── ! Notices ────────────────────────────────────────────────────────────────
+# What needs attention now, errors first, each with what it means and what to
+# do; below it every event since gLiveView started, newest first.
+glv_view_notices() {
+  local width="$1" inner=$(($1 - 4)) id level colour glyph since text line height rows record stamp block shown=0
+  local right='' n_errors=0 n_warnings=0 n_infos=0
+  local -a order=() wrapped=() body=()
+  glv_notices_seen
+  for level in error warning info; do
+    for id in "${N_IDS[@]}"; do [[ "${N_LEVEL[${id}]}" != "${level}" ]] || order+=("${id}"); done
+  done
+  UI_BASE="${UI_BASE_MAIN}"
+  UI_BODY=()
+  for id in "${order[@]}"; do
+    level="${N_LEVEL[${id}]}"
+    glv_notice_colour colour "${level}"
+    case "${level}" in
+      error) glyph='✗'; n_errors=$((n_errors + 1)) ;;
+      warning) glyph='!'; n_warnings=$((n_warnings + 1)) ;;
+      *) glyph='i'; n_infos=$((n_infos + 1)) ;;
+    esac
+    printf -v since '%(%H:%M:%S)T' "${N_SINCE[${id}]:-0}"
+    text="since ${since}"
+    [[ "${level}" == error || -z "${N_ACKED[${N_KEY[${id}]}]:-}" ]] || text="acknowledged · ${text}"
+    ui_put "${colour}" "${glyph} "
+    ui_putw "${UI_BOLD}${colour}" $((inner - 3 - ${#text})) "${N_TITLE[${id}]}"
+    ui_gap 1
+    ui_put "${C_MUTED}" "${text}"
+    ui_endl UI_BODY "${inner}"
+    ui_wrap wrapped $((inner - 2)) "${N_TEXT[${id}]}"
+    for line in "${wrapped[@]}"; do
+      ui_gap 2
+      ui_putw '' $((inner - 2)) "${line}"
+      ui_endl UI_BODY "${inner}"
+    done
+  done
+  if (( ${#order[@]} == 0 )); then
+    ui_putw "${C_OK}" "${inner}" "Nothing needs attention."
+    ui_endl UI_BODY "${inner}"
+    ui_putw "${C_MUTED}" "${inner}" "Errors and warnings are listed here, and in the side rail, while they last."
+    ui_endl UI_BODY "${inner}"
+  fi
+  if (( n_errors > 0 )); then right+="${n_errors} error"; (( n_errors == 1 )) || right+=s; right+=" · "; fi
+  if (( n_warnings > 0 )); then right+="${n_warnings} warning"; (( n_warnings == 1 )) || right+=s; right+=" · "; fi
+  (( n_infos == 0 )) || right+="${n_infos} info · "
+  right="${right% · }"
+  # The events keep at least a few rows; a longer list of notices is cut.
+  glv_main_room
+  height=$((${#UI_BODY[@]} + 2))
+  if (( height > GLV_ROOM - 6 && GLV_ROOM - 6 >= 4 )); then
+    height=$((GLV_ROOM - 6))
+    body=("${UI_BODY[@]:0:height-3}")
+    UI_BODY=("${body[@]}")
+    ui_putw "${C_MUTED}" "${inner}" "… more than fits; make the terminal taller to see all"
+    ui_endl UI_BODY "${inner}"
+  fi
+  UI_HELP=notices
+  ui_panel P_A "${width}" "${height}" "Notices" "${right}"
+  glv_main_add P_A
+  ! glv_notices_ackable || GLV_PAGE_KEYS=("x Acknowledge")
+
+  glv_main_room
+  (( GLV_ROOM >= 4 )) || return 0
+  rows=$((GLV_ROOM - 2))
+  PAGE_TOTAL=${#D_EVENTS[@]}
+  glv_page_window "${rows}"
+  UI_BODY=()
+  for record in "${D_EVENTS[@]:PAGE_SCROLL:rows}"; do
+    if [[ "${record}" == E\|* ]]; then
+      record="${record#E|}"
+      stamp="${record%%|*}"; record="${record#*|}"
+      glv_event_colour colour "${record%%|*}"
+      text="${record/|/ · }"
+      text="${text% · }"
+    else
+      record="${record#B|}"
+      stamp="${record%%|*}"; record="${record#*|}"
+      ui_fmt_int block "${record%%|*}"
+      text="${record##*|} · block ${block}"
+      colour="${C_WARN}"
+      [[ "${record##*|}" != late ]] || colour="${C_DANGER}"
+    fi
+    ui_putw "${C_MUTED}" 9 "${stamp}"
+    ui_putw "${colour}" $((inner - 9)) "${text}"
+    ui_endl UI_BODY "${inner}"
+    shown=$((shown + 1))
+  done
+  if (( shown == 0 )); then
+    ui_putw "${C_MUTED}" "${inner}" "Nothing has happened since gLiveView started."
+    ui_endl UI_BODY "${inner}"
+  fi
+  UI_HELP=eventlist
+  ui_panel P_B "${width}" "${GLV_ROOM}" "Events" "since gLiveView started · newest first"
+  glv_main_add P_B
+}
+
 # ── n Node & network ─────────────────────────────────────────────────────────
 # glv_column_add <column> <panel>: stacks a panel in a column of the page and
 # makes it known to help mode.
@@ -5376,6 +5859,7 @@ glv_view_build() {
     4) glv_view_production "$1" ;;
     5) glv_view_system "$1" ;;
     6) glv_view_logs "$1" ;;
+    8) glv_view_notices "$1" ;;
     *) glv_view_details "$1" ;;
   esac
 }
@@ -5495,6 +5979,12 @@ glv_help_rail() {
   local value='' level='' colour last text
   glv_help_add "Name · role" \
     "The node's name (NODE_NAME, else the deployment folder), its role badge, the implementation and version, the network, and how long the node process has run. The role comes from the node itself: BLOCK PRODUCER when it reports that it forges."
+  level=ok
+  if (( ${#N_RAIL[@]} > 0 )); then value="${#N_RAIL[@]}"; level=warn; (( ${N_ERRORS:-0} == 0 )) || level=bad; fi
+  glv_help_add "Attention" \
+    "Errors, and warnings not acknowledged, at most three with errors first; the Notices page (!) lists them all with what to do. On a short terminal the warnings give way before the vitals, the errors after them. The number beside Notices counts every notice not acknowledged, in the colour of the worst." \
+    "Not shown: nothing needs attention." "${value:-none}" "${level}"
+  value=''; level=''
   if [[ -n "${D_TIP_GAP}" ]]; then
     glv_slots value "${D_TIP_GAP}"
     if (( D_TIP_GAP <= 120 )); then level=ok; elif (( D_TIP_GAP <= 600 )); then level=warn; else level=bad; fi
@@ -5856,6 +6346,8 @@ glv_help_entries() {
       fi
       ;;
     rail) glv_help_rail ;;
+    notices) glv_help_notices ;;
+    eventlist) glv_help_events ;;
     pool)
       [[ "${D_ROLE}" == Core ]] || return 0
       glv_help_add "Source" \
@@ -6113,6 +6605,25 @@ glv_help_keys() {
 glv_help_events() {
   glv_help_add "Events" \
     "Things that happened to the node while gLiveView was running: it went away or came back, restarted, an epoch started, it lost all hot peers, a sync phase changed, a block of yours was adopted, or it raised an alert. Fork switches and late blocks are listed too."
+  glv_help_add "Notices" \
+    "A notice that comes up is an event in its level's colour: red for an error, amber for a warning, grey for info. One that clears is an event in green. The Notices page (!) keeps the last ${GLV_EVENTS_MAX} events; the Overview shows the newest."
+}
+
+glv_help_notices() {
+  local value='' level=ok
+  (( ${N_ERRORS:-0} == 0 )) || { value="${N_ERRORS}"; level=bad; }
+  glv_help_add "✗ Error" \
+    "Needs action now. It stays in the side rail under ATTENTION while it lasts, pulses there until this page has been open (GLV_PULSE=N keeps it steady), and puts (!) in front of the terminal title. An error cannot be acknowledged: it goes when its cause does." \
+    "No errors." "${value:-0}" "${level}"
+  glv_help_add "! Warning" \
+    "Needs action soon. It is in the side rail until it is acknowledged with x, and comes back when it changes, for example when it turns into an error." \
+    "No warnings, or only acknowledged ones."
+  glv_help_add "i Info" \
+    "Worth knowing, such as a newer node release pinned by the deployment. Info is only listed on this page, never in the rail."
+  glv_help_add "x Acknowledge" \
+    "Takes the warnings and info listed now out of the side rail and the count beside Notices. The page still lists them, marked acknowledged. gLiveView remembers this in gLiveView.sh.notices beside the script."
+  glv_help_add "What is checked" \
+    "The node: no metrics or not running, an alert it raises, no outgoing peers five minutes after the start. A block producer: KES periods (error at 5 or fewer, warning at 15 or fewer), the operational certificate counter, and from Koios the pledge, retirement and saturation. The deployment: files a refresh kept although the release changes them (guild-deploy.sh -s u updates them), the disk (warning at 90 %, error at 95 %), a binary replaced while the node runs (a warning for a new version, info for the same one installed again), and a release pin the node does not run yet."
 }
 
 # glv_help_lines <panel> <width> [page]: the panel's help as typed lines in
@@ -6261,6 +6772,8 @@ GLV_EXTRA_KEYS=()
 # gLiveView 1 used, so an existing one is carried on.
 GLV_PEER_STATE_FILE="${PARENT}/gLiveView.sh.peerstate"
 GLV_PEER_GEO_FILE="${PARENT}/gLiveView.sh.geo"
+# Warnings and info acknowledged on the Notices page, one key per line.
+GLV_NOTICE_STATE_FILE="${PARENT}/gLiveView.sh.notices"
 PEER_JOB_FILE="${TMPDIR:-/tmp}/gLiveView.$$.peers"
 PARAMS_JOB_FILE="${TMPDIR:-/tmp}/gLiveView.$$.params"
 POOL_JOB_FILE="${TMPDIR:-/tmp}/gLiveView.$$.pool"
@@ -6306,6 +6819,8 @@ glv_title_update() {
   # shows other characters as "_".
   title="gLiveView - ${D_NAME} - ${role}"
   title="${title//[[:cntrl:]]/}"
+  # A tab shows that something is wrong without switching to it.
+  (( ${N_ERRORS:-0} == 0 )) || title="(!) ${title}"
   [[ "${title}" != "${GLV_TITLE_SHOWN}" ]] || return 0
   if [[ "${GLV_TITLE_PUSHED}" == N ]]; then
     printf '\e[22;0t'
@@ -6334,15 +6849,15 @@ glv_command_palette() {
   local choice='' i
   local -a rows=()
   [[ -n "${GUM}" ]] || return 0
-  for i in 1 2 3 4 5 6 7; do
+  for i in 1 2 3 4 5 6 7 8; do
     printf -v choice '%02d  ›  %s' "${i}" "${VIEW_NAMES[i]}"
     rows+=("${choice}")
   done
-  rows+=("08  •  Help: what the figures mean" "09  •  Redraw" "10  ✕  Quit")
+  rows+=("09  •  Help: what the figures mean" "10  •  Redraw" "11  ✕  Quit")
   printf '\e[2J\e[H\e[?25h'
   stty "${STTY_SAVED}" 2>/dev/null
   # The rows go in as arguments, so gum keeps the terminal as its input.
-  choice="$("${GUM}" filter --limit 1 --height 14 \
+  choice="$("${GUM}" filter --limit 1 --height 15 \
     --width "$(( COLS < 64 ? COLS - 2 : 62 ))" --padding "1 2" --no-fuzzy \
     --placeholder "Type to filter, Enter to run, Esc twice to close" \
     --placeholder.foreground "${HEX_MUTED}" \
@@ -6355,9 +6870,9 @@ glv_command_palette() {
   printf '\e[?25l\e[2J'
   ui_invalidate
   case "${choice:0:2}" in
-    0[1-7]) glv_view_set "${choice:1:1}" ;;
-    08) HELP=Y; HELP_SCROLL=0 ;;
-    10) exit 0 ;;
+    0[1-8]) glv_view_set "${choice:1:1}" ;;
+    09) HELP=Y; HELP_SCROLL=0 ;;
+    11) exit 0 ;;
   esac
 }
 
@@ -6433,11 +6948,20 @@ glv_key_help() {
   esac
 }
 
+# The key of the Notices page: acknowledge the warnings and info.
+glv_key_notices() {
+  case "$1" in
+    x) glv_notices_acknowledge ;;
+    *) return 1 ;;
+  esac
+}
+
 # glv_view_set <number>: switches page and fetches what only that page shows.
 # Help stays open and starts at the first panel of the new page.
 glv_view_set() {
-  (( $1 >= 1 && $1 <= 7 )) || return 0
+  (( $1 >= 1 && $1 <= 8 )) || return 0
   VIEW="$1"
+  (( VIEW != 8 )) || glv_notices_seen
   PAGE_SCROLL=0
   PAGE_FOCUS=N
   PAGE_FOCUS_AT=0
@@ -6454,11 +6978,14 @@ glv_key() {
     ! glv_key_peers "$1" || return 0
   elif (( VIEW == 6 )); then
     ! glv_key_logs "$1" || return 0
+  elif (( VIEW == 8 )); then
+    ! glv_key_notices "$1" || return 0
   fi
   case "$1" in
     q|Q) exit 0 ;;
     [1-6]) glv_view_set "$1" ;;
     n) glv_view_set 7 ;;
+    '!') glv_view_set 8 ;;
     '?'|h) HELP=Y; HELP_SCROLL=0 ;;
     # Tab gives the arrows to the list on the page, Tab or Esc gives them back.
     $'\t')

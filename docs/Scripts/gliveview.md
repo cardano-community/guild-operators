@@ -89,11 +89,12 @@ work where you are.
 | `5` | System | The host beside the node process, and the node's own metrics |
 | `6` | Logs | The node's journal, with pause, find and a level filter |
 | `n` | Node & network | What is running, how it was started, the network constants and the protocol parameters |
+| `!` | Notices | What needs attention now, and every event since gLiveView started. See [Notices](#notices) |
 
 | Key | Action |
 | --- | --- |
 | `↑` `↓` | Previous and next page |
-| `1`-`6`, `n` | Jump to a page |
+| `1`-`6`, `n`, `!` | Jump to a page |
 | `Tab` | Put the focus on the page's list, where `↑` `↓` then scroll it a line at a time. A page with two lists, such as Production, gets the focus on each in turn. `Tab` from the last list, or `Esc`, gives the arrows back to the pages |
 | `PgUp` `PgDn`, `Space` | Scroll the page's list half a screen |
 | `g` | Back to the top of a list |
@@ -104,6 +105,7 @@ work where you are.
 
 The Logs page adds `p` to pause and resume, `f` to find, `l` to cycle the
 level, `←` `→` to move long lines sideways and `G` to jump to the oldest line.
+The Notices page adds `x` to acknowledge its warnings and info.
 The find pattern is matched against the time, the source and the message,
 ignoring case; start it with `!` to hide the matching lines instead. The page
 holds the newest 1,000 lines of the journal of the node's systemd service.
@@ -153,6 +155,7 @@ implementation can expose a different subset.
 | --- | --- |
 | Logo | The node implementation's logo under the title, in the full rail of terminals 110 columns and wider. It is the first thing the rail leaves out on a short terminal, and `SHOW_NODE_LOGO=N` hides it. |
 | Name | `NODE_NAME` when set, otherwise the name of the deployment folder. |
+| Attention | Only while something needs attention: up to three errors (red, `✗`) and warnings not acknowledged (amber, `!`), errors first, and how many more the Notices page has. On a short terminal the warnings leave before the vitals and the errors after them. See [Notices](#notices). |
 | Role | A badge under the name: `RELAY` on blue, or `BLOCK PRODUCER` on gold. The compact layout starts its top line with the same badge. cnode and Dingo derive producer mode from the live forging metric; Amaru from the operational-certificate gauges that only a block producer exports. Without colours the badge reads `[RELAY]` or `[BLOCK PRODUCER]`. |
 | Implementation and version | The node implementation, and the version reported by the running process or its build metric. |
 | Network and up | The configured network, and the elapsed time for the current node process, not host uptime. The seconds are left out when the line would not fit the rail. |
@@ -163,13 +166,15 @@ implementation can expose a different subset.
 | Pool | On a producer with pool data from Koios: the ticker and the pool's saturation. Red with `pledge not met` when the owners delegate less than the pledge, which costs the pool the epoch's rewards, and with `retired`; amber while the pool is retiring or over-saturated. Not shown without an answer from Koios. |
 | Host, Node | Processor use of the host, and processor and memory use of the node process. |
 | Next block | On a producer with a leader schedule: the countdown to the next leader slot. This is sensitive operational information; control who can view the terminal. |
+| Notices count | Beside `Notices` in the page list: the notices not acknowledged, in the colour of the worst of them. The slim rail at 80 to 109 columns colours its `!` the same way. |
 
 The terminal title, which a terminal tab or tmux window shows, names the node
 and its role while gLiveView runs, for example `gLiveView - bp1 - block
-producer`. gLiveView saves the previous title on the terminal's title stack
-and restores it on exit, as xterm-compatible terminals and tmux do. A
-terminal without a title stack keeps gLiveView's title until the shell sets
-its own.
+producer`. While an error is open the title starts with `(!)`, so a tab shows
+it without switching to it. gLiveView saves the previous title on the
+terminal's title stack and restores it on exit, as xterm-compatible terminals
+and tmux do. A terminal without a title stack keeps gLiveView's title until
+the shell sets its own.
 
 ### Epoch
 
@@ -525,6 +530,43 @@ where it has one (cnode and Dingo), and from Koios otherwise (Amaru). They are
 read in the background when the page is opened and again when the epoch
 changes.
 
+## Notices
+
+Press `!` for what needs attention. Each notice says what it means and what to
+do, and has a level:
+
+| Level | Where it shows | Example |
+| --- | --- | --- |
+| Error (red, `✗`) | The rail's Attention lines, the Notices page, and `(!)` in the terminal title. A new error pulses in the rail until the Notices page has been open; `GLV_PULSE=N` keeps it steady. It cannot be acknowledged and goes when its cause does | The node not running, KES key about to expire |
+| Warning (amber, `!`) | The rail's Attention lines until acknowledged, and the Notices page | A configuration update pending, the disk 90 % full |
+| Info (grey, `i`) | The Notices page only | A newer node release pinned by the deployment |
+
+`x` on the Notices page acknowledges the warnings and info listed: they leave
+the rail and the count, and stay on the page marked as acknowledged. One that
+changes, such as a warning that turns into an error, comes back. The
+acknowledgements are kept in `gLiveView.sh.notices` beside the script.
+
+gLiveView checks:
+
+| Notice | Level |
+| --- | --- |
+| No metrics from the node, or its process not running | Error |
+| An alert the node raises | Error |
+| No outgoing peers five minutes after the node started | Error |
+| KES periods left, on a producer | Warning at 15 or fewer, error at 5 or fewer |
+| Operational certificate counter on disk neither equal to the chain's nor one higher | Error |
+| Pledge not met, or pool retired, from Koios | Error |
+| Pool retiring or over-saturated, from Koios | Warning |
+| Configuration update pending: files the last `guild-deploy.sh` refresh kept although this release changes them. `guild-deploy.sh -s u` updates them in place. A file changed since that refresh is not reported | Warning |
+| Disk with the node's home | Warning at 90 %, error at 95 % |
+| The node binary replaced while the node runs: restart to run it | Warning for a new version, info for the same version installed again |
+| A release pin the binary on disk does not meet: `guild-deploy.sh -s d` installs it | Info |
+
+When a notice comes up or clears, that is an event too, in the notice's
+colour, or green when it clears. Below the notices the page lists the last 200
+events since gLiveView started, newest first; `Tab` puts the focus on the list
+to scroll it.
+
 ## Peer analysis
 
 The Peers page lists every TCP connection of the node process, fastest first,
@@ -717,6 +759,7 @@ tracker](https://github.com/cardano-community/guild-operators/issues).
 #POOL_ID=""                               # Pool ID for the pool data, bech32 or hex
 #POOL_HISTORY_EPOCHS=5                    # Epochs shown at a time in the epoch history
 #ENABLE_NODE_PEER_STATE=Y                 # Read peer data from the node's journal
+#GLV_PULSE=Y                              # A new error pulses in the rail until the Notices page has been open
 ```
 
 A script update keeps the variables you already have. `SHOW_NODE_LOGO` from

@@ -52,6 +52,8 @@ jobs:
       run: bash files/tests/amaru-leaderlog.sh
     - name: gLiveView view tests
       run: bash files/tests/gliveview-views.sh
+    - name: gLiveView notice tests
+      run: bash files/tests/gliveview-notices.sh
     - name: Block validation tests
       run: bash files/tests/block-validation.sh
     - name: CNTools Dijkstra tests
