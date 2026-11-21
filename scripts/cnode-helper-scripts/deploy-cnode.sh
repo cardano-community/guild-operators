@@ -1343,6 +1343,8 @@ cnode_deploy_config_uses_checkpoints() { # $1 = config file
 cnode_deploy_migrate_genesis_config() {
   local current="$1" shipped="$2" output="$3"
 
+  jq -e 'type == "object"' "${current}" >/dev/null 2>&1 || return 1
+
   [[ "$(jq -r 'has("Configuration")' "${current}")" == "$(jq -r 'has("Configuration")' "${shipped}")" ]] || {
     log_warn "config.json uses another layout than this release ships, so it was not switched to GenesisMode. Refresh with -s f to replace it (a backup is kept)."
     cp -f -- "${current}" "${output}"
@@ -1372,10 +1374,15 @@ cnode_deploy_migrate_genesis_config() {
 # topology that turns ledger peers off (useLedgerAfterSlot -1, the block
 # producer layout) syncs only from its local roots, so every one of them is
 # trusted; otherwise it reads big ledger peers from the shipped snapshot from the
-# slot the snapshot names. Peers are never added or removed. $1 = operator's
-# topology, $2 = shipped topology, $3 = output.
+# slot the snapshot names. A topology that already reads the snapshot keeps its
+# useLedgerAfterSlot: each refresh installs a newer snapshot, which an older
+# slot still suits, so a snapshot update is no change to make here. Peers are
+# never added or removed. $1 = operator's topology, $2 = shipped topology,
+# $3 = output.
 cnode_deploy_migrate_genesis_topology() {
   local current="$1" shipped="$2" output="$3"
+
+  jq -e 'type == "object"' "${current}" >/dev/null 2>&1 || return 1
 
   if jq -e '((.useLedgerAfterSlot | numbers) // 0) < 0 and ([.localRoots[]?.accessPoints[]?] | length == 0)' "${current}" >/dev/null; then
     log_warn "topology.json turns ledger peers off and has no local roots, so the node has no peers to sync from. Add your relays as local roots."
@@ -1387,6 +1394,8 @@ cnode_deploy_migrate_genesis_topology() {
     del(.bootstrapPeers) |
     if ((.useLedgerAfterSlot | numbers) // 0) < 0 then
       .localRoots |= map(.trustable = true)
+    elif has("peerSnapshotFile") then
+      .
     else
       .peerSnapshotFile = $s.peerSnapshotFile | .useLedgerAfterSlot = $s.useLedgerAfterSlot
     end
@@ -1408,7 +1417,34 @@ cnode_deploy_apply_migration() {
   backup="${file}_bkp$(date +%s)"
   cp -f -- "${file}" "${backup}" || err_exit "Could not back up ${file} before migrating it."
   mv -f -- "${migrated}" "${file}" || err_exit "Could not install the migrated ${file}."
+  CNODE_DEPLOY_UPDATED_FILES+=("${file}")
   log_info "${file} updated for GenesisMode; the previous copy is ${backup}."
+}
+
+# cnode_deploy_update_kept_file <file> <migrate function>: bring a kept file
+# in the files folder up to this release. With -s u the change is made, with a
+# backup; otherwise the file stays as it is and, when the release would change
+# it, it is listed in CNODE_DEPLOY_PENDING_FILES.
+cnode_deploy_update_kept_file() {
+  local file="$1" migrate="$2" migrated="$1.migrated"
+
+  [[ -f "${file}" && -f "${file}.tmp" ]] || return 0
+  if ! "${migrate}" "${file}" "${file}.tmp" "${migrated}"; then
+    rm -f -- "${migrated}"
+    [[ ${CNODE_DEPLOY_UPDATE_CONFIG} != 'Y' ]] ||
+      err_exit "Could not read ${file} to update it. Fix it, or refresh with -s f to replace it (a backup is kept)."
+    log_warn "Could not read ${file} to compare it with this release."
+    return 0
+  fi
+  if [[ ${CNODE_DEPLOY_UPDATE_CONFIG} == 'Y' ]]; then
+    cnode_deploy_apply_migration "${file}" "${migrated}"
+    return 0
+  fi
+  if jq -e . "${migrated}" >/dev/null 2>&1 &&
+     [[ "$(jq -cS . "${file}")" != "$(jq -cS . "${migrated}")" ]]; then
+    CNODE_DEPLOY_PENDING_FILES+=("files/${file}")
+  fi
+  rm -f -- "${migrated}"
 }
 
 cnode_deploy_release_overlay_path() {
@@ -1934,20 +1970,32 @@ cnode_deploy_seed_initial_env_port() {
 # deployment's files folder.
 cnode_deploy_install_network_files() {
   local network_file
-  # The operator's config and topology change only when they are missing or a
-  # forced overwrite was asked for; a GenesisMode network migrates them in place
-  # first, keeping a backup.
-  if cnode_deploy_is_genesis_network && [[ ${CNODE_DEPLOY_FORCE_CONFIG} != 'Y' ]]; then
-    if [[ -f config.json ]]; then
-      cnode_deploy_migrate_genesis_config config.json config.json.tmp config.json.migrated ||
-        err_exit "Could not read config.json to migrate it to GenesisMode. Fix it, or refresh with -s f to replace it (a backup is kept)."
-      cnode_deploy_apply_migration config.json config.json.migrated
+  CNODE_DEPLOY_PENDING_FILES=()
+  CNODE_DEPLOY_UPDATED_FILES=()
+  PROFILE_PENDING_CONFIG_FILES=''
+  PROFILE_PENDING_CONFIG_REASON=''
+  # The operator's config and topology change only when asked: -s u updates
+  # them in place for this release, keeping a backup, and -s f replaces them.
+  # A plain refresh leaves them as they are and records what -s u would change.
+  if [[ ${CNODE_DEPLOY_FORCE_CONFIG} == 'Y' ]]; then
+    [[ ${CNODE_DEPLOY_UPDATE_CONFIG} != 'Y' ]] ||
+      log_info "-s f replaces config.json and topology.json, so -s u has nothing to update."
+  elif cnode_deploy_is_genesis_network; then
+    cnode_deploy_update_kept_file config.json cnode_deploy_migrate_genesis_config
+    cnode_deploy_update_kept_file topology.json cnode_deploy_migrate_genesis_topology
+  fi
+  if (( ${#CNODE_DEPLOY_PENDING_FILES[@]} > 0 )); then
+    PROFILE_PENDING_CONFIG_FILES="${CNODE_DEPLOY_PENDING_FILES[*]}"
+    PROFILE_PENDING_CONFIG_REASON="GenesisMode: the public bootstrap peers are being shut down"
+    network_file="${CNODE_DEPLOY_PENDING_FILES[*]#files/}"
+    if (( ${#CNODE_DEPLOY_PENDING_FILES[@]} > 1 )); then
+      log_warn "${network_file// / and } still need this release's GenesisMode changes. The public bootstrap peers are being shut down, so a node left on them may not sync again after it falls behind. Refresh with -s u to update them in place, or with -s f to replace them; a backup is kept either way."
+    else
+      log_warn "${network_file} still needs this release's GenesisMode changes. The public bootstrap peers are being shut down, so a node left on them may not sync again after it falls behind. Refresh with -s u to update it in place, or with -s f to replace it; a backup is kept either way."
     fi
-    if [[ -f topology.json ]]; then
-      cnode_deploy_migrate_genesis_topology topology.json topology.json.tmp topology.json.migrated ||
-        err_exit "Could not read topology.json to migrate it to GenesisMode. Fix it, or refresh with -s f to replace it (a backup is kept)."
-      cnode_deploy_apply_migration topology.json topology.json.migrated
-    fi
+  elif [[ ${CNODE_DEPLOY_UPDATE_CONFIG} == 'Y' && ${CNODE_DEPLOY_FORCE_CONFIG} != 'Y' &&
+          ${#CNODE_DEPLOY_UPDATED_FILES[@]} -eq 0 ]]; then
+    log_info "config.json and topology.json already match this release; -s u had nothing to update."
   fi
   # Genesis files and the operator's files: installed when missing or forced.
   for network_file in byron-genesis.json shelley-genesis.json alonzo-genesis.json conway-genesis.json \
@@ -2101,13 +2149,14 @@ cnode_deploy_parse_flags() {
   CNODE_DEPLOY_INSTALL_SIGNER="N"
   CNODE_DEPLOY_INSTALL_BLOCKPERF="N"
   CNODE_DEPLOY_FORCE_CONFIG="N"
+  CNODE_DEPLOY_UPDATE_CONFIG="N"
   CNODE_DEPLOY_FORCE_SCRIPTS="N"
   CNODE_DEPLOY_REFRESH_PAYLOAD="Y"
   CNODE_DEPLOY_NO_SELECTIVE_FLAGS="N"
   CNODE_DEPLOY_FRESH_TARGET="N"
 
   if [[ -n "${S_ARGS}" ]]; then
-    unsupported_flags="${S_ARGS//[pblmdcowxrsf]/}"
+    unsupported_flags="${S_ARGS//[pblmdcowxrsfu]/}"
     [[ -z "${unsupported_flags}" ]] ||
       err_exit "Unsupported cnode -s flag(s): '${unsupported_flags}'."
     [[ "${S_ARGS}" =~ "p" ]] && CNODE_DEPLOY_INSTALL_OS_DEPS="Y"
@@ -2119,6 +2168,7 @@ cnode_deploy_parse_flags() {
       CNODE_DEPLOY_INSTALL_LIBSODIUM="Y"
     [[ "${S_ARGS}" =~ "m" ]] && CNODE_DEPLOY_INSTALL_MITHRIL="Y"
     [[ "${S_ARGS}" =~ "f" ]] && CNODE_DEPLOY_FORCE_CONFIG="Y"
+    [[ "${S_ARGS}" =~ "u" ]] && CNODE_DEPLOY_UPDATE_CONFIG="Y"
     [[ "${S_ARGS}" =~ "s" ]] && CNODE_DEPLOY_FORCE_SCRIPTS="Y"
     [[ "${S_ARGS}" =~ "d" ]] && CNODE_DEPLOY_INSTALL_BINARY="Y"
     [[ "${S_ARGS}" =~ "c" ]] && CNODE_DEPLOY_INSTALL_CNCLI="Y"
@@ -2150,7 +2200,7 @@ cnode_deploy_main_flow() {
   [[ "${CNODE_DEPLOY_OPENSSL_BIN##*/}" != "openssl3" ]] ||
     log_info "Using OpenSSL 3 compatibility executable: ${CNODE_DEPLOY_OPENSSL_BIN}"
   [[ "${CNODE_DEPLOY_REFRESH_PAYLOAD}" == "Y" ]] && run_step "Guild source preflight" "snapshot" cnode_deploy_preflight_snapshot
-  [[ "${CNODE_DEPLOY_REFRESH_PAYLOAD}" == "Y" ]] && run_step "Scripts and configuration" "default/-s f/s" populate_cnode
+  [[ "${CNODE_DEPLOY_REFRESH_PAYLOAD}" == "Y" ]] && run_step "Scripts and configuration" "default/-s f/s/u" populate_cnode
   if [[ "${CNODE_DEPLOY_REFRESH_PAYLOAD}" == "Y" ]] &&
      declare -F dispatcher_mark_payload_ready >/dev/null 2>&1; then
     PROFILE_TARGET_NODE_VERSION="${CARDANO_NODE_VERSION:-}"

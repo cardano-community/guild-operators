@@ -18,7 +18,7 @@ branch, implementation, network, target path, service name, node port, download
 timeouts, and selective flags. `deploy-cnode.sh` is an internal source-only
 profile; it has no editable user-variable section and must not be run directly.
 
-The common flags `p`, `d`, `f`, `s`, and `w` have the same meaning for every
+The common flags `p`, `d`, `f`, `s`, `u`, and `w` have the same meaning for every
 implementation:
 
 | Flag | Common action |
@@ -27,6 +27,7 @@ implementation:
 | `d` | Download and verify the selected implementation binaries |
 | `f` | Force replacement of cnode network files; topology, node, and db-sync configs are backed up |
 | `s` | Force helper-script replacement, including every script and common `env` user-variable section |
+| `u` | Update the kept topology and node config in place for this release, keeping your own settings; both are backed up |
 | `w` | Install the pinned Cardano Hardware CLI and host device rules |
 
 cnode additionally supports:

@@ -85,9 +85,9 @@ dingo_deploy_parse_flags() {
   DINGO_DEPLOY_FORCE_SCRIPTS="N"
 
   local unsupported="${S_ARGS:-}"
-  unsupported="${unsupported//[pdfsw]/}"
+  unsupported="${unsupported//[pdfsuw]/}"
   [[ -z "${unsupported}" ]] || {
-    dingo_deploy_fail "Unsupported Dingo -s flag(s): '${unsupported}'. Allowed: p,d,f,s,w; cnode-only b,l,m,c,o,x,r are rejected."
+    dingo_deploy_fail "Unsupported Dingo -s flag(s): '${unsupported}'. Allowed: p,d,f,s,u,w; cnode-only b,l,m,c,o,x,r are rejected."
     return 1
   }
 
@@ -98,6 +98,8 @@ dingo_deploy_parse_flags() {
     DINGO_DEPLOY_INSTALL_HWCLI="Y"
   fi
   [[ "${S_ARGS:-}" == *f* ]] && DINGO_DEPLOY_FORCE_CONFIG="Y"
+  # Dingo has no configuration change to make in place in this release.
+  [[ "${S_ARGS:-}" != *u* ]] || dingo_deploy_info "-s u: the Dingo configuration needs no update for this release"
   [[ "${S_ARGS:-}" == *s* ]] && DINGO_DEPLOY_FORCE_SCRIPTS="Y"
   return 0
 }

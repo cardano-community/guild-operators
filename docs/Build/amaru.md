@@ -36,13 +36,15 @@ The supported selective-install flags are:
 | `d` | Resolve and verify the newest Amaru binary plus its pinned CLI and metrics companions |
 | `f` | Replace an existing Amaru environment config, retaining a backup |
 | `s` | Force helper-script replacement; this replaces common `env` user-variable settings |
+| `u` | Update an existing Amaru environment config in place for this release, retaining a backup |
 | `w` | Install the pinned Cardano Hardware CLI and host device rules |
 
 The cnode-specific flags `b`, `l`, `m`, `c`, `o`, `x`, and `r` are
 rejected. With no `-s` value, the profile refreshes scripts, common libraries,
 the release manifest, and missing configuration while preserving an existing
-Amaru environment file. Select `-s f` when the managed environment template
-should replace that file; the current file is archived first.
+Amaru environment file. Select `-s u` to bring that file up to this release in
+place, or `-s f` when the managed environment template should replace it; the
+current file is archived first either way.
 
 The executables are installed as `${NODE_HOME}/bin/amaru`,
 `${NODE_HOME}/bin/cardano-cli`, and `${NODE_HOME}/bin/otelcol-contrib`. Existing
@@ -145,12 +147,14 @@ sets:
   finds its upstream peers from the peer snapshot, the ledger and peer sharing.
   Add your own relays or block producer there.
 
-A refresh keeps an existing `amaru.env`, but removes the network's retired
-bootstrap peer (`backbone.cardano.iog.io:3001`, or
+A refresh keeps an existing `amaru.env` as it is. When the file still names
+the network's retired bootstrap peer (`backbone.cardano.iog.io:3001`, or
 `preprod-node.play.dev.cardano.org:3001` and
-`preview-node.play.dev.cardano.org:3001`) from `AMARU_PEER`, keeps any other
-peers there, and adds `AMARU_PEERS_SNAPSHOT` when it is missing. The previous
-copy goes to `scripts/archive/`.
+`preview-node.play.dev.cardano.org:3001`) in `AMARU_PEER`, or does not set
+`AMARU_PEERS_SNAPSHOT`, the refresh warns, and gLiveView shows the same as a
+warning on its Notices page. A refresh with `-s u` then removes only that peer
+from `AMARU_PEER`, keeps any other peers there, and adds
+`AMARU_PEERS_SNAPSHOT`. The previous copy goes to `scripts/archive/`.
 
 `AMARU_LOG_OTLP` and `AMARU_LOG_JSON` are the names Amaru uses since
 10.11.20261112. An existing `amaru.env` that still sets
@@ -332,8 +336,8 @@ AMARU_PEERS_MAX_UPSTREAM="4"
 ```
 
 Restart the service afterwards. A deployment refresh keeps an existing
-`amaru.env` unless `-s f` is used, which archives the old file under
-`scripts/archive/` first.
+`amaru.env` unless `-s u` (update in place) or `-s f` (replace) is used; both
+archive the old file under `scripts/archive/` first.
 
 Amaru provides no cardano-node-compatible node-to-client socket. Its optional
 HTTP transaction submission endpoint, `AMARU_SUBMIT_API_LISTEN_ON`, is

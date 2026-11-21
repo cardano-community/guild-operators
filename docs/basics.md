@@ -162,7 +162,8 @@ Usage: guild-deploy.sh [-g account] [-i <cnode|dingo|amaru>] [-n <network>] \
 -s    Selective install flags. All implementations:
         p  runtime OS prerequisites
         d  selected node implementation binaries
-        f  force configuration overwrite
+        f  force configuration overwrite (backups are kept)
+        u  update the kept configuration in place for this release (backups are kept)
         s  force helper-script overwrite
         w  cardano-hw-cli and host device rules
       cnode only (dingo and amaru reject these):

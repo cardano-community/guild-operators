@@ -196,10 +196,13 @@ Every network except Guild runs Ouroboros Genesis (`"ConsensusMode":
 "GenesisMode"` in `config.json`). A syncing node does not trust one set of
 bootstrap peers: it connects to many of the largest pools from the peer
 snapshot and compares their chains. The public bootstrap peers are being shut
-down, so the templates no longer list `bootstrapPeers`. A refresh with
+down, so the templates no longer list `bootstrapPeers`. Every refresh with
 `guild-deploy.sh` replaces `peer-snapshot.json` (and `checkpoints.json` on
-mainnet and preview) and moves `useLedgerAfterSlot` to match it, so keep both
-as installed.
+mainnet and preview), so keep the installed `peerSnapshotFile`. The
+`useLedgerAfterSlot` of a topology that reads the snapshot can stay as it is:
+each new snapshot is from a later slot. A topology from before the switch is
+moved over with `guild-deploy.sh -s u`; see
+[Moving to Ouroboros Genesis](../upgrade.md#genesis-mode).
 
 For a relay, keep the installed peer snapshot, ledger and public peer settings
 and replace the placeholder trusted `localRoots` with the operator's own nodes.

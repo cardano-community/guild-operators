@@ -458,7 +458,8 @@ dispatcher_usage() {
 	-s    Selective install flags. All implementations:
 	        p  runtime OS prerequisites
 	        d  selected node implementation binaries
-	        f  force configuration overwrite
+	        f  force configuration overwrite (backups are kept)
+	        u  update the kept configuration in place for this release (backups are kept)
 	        s  force helper-script overwrite
 	        w  cardano-hw-cli and host device rules
 	      cnode only (dingo and amaru reject these):
@@ -3255,6 +3256,8 @@ dispatcher_write_manifest() {
   local cap_forging
   local metrics_provider
   local target_node_version
+  local pending_file pending_separator=''
+  local -a pending_files=()
   node_version="$(dispatcher_detect_node_version)"
   target_node_version="${PROFILE_TARGET_NODE_VERSION:-}"
   manifest_tmp="$(mktemp "${NODE_HOME}/.deployment.json.tmp.XXXXXX")" ||
@@ -3284,6 +3287,20 @@ dispatcher_write_manifest() {
     printf '  "nodeVersion": "%s",\n' "$(dispatcher_json_escape "${node_version}")"
     printf '  "targetNodeVersion": "%s",\n' "$(dispatcher_json_escape "${target_node_version}")"
     printf '  "metricsProvider": "%s",\n' "$(dispatcher_json_escape "${metrics_provider}")"
+    # Kept configuration files this release would change. The refresh left them
+    # as they were; guild-deploy.sh -s u updates them. gLiveView shows this.
+    read -r -a pending_files <<< "${PROFILE_PENDING_CONFIG_FILES:-}"
+    if (( ${#pending_files[@]} > 0 )); then
+      printf '  "pendingConfigUpdate": {\n'
+      printf '    "reason": "%s",\n' "$(dispatcher_json_escape "${PROFILE_PENDING_CONFIG_REASON:-}")"
+      printf '    "files": ['
+      for pending_file in "${pending_files[@]}"; do
+        printf '%s"%s"' "${pending_separator}" "$(dispatcher_json_escape "${pending_file}")"
+        pending_separator=', '
+      done
+      printf ']\n'
+      printf '  },\n'
+    fi
     printf '  "capabilities": {\n'
     printf '    "n2c": %s,\n' "${cap_n2c}"
     printf '    "localCli": %s,\n' "${cap_local_cli}"
@@ -3325,6 +3342,18 @@ dispatcher_write_manifest() {
   if [[ "${deployment_status}" = "deployed" && "${announce}" = "Y" ]]; then
     log_ok "Deployment metadata updated" "${DEPLOYMENT_FILE}"
   fi
+}
+
+# The kept files this release would change, repeated at the end because the
+# profile's own warning scrolls away in a long run.
+dispatcher_pending_config_report() {
+  local -a pending_files=()
+  read -r -a pending_files <<< "${PROFILE_PENDING_CONFIG_FILES:-}"
+  (( ${#pending_files[@]} > 0 )) || return 0
+  printf "\n  %s! Kept as they were, although this release changes them:%s %s\n" \
+    "${STYLE_YELLOW}" "${STYLE_RESET}" "${pending_files[*]}"
+  [[ -z "${PROFILE_PENDING_CONFIG_REASON:-}" ]] || printf "    %s\n" "${PROFILE_PENDING_CONFIG_REASON}"
+  printf "    Update them in place, keeping a backup:\n      %s/scripts/guild-deploy.sh -s u\n" "${NODE_HOME}"
 }
 
 dispatcher_mark_in_progress() {
@@ -3526,6 +3555,7 @@ guild_deploy_main() {
   dispatcher_write_manifest deployed
 
   printf "\n%sDeployment finished%s\n" "${STYLE_GREEN}${STYLE_BOLD}" "${STYLE_RESET}"
+  dispatcher_pending_config_report
   dispatcher_binary_layout_report
   printf "\n  To use this deployment's binaries in a shell:\n    source %s/scripts/activate\n" "${NODE_HOME}"
 }

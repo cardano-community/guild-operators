@@ -82,12 +82,13 @@ amaru_deploy_parse_flags() {
   AMARU_DEPLOY_INSTALL_BINARY="N"
   AMARU_DEPLOY_INSTALL_HWCLI="N"
   AMARU_DEPLOY_FORCE_CONFIG="N"
+  AMARU_DEPLOY_UPDATE_CONFIG="N"
   AMARU_DEPLOY_FORCE_SCRIPTS="N"
 
   local unsupported="${S_ARGS:-}"
-  unsupported="${unsupported//[pdfsw]/}"
+  unsupported="${unsupported//[pdfsuw]/}"
   [[ -z "${unsupported}" ]] || {
-    amaru_deploy_fail "Unsupported Amaru -s flag(s): '${unsupported}'. Allowed: p,d,f,s,w; cnode-only b,l,m,c,o,x,r are rejected."
+    amaru_deploy_fail "Unsupported Amaru -s flag(s): '${unsupported}'. Allowed: p,d,f,s,u,w; cnode-only b,l,m,c,o,x,r are rejected."
     return 1
   }
 
@@ -98,6 +99,7 @@ amaru_deploy_parse_flags() {
     AMARU_DEPLOY_INSTALL_HWCLI="Y"
   fi
   [[ "${S_ARGS:-}" == *f* ]] && AMARU_DEPLOY_FORCE_CONFIG="Y"
+  [[ "${S_ARGS:-}" == *u* ]] && AMARU_DEPLOY_UPDATE_CONFIG="Y"
   [[ "${S_ARGS:-}" == *s* ]] && AMARU_DEPLOY_FORCE_SCRIPTS="Y"
   return 0
 }
@@ -381,12 +383,28 @@ amaru_deploy_retired_default_peer() {
 # Bring a preserved amaru.env up to date with the peer settings of this release.
 # Only the retired template peer is dropped from AMARU_PEER; peers the operator
 # added stay. A file without AMARU_PEERS_SNAPSHOT gets the shipped snapshot.
+# The file changes only with -s u; otherwise the refresh records that it would.
 amaru_deploy_migrate_environment() {
   local file="$1" retired peers kept staged
+  PROFILE_PENDING_CONFIG_FILES=''
+  PROFILE_PENDING_CONFIG_REASON=''
   retired="$(amaru_deploy_retired_default_peer "${NETWORK}")"
   peers="$(sed -n 's/^AMARU_PEER="\([^"]*\)".*/\1/p' "${file}" | tail -n 1)"
   kept="$(printf '%s\n' "${peers//,/$'\n'}" | awk -v retired="${retired}" 'NF && $0 != retired' | paste -sd, -)"
   if [[ "${kept}" == "${peers}" ]] && grep -q '^AMARU_PEERS_SNAPSHOT=' "${file}"; then
+    [[ "${AMARU_DEPLOY_UPDATE_CONFIG}" != "Y" ]] ||
+      amaru_deploy_info "amaru.env already matches this release; -s u had nothing to update"
+    return 0
+  fi
+  if [[ "${AMARU_DEPLOY_UPDATE_CONFIG}" != "Y" ]]; then
+    PROFILE_PENDING_CONFIG_FILES="scripts/amaru.env"
+    if [[ "${kept}" != "${peers}" ]]; then
+      PROFILE_PENDING_CONFIG_REASON="Peers: the public bootstrap peers are being shut down"
+      amaru_deploy_warn "amaru.env still names the retired bootstrap peer ${retired} in AMARU_PEER. Refresh with -s u to drop it and start from the shipped peer snapshot, or with -s f to replace the file; the old copy is archived either way."
+    else
+      PROFILE_PENDING_CONFIG_REASON="Peers: start from the shipped peer snapshot"
+      amaru_deploy_warn "amaru.env does not set AMARU_PEERS_SNAPSHOT. Refresh with -s u to start from the shipped peer snapshot, or with -s f to replace the file; the old copy is archived either way."
+    fi
     return 0
   fi
   staged="$(mktemp "${NODE_HOME}/scripts/amaru-env-migrated.XXXXXX")" || return 1
@@ -450,6 +468,10 @@ amaru_deploy_install_environment() {
       amaru_deploy_migrate_environment "${destination}" || return 1
       return 0
     fi
+    [[ "${AMARU_DEPLOY_UPDATE_CONFIG}" != "Y" ]] ||
+      amaru_deploy_info "-s f replaces amaru.env, so -s u has nothing to update"
+    PROFILE_PENDING_CONFIG_FILES=''
+    PROFILE_PENDING_CONFIG_REASON=''
     cp -p -- "${destination}" "${NODE_HOME}/scripts/archive/amaru.env.$(date -u +%Y%m%dT%H%M%SZ)" || {
       rm -f -- "${rendered}"
       return 1

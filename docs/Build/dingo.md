@@ -36,6 +36,7 @@ The supported selective-install flags are:
 | `d` | Resolve and verify the newest Dingo binary, and install Dingo's independently pinned cardano-cli companion |
 | `f` | Replace an existing Dingo configuration, retaining a backup |
 | `s` | Force helper-script replacement; this replaces common `env` user-variable settings |
+| `u` | Update kept configuration in place for this release; Dingo has nothing to update in this release |
 | `w` | Install the pinned Cardano Hardware CLI and host device rules |
 
 The cnode-specific flags `b`, `l`, `m`, `c`, `o`, `x`, and `r` are

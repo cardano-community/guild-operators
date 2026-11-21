@@ -7,8 +7,18 @@ the largest pools listed in the network's peer snapshot and compares their
 chains, instead of trusting a few bootstrap hosts. The Guild network stays in
 PraosMode.
 
-A refresh with the current `guild-deploy.sh`, without `-s f`, moves an existing
-cnode deployment over and keeps everything else you set:
+A refresh with the current `guild-deploy.sh` keeps an existing cnode
+deployment's `config.json` and `topology.json` as they are and warns that they
+still need this release's changes. gLiveView shows the same as a warning in its
+side rail and on its Notices page (`!`), and `cnode.sh` logs it each time the
+node starts; the node still starts, also under systemd. Refresh with `-s u` to
+move both over in place, keeping everything else you set:
+
+``` bash
+/opt/cardano/cnode/scripts/guild-deploy.sh -s u
+```
+
+`-s u` makes these changes:
 
 - `config.json`: GenesisMode; on mainnet and preview the network's
   `checkpoints.json`; the LedgerDB snapshot options moved into a
@@ -23,16 +33,19 @@ cnode deployment over and keeps everything else you set:
   they are network data, not settings.
 
 The previous files stay next to them as `config.json_bkp<time>` and
-`topology.json_bkp<time>`. If a block producer gets its pool keys or its
-relay-only topology later, `cnode.sh` marks its local roots trustable before
-the node starts, and keeps a backup of the topology when it does.
+`topology.json_bkp<time>`. `-s f` replaces both with the shipped files instead,
+with the same backups, so your own settings have to be added back by hand.
+If a block producer gets its pool keys or its relay-only topology later,
+`cnode.sh` warns before the node starts when a local root is not trustable;
+run `-s u` again to fix it.
 
 Check the switch with `gLiveView.sh`, or with the node's metrics: the
 `cardano_node_metrics_GSM_state_int` value is 0 while the node waits for
 enough big ledger peers, 1 while it syncs and 2 once it has caught up.
 
-An Amaru deployment gets the same peer snapshot in `files/peer-snapshot.json`,
-and its retired bootstrap peer is removed from `AMARU_PEER`.
+An Amaru deployment gets the same peer snapshot in `files/peer-snapshot.json`
+on every refresh. Its retired bootstrap peer is removed from `AMARU_PEER`, and
+`AMARU_PEERS_SNAPSHOT` added, with `-s u`.
 
 ### Moving to per-deployment binaries {: #per-deployment-binaries}
 
