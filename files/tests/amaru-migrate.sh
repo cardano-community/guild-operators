@@ -69,6 +69,8 @@ AMARU_MIGRATE_VERIFY_TIMEOUT=3
 amaru_migrate_load_libraries
 
 reset_case() {
+  # The template sets no static peer, so one from an earlier case must not linger.
+  unset AMARU_PEER
   write_amaru_env
   write_cnode_manifest cnode preview
   rm -f -- "${CALLS}" "${AMARU_MIGRATE_STATE}"
@@ -86,6 +88,14 @@ relay_args() {
 # --- peer translation -------------------------------------------------------
 assert_eq "$(amaru_migrate_local_roots "${CNODE_HOME_DIR}/files/topology.json")" \
   "10.0.0.5:6000,[2001:db8::7]:6000,relay2.example.com:3001" "localRoots as host:port, IPv6 bracketed, unique"
+# The cnode template's unedited placeholders are not peers, and after the switch
+# Amaru listens on cnode's port, so a loopback entry on it would be Amaru itself.
+printf '%s\n' '{"localRoots":[{"accessPoints":[
+  {"address":"127.0.0.1","port":6000,"description":"replace-this-with-BP"},
+  {"address":"127.0.0.1","port":6002},{"address":"127.0.0.1","port":6001},{"address":"::1","port":6001},
+  {"address":"10.0.0.9","port":6001}]}]}' > "${TEMP_ROOT}/placeholders.json"
+assert_eq "$(amaru_migrate_local_roots "${TEMP_ROOT}/placeholders.json" 6001)" "10.0.0.9:6001,127.0.0.1:6002" \
+  "placeholders and Amaru's own address are skipped"
 assert_eq "$(amaru_migrate_merge_peers "a:1,b:2" "b:2,c:3")" "a:1,b:2,c:3" "merged peers keep order without duplicates"
 
 # --- amaru.env editing ------------------------------------------------------
@@ -117,21 +127,41 @@ assert_eq "${CNODE_PORT}" "6000" "cnode port from the node's command line"
 assert_eq "${CNODE_SOCKET}" "${CNODE_HOME_DIR}/sockets/node.socket" "cnode socket from the node's command line"
 
 # --- prepare: peers and peer mix ---------------------------------------------
-# The floor covers every static peer, the template's included, with one upstream slot to spare:
-# static peers also take spare slots first, which would leave no room for a discovered peer.
+# The floor covers every static peer with one upstream slot to spare: static
+# peers also take spare slots first, which would leave no room for a discovered peer.
 amaru_migrate_configure_peers >/dev/null
-assert_env AMARU_PEER "10.0.0.5:6000,[2001:db8::7]:6000,relay2.example.com:3001,preview-node.play.dev.cardano.org:3001"
-assert_env AMARU_PEERS_MIX "static!4@15m, inbound~6, shared~6, snapshot~3@1h, ledger~3@24h"
-assert_env AMARU_PEERS_MAX_UPSTREAM "5"
+assert_env AMARU_PEER "10.0.0.5:6000,[2001:db8::7]:6000,relay2.example.com:3001"
+assert_env AMARU_PEERS_MIX "static!3@15m, inbound~6, shared~6, snapshot~3@1h, ledger~3@24h"
+assert_env AMARU_PEERS_MAX_UPSTREAM "4"
 assert_env AMARU_PEERS_MAX_DOWNSTREAM "50"
 compgen -G "${AMARU_HOME_DIR}/scripts/archive/amaru.env.*" >/dev/null || fail "amaru.env backup missing"
+
+# Static peers the operator already set in amaru.env are kept after cnode's.
+reset_case
+amaru_migrate_set_env AMARU_PEER "relay9.example.com:3001"
+amaru_migrate_load_amaru_env
+amaru_migrate_configure_peers >/dev/null
+assert_env AMARU_PEER "10.0.0.5:6000,[2001:db8::7]:6000,relay2.example.com:3001,relay9.example.com:3001"
+assert_env AMARU_PEERS_MIX "static!4@15m, inbound~6, shared~6, snapshot~3@1h, ledger~3@24h"
+assert_env AMARU_PEERS_MAX_UPSTREAM "5"
 
 reset_case
 printf '{"localRoots":[{"accessPoints":[{"address":"10.0.0.5","port":6000},{"address":"10.0.0.6","port":6000}]}]}\n' > "${TEMP_ROOT}/two.json"
 CNODE_TOPOLOGY="${TEMP_ROOT}/two.json"
 amaru_migrate_configure_peers >/dev/null
-assert_env AMARU_PEERS_MIX "static!3@15m, inbound~6, shared~6, snapshot~3@1h, ledger~3@24h"
-assert_env AMARU_PEERS_MAX_UPSTREAM "4"
+assert_env AMARU_PEER "10.0.0.5:6000,10.0.0.6:6000"
+grep -q '^AMARU_PEERS_MIX=' "${AMARU_MIGRATE_ENV_FILE}" && fail "default peer mix should be kept for two static peers"
+assert_env AMARU_PEERS_MAX_UPSTREAM "3"
+
+# A cnode with only the template's placeholders leaves Amaru without static
+# peers, which is fine: it finds them from its peer snapshot.
+reset_case
+printf '{"localRoots":[{"accessPoints":[{"address":"127.0.0.1","port":6000,"description":"replace-this-with-BP"}]}]}\n' \
+  > "${TEMP_ROOT}/template.json"
+CNODE_TOPOLOGY="${TEMP_ROOT}/template.json"
+amaru_migrate_configure_peers >/dev/null || fail "a cnode without real local roots should still migrate"
+grep -q '^AMARU_PEER=' "${AMARU_MIGRATE_ENV_FILE}" && fail "a static peer was set from placeholders"
+assert_env AMARU_PEERS_MAX_UPSTREAM "3"
 
 reset_case
 printf '{"localRoots":[{"accessPoints":[{"address":"10.0.0.5","port":6000}]}]}\n' > "${TEMP_ROOT}/one.json"

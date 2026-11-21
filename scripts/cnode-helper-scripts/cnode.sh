@@ -74,6 +74,39 @@ check_config_sanity() {
   fi
 }
 
+# In GenesisMode a node that turns ledger peers off (useLedgerAfterSlot -1, the
+# block producer layout) leaves PreSyncing only when every peer it uses is a
+# trustable local root and peer sharing is off, so mark its local roots
+# trustable. Pool keys and that layout often arrive after the deployment, so
+# this runs on every start; guild-deploy.sh does the rest of the migration.
+check_genesis_topology() {
+  local mode ulas forging="N" topology_tmp
+
+  mode="$(jq -r '(.Configuration.Consensus // .).ConsensusMode // "PraosMode"' "${CONFIG}" 2>/dev/null)"
+  [[ "${mode}" == "GenesisMode" ]] || return 0
+  [[ -f "${POOL_FOLDER}/${POOL_NAME}/${POOL_OPCERT_FILENAME}" && -f "${POOL_FOLDER}/${POOL_NAME}/${POOL_VRF_SK_FILENAME}" &&
+     -f "${POOL_FOLDER}/${POOL_NAME}/${POOL_HOTKEY_SK_FILENAME}" ]] && forging="Y"
+  ulas="$(jq -r '(.useLedgerAfterSlot | numbers) // 0' "${TOPOLOGY}" 2>/dev/null)"
+  [[ "${ulas}" =~ ^-?[0-9]+$ ]] || return 0
+  if (( ulas >= 0 )); then
+    [[ "${forging}" == "Y" ]] &&
+      echo "WARN: This block producer reads ledger peers (useLedgerAfterSlot ${ulas} in ${TOPOLOGY}), so it connects to public relays. To keep it behind your relays, set useLedgerAfterSlot to -1 and list them as local roots."
+    return 0
+  fi
+  if jq -e '([.localRoots[]?.trustable] | all | not) or has("bootstrapPeers")' "${TOPOLOGY}" >/dev/null 2>&1; then
+    topology_tmp="$(mktemp "${TOPOLOGY}.XXXXXX")" || return 0
+    if jq 'del(.bootstrapPeers) | .localRoots |= map(.trustable = true)' "${TOPOLOGY}" > "${topology_tmp}" &&
+       cp -f "${TOPOLOGY}" "${TOPOLOGY}_bkp$(date +%s)" && mv -f "${topology_tmp}" "${TOPOLOGY}"; then
+      echo "INFO: GenesisMode with ledger peers off syncs only from trusted local roots, so every local root in ${TOPOLOGY} is now trustable (the previous copy was backed up next to it)."
+    else
+      rm -f -- "${topology_tmp}"
+    fi
+  fi
+  [[ "${forging}" == "N" ]] && ! jq -e '(.Configuration.Network // .).PeerSharing == false' "${CONFIG}" >/dev/null 2>&1 &&
+    echo "WARN: ${TOPOLOGY} turns ledger peers off, but without pool keys this node shares peers, so in GenesisMode it would wait in PreSyncing. Set \"PeerSharing\": false in ${CONFIG}, or let it read ledger peers."
+  return 0
+}
+
 pre_startup_sanity() {
   # Check if node is already running, or if stale socket file is left
   if [[ -S "${CARDANO_NODE_SOCKET_PATH}" ]]; then
@@ -86,6 +119,7 @@ pre_startup_sanity() {
     fi
   fi
   check_config_sanity
+  check_genesis_topology
 }
 
 mithril_snapshot_download() {

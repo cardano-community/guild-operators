@@ -229,7 +229,8 @@ amaru_deploy_preflight_snapshot() {
   dispatcher_preflight_shell_payloads "${shell_payloads[@]}" || return 1
   dispatcher_preflight_source_payloads "${source_payloads[@]}" || return 1
   dispatcher_preflight_json_payloads \
-    files/node-implementations/amaru/release.json || return 1
+    files/node-implementations/amaru/release.json \
+    "files/configs/cnode/${NETWORK}/peer-snapshot.json" || return 1
   if ! declare -F dispatcher_preflight_cntools_tree >/dev/null 2>&1 ||
      ! dispatcher_preflight_cntools_tree; then
     amaru_deploy_fail "CNTools tree preflight failed"
@@ -368,6 +369,48 @@ amaru_deploy_render_environment() {
     "${template_file}" > "${rendered_file}"
 }
 
+# The bootstrap peer each template used to set as Amaru's static peer. The
+# public bootstrap peers are being shut down.
+amaru_deploy_retired_default_peer() {
+  case "$1" in
+    mainnet) printf 'backbone.cardano.iog.io:3001' ;;
+    preprod|preview) printf '%s-node.play.dev.cardano.org:3001' "$1" ;;
+  esac
+}
+
+# Bring a preserved amaru.env up to date with the peer settings of this release.
+# Only the retired template peer is dropped from AMARU_PEER; peers the operator
+# added stay. A file without AMARU_PEERS_SNAPSHOT gets the shipped snapshot.
+amaru_deploy_migrate_environment() {
+  local file="$1" retired peers kept staged
+  retired="$(amaru_deploy_retired_default_peer "${NETWORK}")"
+  peers="$(sed -n 's/^AMARU_PEER="\([^"]*\)".*/\1/p' "${file}" | tail -n 1)"
+  kept="$(printf '%s\n' "${peers//,/$'\n'}" | awk -v retired="${retired}" 'NF && $0 != retired' | paste -sd, -)"
+  if [[ "${kept}" == "${peers}" ]] && grep -q '^AMARU_PEERS_SNAPSHOT=' "${file}"; then
+    return 0
+  fi
+  staged="$(mktemp "${NODE_HOME}/scripts/amaru-env-migrated.XXXXXX")" || return 1
+  cp -p -- "${file}" "${staged}" || { rm -f -- "${staged}"; return 1; }
+  if [[ "${kept}" != "${peers}" ]]; then
+    if [[ -n "${kept}" ]]; then
+      sed -i "s|^AMARU_PEER=.*|AMARU_PEER=\"${kept}\"|" "${staged}"
+    else
+      sed -i 's|^AMARU_PEER=.*|#AMARU_PEER=""|' "${staged}"
+    fi
+    amaru_deploy_info "Removed the retired bootstrap peer ${retired} from AMARU_PEER; Amaru finds peers from its peer snapshot, the ledger and peer sharing"
+  fi
+  if ! grep -q '^AMARU_PEERS_SNAPSHOT=' "${staged}"; then
+    printf '# Big ledger peers to start from. guild-deploy.sh refreshes this file.\nAMARU_PEERS_SNAPSHOT="%s/files/peer-snapshot.json"\n' \
+      "${NODE_HOME}" >> "${staged}"
+    amaru_deploy_info "Amaru now starts from the peer snapshot in ${NODE_HOME}/files/peer-snapshot.json"
+  fi
+  if ! cp -p -- "${file}" "${NODE_HOME}/scripts/archive/amaru.env.$(date -u +%Y%m%dT%H%M%SZ)" ||
+     ! mv -f -- "${staged}" "${file}"; then
+    rm -f -- "${staged}"
+    return 1
+  fi
+}
+
 amaru_deploy_install_environment() {
   local destination="${NODE_HOME}/scripts/amaru.env"
   local template rendered current_network=""
@@ -404,6 +447,7 @@ amaru_deploy_install_environment() {
     if [[ "${AMARU_DEPLOY_FORCE_CONFIG}" != "Y" ]]; then
       rm -f -- "${rendered}"
       amaru_deploy_info "Preserved existing ${destination}; use -s f to replace implementation config"
+      amaru_deploy_migrate_environment "${destination}" || return 1
       return 0
     fi
     cp -p -- "${destination}" "${NODE_HOME}/scripts/archive/amaru.env.$(date -u +%Y%m%dT%H%M%SZ)" || {
@@ -512,6 +556,12 @@ amaru_deploy_install_payloads() {
     "files/configs/amaru/otelcol.yaml" \
     "${NODE_HOME}/files/otelcol.yaml" || return 1
   chmod 0644 "${NODE_HOME}/files/otelcol.yaml" || return 1
+  # The network's peer snapshot, shared with cardano-node deployments and
+  # refreshed on every deployment.
+  amaru_deploy_fetch \
+    "files/configs/cnode/${NETWORK}/peer-snapshot.json" \
+    "${NODE_HOME}/files/peer-snapshot.json" || return 1
+  chmod 0644 "${NODE_HOME}/files/peer-snapshot.json" || return 1
 
   local manifest_tmp
   manifest_tmp="$(mktemp "${NODE_HOME}/files/.amaru-release.json.tmp.XXXXXX")" ||

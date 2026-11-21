@@ -1,8 +1,10 @@
 name: Network pins
 
-# Proposes pin updates for the pre-release networks. A person merges them, and
-# operators then redeploy. GitHub runs schedules only from the default branch, so
-# this file has to be there even while PINS_BRANCH points elsewhere.
+# Proposes pin updates for the pre-release networks, and peer snapshot, ledger and
+# checkpoint updates for every network that runs GenesisMode, copied from the book
+# into this repository. A person merges them, and operators then redeploy. GitHub
+# runs schedules only from the default branch, so this file has to be there even
+# while PINS_BRANCH points elsewhere.
 
 on:
   workflow_dispatch:
@@ -21,7 +23,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        network: [dijkstra, musashi]
+        network: [mainnet, preprod, preview, dijkstra, musashi]
     env:
       NETWORK: ${{ matrix.network }}
       PROPOSAL: bot/pins-${{ matrix.network }}
@@ -37,7 +39,9 @@ jobs:
         id: update
         run: |
           bash files/tools/update-network-pins.sh "${NETWORK}" --summary "${RUNNER_TEMP}/summary.md"
-          paths=("files/configs/cnode/${NETWORK}" "files/node-implementations/cnode/networks/${NETWORK}.json")
+          paths=("files/configs/cnode/${NETWORK}")
+          overlay="files/node-implementations/cnode/networks/${NETWORK}.json"
+          [[ -f "${overlay}" ]] && paths+=("${overlay}")
           changed=false
           if [[ -n "$(git status --porcelain -- "${paths[@]}")" ]]; then
             changed=true
@@ -48,13 +52,15 @@ jobs:
             fi
           fi
           printf 'changed=%s\n' "${changed}" >> "${GITHUB_OUTPUT}"
+          printf 'paths=%s\n' "${paths[*]}" >> "${GITHUB_OUTPUT}"
       - name: Publish the proposal branch
         if: steps.update.outputs.changed == 'true'
         run: |
           git config user.name "${{ secrets.REPO_SCOPED_USER }}"
           git config user.email "${{ secrets.REPO_SCOPED_EMAIL }}"
           git switch -C "${PROPOSAL}"
-          git add "files/configs/cnode/${NETWORK}" "files/node-implementations/cnode/networks/${NETWORK}.json"
+          read -r -a paths <<< "${{ steps.update.outputs.paths }}"
+          git add -A -- "${paths[@]}"
           git commit -m "pins(${NETWORK}): update to what the network requires"
           git push --force origin "${PROPOSAL}"
       - name: Deploy it and follow the chain with a real node

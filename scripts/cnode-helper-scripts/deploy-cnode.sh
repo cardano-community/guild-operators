@@ -182,8 +182,16 @@ cnode_deploy_preflight_snapshot() {
     json_payloads+=(
       "$(cnode_deploy_release_overlay_path)"
       "files/configs/cnode/${NETWORK}/dijkstra-genesis.json"
-      "files/configs/cnode/${NETWORK}/peer-snapshot.json"
     )
+  fi
+  if cnode_deploy_is_genesis_network; then
+    local source_config=""
+    json_payloads+=("files/configs/cnode/${NETWORK}/peer-snapshot.json")
+    source_config="$(dispatcher_source_path "files/configs/cnode/${NETWORK}/config.json")" ||
+      err_exit "Could not resolve the ${NETWORK} config during preflight."
+    if cnode_deploy_config_uses_checkpoints "${source_config}"; then
+      json_payloads+=("files/configs/cnode/${NETWORK}/checkpoints.json")
+    fi
   fi
 
   declare -F dispatcher_preflight_shell_payloads >/dev/null 2>&1 ||
@@ -1312,9 +1320,95 @@ cnode_deploy_download_resolved_artifact() {
 }
 
 # Dijkstra and Musashi run node builds the other networks don't, and their
-# configuration adds a Dijkstra genesis and a peer snapshot.
+# configuration adds a Dijkstra genesis.
 cnode_deploy_is_prerelease_network() {
   [[ "${NETWORK:-}" =~ ^(dijkstra|musashi)$ ]]
+}
+
+# Every network but guild runs GenesisMode without bootstrap peers, so it ships
+# a peer snapshot, and checkpoints where the network publishes them.
+cnode_deploy_is_genesis_network() {
+  [[ "${NETWORK:-}" =~ ^(mainnet|preprod|preview|dijkstra|musashi)$ ]]
+}
+
+cnode_deploy_config_uses_checkpoints() { # $1 = config file
+  jq -e '[.. | objects | .CheckpointsFile? | strings] | length > 0' "$1" >/dev/null 2>&1
+}
+
+# Bring an operator's config.json to what this release ships for a GenesisMode
+# network, keeping everything else they set: GenesisMode, the shipped
+# checkpoints and trust threshold, and the LedgerDB snapshot options in their
+# LedgerDB.Snapshots block. $1 = operator's config, $2 = shipped config,
+# $3 = output.
+cnode_deploy_migrate_genesis_config() {
+  local current="$1" shipped="$2" output="$3"
+
+  [[ "$(jq -r 'has("Configuration")' "${current}")" == "$(jq -r 'has("Configuration")' "${shipped}")" ]] || {
+    log_warn "config.json uses another layout than this release ships, so it was not switched to GenesisMode. Refresh with -s f to replace it (a backup is kept)."
+    cp -f -- "${current}" "${output}"
+    return 0
+  }
+  jq --slurpfile shipped "${shipped}" '
+    $shipped[0] as $s |
+    def shipped_paths($key): [$s | paths | select(.[-1] == $key)];
+    def follow($key):
+      shipped_paths($key) as $p |
+      if ($p | length) > 0 then reduce $p[] as $path (.; setpath($path; $s | getpath($path)))
+      else . end;
+    follow("ConsensusMode") |
+    follow("MinBigLedgerPeersForTrustedState") |
+    (if (shipped_paths("CheckpointsFile") | length) > 0 then follow("CheckpointsFile")
+     else walk(if type == "object" then del(.CheckpointsFile) else . end) end) |
+    walk(if type == "object" then del(.CheckpointsFileHash) else . end) |
+    if (.LedgerDB | type) == "object" and (.LedgerDB | has("Snapshots") | not) and
+       ([.LedgerDB | has("NumOfDiskSnapshots", "SnapshotInterval", "SlotOffset")] | any) then
+      .LedgerDB = (.LedgerDB | with_entries(select(.key | IN("NumOfDiskSnapshots", "SnapshotInterval", "SlotOffset") | not)))
+        + {Snapshots: (.LedgerDB | with_entries(select(.key | IN("NumOfDiskSnapshots", "SnapshotInterval", "SlotOffset"))))}
+    else . end
+  ' "${current}" > "${output}"
+}
+
+# Bring an operator's topology.json to GenesisMode. Bootstrap peers go away. A
+# topology that turns ledger peers off (useLedgerAfterSlot -1, the block
+# producer layout) syncs only from its local roots, so every one of them is
+# trusted; otherwise it reads big ledger peers from the shipped snapshot from the
+# slot the snapshot names. Peers are never added or removed. $1 = operator's
+# topology, $2 = shipped topology, $3 = output.
+cnode_deploy_migrate_genesis_topology() {
+  local current="$1" shipped="$2" output="$3"
+
+  if jq -e '((.useLedgerAfterSlot | numbers) // 0) < 0 and ([.localRoots[]?.accessPoints[]?] | length == 0)' "${current}" >/dev/null; then
+    log_warn "topology.json turns ledger peers off and has no local roots, so the node has no peers to sync from. Add your relays as local roots."
+    cp -f -- "${current}" "${output}"
+    return 0
+  fi
+  jq --slurpfile shipped "${shipped}" '
+    $shipped[0] as $s |
+    del(.bootstrapPeers) |
+    if ((.useLedgerAfterSlot | numbers) // 0) < 0 then
+      .localRoots |= map(.trustable = true)
+    else
+      .peerSnapshotFile = $s.peerSnapshotFile | .useLedgerAfterSlot = $s.useLedgerAfterSlot
+    end
+  ' "${current}" > "${output}"
+}
+
+# Replace $1 with the migrated copy $2 when they differ, keeping a backup.
+cnode_deploy_apply_migration() {
+  local file="$1" migrated="$2" backup=""
+
+  jq -e . "${migrated}" >/dev/null 2>&1 || {
+    rm -f -- "${migrated}"
+    err_exit "Could not migrate ${file} to GenesisMode."
+  }
+  if [[ "$(jq -cS . "${file}")" == "$(jq -cS . "${migrated}")" ]]; then
+    rm -f -- "${migrated}"
+    return 0
+  fi
+  backup="${file}_bkp$(date +%s)"
+  cp -f -- "${file}" "${backup}" || err_exit "Could not back up ${file} before migrating it."
+  mv -f -- "${migrated}" "${file}" || err_exit "Could not install the migrated ${file}."
+  log_info "${file} updated for GenesisMode; the previous copy is ${backup}."
 }
 
 cnode_deploy_release_overlay_path() {
@@ -1836,6 +1930,42 @@ cnode_deploy_seed_initial_env_port() {
   fi
 }
 
+# Install the staged network files (*.json.tmp) in the current folder, the
+# deployment's files folder.
+cnode_deploy_install_network_files() {
+  local network_file
+  # The operator's config and topology change only when they are missing or a
+  # forced overwrite was asked for; a GenesisMode network migrates them in place
+  # first, keeping a backup.
+  if cnode_deploy_is_genesis_network && [[ ${CNODE_DEPLOY_FORCE_CONFIG} != 'Y' ]]; then
+    if [[ -f config.json ]]; then
+      cnode_deploy_migrate_genesis_config config.json config.json.tmp config.json.migrated ||
+        err_exit "Could not read config.json to migrate it to GenesisMode. Fix it, or refresh with -s f to replace it (a backup is kept)."
+      cnode_deploy_apply_migration config.json config.json.migrated
+    fi
+    if [[ -f topology.json ]]; then
+      cnode_deploy_migrate_genesis_topology topology.json topology.json.tmp topology.json.migrated ||
+        err_exit "Could not read topology.json to migrate it to GenesisMode. Fix it, or refresh with -s f to replace it (a backup is kept)."
+      cnode_deploy_apply_migration topology.json topology.json.migrated
+    fi
+  fi
+  # Genesis files and the operator's files: installed when missing or forced.
+  for network_file in byron-genesis.json shelley-genesis.json alonzo-genesis.json conway-genesis.json \
+                      dijkstra-genesis.json topology.json config.json dbsync.json; do
+    [[ -f "${network_file}.tmp" ]] || continue
+    if [[ ${CNODE_DEPLOY_FORCE_CONFIG} = 'Y' || ! -f "${network_file}" ]]; then
+      mv -f "${network_file}.tmp" "${network_file}"
+    else
+      rm -f "${network_file}.tmp"
+    fi
+  done
+  # Network data the node syncs with follows this release on every refresh.
+  for network_file in peer-snapshot.json checkpoints.json; do
+    [[ -f "${network_file}.tmp" ]] || continue
+    mv -f "${network_file}.tmp" "${network_file}"
+  done
+}
+
 # Install cnode configuration and helper scripts from the source snapshot.
 populate_cnode() {
   local cnode_env_preexisted="N"
@@ -1881,7 +2011,12 @@ populate_cnode() {
     cnode_deploy_fetch_network_config "submitapi.json" "submitapi.json.tmp" || err_exit "${err_msg} submitapi.json"
     if cnode_deploy_is_prerelease_network; then
       cnode_deploy_fetch_network_config "dijkstra-genesis.json" "dijkstra-genesis.json.tmp" || err_exit "${err_msg} dijkstra-genesis.json"
+    fi
+    if cnode_deploy_is_genesis_network; then
       cnode_deploy_fetch_network_config "peer-snapshot.json" "peer-snapshot.json.tmp" || err_exit "${err_msg} peer-snapshot.json"
+    fi
+    if cnode_deploy_config_uses_checkpoints config.json.tmp; then
+      cnode_deploy_fetch_network_config "checkpoints.json" "checkpoints.json.tmp" || err_exit "${err_msg} checkpoints.json"
     fi
   else
     err_exit "Unknown network specified! Kindly re-check the network name, valid options are: mainnet, guild, preprod, preview, dijkstra, or musashi."
@@ -1902,33 +2037,7 @@ populate_cnode() {
     log_info "Backed up existing topology/config/dbsync files before overwrite."
   fi
   log_progress "Applying network configuration" "${NETWORK}"
-  local missing_prerelease_config="N"
-  if cnode_deploy_is_prerelease_network &&
-     [[ ! -f dijkstra-genesis.json || ! -f peer-snapshot.json ]]; then
-    missing_prerelease_config="Y"
-  fi
-  if [[ ${CNODE_DEPLOY_FORCE_CONFIG} = 'Y' || ${missing_prerelease_config} = 'Y' || ! -f byron-genesis.json || ! -f shelley-genesis.json || ! -f alonzo-genesis.json || ! -f topology.json || ! -f config.json || ! -f dbsync.json ]]; then
-    mv -f byron-genesis.json.tmp byron-genesis.json
-    mv -f shelley-genesis.json.tmp shelley-genesis.json
-    mv -f alonzo-genesis.json.tmp alonzo-genesis.json
-    mv -f conway-genesis.json.tmp conway-genesis.json
-    mv -f topology.json.tmp topology.json
-    mv -f config.json.tmp config.json
-    mv -f dbsync.json.tmp dbsync.json
-    if cnode_deploy_is_prerelease_network; then
-      mv -f dijkstra-genesis.json.tmp dijkstra-genesis.json
-      mv -f peer-snapshot.json.tmp peer-snapshot.json
-    fi
-  else
-    rm -f byron-genesis.json.tmp
-    rm -f shelley-genesis.json.tmp
-    rm -f alonzo-genesis.json.tmp
-    rm -f conway-genesis.json.tmp
-    rm -f topology.json.tmp
-    rm -f config.json.tmp
-    rm -f dbsync.json.tmp
-    rm -f dijkstra-genesis.json.tmp peer-snapshot.json.tmp
-  fi
+  cnode_deploy_install_network_files
   log_ok "Network configuration ready" "${NETWORK}"
 
   pushd "${NODE_HOME}"/scripts >/dev/null || err_exit "Could not enter scripts directory: ${NODE_HOME}/scripts"

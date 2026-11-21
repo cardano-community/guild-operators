@@ -1,10 +1,4 @@
 {
-  "bootstrapPeers": [
-    {
-      "address": "dijkstra-node.play.dev.cardano.org",
-      "port": 3001
-    }
-  ],
   "localRoots": [
     {
       "accessPoints": [

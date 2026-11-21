@@ -10,7 +10,6 @@
         "queueSize": 128
       },
       "TraceOptionMetricsPrefix": "cardano.node.metrics.",
-      "TraceOptionNodeName": "cnode",
       "TraceOptionResourceFrequency": 1000,
       "TraceOptions": {
         "": {
@@ -131,11 +130,12 @@
         "Startup": {
           "severity": "Info"
         }
-      }
+      },
+      "TraceOptionNodeName": "cnode"
     },
     "Network": {
       "ExperimentalProtocolsEnabled": true,
-      "MinBigLedgerPeersForTrustedState": 3
+      "MinBigLedgerPeersForTrustedState": 1
     },
     "Protocol": {
       "AlonzoGenesisFile": "/opt/cardano/cnode/files/alonzo-genesis.json",
@@ -154,7 +154,7 @@
         "QueryBatchSize": 100000,
         "Snapshots": {
           "Interval": 17280,
-          "MaxDelay": 4320,
+          "MaxDelay": 3600,
           "MinDelay": 300,
           "NumOfDiskSnapshots": 2,
           "Offset": 0

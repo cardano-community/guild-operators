@@ -14,14 +14,16 @@ fail() {
 
 REPO="${TEST_ROOT}/repo"
 BOOK="${TEST_ROOT}/book"
+PUBLIC_BOOK="${TEST_ROOT}/public-book"
 API="${TEST_ROOT}/api"
 TOOL="${REPO}/files/tools/update-network-pins.sh"
 export PINS_BOOK_BASE="file://${BOOK}"
+export PINS_PUBLIC_BOOK_BASE="file://${PUBLIC_BOOK}"
 export PINS_API_BASE="file://${API}"
 unset GH_TOKEN
 
 reset_fixtures() {
-  rm -rf -- "${REPO}" "${BOOK}" "${API}"
+  rm -rf -- "${REPO}" "${BOOK}" "${PUBLIC_BOOK}" "${API}"
   mkdir -p "${REPO}/files/tools" "${REPO}/files/configs/cnode" \
     "${REPO}/files/node-implementations/cnode/networks" \
     "${BOOK}/leios" "${BOOK}/dijkstra" "${API}"
@@ -38,26 +40,76 @@ reset_fixtures() {
       case "${name}" in
         submitapi.json|db-sync-config.json) ;;
         config.json)
-          # The book's own tracing and relative paths, which the tool replaces.
-          jq 'walk(if type == "object" then with_entries(
+          # The book's own tracing, relative paths and consensus settings, which
+          # the tool replaces. Like the real book, Musashi says PraosMode and
+          # Dijkstra asks for 3 trusted big ledger peers.
+          jq --arg network "${network}" 'walk(if type == "object" then with_entries(
                 if (.key | endswith("GenesisFile")) then .value = (.value | split("/") | last) else . end
               ) else . end) |
               if has("Configuration")
               then .Configuration.HermodTracing.TraceOptions = {"": {severity: "Debug"}} | del(.Configuration.HermodTracing.TraceOptionNodeName)
-              else .TraceOptions = {"": {severity: "Debug"}} | del(.TraceOptionNodeName) end' \
+              else .TraceOptions = {"": {severity: "Debug"}} | del(.TraceOptionNodeName) end |
+              if $network == "musashi" then .ConsensusMode = "PraosMode" | del(.MinBigLedgerPeersForTrustedState)
+              else .Configuration.Network.MinBigLedgerPeersForTrustedState = 3 end' \
             "${path}" > "${BOOK}/${folder}/${name}"
           ;;
         topology.json)
-          jq '.localRoots = []' "${path}" > "${BOOK}/${folder}/${name}"
+          jq '.localRoots = [] | .bootstrapPeers = [{address: "bootstrap.example", port: 3001}]' \
+            "${path}" > "${BOOK}/${folder}/${name}"
           ;;
         *) cp "${path}" "${BOOK}/${folder}/${name}" ;;
       esac
     done
   done
+  # Mainnet, preprod and preview: the book's config is its own, and only the
+  # network data in it matters to the tool.
+  for network in mainnet preprod preview; do
+    cp -R "${ROOT_DIR}/files/configs/cnode/${network}" "${REPO}/files/configs/cnode/${network}"
+    mkdir -p "${PUBLIC_BOOK}/${network}"
+    jq 'if has("CheckpointsFile") then .CheckpointsFile = "checkpoints.json" | .CheckpointsFileHash = "0123" else . end |
+        .TraceOptions = {"": {severity: "Debug"}} | .MinNodeVersion = "11.1.0"' \
+      "${REPO}/files/configs/cnode/${network}/config.json" > "${PUBLIC_BOOK}/${network}/config.json"
+    jq '.localRoots = [] | .bootstrapPeers = [{address: "bootstrap.example", port: 3001}]' \
+      "${REPO}/files/configs/cnode/${network}/topology.json" > "${PUBLIC_BOOK}/${network}/topology.json"
+    for name in peer-snapshot.json checkpoints.json; do
+      path="${REPO}/files/configs/cnode/${network}/${name}"
+      [[ -f "${path}" ]] && cp "${path}" "${PUBLIC_BOOK}/${network}/${name}"
+    done
+  done
+}
+
+# Rewrite a JSON file in place with a jq filter: $1 = file, the rest = jq arguments.
+jq_edit() {
+  local file="$1"
+  shift
+  jq "$@" "${file}" > "${file}.next"
+  mv -f "${file}.next" "${file}"
+}
+
+# A snapshot with $2 extra pools, each with its own relay, at slot $3.
+grow_snapshot() { # $1 = snapshot file, $2 = pools to add, $3 = slot
+  jq_edit "$1" --argjson extra "$2" --argjson slot "$3" '
+    .Point.blockPointSlot = $slot |
+    .bigLedgerPools += [range($extra) | {accumulatedStake: 0, relativeStake: 0,
+      relays: [{address: "relay\(.).example", port: 3001}]}]'
 }
 
 checkout_hash() {
   (cd "${REPO}/files" && find configs node-implementations -type f -exec sha256sum {} + | sort | sha256sum)
+}
+
+# Every network ends up in GenesisMode, without bootstrap peers, reading the
+# snapshot next to its topology.
+genesis_ready() { # $1 = network
+  local dir="${REPO}/files/configs/cnode/$1"
+  jq -e '(.Configuration.Consensus // .).ConsensusMode == "GenesisMode"' "${dir}/config.json" >/dev/null ||
+    fail "$1 is not in GenesisMode"
+  jq -e '[.. | objects | has("CheckpointsFileHash")] | any | not' "${dir}/config.json" >/dev/null ||
+    fail "$1 ships a checkpoints hash"
+  jq -e 'has("bootstrapPeers") | not' "${dir}/topology.json" >/dev/null || fail "$1 still has bootstrap peers"
+  jq -e '.peerSnapshotFile == "peer-snapshot.json"' "${dir}/topology.json" >/dev/null || fail "$1 has no peer snapshot"
+  [[ "$(jq -r '.Point.blockPointSlot' "${dir}/peer-snapshot.json")" -ge "$(jq -r '.useLedgerAfterSlot' "${dir}/topology.json")" ]] ||
+    fail "$1's snapshot is older than its useLedgerAfterSlot, so the node would not start"
 }
 
 book_requires() { # $1 = book folder, $2 = MinNodeVersion
@@ -102,13 +154,93 @@ LEIOS="input-output-hk/ouroboros-leios"
 MUSASHI_OVERLAY="${REPO}/files/node-implementations/cnode/networks/musashi.json"
 DIJKSTRA_OVERLAY="${REPO}/files/node-implementations/cnode/networks/dijkstra.json"
 
-# Nothing new upstream means nothing changes, even though the book's tracing and
-# paths differ from the repository's.
+# Nothing new upstream means nothing changes, even though the book's tracing,
+# paths, consensus mode, bootstrap peers and checkpoints hash differ from the
+# repository's.
 reset_fixtures
 before="$(checkout_hash)"
-bash "${TOOL}" musashi | grep -qF "is up to date" || fail "musashi should be up to date"
-bash "${TOOL}" dijkstra | grep -qF "is up to date" || fail "dijkstra should be up to date"
+for network in musashi dijkstra mainnet preprod preview; do
+  bash "${TOOL}" "${network}" | grep -qF "is up to date" || fail "${network} should be up to date"
+  genesis_ready "${network}"
+done
 [[ "$(checkout_hash)" == "${before}" ]] || fail "no upstream change, but the checkout changed"
+
+# The pre-release snapshots name one relay, so a fresh node must not wait for
+# more trusted big ledger peers than that.
+[[ "$(jq -r '.MinBigLedgerPeersForTrustedState' "${REPO}/files/configs/cnode/musashi/config.json")" == "1" ]] ||
+  fail "musashi waits for more big ledger peers than its snapshot has"
+[[ "$(jq -r '.Configuration.Network.MinBigLedgerPeersForTrustedState' "${REPO}/files/configs/cnode/dijkstra/config.json")" == "1" ]] ||
+  fail "dijkstra waits for more big ledger peers than its snapshot has"
+jq -e 'has("MinBigLedgerPeersForTrustedState") | not' "${REPO}/files/configs/cnode/mainnet/config.json" >/dev/null ||
+  fail "mainnet overrides the node's trust threshold"
+
+# A snapshot with enough relays brings back what the book asks for, or the
+# node's default when the book says nothing.
+reset_fixtures
+grow_snapshot "${BOOK}/dijkstra/peer-snapshot.json" 4 999999
+grow_snapshot "${BOOK}/leios/peer-snapshot.json" 4 999999
+summary="${TEST_ROOT}/summary.md"
+bash "${TOOL}" dijkstra --summary "${summary}" || fail "dijkstra snapshot update failed"
+[[ "$(jq -r '.Configuration.Network.MinBigLedgerPeersForTrustedState' "${REPO}/files/configs/cnode/dijkstra/config.json")" == "3" ]] ||
+  fail "dijkstra did not get the book's threshold back"
+grep -qF "999999" "${summary}" || fail "summary does not name the new snapshot slot"
+bash "${TOOL}" musashi || fail "musashi snapshot update failed"
+jq -e 'has("MinBigLedgerPeersForTrustedState") | not' "${REPO}/files/configs/cnode/musashi/config.json" >/dev/null ||
+  fail "musashi kept a threshold the node's default now covers"
+genesis_ready musashi
+
+# Mainnet: a newer snapshot and useLedgerAfterSlot are copied in, and the rest of
+# Guild's config and topology stays as it is.
+reset_fixtures
+mainnet="${REPO}/files/configs/cnode/mainnet"
+config_before="$(jq -S . "${mainnet}/config.json")"
+roots_before="$(jq -cS '.localRoots' "${mainnet}/topology.json")"
+slot="$(jq -r '.Point.blockPointSlot' "${PUBLIC_BOOK}/mainnet/peer-snapshot.json")"
+jq_edit "${PUBLIC_BOOK}/mainnet/peer-snapshot.json" --argjson slot "$((slot + 100))" '.Point.blockPointSlot = $slot'
+jq_edit "${PUBLIC_BOOK}/mainnet/topology.json" --argjson slot "$((slot + 50))" '.useLedgerAfterSlot = $slot'
+bash "${TOOL}" mainnet --summary "${summary}" || fail "mainnet update failed"
+[[ "$(jq -r '.Point.blockPointSlot' "${mainnet}/peer-snapshot.json")" == "$((slot + 100))" ]] || fail "mainnet snapshot not copied"
+[[ "$(jq -r '.useLedgerAfterSlot' "${mainnet}/topology.json")" == "$((slot + 50))" ]] || fail "mainnet useLedgerAfterSlot not copied"
+[[ "$(jq -cS '.localRoots' "${mainnet}/topology.json")" == "${roots_before}" ]] || fail "mainnet lost Guild's local roots"
+[[ "$(jq -S . "${mainnet}/config.json")" == "${config_before}" ]] || fail "mainnet's own config changed"
+grep -qF "network data" "${summary}" || fail "mainnet summary is not about network data"
+genesis_ready mainnet
+before="$(checkout_hash)"
+bash "${TOOL}" mainnet | grep -qF "is up to date" || fail "second mainnet run should be up to date"
+[[ "$(checkout_hash)" == "${before}" ]] || fail "second mainnet run changed the checkout"
+
+# A book that goes back to an older snapshot is not followed.
+reset_fixtures
+jq_edit "${PUBLIC_BOOK}/preprod/peer-snapshot.json" '.Point.blockPointSlot -= 1000'
+jq_edit "${PUBLIC_BOOK}/preprod/topology.json" '.useLedgerAfterSlot -= 2000'
+before="$(checkout_hash)"
+bash "${TOOL}" preprod | grep -qF "is up to date" || fail "an older book snapshot replaced a newer one"
+[[ "$(checkout_hash)" == "${before}" ]] || fail "an older book snapshot changed the checkout"
+
+# The book drops its checkpoints: so does the repository.
+reset_fixtures
+jq_edit "${PUBLIC_BOOK}/preview/config.json" 'del(.CheckpointsFile, .CheckpointsFileHash)'
+bash "${TOOL}" preview || fail "preview update failed"
+[[ ! -e "${REPO}/files/configs/cnode/preview/checkpoints.json" ]] || fail "preview still ships checkpoints"
+jq -e 'has("CheckpointsFile") | not' "${REPO}/files/configs/cnode/preview/config.json" >/dev/null ||
+  fail "preview's config still points at checkpoints"
+
+# Snapshots the node would refuse.
+reset_fixtures
+jq_edit "${PUBLIC_BOOK}/preview/peer-snapshot.json" '.NetworkMagic = 1'
+expect_refusal preview "peer snapshot is not usable"
+reset_fixtures
+jq_edit "${PUBLIC_BOOK}/preview/topology.json" '.useLedgerAfterSlot = 999999999999'
+expect_refusal preview "peer snapshot is not usable"
+reset_fixtures
+jq_edit "${PUBLIC_BOOK}/mainnet/peer-snapshot.json" '.bigLedgerPools = []'
+expect_refusal mainnet "peer snapshot is not usable"
+reset_fixtures
+jq_edit "${PUBLIC_BOOK}/mainnet/topology.json" '.useLedgerAfterSlot = -1'
+expect_refusal mainnet "turns ledger peers off"
+reset_fixtures
+rm -f "${PUBLIC_BOOK}/mainnet/checkpoints.json"
+expect_refusal mainnet "could not read checkpoints.json"
 
 # A new Leios build: node and tag come from the release the book names. The
 # archive's own CLI is not used: every network runs the shared cardano-cli pin.
@@ -213,7 +345,7 @@ reset_fixtures
 rm -f "${BOOK}/leios/peer-snapshot.json"
 expect_refusal musashi "could not read peer-snapshot.json"
 
-expect_usage="$(bash "${TOOL}" mainnet 2>&1 || true)"
-grep -qF "usage:" <<< "${expect_usage}" || fail "unknown network should show usage"
+expect_usage="$(bash "${TOOL}" guild 2>&1 || true)"
+grep -qF "usage:" <<< "${expect_usage}" || fail "the guild network should show usage: it stays in PraosMode"
 
 printf 'update-network-pins: PASS\n'

@@ -1,16 +1,19 @@
 {
   "AlonzoGenesisFile": "/opt/cardano/cnode/files/alonzo-genesis.json",
   "ByronGenesisFile": "/opt/cardano/cnode/files/byron-genesis.json",
-  "ConsensusMode": "PraosMode",
+  "ConsensusMode": "GenesisMode",
   "ConwayGenesisFile": "/opt/cardano/cnode/files/conway-genesis.json",
   "LastKnownBlockVersion-Alt": 0,
   "LastKnownBlockVersion-Major": 3,
   "LastKnownBlockVersion-Minor": 0,
   "LedgerDB": {
     "Backend": "V2InMemory",
-    "NumOfDiskSnapshots": 2,
     "QueryBatchSize": 100000,
-    "SnapshotInterval": 43200
+    "Snapshots": {
+      "NumOfDiskSnapshots": 2,
+      "SlotOffset": 0,
+      "SnapshotInterval": 43200
+    }
   },
   "MaxKnownMajorProtocolVersion": 2,
   "MempoolCapacityBytesOverride": 67108864,
@@ -145,5 +148,6 @@
     "Startup": {
       "severity": "Info"
     }
-  }
+  },
+  "CheckpointsFile": "/opt/cardano/cnode/files/checkpoints.json"
 }

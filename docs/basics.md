@@ -295,6 +295,8 @@ root. The entry in `~/.bashrc` is only a convenience.
     │   ├── alonzo-genesis.json    # Alonzo Genesis file referenced in config.json
     │   ├── conway-genesis.json    # Conway Genesis file referenced in config.json
     │   ├── config.json           # Config file used by cardano-node
+    │   ├── peer-snapshot.json    # Largest pools' relays a syncing node starts from (GenesisMode networks)
+    │   ├── checkpoints.json      # Known early blocks, mainnet and preview
     │   └── topology.json         # Map of chain for cardano-node to boot from
     ├── db                        # DB Store for cardano-node
     ├── guild-db                  # DB Store for guild-specific tools and additions (eg: cncli, cardano-db-sync's schema)

@@ -113,6 +113,11 @@ RUN set -x \
         "${IMAGE_NODE_HOME}/files/dbsync.json" \
         "${IMAGE_NODE_HOME}/files/topology.json" \
         "/conf/${IMAGE_NODE_NETWORK}/" \
+      && for network_file in peer-snapshot.json checkpoints.json; do \
+        if [ -f "${IMAGE_NODE_HOME}/files/${network_file}" ]; then \
+          cp "${IMAGE_NODE_HOME}/files/${network_file}" "/conf/${IMAGE_NODE_NETWORK}/" || exit 1; \
+        fi; \
+      done \
       && install -m 0755 \
         /guild-container-source/files/docker/node/addons/block_watcher.sh \
         "${USER_HOME}/.scripts/block_watcher.sh"; \

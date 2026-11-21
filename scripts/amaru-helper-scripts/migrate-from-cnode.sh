@@ -125,9 +125,14 @@ amaru_migrate_read_cnode() {
     amaru_migrate_fail "could not read --port, --topology and --socket-path from the running cardano-node" || return 1
 }
 
-# Description : Print cnode's localRoots as host:port, comma separated, IPv6 in brackets.
+# Description : Print cnode's localRoots as host:port, comma separated, IPv6 in brackets. Skips the
+#             : template's unedited placeholders, and with $2 (cnode's port, which Amaru takes over)
+#             : a loopback address on that port, which would point Amaru at itself.
 amaru_migrate_local_roots() {
-  jq -r '[.localRoots[]?.accessPoints[]? |
+  jq -r --arg port "${2:-}" '[.localRoots[]?.accessPoints[]? |
+           select((.description // "" | startswith("replace-this-with")) | not) |
+           select(($port != "" and (.port | tostring) == $port and
+                   (.address | test("^(127\\.|::1$|localhost$)"))) | not) |
            (if (.address | test(":")) then "[\(.address)]" else .address end) + ":" + (.port | tostring)]
          | unique | join(",")' "$1"
 }
@@ -161,23 +166,24 @@ amaru_migrate_backup_env() {
 #             : since static peers also take spare slots first. Raises the inbound limit for the public port.
 amaru_migrate_configure_peers() {
   local local_roots peers count upstream downstream
-  local_roots="$(amaru_migrate_local_roots "${CNODE_TOPOLOGY}")"
+  local_roots="$(amaru_migrate_local_roots "${CNODE_TOPOLOGY}" "${CNODE_PORT:-}")"
   [[ -n "${local_roots}" ]] ||
-    amaru_migrate_fail "${CNODE_TOPOLOGY} has no localRoots to carry over" || return 1
+    amaru_migrate_info "${CNODE_TOPOLOGY} has no local roots to carry over; Amaru finds its peers from the peer snapshot, the ledger and peer sharing"
   peers="$(amaru_migrate_merge_peers "${local_roots}" "${AMARU_PEER:-}")"
-  count="$(tr ',' '\n' <<< "${peers}" | wc -l)"
+  count=0
+  [[ -z "${peers}" ]] || count="$(tr ',' '\n' <<< "${peers}" | wc -l)"
   upstream="${AMARU_PEERS_MAX_UPSTREAM:-3}"
   (( upstream > count )) || upstream=$(( count + 1 ))
   downstream="${AMARU_PEERS_MAX_DOWNSTREAM:-10}"
   (( downstream >= AMARU_MIGRATE_MIN_DOWNSTREAM )) || downstream="${AMARU_MIGRATE_MIN_DOWNSTREAM}"
   amaru_migrate_backup_env
-  amaru_migrate_set_env AMARU_PEER "${peers}"
+  [[ -z "${peers}" ]] || amaru_migrate_set_env AMARU_PEER "${peers}"
   amaru_migrate_set_env AMARU_PEERS_MAX_UPSTREAM "${upstream}"
   amaru_migrate_set_env AMARU_PEERS_MAX_DOWNSTREAM "${downstream}"
   if (( count > 2 )); then
     amaru_migrate_set_env AMARU_PEERS_MIX "static!${count}@15m, inbound~6, shared~6, snapshot~3@1h, ledger~3@24h"
   fi
-  amaru_migrate_info "Static peers (${count}, from ${CNODE_TOPOLOGY} and amaru.env): ${peers}"
+  amaru_migrate_info "Static peers (${count}, from ${CNODE_TOPOLOGY} and amaru.env): ${peers:-none}"
   amaru_migrate_info "Upstream peers: ${upstream}, inbound connections: up to ${downstream}"
   amaru_migrate_load_amaru_env
 }

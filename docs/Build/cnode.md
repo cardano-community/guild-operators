@@ -256,6 +256,8 @@ The default target remains `/opt/cardano/cnode`:
 │   ├── cnode-release.json
 │   ├── config.json
 │   ├── topology.json
+│   ├── peer-snapshot.json   # GenesisMode networks; replaced on every refresh
+│   ├── checkpoints.json     # mainnet and preview; replaced on every refresh
 │   ├── dbsync.json
 │   ├── submitapi.json
 │   └── *-genesis.json

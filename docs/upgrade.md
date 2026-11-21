@@ -1,3 +1,39 @@
+### Moving to Ouroboros Genesis {: #genesis-mode}
+
+The public bootstrap peers that nodes in PraosMode sync from are being shut
+down. Mainnet, preprod, preview, Dijkstra and Musashi therefore run Ouroboros
+Genesis (`"ConsensusMode": "GenesisMode"`). A syncing node connects to many of
+the largest pools listed in the network's peer snapshot and compares their
+chains, instead of trusting a few bootstrap hosts. The Guild network stays in
+PraosMode.
+
+A refresh with the current `guild-deploy.sh`, without `-s f`, moves an existing
+cnode deployment over and keeps everything else you set:
+
+- `config.json`: GenesisMode; on mainnet and preview the network's
+  `checkpoints.json`; the LedgerDB snapshot options moved into a
+  `LedgerDB.Snapshots` block; on Dijkstra and Musashi the trust threshold the
+  network's peer snapshot can meet.
+- `topology.json`: `bootstrapPeers` removed. A relay layout gets
+  `peerSnapshotFile` and the `useLedgerAfterSlot` that goes with the snapshot.
+  A block producer layout (`useLedgerAfterSlot` -1) gets every local root
+  marked `trustable`, because in GenesisMode it syncs only from trusted local
+  roots. Peers are never added or removed.
+- `peer-snapshot.json` and `checkpoints.json` are replaced on every refresh;
+  they are network data, not settings.
+
+The previous files stay next to them as `config.json_bkp<time>` and
+`topology.json_bkp<time>`. If a block producer gets its pool keys or its
+relay-only topology later, `cnode.sh` marks its local roots trustable before
+the node starts, and keeps a backup of the topology when it does.
+
+Check the switch with `gLiveView.sh`, or with the node's metrics: the
+`cardano_node_metrics_GSM_state_int` value is 0 while the node waits for
+enough big ledger peers, 1 while it syncs and 2 once it has caught up.
+
+An Amaru deployment gets the same peer snapshot in `files/peer-snapshot.json`,
+and its retired bootstrap peer is removed from `AMARU_PEER`.
+
 ### Moving to per-deployment binaries {: #per-deployment-binaries}
 
 Each deployment now keeps its binaries in its own `${NODE_HOME}/bin`, instead of

@@ -1,23 +1,17 @@
 {
-  "bootstrapPeers": [
-    {
-      "address": "backbone.cardano.iog.io",
-      "port": 3001
-    },
-    {
-      "address": "backbone.mainnet.emurgornd.com",
-      "port": 3001
-    },
-    {
-      "address": "backbone.mainnet.cardanofoundation.org",
-      "port": 3001
-    }
-  ],
   "localRoots": [
     {
       "accessPoints": [
-        {"address": "127.0.0.1", "port": 6000, "description": "replace-this-with-BP"},
-        {"address": "127.0.0.1", "port": 6001, "description": "replace-this-with-relay"}
+        {
+          "address": "127.0.0.1",
+          "port": 6000,
+          "description": "replace-this-with-BP"
+        },
+        {
+          "address": "127.0.0.1",
+          "port": 6001,
+          "description": "replace-this-with-relay"
+        }
       ],
       "advertise": false,
       "trustable": true,
@@ -25,14 +19,54 @@
     },
     {
       "accessPoints": [
-        {"address": "208.118.69.126",                   "port": 3003, "pool": "PSB",    "location": "NA/CA/Edmonton" },
-        {"address": "node-dus.poolunder.com",           "port": 6900, "pool": "UNDR",   "location": "EU/DE/Dusseldorf" },
-        {"address": "node-syd.poolunder.com",           "port": 6900, "pool": "UNDR",   "location": "OC/AU/Sydney" },
-        {"address": "154.26.154.254",                   "port": 16000, "pool": "AAA",   "location": "OC/AU" },
-        {"address": "relay1-pub.ahlnet.nu",             "port": 2111, "pool": "AHL",    "location": "EU/SE/Malmo" },
-        {"address": "relay2-pub.ahlnet.nu",             "port": 2111, "pool": "AHL",    "location": "EU/SE/Malmo" },
-        {"address": "relay1.clio.one",                  "port": 6010, "pool": "CLIO",   "location": "EU/IT/Milan" },
-        {"address": "relay2.clio.one",                  "port": 6010, "pool": "CLIO",   "location": "EU/IT/Bozlano" }
+        {
+          "address": "208.118.69.126",
+          "port": 3003,
+          "pool": "PSB",
+          "location": "NA/CA/Edmonton"
+        },
+        {
+          "address": "node-dus.poolunder.com",
+          "port": 6900,
+          "pool": "UNDR",
+          "location": "EU/DE/Dusseldorf"
+        },
+        {
+          "address": "node-syd.poolunder.com",
+          "port": 6900,
+          "pool": "UNDR",
+          "location": "OC/AU/Sydney"
+        },
+        {
+          "address": "154.26.154.254",
+          "port": 16000,
+          "pool": "AAA",
+          "location": "OC/AU"
+        },
+        {
+          "address": "relay1-pub.ahlnet.nu",
+          "port": 2111,
+          "pool": "AHL",
+          "location": "EU/SE/Malmo"
+        },
+        {
+          "address": "relay2-pub.ahlnet.nu",
+          "port": 2111,
+          "pool": "AHL",
+          "location": "EU/SE/Malmo"
+        },
+        {
+          "address": "relay1.clio.one",
+          "port": 6010,
+          "pool": "CLIO",
+          "location": "EU/IT/Milan"
+        },
+        {
+          "address": "relay2.clio.one",
+          "port": 6010,
+          "pool": "CLIO",
+          "location": "EU/IT/Bozlano"
+        }
       ],
       "advertise": false,
       "trustable": false,
@@ -40,11 +74,12 @@
       "warmValency": 9
     }
   ],
+  "peerSnapshotFile": "peer-snapshot.json",
   "publicRoots": [
     {
       "accessPoints": [],
       "advertise": false
     }
   ],
-  "useLedgerAfterSlot": 128908821
+  "useLedgerAfterSlot": 194140785
 }

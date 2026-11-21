@@ -25,8 +25,7 @@ The common deployment entrypoint selects Amaru with `-i amaru`. For example:
 A mainnet relay is deployed the same way with `-n mainnet`. The deployment
 then prints a reminder that Amaru is still under heavy development and that
 running it on mainnet is at your own responsibility, and its environment
-template starts from `backbone.cardano.iog.io:3001` and accepts up
-to 50 inbound connections instead of 10.
+template accepts up to 50 inbound connections instead of 10.
 
 When `-t` is omitted the target directory and service name default to `amaru`.
 The supported selective-install flags are:
@@ -121,11 +120,13 @@ The default layout below assumes `/opt/cardano/amaru`:
     └── env
 ```
 
-Amaru embeds the global parameters and a peer snapshot for well-known networks
-and downloads its bootstrap snapshot catalogue when bootstrapping. No
-cardano-node-style config or genesis JSON bundle is needed for the supported
-networks. Guild Operators self-hosts a small environment template for each
-network, the rolling Amaru release policy, and pinned collector metadata.
+Amaru embeds the global parameters for well-known networks and downloads its
+bootstrap snapshot catalogue when bootstrapping. No cardano-node-style config
+or genesis JSON bundle is needed for the supported networks. Guild Operators
+self-hosts a small environment template for each network, the network's peer
+snapshot (`files/peer-snapshot.json`, the same file cardano-node deployments
+use, replaced on every refresh), the rolling Amaru release policy, and pinned
+collector metadata.
 
 The environment template uses Amaru's current setting names, such as
 `AMARU_DB_CHAIN`, `AMARU_DB_LEDGER`, `AMARU_PEERS_LISTEN_ON`, and `AMARU_PEER`.
@@ -137,8 +138,19 @@ sets:
 - `AMARU_LOG_OTLP=metrics`, because the local collector keeps only
   metrics;
 - `AMARU_LOG`, matching Amaru's default log filter;
-- `AMARU_PEER`, the network's public relay, because current releases no longer
-  default to one.
+- `AMARU_PEERS_SNAPSHOT`, the deployment's peer snapshot, so Amaru starts from
+  the largest pools' relays as of that snapshot rather than the copy built into
+  the release;
+- no `AMARU_PEER`: the public bootstrap peers are being shut down, so Amaru
+  finds its upstream peers from the peer snapshot, the ledger and peer sharing.
+  Add your own relays or block producer there.
+
+A refresh keeps an existing `amaru.env`, but removes the network's retired
+bootstrap peer (`backbone.cardano.iog.io:3001`, or
+`preprod-node.play.dev.cardano.org:3001` and
+`preview-node.play.dev.cardano.org:3001`) from `AMARU_PEER`, keeps any other
+peers there, and adds `AMARU_PEERS_SNAPSHOT` when it is missing. The previous
+copy goes to `scripts/archive/`.
 
 `AMARU_LOG_OTLP` and `AMARU_LOG_JSON` are the names Amaru uses since
 10.11.20261112. An existing `amaru.env` that still sets
@@ -314,7 +326,7 @@ them. With more than two, uncomment `AMARU_PEERS_MIX`, raise the static floor,
 and raise `AMARU_PEERS_MAX_UPSTREAM` by the same amount:
 
 ```bash
-AMARU_PEER="preview-node.play.dev.cardano.org:3001,relay2.example.com:3000,10.0.0.5:3000"
+AMARU_PEER="relay1.example.com:3000,relay2.example.com:3000,10.0.0.5:3000"
 AMARU_PEERS_MIX="static!3@15m, inbound~6, shared~6, snapshot~3@1h, ledger~3@24h"
 AMARU_PEERS_MAX_UPSTREAM="4"
 ```
@@ -499,8 +511,9 @@ addresses in brackets:
 jq -r '[.localRoots[].accessPoints[] | "\(.address):\(.port)"] | join(",")' /opt/cardano/cnode/files/topology.json
 ```
 
-Count every peer in `AMARU_PEER`, the network's default peer included. Amaru's
-default peer mix reserves two upstream slots for static peers. With more, set
+Leave out the cnode template's `127.0.0.1` placeholders and the relay's own
+address. Count every peer in `AMARU_PEER`. Amaru's default peer mix reserves
+two upstream slots for static peers. With more, set
 `AMARU_PEERS_MIX` with a static floor of that count, such as `static!3` for three
 peers, and set `AMARU_PEERS_MAX_UPSTREAM` one higher. Static peers also take
 spare upstream slots first, so without that extra slot the relay would not keep

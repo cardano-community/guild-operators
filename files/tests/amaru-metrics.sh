@@ -82,12 +82,14 @@ for network in mainnet preprod preview; do
     assert_eq "${AMARU_DB_CHAIN_AUTOMATIC_MIGRATION}" "true" \
       "${network} lets Amaru migrate its chain database"
     assert_eq "${AMARU_NETWORK}" "${network}" "${network} template network"
+    # The public bootstrap peers are being shut down: no static peer by default,
+    # and the deployment's own peer snapshot to start from.
+    assert_eq "${AMARU_PEER-unset}" "unset" "${network} template sets no static peer"
+    assert_eq "${AMARU_PEERS_SNAPSHOT}" "@NODE_HOME@/files/peer-snapshot.json" \
+      "${network} starts from the deployment's peer snapshot"
     if [[ "${network}" == "mainnet" ]]; then
-      assert_eq "${AMARU_PEER}" "backbone.cardano.iog.io:3001" "mainnet upstream peer"
       assert_eq "${AMARU_PEERS_MAX_DOWNSTREAM}" "50" "mainnet relay inbound connections"
     else
-      assert_eq "${AMARU_PEER}" "${network}-node.play.dev.cardano.org:3001" \
-        "${network} upstream peer"
       assert_eq "${AMARU_PEERS_MAX_DOWNSTREAM}" "10" "${network} inbound connections"
     fi
     assert_eq "${OTEL_EXPORTER_OTLP_ENDPOINT}" "http://127.0.0.1:4317" \

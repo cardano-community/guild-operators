@@ -180,23 +180,36 @@ onto preprod, preview, or Guild. The current templates do not define a
   the operator's block producer and relays.
 - `hotValency` is the target number of active connections from that local-root
   group. `warmValency`, when present, is the target number of warm peers.
-- `bootstrapPeers` provide initial peers before ledger peer selection starts.
+- `trustable` marks a local-root group the node may sync from without other
+  peers confirming it.
 - `publicRoots` contains additional manually managed public peers.
 - `advertise` controls whether peers in that group may be shared. Keep it
   `false` on a block producer.
-- `useLedgerAfterSlot` is the absolute slot after which ledger peers may be
-  used. `-1` disables ledger peers; it does not disable P2P networking.
+- `useLedgerAfterSlot` is the absolute slot after which the node takes peers
+  from the ledger it has synced. `-1` disables ledger peers; it does not
+  disable P2P networking.
+- `peerSnapshotFile` names the peer snapshot next to the topology: the largest
+  pools and their relays at a recent slot, which a syncing node uses until its
+  own ledger reaches `useLedgerAfterSlot`.
 
-For a relay, retain the installed network's bootstrap/public peers and replace
-the placeholder trusted `localRoots` with the operator's own nodes. Keep each
-group's `hotValency` no greater than its number of access points.
+Every network except Guild runs Ouroboros Genesis (`"ConsensusMode":
+"GenesisMode"` in `config.json`). A syncing node does not trust one set of
+bootstrap peers: it connects to many of the largest pools from the peer
+snapshot and compares their chains. The public bootstrap peers are being shut
+down, so the templates no longer list `bootstrapPeers`. A refresh with
+`guild-deploy.sh` replaces `peer-snapshot.json` (and `checkpoints.json` on
+mainnet and preview) and moves `useLedgerAfterSlot` to match it, so keep both
+as installed.
+
+For a relay, keep the installed peer snapshot, ledger and public peer settings
+and replace the placeholder trusted `localRoots` with the operator's own nodes.
+Keep each group's `hotValency` no greater than its number of access points.
 
 For a block producer, a minimal topology containing only its relays can look
 like this:
 
 ``` json
 {
-  "bootstrapPeers": [],
   "localRoots": [
     {
       "accessPoints": [
@@ -218,8 +231,12 @@ like this:
 }
 ```
 
-This keeps the block producer on trusted relay connections while disabling
-bootstrap, public, and ledger peers. It remains a P2P topology.
+This keeps the block producer on its own relays while disabling public and
+ledger peers. It remains a P2P topology. In GenesisMode such a node syncs only
+when every local root is `trustable` and peer sharing is off, which it is by
+default for a node started with pool keys. `cnode.sh` marks every local root
+of this layout trustable before the node starts, and keeps a backup of the
+topology when it does.
 
 For the complete schema and operational guidance, see the
 [official P2P networking documentation](https://docs.cardano.org/about-cardano/explore-more/cardano-network/p2p-networking).

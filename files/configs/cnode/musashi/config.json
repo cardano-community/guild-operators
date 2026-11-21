@@ -3,7 +3,7 @@
   "AlonzoGenesisHash": "a0f11e3609a551b5f6cb8feeeea30cb5b70839ec9dffcd726a5323a1e3f3b12a",
   "ByronGenesisFile": "/opt/cardano/cnode/files/byron-genesis.json",
   "ByronGenesisHash": "3cbc289e3855d93a54877d5106743e1a77cdee3aaed675e62f19c2a373d698a2",
-  "ConsensusMode": "PraosMode",
+  "ConsensusMode": "GenesisMode",
   "ConwayGenesisFile": "/opt/cardano/cnode/files/conway-genesis.json",
   "ConwayGenesisHash": "7e237f0c935539f5571297e3171946dd83929719496cbf51d0dab814a47ae0de",
   "DijkstraGenesisFile": "/opt/cardano/cnode/files/dijkstra-genesis.json",
@@ -211,5 +211,6 @@
     }
   },
   "TxSubmissionLogicVersion": "TxSubmissionLogicV2",
-  "TraceOptionNodeName": "cnode"
+  "TraceOptionNodeName": "cnode",
+  "MinBigLedgerPeersForTrustedState": 1
 }

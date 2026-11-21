@@ -210,10 +210,16 @@ expected_config_names="$(
     LC_ALL=C sort
 )"
 
-prerelease_config_names="$(
-  printf '%s\n' ${expected_config_names} dijkstra-genesis.json peer-snapshot.json |
-    LC_ALL=C sort
-)"
+# Every network but guild runs GenesisMode and ships a peer snapshot; mainnet and
+# preview also ship the checkpoints the book publishes for them.
+config_names_for() { # $1 = network
+  case "$1" in
+    guild) printf '%s\n' ${expected_config_names} ;;
+    preprod) printf '%s\n' ${expected_config_names} peer-snapshot.json ;;
+    mainnet|preview) printf '%s\n' ${expected_config_names} peer-snapshot.json checkpoints.json ;;
+    dijkstra|musashi) printf '%s\n' ${expected_config_names} dijkstra-genesis.json peer-snapshot.json ;;
+  esac | LC_ALL=C sort
+}
 
 for network in guild mainnet preprod preview dijkstra musashi; do
   canonical_dir="${ROOT_DIR}/files/configs/cnode/${network}"
@@ -223,12 +229,40 @@ for network in guild mainnet preprod preview dijkstra musashi; do
     fail "legacy cnode configuration path still exists for ${network}"
 
   canonical_names="$(find "${canonical_dir}" -maxdepth 1 -type f -exec basename {} \; | LC_ALL=C sort)"
-  case "${network}" in
-    dijkstra|musashi) network_config_names="${prerelease_config_names}" ;;
-    *) network_config_names="${expected_config_names}" ;;
-  esac
-  [[ "${canonical_names}" == "${network_config_names}" ]] ||
+  [[ "${canonical_names}" == "$(config_names_for "${network}")" ]] ||
     fail "canonical cnode configuration file set is incomplete for ${network}"
+
+  config="${canonical_dir}/config.json"
+  topology="${canonical_dir}/topology.json"
+  mode="$(jq -r '(.Configuration.Consensus // .).ConsensusMode' "${config}")"
+  if [[ "${network}" == "guild" ]]; then
+    [[ "${mode}" == "PraosMode" ]] || fail "guild should stay in PraosMode"
+    continue
+  fi
+  [[ "${mode}" == "GenesisMode" ]] || fail "${network} is not in GenesisMode"
+  jq -e 'has("bootstrapPeers") | not' "${topology}" >/dev/null || fail "${network} still has bootstrap peers"
+  [[ "$(jq -r '.peerSnapshotFile' "${topology}")" == "peer-snapshot.json" ]] ||
+    fail "${network} topology does not read the peer snapshot next to it"
+  # The node refuses to start with a snapshot of another network or one older
+  # than useLedgerAfterSlot.
+  jq -e --argjson magic "$(jq -r '.networkMagic' "${canonical_dir}/shelley-genesis.json")" \
+        --argjson ulas "$(jq -r '.useLedgerAfterSlot' "${topology}")" \
+    '.NetworkMagic == $magic and .Point.blockPointSlot >= $ulas and $ulas >= 0' \
+    "${canonical_dir}/peer-snapshot.json" >/dev/null ||
+    fail "${network} peer snapshot does not match its genesis and useLedgerAfterSlot"
+  # A fresh node waits for this many reachable big ledger peers before it syncs.
+  relays="$(jq '[.bigLedgerPools[].relays[]] | unique | length' "${canonical_dir}/peer-snapshot.json")"
+  trusted="$(jq -r '(.Configuration.Network // .).MinBigLedgerPeersForTrustedState // 5' "${config}")"
+  (( relays >= trusted )) || fail "${network} waits for ${trusted} big ledger peers, but its snapshot has ${relays} relays"
+  jq -e '[.. | objects | has("CheckpointsFileHash")] | any | not' "${config}" >/dev/null ||
+    fail "${network} config ships a checkpoints hash"
+  if [[ -f "${canonical_dir}/checkpoints.json" ]]; then
+    [[ "$(jq -r '[.. | objects | .CheckpointsFile? | strings][0] // empty' "${config}")" == "/opt/cardano/cnode/files/checkpoints.json" ]] ||
+      fail "${network} ships checkpoints its config does not use"
+  else
+    jq -e '[.. | objects | has("CheckpointsFile")] | any | not' "${config}" >/dev/null ||
+      fail "${network} config names checkpoints it does not ship"
+  fi
 done
 
 (
