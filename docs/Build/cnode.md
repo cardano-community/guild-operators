@@ -333,7 +333,8 @@ files/tools/update-network-pins.sh musashi
 Each deployment has its own binaries in `${NODE_HOME}/bin`, so one OS user can
 run these networks next to an existing deployment. Give each one its own `-t`
 name and ports. To use a network's binaries at a prompt, run
-`source ${NODE_HOME}/scripts/activate`.
+`source ${NODE_HOME}/scripts/activate`, as
+[Several deployments under one user](../basics.md#several-deployments) describes.
 
 For building node binaries from source and operating the launcher, see
 [cardano-node and cardano-cli](node-cli.md).

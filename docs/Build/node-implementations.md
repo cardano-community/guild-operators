@@ -105,7 +105,8 @@ name, so deployments of the same OS user can't affect each other. This includes
 `cardano-hw-cli` and `gum`. Only the build toolchain (GHCup, GHC, Cabal) stays
 per user. Guild scripts and services find these binaries without any `PATH`
 change; for commands typed by hand, use
-`source ${NODE_HOME}/scripts/activate`. Amaru also installs the pinned
+`source ${NODE_HOME}/scripts/activate` (see
+[Several deployments under one user](../basics.md#several-deployments)). Amaru also installs the pinned
 `otelcol-contrib` executable used by its local metrics bridge. Every
 implementation has reviewed release metadata under
 `files/node-implementations/<implementation>/release.json`. The profiles

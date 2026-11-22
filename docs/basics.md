@@ -242,7 +242,8 @@ Experimental relay examples are:
 Each deployment installs its binaries in its own `${NODE_HOME}/bin`, so
 deployments of the same OS user can't affect each other. Guild scripts and
 services find them without any `PATH` change. To use a deployment's binaries for
-commands typed by hand, run `source ${NODE_HOME}/scripts/activate` in that shell.
+commands typed by hand, run `source ${NODE_HOME}/scripts/activate` in that shell
+(see [Several deployments under one user](#several-deployments)).
 cnode keeps its reviewed static node release, while
 `-s d` resolves the newest published non-draft Dingo or Amaru release,
 including prereleases, and verifies its GitHub-published asset digest. For
@@ -276,6 +277,46 @@ Deployment paths are intentionally limited to shell- and systemd-safe
 characters. A target is locked for the full deployment, so a simultaneous
 deployment, helper runtime refresh, or `-b` branch change against the same
 folder is rejected.
+
+##### Several deployments under one user {: #several-deployments}
+
+One OS user can run several deployments, such as a preprod relay next to a
+Dijkstra node. Deploy each one with its own `-t` name and ports. Guild scripts
+and services use their own deployment's binaries, socket and network without
+any setup.
+
+Commands you type yourself use one deployment per shell. To choose which,
+source that deployment's `activate` script:
+
+``` bash
+source /opt/cardano/cnode/scripts/activate
+cardano-cli latest query tip
+```
+
+It prints what the shell now uses, for example
+`This shell now uses cnode on preprod: /opt/cardano/cnode/bin`, and sets:
+
+| Variable | Value |
+| --- | --- |
+| `PATH` | The deployment's `bin` folder first, so `cardano-cli`, `cncli` and the other tools are the deployment's own versions |
+| `CARDANO_NODE_SOCKET_PATH` | `SOCKET` from the deployment's `env` file, or the socket in its `sockets` folder. Amaru has no socket for `cardano-cli`, so the variable is cleared |
+| `CARDANO_NODE_NETWORK_ID` | `mainnet` or the testnet's magic, such as `1` for preprod, so `cardano-cli` needs no `--mainnet` or `--testnet-magic` |
+| `GUILD_ACTIVE_HOME` | The deployment's folder, for example to show in your shell prompt |
+
+To switch, source the other deployment's copy. It removes the first
+deployment's `bin` folder from `PATH` before it adds its own, and replaces the
+socket and network:
+
+``` bash
+source /opt/cardano/dijkstra/scripts/activate
+cardano-cli latest query tip
+```
+
+The choice lasts until the shell closes, and other shells don't change. There
+is no command to undo it, so open a new shell instead. If you run a single
+deployment, you can add the `source` line to `~/.bashrc` so every new shell
+uses it. Run the script with `source`: run as a program, it can't change your
+shell, so it stops with a message.
 
 ##### Folder structure
 

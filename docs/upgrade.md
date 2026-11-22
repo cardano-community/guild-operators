@@ -101,7 +101,8 @@ was. It stops, and says what to do, when:
 **Commands typed by hand.** Guild scripts and services find their binaries without
 any change. For commands you type yourself, select the deployment in that shell.
 This also sets the socket and network, and sourcing another deployment's copy
-switches to it:
+switches to it, as
+[Several deployments under one user](basics.md#several-deployments) describes:
 
 ``` bash
 source /opt/cardano/cnode/scripts/activate
