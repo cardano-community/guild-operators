@@ -193,7 +193,9 @@ node_adapter_init() {
   if [[ -z "${SOCKET}" ]]; then
     if [[ "$(ps -ww -ef | grep "$(basename "${CNODEBIN}").*.port ${CNODE_PORT}" | grep -v grep)" =~ --socket-path[[:space:]]([^[:space:]]+) ]]; then
       CARDANO_NODE_SOCKET_PATH="${BASH_REMATCH[1]}"
-    elif [[ "${OFFLINE_MODE}" == "Y" ]]; then
+    elif [[ "${OFFLINE_MODE}" == "Y" || "${profile}" == "monitor" ]]; then
+      # The path cnode.sh starts the node with. gLiveView (monitor) also
+      # runs while the node is stopped and shows that itself.
       CARDANO_NODE_SOCKET_PATH="${CNODE_HOME}/sockets/node.socket"
     else
       printf "Node socket is not set and automatic detection failed.\n" >&2
@@ -310,6 +312,9 @@ node_adapter_init() {
     getShelleyTransitionEpoch
   fi
 
+  # gLiveView (monitor) needs neither: it reads the node's metrics, shows a
+  # node that is stopped or still starting, and asks for the parameters itself.
+  [[ "${profile}" != "monitor" ]] || return 0
   if [[ "${OFFLINE_MODE}" == "N" && ! -S "${CARDANO_NODE_SOCKET_PATH}" ]]; then
     printf "%bLooks like cardano-node expects socket %s, but it does not exist.%b\n" \
       "${FG_RED}" "${CARDANO_NODE_SOCKET_PATH}" "${NC}" >&2

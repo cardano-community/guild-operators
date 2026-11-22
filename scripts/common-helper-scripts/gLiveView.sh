@@ -724,11 +724,70 @@ glv_data_init() {
   D_EVENTS=()
   D_PENDING_FILES=''
   D_PENDING_REASON=''
+  # Where the node is in its life: stopped, failed, restarting, starting or
+  # ready, from its systemd service, its process and, while it starts, its log.
+  D_STAGE=''
+  D_STAGE_SHOWN=''
+  D_SVC_ACTIVE=''
+  D_SVC_SUB=''
+  D_SVC_RESULT=''
+  D_SVC_EXIT=''
+  D_SVC_RESTARTS=''
+  D_SVC_RESTART_IN=''
+  D_SVC_SINCE=''
+  D_SVC_SINCE_TEXT=''
+  D_SVC_ERROR=''
+  D_BOOT_AT=''
+  D_START_PID=''
+  D_START_AT=''
+  D_START_CURSOR=''
+  D_START_READ=N
+  D_START_PHASE=''
+  D_START_TEXT=''
+  D_START_SHOWN=''
+  D_START_PROGRESS=''
+  D_START_SAMPLE_AT=''
+  D_START_SAMPLE=''
+  D_START_LEFT=''
+  D_START_DONE=N
+  D_START_SOCKET=N
+  D_START_ERROR=''
+  D_START_DB=''
+  D_START_SOCKET_PATH=''
+  D_START_TOPOLOGY=''
+  D_START_LAST_CHUNK=''
+  D_READY_AT=''
+  D_START_PROM=''
+  D_METRICS_FOREIGN=N
+  D_METRICS_START=''
+  D_METRICS_START_TEXT=''
+  # The consensus mode the running node started in and the one config.json
+  # sets now, the Genesis state machine, and files changed since the start.
+  D_RUN_MODE=''
+  D_CONF_MODE=''
+  D_CONF_MIN_BIG=''
+  D_GSM=''
+  D_LAST_GSM=''
+  D_GSM_SINCE=0
+  D_RECONF_FILES=''
+  D_RECONF_AT=''
+  D_TOPO_FILES=''
+  D_TOPO_AT=''
+  D_TOPO_RELOADED=N
+  D_TOPO_CHECKED=''
+  D_TOPO_SEEN=''
+  D_TOPO_KNOWN=N
+  D_TOPO_NOLOG=N
+  D_START_SEEN=0
+  D_RECONF_PID=''
+  GLV_LAUNCH_LINES=()
+  GLV_LAUNCH_EVENTS=()
   glv_notices_load
   local stat_line
   if [[ -r /proc/stat ]]; then
     while read -r stat_line; do
       [[ "${stat_line}" != cpu[0-9]* ]] || D_CORES=$((D_CORES + 1))
+      [[ "${stat_line}" != "btime "* ]] || D_BOOT_AT="${stat_line#btime }"
     done < /proc/stat
   fi
   if declare -F node_adapter_metrics_url >/dev/null; then
@@ -939,19 +998,132 @@ glv_data_pending() {
   D_PENDING_REASON="${reason}"
 }
 
+# glv_launch_text <variable>: how far the start is, as a sentence.
+glv_launch_text() {
+  local -n _launch_text="$1"
+  local value
+  _launch_text="${D_IMPL} is starting"
+  if [[ -n "${D_START_TEXT}" ]]; then
+    _launch_text="${D_IMPL}: ${D_START_TEXT,}"
+    if glv_is_int "${D_START_PROGRESS}"; then
+      ui_fmt_tenths value "${D_START_PROGRESS}"
+      _launch_text+=", ${value} %"
+      if glv_is_int "${D_START_LEFT}"; then
+        glv_fmt_span value "${D_START_LEFT}"
+        _launch_text+=", about ${value} left"
+      fi
+    fi
+  fi
+  if glv_is_int "${D_START_AT}"; then
+    glv_fmt_span value "$((D_COLLECTED_AT - D_START_AT))"
+    _launch_text+=". It started ${value} ago"
+  fi
+  _launch_text+=". It reports its tip once its database is open"
+  if node_has n2c; then _launch_text+=" and its socket is up."; else _launch_text+="."; fi
+}
+
+# glv_notices_node: the node's own notice, for each stage short of ready.
+glv_notices_node() {
+  local service="${NODE_SERVICE%.service}" stage="${D_STAGE}" text since=''
+  # Without a stage (no collection yet), what the last read says.
+  if [[ -z "${stage}" && "${D_OK}" != Y ]]; then
+    if [[ "${D_DOWN}" == "not running" ]]; then stage='not running'
+    elif (( D_FAILS >= 2 )); then stage='no metrics'; fi
+  fi
+  [[ -z "${D_SVC_SINCE}" ]] || printf -v since ' at %(%H:%M)T' "${D_SVC_SINCE}"
+  case "${stage}" in
+    stopped)
+      text="The service ${service} is stopped${since/ at/ since}, so ${D_IMPL} does not run. Start it with: sudo systemctl start ${service}"
+      glv_notice node error "Node stopped" "${text}" ;;
+    failed)
+      text="The service ${service} failed${since}${D_SVC_EXIT:+ (${D_SVC_EXIT})}, and systemd does not start it again."
+      [[ -z "${D_SVC_ERROR}" ]] || text+=" The last error in its log: ${D_SVC_ERROR}."
+      text+=" Read more with: journalctl -u ${service} -n 100, and start it with: sudo systemctl start ${service}"
+      glv_notice node error "Node failed" "${text}" ;;
+    restarting)
+      text="${D_IMPL} stopped${since}${D_SVC_EXIT:+ (${D_SVC_EXIT})}, and systemd starts it again${D_SVC_RESTART_IN:+ in ${D_SVC_RESTART_IN}}"
+      if glv_is_int "${D_SVC_RESTARTS}" && (( D_SVC_RESTARTS > 0 )); then text+="; it has restarted ${D_SVC_RESTARTS} times"; fi
+      text+="."
+      [[ -z "${D_SVC_ERROR}" ]] || text+=" The last error in its log: ${D_SVC_ERROR}."
+      text+=" Read more with: journalctl -u ${service} -n 100"
+      glv_notice node error "Node restarting" "${text}" ;;
+    starting)
+      glv_launch_text text
+      glv_notice node info "Node starting" "${text}" ;;
+    'not running'|'no metrics')
+      # Metrics of another node have their own notice.
+      [[ "${D_METRICS_FOREIGN:-N}" != Y ]] || return 0
+      text="gLiveView reads no metrics from ${D_IMPL}: ${stage}."
+      [[ -z "${service}" ]] || text+=" See what its service reports with: sudo systemctl status ${service}"
+      if [[ "${stage}" == "not running" ]]; then
+        glv_notice node error "Node not running" "${text}"
+      else
+        glv_notice node error "No metrics from node" "${text}"
+      fi ;;
+  esac
+}
+
 # glv_notices_check: raises what the collected figures call for and clears
 # the rest. Thresholds are the ones the panels colour by.
 glv_notices_check() {
-  local text colour names them service="${NODE_SERVICE:-}"
+  local text colour names them when restart service="${NODE_SERVICE%.service}"
   N_RAISED=()
-  if [[ "${D_OK}" != Y ]] && { [[ "${D_DOWN}" == "not running" ]] || (( D_FAILS >= 2 )); }; then
-    text="gLiveView reads no metrics from ${D_IMPL}: ${D_DOWN:-no metrics}."
-    [[ -z "${service}" ]] || text+=" See what its service reports with: sudo systemctl status ${service}"
-    if [[ "${D_DOWN}" == "not running" ]]; then
-      glv_notice node error "Node not running" "${text}"
-    else
-      glv_notice node error "No metrics from node" "${text}"
+  glv_notices_node
+  if [[ -n "${D_PID}" && "${D_STAGE}" != starting ]]; then
+    # What the node would read differently if it started now.
+    restart="restart it with: sudo systemctl restart ${service}"
+    [[ -n "${service}" ]] || restart="restart it"
+    if [[ -n "${D_RUN_MODE}" && -n "${D_CONF_MODE}" && "${D_RUN_MODE}" != "${D_CONF_MODE}" ]]; then
+      glv_notice reconfig warning "Restart for ${D_CONF_MODE%Mode}" \
+        "config.json sets ${D_CONF_MODE}, but the running node started in ${D_RUN_MODE}. The node reads its consensus mode only when it starts, and a reload does not change it: ${restart}" \
+        "reconfig|${D_CONF_MODE}|${D_START_AT}"
+    elif [[ -n "${D_RECONF_FILES}" ]]; then
+      printf -v when '%(%F %H:%M)T' "${D_RECONF_AT}"
+      names="${D_RECONF_FILES// / and }"
+      glv_notice reconfig warning "Restart for new config" \
+        "${names} changed at ${when}, after the node started. The node reads it only when it starts: ${restart}" \
+        "reconfig|${D_RECONF_FILES}|${D_RECONF_AT}"
+    elif [[ -n "${D_TOPO_FILES}" && "${D_TOPO_KNOWN}" == Y && "${D_TOPO_RELOADED}" != Y ]]; then
+      printf -v when '%(%F %H:%M)T' "${D_TOPO_AT}"
+      names="${D_TOPO_FILES// / and }"
+      text="${names} changed at ${when}, after the node started, and its log shows no reload since."
+      [[ "${D_TOPO_NOLOG}" != Y ]] || text="${names} changed at ${when}, after the node started. If it has not been reloaded since,"
+      glv_notice topology warning "Topology not reloaded" \
+        "${text} The node reads them again on SIGHUP: run ${NODE_HOME}/scripts/cnode.sh systemd reload, or ${restart}" \
+        "topology|${D_TOPO_FILES}|${D_TOPO_AT}"
     fi
+  fi
+  # Another node answers on this node's metrics port.
+  if [[ -n "${D_PID}" ]] && { [[ "${D_METRICS_FOREIGN}" == Y ]] || [[ -n "${D_START_PROM}" && "${D_OK}" != Y ]]; }; then
+    text="${D_IMPL} could not open its metrics port"
+    [[ -z "${D_METRICS_URL}" ]] || text+=" (${D_METRICS_URL})"
+    if [[ "${D_METRICS_FOREIGN}" == Y ]]; then
+      printf -v when '%(%F %H:%M)T' "${D_METRICS_START}"
+      text+=": the metrics there come from another node, started at ${when}, before this one. gLiveView does not show them as this node's."
+    else
+      text+=": ${D_START_PROM#*: }."
+    fi
+    text+=" Give each deployment its own PrometheusSimple port in config.json (TraceOptions); if scripts/env sets PROM_PORT, change it to match. Then restart the node and gLiveView."
+    glv_notice metrics error "Metrics port taken" "${text}" "metrics|${D_METRICS_URL}"
+  fi
+  # Genesis mode syncs only once enough big ledger peers are active.
+  if [[ "${D_STAGE}" == ready && "${D_GSM}" == 0 ]] && (( D_COLLECTED_AT - D_GSM_SINCE >= 300 )); then
+    glv_fmt_span when "$((D_COLLECTED_AT - D_GSM_SINCE))"
+    text="${D_IMPL} runs in Genesis mode and has waited ${when} in PreSyncing: it syncs only once enough big ledger peers from its peer snapshot are active."
+    [[ -z "${D_BIG_HOT}" ]] || text+=" It has ${D_BIG_HOT}; MinBigLedgerPeersForTrustedState asks for ${D_CONF_MIN_BIG:-5}."
+    text+=" Check that this host reaches the network on the peers' ports, and that the peer snapshot is current (guild-deploy.sh -s u updates it)."
+    glv_notice genesis warning "Genesis pre-syncing" "${text}"
+  fi
+  # CNTools and cardano-cli talk to the node through its socket.
+  if [[ "${D_STAGE}" == ready && -n "${CARDANO_NODE_SOCKET_PATH:-}" && ! -S "${CARDANO_NODE_SOCKET_PATH}" ]] &&
+     node_has n2c && glv_is_int "${D_READY_AT}" && (( D_COLLECTED_AT - D_READY_AT >= 60 )); then
+    text="${D_IMPL} runs, but there is no socket at ${CARDANO_NODE_SOCKET_PATH}, so CNTools and cardano-cli cannot reach it."
+    if [[ -n "${D_START_SOCKET_PATH}" && "${D_START_SOCKET_PATH}" != "${CARDANO_NODE_SOCKET_PATH}" ]]; then
+      text+=" The node was started with --socket-path ${D_START_SOCKET_PATH}: set SOCKET in scripts/env to that path, or start the node with this one."
+    else
+      text+=" The node creates it when it starts: ${restart:-restart it}."
+    fi
+    glv_notice socket warning "No node socket" "${text}" "socket|${CARDANO_NODE_SOCKET_PATH}"
   fi
   if [[ "${D_OK}" == Y ]]; then
     if node_metric_has node_alert && [[ -n "${node_alert:-}" ]]; then
@@ -1065,9 +1237,9 @@ glv_pulse_now() {
 glv_event_colour() {
   local -n _event_colour="$1"
   case "$2" in
-    error) _event_colour="${C_DANGER}" ;;
-    info) _event_colour="${C_MUTED}" ;;
-    cleared) _event_colour="${C_OK}" ;;
+    error|stopped|failed|'no metrics'|'node lost') _event_colour="${C_DANGER}" ;;
+    info|startup|consensus) _event_colour="${C_MUTED}" ;;
+    cleared|ready|'node back'|'caught up'|'peers back') _event_colour="${C_OK}" ;;
     *) _event_colour="${C_WARN}" ;;
   esac
 }
@@ -1120,7 +1292,10 @@ glv_data_watch() {
     fi
     D_LAST_EPOCH="${epochnum}"
   fi
-  if node_metric_has uptimes && glv_is_int "${uptimes:-}"; then
+  # A restart between two looks, too quick to be seen as a start of its own.
+  if [[ "${D_STAGE:-ready}" != ready ]]; then
+    D_LAST_UPTIME=''
+  elif node_metric_has uptimes && glv_is_int "${uptimes:-}"; then
     if [[ -n "${D_LAST_UPTIME}" ]] && (( uptimes + 5 < D_LAST_UPTIME )); then
       glv_data_event "node restarted" "${D_IMPL}"
     fi
@@ -1142,12 +1317,558 @@ glv_data_watch() {
     fi
     D_LAST_ADOPTED="${adopted}"
   fi
+  if [[ -n "${D_GSM}" && "${D_GSM}" != "${D_LAST_GSM}" ]]; then
+    if [[ -n "${D_LAST_GSM}" ]]; then
+      case "${D_GSM}" in
+        0) glv_data_event 'pre-syncing' "waiting for enough big ledger peers" ;;
+        1) glv_data_event syncing "the node is behind and catches up" ;;
+        2) glv_data_event 'caught up' "the node follows the tip" ;;
+      esac
+    fi
+    D_LAST_GSM="${D_GSM}"
+    D_GSM_SINCE="${D_COLLECTED_AT}"
+  fi
   if node_metric_has sync_phase; then phase="${sync_phase:-}"; fi
+  # While the start is followed phase by phase, its replay is no sync.
+  if glv_launch_shown; then phase=''; fi
   if [[ "${phase}" != "${D_LAST_PHASE}" ]]; then
     if [[ -n "${phase}" ]]; then glv_data_event "sync" "${phase}"
     else glv_data_event "sync done" "${D_LAST_PHASE}"; fi
     D_LAST_PHASE="${phase}"
   fi
+}
+
+# ── the node's life: its service, its start, and what it runs with ──────────
+# glv_fmt_span <variable> <seconds>: "45 s", "12 min", "2 h 05 min", "3 d 04 h".
+glv_fmt_span() {
+  local -n _span_out="$1"
+  local seconds="$2"
+  (( seconds >= 0 )) || seconds=0
+  if (( seconds < 60 )); then _span_out="${seconds} s"
+  elif (( seconds < 3600 )); then _span_out="$((seconds / 60)) min"
+  elif (( seconds < 86400 )); then printf -v _span_out '%d h %02d min' "$((seconds / 3600))" "$((seconds % 3600 / 60))"
+  else printf -v _span_out '%d d %02d h' "$((seconds / 86400))" "$((seconds % 86400 / 3600))"; fi
+}
+
+# glv_process_start <variable> <pid>: when a process started, in seconds since
+# the epoch: the boot time plus its start in clock ticks after boot.
+glv_process_start() {
+  local -n _process_start="$1"
+  local line
+  local -a field=()
+  _process_start=''
+  [[ -n "${D_BOOT_AT}" && -r "/proc/$2/stat" ]] || return 1
+  read -r line < "/proc/$2/stat" 2>/dev/null || return 1
+  # The process name may hold spaces; the start time is the 22nd field.
+  read -r -a field <<< "${line##*) }"
+  glv_is_int "${field[19]:-}" || return 1
+  _process_start=$((D_BOOT_AT + field[19] / GLV_CLK_TCK))
+}
+
+# glv_data_service: the node's systemd service, read while the node is not
+# ready. It tells a stopped node from one that failed, one that systemd will
+# start again, and one that is starting.
+glv_data_service() {
+  local key value load='' code='' status='' changed=''
+  D_SVC_ACTIVE=''; D_SVC_SUB=''; D_SVC_RESULT=''; D_SVC_EXIT=''; D_SVC_RESTARTS=''; D_SVC_RESTART_IN=''
+  [[ -n "${NODE_SERVICE:-}" ]] && command -v systemctl >/dev/null 2>&1 || return 0
+  while IFS='=' read -r key value; do
+    case "${key}" in
+      LoadState) load="${value}" ;;
+      ActiveState) D_SVC_ACTIVE="${value}" ;;
+      SubState) D_SVC_SUB="${value}" ;;
+      Result) D_SVC_RESULT="${value}" ;;
+      ExecMainCode) code="${value}" ;;
+      ExecMainStatus) status="${value}" ;;
+      NRestarts) D_SVC_RESTARTS="${value}" ;;
+      RestartUSec) D_SVC_RESTART_IN="${value}" ;;
+      StateChangeTimestamp) changed="${value}" ;;
+    esac
+  done < <(systemctl show "${NODE_SERVICE}" -p LoadState -p ActiveState -p SubState -p Result -p ExecMainCode \
+             -p ExecMainStatus -p NRestarts -p RestartUSec -p StateChangeTimestamp 2>/dev/null)
+  if [[ "${load}" != loaded ]]; then
+    D_SVC_ACTIVE=''; D_SVC_SUB=''; D_SVC_RESULT=''; D_SVC_RESTARTS=''; D_SVC_RESTART_IN=''; D_SVC_SINCE=''
+    return 0
+  fi
+  # The time of the last change, as systemd prints it; read once per change.
+  if [[ "${changed}" != "${D_SVC_SINCE_TEXT}" ]]; then
+    D_SVC_SINCE_TEXT="${changed}"
+    D_SVC_SINCE=''
+    [[ -z "${changed}" ]] || D_SVC_SINCE="$(date -d "${changed}" +%s 2>/dev/null)" || D_SVC_SINCE=''
+  fi
+  # How the main process ended: code 1 is an exit, 2 and 3 a signal.
+  if glv_is_int "${status}"; then
+    case "${code}" in
+      1) (( status == 0 )) || D_SVC_EXIT="exit status ${status}" ;;
+      2|3) D_SVC_EXIT="signal SIG$(kill -l "${status}" 2>/dev/null || printf '%s' "${status}")" ;;
+    esac
+  fi
+}
+
+# glv_data_last_error: the last line of the service's journal that reads like
+# an error, for a node that stopped on its own. Kept short for the screen.
+glv_data_last_error() {
+  local line found='' unit="${NODE_SERVICE%.service}.service" binary="${NODE_BINARY:-${CNODEBIN:-cardano-node}}"
+  D_SVC_ERROR=''
+  [[ -n "${NODE_SERVICE:-}" ]] && command -v journalctl >/dev/null 2>&1 || return 0
+  binary="${binary##*/}"
+  while IFS= read -r line; do
+    # systemd's own lines about the unit say only what the stage says already,
+    # and a call stack only where in the code the error came from.
+    [[ "${line}" != *"${unit}"* && "${line}" != 'CallStack (from HasCallStack):' && "${line}" != [[:space:]]* ]] || continue
+    # A trace says its severity. A plain line is the node's last words when it
+    # starts with its name; else, as cnode.sh prints, it only reads like an error.
+    if [[ "${line}" == *'"ns":"'* ]]; then
+      [[ ! "${line}" =~ \"sev\":\"(Error|Critical|Alert|Emergency)\" || "${line}" == *'"ns":"Net.'* ]] ||
+        glv_launch_summary found "${line}"
+    elif [[ "${line}" == "${binary}: "* || "${line}" =~ (rror|xception|ERROR|FATAL|[Ff]ailed|[Ii]nvalid) ]]; then
+      found="${line}"
+    fi
+  done < <(journalctl -q -o cat --no-pager -n 40 -u "${NODE_SERVICE}" 2>/dev/null)
+  D_SVC_ERROR="${found:0:300}"
+}
+
+# glv_launch_summary <variable> <JSON trace>: "namespace: reason" of one trace.
+glv_launch_summary() {
+  local -n _summary_out="$1"
+  local ns=''
+  [[ "$2" =~ \"ns\":\"([^\"]+)\" ]] && ns="${BASH_REMATCH[1]}"
+  if [[ "$2" =~ \"(error|reason|message|exception)\":\"([^\"]+) ]]; then
+    _summary_out="${ns:+${ns}: }${BASH_REMATCH[2]}"
+  else
+    _summary_out="${ns:-$2}"
+  fi
+  _summary_out="${_summary_out:0:200}"
+}
+
+# What cardano-node logs while it starts, until its socket is up: opening and
+# checking its database, replaying the ledger, selecting the chain. It comes
+# from the journal of its service, from the start of the process on, and is
+# only read until the node is ready.
+
+# glv_launch_event <headline> <detail>: an event of the start, held back until
+# glv_launch_events, so that it follows the event of the stage it belongs to.
+glv_launch_event() { GLV_LAUNCH_EVENTS+=("$1|$2"); }
+
+# glv_launch_events: the events of the start, oldest first.
+glv_launch_events() {
+  local record
+  for record in "${GLV_LAUNCH_EVENTS[@]}"; do glv_data_event "${record%%|*}" "${record#*|}"; done
+  GLV_LAUNCH_EVENTS=()
+}
+
+# glv_launch_reset: a new node process. What it was started with comes from
+# its command line.
+glv_launch_reset() {
+  local word previous='' cwd=''
+  local -a arguments=()
+  D_START_PID="${D_PID}"
+  glv_process_start D_START_AT "${D_PID}" || D_START_AT=''
+  D_START_CURSOR=''; D_START_READ=N; D_START_PHASE=''; D_START_TEXT=''; D_START_SHOWN=''
+  D_START_PROGRESS=''; D_START_SAMPLE_AT=''; D_START_SAMPLE=''; D_START_LEFT=''
+  D_START_DONE=N; D_START_SOCKET=N; D_START_ERROR=''; D_START_LAST_CHUNK=''; D_START_PROM=''
+  D_START_DB=''; D_START_SOCKET_PATH=''; D_START_TOPOLOGY=''
+  D_RUN_MODE=''; D_READY_AT=''; D_TOPO_CHECKED=''; D_TOPO_RELOADED=N; D_TOPO_SEEN=''; D_TOPO_KNOWN=N; D_START_SEEN=0
+  [[ -r "/proc/${D_PID}/cmdline" ]] || return 0
+  mapfile -d '' -t arguments < "/proc/${D_PID}/cmdline" 2>/dev/null || return 0
+  for word in "${arguments[@]}"; do
+    case "${previous}" in
+      --database-path) D_START_DB="${word}" ;;
+      --socket-path) D_START_SOCKET_PATH="${word}" ;;
+      --topology) D_START_TOPOLOGY="${word}" ;;
+    esac
+    previous="${word}"
+  done
+  if [[ -n "${D_START_DB}" && "${D_START_DB}" != /* ]]; then
+    cwd="$(readlink "/proc/${D_PID}/cwd" 2>/dev/null)" || cwd=''
+    if [[ -n "${cwd}" ]]; then D_START_DB="${cwd}/${D_START_DB}"; else D_START_DB=''; fi
+  fi
+}
+
+# glv_launch_phase <name> <text>: the start has got to a new phase.
+glv_launch_phase() {
+  [[ "${D_START_PHASE}" != "$1" ]] || return 0
+  D_START_PHASE="$1"
+  D_START_TEXT="$2"
+  D_START_PROGRESS=''; D_START_SAMPLE_AT=''; D_START_SAMPLE=''; D_START_LEFT=''
+}
+
+# glv_launch_progress <percent>: how far the phase is, in tenths of a percent.
+glv_launch_progress() {
+  local tenths
+  ui_scale tenths "$1" 1 || return 0
+  (( tenths <= 1000 )) || tenths=1000
+  D_START_PROGRESS="${tenths}"
+}
+
+# glv_launch_chunk <number>: after an unclean stop the immutable DB checks
+# every chunk, one by one; a clean start checks only the last one. The chunk
+# files say how many there are.
+glv_launch_chunk() {
+  local last
+  local -a chunks=()
+  if [[ -z "${D_START_LAST_CHUNK}" ]]; then
+    D_START_LAST_CHUNK=0
+    if [[ -n "${D_START_DB}" && -d "${D_START_DB}/immutable" ]]; then
+      chunks=("${D_START_DB}"/immutable/*.chunk)
+      if [[ -e "${chunks[0]}" ]]; then
+        last="${chunks[-1]##*/}"
+        last="${last%.chunk}"
+        [[ ! "${last}" =~ ^[0-9]+$ ]] || D_START_LAST_CHUNK=$((10#${last}))
+      fi
+    fi
+  fi
+  (( D_START_LAST_CHUNK > 0 && $1 < D_START_LAST_CHUNK )) || return 0
+  glv_launch_phase check "Checking the immutable DB"
+  glv_launch_progress "$(($1 * 100 / D_START_LAST_CHUNK)).$(($1 * 1000 / D_START_LAST_CHUNK % 10))"
+}
+
+# glv_launch_line <line>: what one line of the node's log says about its start.
+glv_launch_line() {
+  local line="$1" ns
+  if [[ "${line}" == 'Node configuration: '* ]]; then
+    if [[ "${line}" =~ ncConsensusMode\ =\ ([A-Za-z]+) && "${BASH_REMATCH[1]}" != "${D_RUN_MODE}" ]]; then
+      D_RUN_MODE="${BASH_REMATCH[1]}"
+      glv_launch_event consensus "${D_RUN_MODE%Mode} mode"
+    fi
+    return 0
+  fi
+  if [[ ! "${line}" =~ \"ns\":\"([^\"]+)\" ]]; then
+    # The text format (HumanFormat) says how far a replay or a check is.
+    if [[ "${line}" =~ Progress:\ ([0-9]+([.][0-9]+)?)% ]]; then
+      if [[ "${line}" == *"Replayed block"* ]]; then
+        glv_launch_phase replay "Replaying the ledger"
+        glv_launch_progress "${BASH_REMATCH[1]}"
+      elif [[ "${line}" == *[Cc]hunk* ]]; then
+        glv_launch_phase check "Checking the immutable DB"
+        glv_launch_progress "${BASH_REMATCH[1]}"
+      fi
+    fi
+    return 0
+  fi
+  ns="${BASH_REMATCH[1]}"
+  case "${ns}" in
+    Startup.Common) D_START_ERROR='' ;;
+    ChainDB.OpenEvent.StartedOpeningDB|ChainDB.OpenEvent.StartedOpeningImmutableDB)
+      glv_launch_phase open "Opening the database" ;;
+    ChainDB.ImmDbEvent.ChunkValidation.*)
+      [[ ! "${line}" =~ \"chunkNo\":\"?([0-9]+) ]] || glv_launch_chunk "${BASH_REMATCH[1]}" ;;
+    ChainDB.OpenEvent.StartedOpeningLgrDB) glv_launch_phase ledger "Opening the ledger" ;;
+    ChainDB.LedgerEvent.Replay.ReplayStart.ReplayFromGenesis) glv_launch_phase replay "Replaying the ledger from genesis" ;;
+    ChainDB.LedgerEvent.Replay.ReplayStart.*) glv_launch_phase replay "Replaying the ledger from a snapshot" ;;
+    ChainDB.ReplayBlock.LedgerReplay)
+      [[ "${D_START_PHASE}" == replay ]] || glv_launch_phase replay "Replaying the ledger"
+      [[ ! "${line}" =~ \"progress\":\"?([0-9]+([.][0-9]+)?) ]] || glv_launch_progress "${BASH_REMATCH[1]}" ;;
+    ChainDB.InitChainSelEvent.StartedInitChainSelection) glv_launch_phase select "Selecting the chain" ;;
+    ChainDB.OpenEvent.OpenedDB) glv_launch_phase network "Starting the network" ;;
+    Startup.DiffusionInit.LocalSocketUp) D_START_SOCKET=Y ;;
+    # The metrics port could not be opened, for one, by another node.
+    NodeState.PrometheusSimple.Stop) glv_launch_summary D_START_PROM "${line}" ;;
+  esac
+  # Network errors are routine once peers connect; the others are kept.
+  if [[ "${ns}" != Net.* && "${line}" =~ \"sev\":\"(Error|Critical|Alert|Emergency)\" ]]; then
+    glv_launch_summary D_START_ERROR "${line}"
+  fi
+}
+
+# glv_launch_read [head]: the node's log since the last read, into
+# GLV_LAUNCH_LINES. The first read starts at the process start: its first
+# lines say how it was configured, its last ones how far the start has got.
+# With head, only the first lines are read.
+glv_launch_read() {
+  local last
+  GLV_LAUNCH_LINES=()
+  [[ -n "${NODE_SERVICE:-}" ]] && command -v journalctl >/dev/null 2>&1 || return 1
+  if [[ "${1:-}" == head ]]; then
+    [[ -n "${D_START_AT}" ]] || return 1
+    mapfile -t GLV_LAUNCH_LINES < <(journalctl -u "${NODE_SERVICE}" -o cat --no-pager -q \
+      --since "@${D_START_AT}" 2>/dev/null | head -n 100)
+    return 0
+  elif [[ -n "${D_START_CURSOR}" ]]; then
+    mapfile -t GLV_LAUNCH_LINES < <(journalctl -u "${NODE_SERVICE}" -o cat --no-pager -q --show-cursor \
+      --after-cursor "${D_START_CURSOR}" 2>/dev/null)
+  else
+    [[ -n "${D_START_AT}" ]] || return 1
+    mapfile -t GLV_LAUNCH_LINES < <(journalctl -u "${NODE_SERVICE}" -o cat --no-pager -q \
+      --since "@${D_START_AT}" 2>/dev/null | head -n 100)
+    mapfile -t -O "${#GLV_LAUNCH_LINES[@]}" GLV_LAUNCH_LINES < <(journalctl -u "${NODE_SERVICE}" -o cat \
+      --no-pager -q --show-cursor --since "@${D_START_AT}" -n 300 2>/dev/null)
+  fi
+  (( ${#GLV_LAUNCH_LINES[@]} > 0 )) || return 0
+  last="${GLV_LAUNCH_LINES[-1]}"
+  if [[ "${last}" == '-- cursor: '* ]]; then
+    D_START_CURSOR="${last#-- cursor: }"
+    unset 'GLV_LAUNCH_LINES[-1]'
+  fi
+}
+
+# glv_data_launch: follows a node process from its start until it is ready:
+# its socket is up, or it reports a tip. Each new phase is an event.
+glv_data_launch() {
+  local line elapsed done_tenths text socket mtime
+  if [[ -z "${D_PID}" ]]; then
+    D_START_PID=''
+    return 0
+  fi
+  [[ "${D_START_PID}" == "${D_PID}" ]] || glv_launch_reset
+  # A node that already reports a tip when gLiveView first sees it has started.
+  if [[ "${D_START_DONE}" == N && "${D_START_READ}" == N ]] && glv_launch_has_tip; then
+    D_START_DONE=Y
+    D_READY_AT="${D_COLLECTED_AT}"
+    D_START_SHOWN=ready
+  fi
+  if [[ "${D_START_DONE}" == N ]] && node_has block_replay_log && glv_launch_read; then
+    for line in "${GLV_LAUNCH_LINES[@]}"; do glv_launch_line "${line}"; done
+    D_START_SEEN=$((D_START_SEEN + ${#GLV_LAUNCH_LINES[@]}))
+    D_START_READ=Y
+  elif [[ -z "${D_RUN_MODE}" && "${D_START_READ}" == N ]] && node_has block_replay_log && glv_launch_read head; then
+    # Only the consensus mode is wanted from a node that runs already.
+    for line in "${GLV_LAUNCH_LINES[@]}"; do
+      [[ "${line}" != 'Node configuration: '* ]] || { glv_launch_line "${line}"; break; }
+    done
+    D_START_READ=Y
+  fi
+  if [[ "${D_START_DONE}" == N ]]; then
+    # The node creates its socket once its database is open. A busy log can
+    # bury that line, and a socket older than the process is the last one's.
+    if [[ "${D_START_SOCKET}" == N ]] && node_has n2c && glv_is_int "${D_START_AT}"; then
+      socket="${D_START_SOCKET_PATH:-${CARDANO_NODE_SOCKET_PATH:-}}"
+      if [[ -n "${socket}" && -S "${socket}" ]] && mtime="$(stat -c %Y -- "${socket}" 2>/dev/null)" &&
+         glv_is_int "${mtime}" && (( mtime >= D_START_AT )); then
+        D_START_SOCKET=Y
+      fi
+    fi
+    # With no log to read, a node that has run for three minutes counts as
+    # started, so that missing metrics are reported.
+    if (( D_START_SEEN == 0 )) && glv_is_int "${D_START_AT}" && (( D_COLLECTED_AT - D_START_AT >= 180 )); then
+      D_START_DONE=Y
+      D_READY_AT="${D_COLLECTED_AT}"
+      D_START_SHOWN=ready
+      return 0
+    fi
+    if [[ "${D_START_SOCKET}" == Y ]] || glv_launch_has_tip; then
+      D_START_DONE=Y
+      D_READY_AT="${D_COLLECTED_AT}"
+      text='ready'
+      if glv_is_int "${D_START_AT}" && (( D_COLLECTED_AT >= D_START_AT )); then
+        glv_fmt_span text "$((D_COLLECTED_AT - D_START_AT))"
+        text="started in ${text}"
+      fi
+      # Only a start that was shown ends in an event.
+      [[ "${D_STAGE_SHOWN}" != starting ]] || glv_launch_event ready "${text}"
+      D_START_SHOWN=ready
+      D_START_PHASE=''; D_START_TEXT=''; D_START_PROGRESS=''; D_START_LEFT=''
+      return 0
+    fi
+    if [[ -n "${D_START_PHASE}" && "${D_START_PHASE}" != "${D_START_SHOWN}" ]]; then
+      glv_launch_event startup "${D_START_TEXT,}"
+      D_START_SHOWN="${D_START_PHASE}"
+    fi
+    # The time left, from the pace since the first figure of this phase.
+    if glv_is_int "${D_START_PROGRESS}"; then
+      if [[ -z "${D_START_SAMPLE_AT}" ]]; then
+        D_START_SAMPLE_AT="${D_COLLECTED_AT}"
+        D_START_SAMPLE="${D_START_PROGRESS}"
+      fi
+      elapsed=$((D_COLLECTED_AT - D_START_SAMPLE_AT))
+      done_tenths=$((D_START_PROGRESS - D_START_SAMPLE))
+      D_START_LEFT=''
+      if (( elapsed >= 20 && done_tenths > 0 )); then
+        D_START_LEFT=$((elapsed * (1000 - D_START_PROGRESS) / done_tenths))
+      fi
+    fi
+  fi
+}
+
+# glv_data_metrics_owner: cardano-node says in its metrics when it started.
+# Metrics of a node that started before this process are another node's: two
+# deployments share the metrics port, and this one could not open it. They
+# are not shown as this node's.
+glv_data_metrics_owner() {
+  local text
+  D_METRICS_FOREIGN=N
+  [[ "${D_OK}" == Y && -n "${D_PID}" ]] && glv_is_int "${D_START_AT}" || return 0
+  declare -F prometheus_metric_label >/dev/null || return 0
+  text="$(prometheus_metric_label cardano_node_metrics_basicInfo nodeStartTime 2>/dev/null)" || return 0
+  if [[ "${text}" != "${D_METRICS_START_TEXT}" ]]; then
+    D_METRICS_START_TEXT="${text}"
+    D_METRICS_START="$(date -d "${text}" +%s 2>/dev/null)" || D_METRICS_START=''
+  fi
+  glv_is_int "${D_METRICS_START}" && (( D_METRICS_START + 5 < D_START_AT )) || return 0
+  D_METRICS_FOREIGN=Y
+  D_OK=N
+  node_metric_reset_availability
+  common_parse_cardano_metrics "" 2>/dev/null
+}
+
+# glv_launch_shown: the node is starting and its log says how far it is, which
+# the screen shows instead of the sync figures.
+glv_launch_shown() {
+  [[ "${D_STAGE}" == starting && -n "${D_START_PHASE}" ]]
+}
+
+# glv_launch_has_tip: the node reports a tip, so it is past its start.
+glv_launch_has_tip() {
+  [[ "${D_OK}" == Y ]] && node_metric_has slotnum && glv_is_int "${slotnum:-}" && (( slotnum > 0 ))
+}
+
+# glv_data_stage: one word for where the node is, with D_DOWN, the reason
+# shown for a node that does not report: stopped, failed, restarting,
+# starting, not running or no metrics.
+glv_data_stage() {
+  local stage
+  if [[ -z "${D_PID}" ]]; then
+    case "${D_SVC_ACTIVE}:${D_SVC_SUB}" in
+      failed:*) stage=failed ;;
+      activating:auto-restart) stage=restarting ;;
+      activating:*|reloading:*) stage=starting ;;
+      inactive:*|deactivating:*) stage=stopped ;;
+      # A simple service is active from its first process, cnode.sh, which
+      # runs a while before it becomes the node.
+      active:running)
+        stage='not running'
+        if glv_is_int "${D_SVC_SINCE}" && (( D_COLLECTED_AT - D_SVC_SINCE < 120 )); then stage=starting; fi ;;
+      *) stage='not running' ;;
+    esac
+  elif [[ "${D_START_DONE}" == N ]]; then
+    stage=starting
+  elif [[ "${D_OK}" == Y ]] || { [[ "${D_STAGE}" == ready ]] && (( D_FAILS < 2 )); }; then
+    # One failed read is not yet a node without metrics.
+    stage=ready
+  else
+    stage='no metrics'
+  fi
+  D_STAGE="${stage}"
+  D_DOWN=''
+  [[ "${stage}" == ready ]] || D_DOWN="${stage}"
+}
+
+# glv_data_stage_events: an event when the node moves to another stage, and
+# the last error from its log when it stopped on its own.
+glv_data_stage_events() {
+  local text=''
+  [[ "${D_STAGE}" != "${D_STAGE_SHOWN}" ]] || return 0
+  case "${D_STAGE}" in
+    failed|restarting) glv_data_last_error ;;
+    *) D_SVC_ERROR='' ;;
+  esac
+  case "${D_STAGE}" in
+    stopped) glv_data_event stopped "service ${NODE_SERVICE%.service} is inactive" ;;
+    failed) glv_data_event failed "${D_SVC_EXIT:-${D_SVC_RESULT:-the service failed}}" ;;
+    restarting)
+      text="${D_SVC_EXIT:-${D_SVC_RESULT}}"
+      [[ -z "${D_SVC_RESTART_IN}" ]] || text+="${text:+ · }systemd starts it again in ${D_SVC_RESTART_IN}"
+      glv_data_event restarting "${text}" ;;
+    starting)
+      if [[ -n "${D_PID}" ]]; then glv_data_event starting "${D_IMPL}, process ${D_PID}"
+      else glv_data_event starting "service ${NODE_SERVICE%.service} is starting"; fi ;;
+    'no metrics') glv_data_event 'no metrics' "${D_IMPL} runs, but answers no metrics" ;;
+    'not running') glv_data_event 'node lost' "${D_IMPL} not running" ;;
+    # Ready after a start is the start's own event; after lost metrics it is this.
+    ready) [[ "${D_STAGE_SHOWN}" != 'no metrics' ]] || glv_data_event 'node back' "${D_IMPL}" ;;
+  esac
+  D_STAGE_SHOWN="${D_STAGE}"
+}
+
+# glv_data_running_config: what the node would run with if it started now,
+# against what it started with. config.json is read only at the start; the
+# topology and the peer snapshot again on SIGHUP, which the node logs.
+glv_data_running_config() {
+  local config="${NODE_CONFIG:-${CONFIG:-}}" topology snapshot='' checkpoints='' file mtime newest dir line
+  local -a reconf=() topo=()
+  D_RECONF_FILES=''; D_RECONF_AT=''; D_TOPO_FILES=''; D_TOPO_AT=''
+  D_CONF_MODE=''; D_CONF_MIN_BIG=''
+  # cardano-node's own files; Dingo and Amaru are configured otherwise.
+  node_has topology_file || return 0
+  [[ -n "${config}" && -r "${config}" ]] && command -v jq >/dev/null 2>&1 || return 0
+  { IFS= read -r D_CONF_MODE; IFS= read -r D_CONF_MIN_BIG; IFS= read -r snapshot; IFS= read -r checkpoints; } < <(jq -r '
+    (.Configuration.Consensus // .) as $consensus |
+    ($consensus.ConsensusMode // "PraosMode"),
+    ((.Configuration.Network // .).MinBigLedgerPeersForTrustedState // ""),
+    ((.Configuration.Network // .).PeerSnapshotFile // ""),
+    ($consensus.CheckpointsFile // .CheckpointsFile // "")' "${config}" 2>/dev/null)
+  glv_is_int "${D_START_AT}" || return 0
+  dir="${config%/*}"
+  [[ -z "${checkpoints}" || "${checkpoints}" == /* ]] || checkpoints="${dir}/${checkpoints}"
+  topology="${D_START_TOPOLOGY:-${dir}/topology.json}"
+  if [[ -z "${snapshot}" && -r "${topology}" ]]; then
+    snapshot="$(jq -r '.peerSnapshotFile // ""' "${topology}" 2>/dev/null)" || snapshot=''
+    [[ -z "${snapshot}" || "${snapshot}" == /* ]] || snapshot="${topology%/*}/${snapshot}"
+  elif [[ -n "${snapshot}" && "${snapshot}" != /* ]]; then
+    snapshot="${dir}/${snapshot}"
+  fi
+  # A file written while the process came up was read by it; two seconds of
+  # slack keep that from counting as a change.
+  for file in "${config}" "${checkpoints}"; do
+    [[ -n "${file}" && -f "${file}" ]] || continue
+    mtime="$(stat -c %Y -- "${file}" 2>/dev/null)" || continue
+    (( mtime > D_START_AT + 2 )) || continue
+    reconf+=("${file##*/}")
+    [[ -n "${D_RECONF_AT}" ]] && (( D_RECONF_AT >= mtime )) || D_RECONF_AT="${mtime}"
+  done
+  D_RECONF_FILES="${reconf[*]}"
+  newest=''
+  for file in "${topology}" "${snapshot}"; do
+    [[ -n "${file}" && -f "${file}" ]] || continue
+    mtime="$(stat -c %Y -- "${file}" 2>/dev/null)" || continue
+    (( mtime > D_START_AT + 2 )) || continue
+    topo+=("${file##*/}")
+    [[ -n "${newest}" ]] && (( newest >= mtime )) || newest="${mtime}"
+  done
+  if (( ${#topo[@]} == 0 )); then
+    D_TOPO_SEEN=''; D_TOPO_RELOADED=N; D_TOPO_KNOWN=N
+    return 0
+  fi
+  D_TOPO_FILES="${topo[*]}"
+  D_TOPO_AT="${newest}"
+  # Was there a reload since the newest change? The node logs a line for each
+  # SIGHUP. The journal is searched on from where the last search ended.
+  if [[ "${D_TOPO_SEEN}" != "${newest}" ]]; then
+    D_TOPO_SEEN="${newest}"; D_TOPO_RELOADED=N; D_TOPO_KNOWN=N; D_TOPO_CHECKED="${newest}"
+  fi
+  [[ "${D_TOPO_RELOADED}" == N ]] || return 0
+  if [[ -z "${NODE_SERVICE:-}" ]] || ! command -v journalctl >/dev/null 2>&1; then
+    D_TOPO_KNOWN=Y; D_TOPO_NOLOG=Y
+    return 0
+  fi
+  # Hours of a busy node's log take seconds to read, so a job reads them.
+  [[ -n "${RELOAD_JOB_PID}" ]] || glv_reload_job_start
+}
+
+# glv_reload_job_start: searches the node's log for a reload, from where the
+# last search ended up to now, in the background.
+glv_reload_job_start() {
+  local seen="${D_TOPO_SEEN}" until="${D_COLLECTED_AT}" from="${D_TOPO_CHECKED}"
+  rm -f -- "${RELOAD_JOB_FILE}" "${RELOAD_JOB_FILE}.part"
+  (
+    if journalctl -u "${NODE_SERVICE}" -o cat --no-pager -q --since "@${from}" --until "@${until}" 2>/dev/null |
+       grep -q -m 1 -F '"ns":"Startup.NetworkConfigUpdate"'; then
+      printf '%s|Y|%s\n' "${seen}" "${until}"
+    else
+      printf '%s|N|%s\n' "${seen}" "${until}"
+    fi > "${RELOAD_JOB_FILE}.part"
+    mv -f -- "${RELOAD_JOB_FILE}.part" "${RELOAD_JOB_FILE}"
+  ) < /dev/null > /dev/null 2>&1 &
+  RELOAD_JOB_PID=$!
+}
+
+# glv_reload_job_poll: takes in what the search found, for the change it was
+# started for.
+glv_reload_job_poll() {
+  local seen result until
+  [[ -n "${RELOAD_JOB_PID}" ]] || return 0
+  if [[ ! -f "${RELOAD_JOB_FILE}" ]]; then
+    ! kill -0 "${RELOAD_JOB_PID}" 2>/dev/null || return 0
+    [[ -f "${RELOAD_JOB_FILE}" ]] || { RELOAD_JOB_PID=''; return 0; }
+  fi
+  IFS='|' read -r seen result until < "${RELOAD_JOB_FILE}" || result=''
+  rm -f -- "${RELOAD_JOB_FILE}"
+  RELOAD_JOB_PID=''
+  [[ "${seen}" == "${D_TOPO_SEEN}" ]] && glv_is_int "${until}" || return 0
+  D_TOPO_KNOWN=Y
+  [[ "${result}" != Y ]] || D_TOPO_RELOADED=Y
+  # Lines written in the last seconds may not have reached the journal yet.
+  D_TOPO_CHECKED=$((until - 5))
 }
 
 # cardano-node counts big ledger peers apart from its other outgoing peers.
@@ -1164,6 +1885,11 @@ glv_data_big_ledger() {
       printf -v "D_BIG_${name^^}" '%s' "${value}"
     fi
   done
+  # The Genesis state machine: 0 PreSyncing, 1 Syncing, 2 CaughtUp.
+  D_GSM=''
+  if prometheus_first_metric_value value cardano_node_metrics_GSM_state_int 2>/dev/null && [[ "${value}" =~ ^[012]$ ]]; then
+    D_GSM="${value}"
+  fi
   # Counters only the Peers page shows, kept under the node's own names.
   for name in peerSelection_KnownLocalRootPeers peerSelection_EstablishedLocalRootPeers \
       peerSelection_ActiveLocalRootPeers peerSelection_RootPeers peerSelection_KnownPeers \
@@ -2185,7 +2911,7 @@ glv_data_view() {
 }
 
 glv_data_collect() {
-  local start="${EPOCHREALTIME/[.,]/}" was_ok="${D_OK}" role=Relay alert=''
+  local start="${EPOCHREALTIME/[.,]/}" role=Relay alert=''
   printf -v D_COLLECTED_AT '%(%s)T' -1
 
   if getNodeMetrics 2>/dev/null; then
@@ -2200,27 +2926,21 @@ glv_data_collect() {
   fi
   node_refresh_process >/dev/null 2>&1 || true
   D_PID="${NODE_PID:-}"
-  D_DOWN=''
-  if [[ -z "${D_PID}" ]]; then
+  if [[ -z "${D_PID}" && "${D_OK}" == Y ]]; then
     # Without a process, whatever answered on the metrics port is not this
     # node (another deployment may share the port), so nothing is shown.
-    if [[ "${D_OK}" == Y ]]; then
-      node_metric_reset_availability
-      common_parse_cardano_metrics "" 2>/dev/null
-    fi
-    D_OK=N
-    D_DOWN="not running"
-  elif [[ "${D_OK}" != Y ]]; then
-    D_DOWN="no metrics"
+    node_metric_reset_availability
+    common_parse_cardano_metrics "" 2>/dev/null
   fi
-
-  if [[ "${D_OK}" != "${was_ok}" ]]; then
-    if [[ "${D_OK}" == Y ]]; then
-      (( D_SLOW_AT == 0 )) || glv_data_event "node back" "${D_IMPL}"
-    else
-      glv_data_event "node lost" "${D_IMPL} ${D_DOWN}"
-    fi
-  fi
+  [[ -n "${D_PID}" ]] || D_OK=N
+  [[ -z "${D_PID}" || "${D_START_PID}" == "${D_PID}" ]] || glv_launch_reset
+  glv_data_metrics_owner
+  # The service says why there is no process, or that one is coming.
+  [[ -n "${D_PID}" && "${D_STAGE}" == ready ]] || glv_data_service
+  glv_data_launch
+  glv_data_stage
+  glv_data_stage_events
+  glv_launch_events
 
   if [[ "${D_OK}" == Y ]]; then
     node_metric_has running_node_version && D_VERSION="${running_node_version}"
@@ -2257,8 +2977,16 @@ glv_data_collect() {
     glv_data_disk
     glv_data_pending
     glv_data_binary
+    glv_data_running_config
+    D_RECONF_PID="${D_PID}"
     if [[ "${D_ROLE}" == Core ]]; then glv_data_blocklog; fi
   fi
+  # A new process has read the files again.
+  if [[ "${D_RECONF_PID}" != "${D_PID}" ]]; then
+    glv_data_running_config
+    D_RECONF_PID="${D_PID}"
+  fi
+  glv_reload_job_poll
   if [[ "${D_ROLE}" == Core ]] && (( D_COLLECTED_AT - D_KES_AT >= 60 )); then
     D_KES_AT="${D_COLLECTED_AT}"
     glv_data_kes
@@ -2403,8 +3131,14 @@ glv_slots() {
 glv_status() {
   local -n _status_text="$1" _status_colour="$2"
   local gap
-  if [[ "${D_OK}" != Y ]]; then
-    _status_text="${D_DOWN:-No metrics}"; _status_colour="${C_DANGER}"
+  if [[ "${D_STAGE}" == starting ]]; then
+    _status_text="Starting"; _status_colour="${C_WARN}"
+    if glv_is_int "${D_START_PROGRESS}"; then
+      ui_fmt_tenths gap "${D_START_PROGRESS}"
+      _status_text+=" ${gap} %"
+    fi
+  elif [[ "${D_OK}" != Y ]]; then
+    _status_text="${D_DOWN:-No metrics}"; _status_text="${_status_text^}"; _status_colour="${C_DANGER}"
   elif node_metric_has node_alert && [[ -n "${node_alert:-}" ]]; then
     _status_text="Alert"; _status_colour="${C_DANGER}"
   elif node_metric_has sync_phase && [[ -n "${sync_phase:-}" ]]; then
@@ -2481,12 +3215,67 @@ glv_opcert_text() {
 
 # glv_panel_epoch <width> [title prefix]. Three rows without a second line,
 # four with one (sync status, or the leader slots of this epoch).
+# glv_panel_epoch_start <inner width> <title var> <right var>: the first line
+# of the Epoch panel while the node starts: a bar when the phase says how far
+# it is, else the phase. GLV_EPOCH_NOTE is the second line.
+glv_panel_epoch_start() {
+  local inner="$1" value text
+  local -n _start_title="$2" _start_right="$3"
+  _start_title="${prefix:-}Starting"
+  text="${D_START_TEXT:-${D_IMPL} is starting}"
+  if glv_is_int "${D_START_AT}"; then
+    glv_fmt_span value "$((D_COLLECTED_AT - D_START_AT))"
+    text+=" · started ${value} ago"
+  fi
+  if glv_is_int "${D_START_PROGRESS}"; then
+    ui_fmt_tenths value "${D_START_PROGRESS}"
+    _start_right="${value} %"
+    if glv_is_int "${D_START_LEFT}"; then
+      glv_fmt_span value "${D_START_LEFT}"
+      _start_right+=" · about ${value} left"
+    fi
+    ui_bar "${inner}" "$((inner * D_START_PROGRESS / 1000))" UI_BLOCKS "${C_WARN}"
+    GLV_EPOCH_NOTE="${text}"
+  else
+    ui_putw "${C_WARN}" "${inner}" "${text}"
+    GLV_EPOCH_NOTE="It reports its tip once its database is open"
+    if node_has n2c; then GLV_EPOCH_NOTE+=" and its socket is up."; else GLV_EPOCH_NOTE+="."; fi
+  fi
+}
+
+# glv_panel_epoch_down <inner width>: the first line of the Epoch panel for a
+# node that does not run or report; GLV_EPOCH_NOTE says what to do.
+glv_panel_epoch_down() {
+  local inner="$1" service="${NODE_SERVICE%.service}" text since=''
+  [[ -z "${D_SVC_SINCE}" ]] || printf -v since ' at %(%H:%M)T' "${D_SVC_SINCE}"
+  case "${D_STAGE}" in
+    stopped)
+      text="${D_IMPL} is stopped: the service ${service} is inactive${since/ at/ since}."
+      GLV_EPOCH_NOTE="Start it with: sudo systemctl start ${service}" ;;
+    failed)
+      text="${D_IMPL} failed${since}${D_SVC_EXIT:+ (${D_SVC_EXIT})}; systemd does not start it again."
+      GLV_EPOCH_NOTE="Start it with: sudo systemctl start ${service}"
+      [[ -z "${D_SVC_ERROR}" ]] || GLV_EPOCH_NOTE="Last error: ${D_SVC_ERROR}" ;;
+    restarting)
+      text="${D_IMPL} stopped${since}${D_SVC_EXIT:+ (${D_SVC_EXIT})}; systemd starts it again${D_SVC_RESTART_IN:+ in ${D_SVC_RESTART_IN}}."
+      [[ -z "${D_SVC_ERROR}" ]] || GLV_EPOCH_NOTE="Last error: ${D_SVC_ERROR}" ;;
+    *)
+      text="${D_IMPL}: ${D_DOWN:-no metrics}. Trying again every ${REFRESH_RATE} s."
+      if [[ "${D_METRICS_FOREIGN:-N}" == Y ]]; then
+        text="${D_IMPL} runs, but another node answers on its metrics port."
+        GLV_EPOCH_NOTE="The Notices page (!) says what to change."
+      fi ;;
+  esac
+  ui_putw "${C_DANGER}" "${inner}" "${text}"
+}
+
 glv_panel_epoch() {
   local width="$1" prefix="${2:-}" inner=$(($1 - 4)) title right='' filled=0
   local slot length left tenths text entry position status colour i
   local -a glyph=() tint=()
   UI_BASE="${UI_BASE_MAIN}"
   UI_BODY=()
+  GLV_EPOCH_NOTE=''
   title="${prefix}Epoch"
   if node_metric_has epochnum && node_metric_has slot_in_epoch &&
      glv_is_int "${slot_in_epoch:-}" && glv_is_int "${EPOCH_LENGTH:-}" && (( EPOCH_LENGTH > 0 )); then
@@ -2507,17 +3296,22 @@ glv_panel_epoch() {
     fi
     right+="${left}"
     ui_bar "${inner}" "${filled}" UI_BLOCKS "${C_ACCENT}"
+  elif [[ "${D_STAGE}" == starting ]]; then
+    glv_panel_epoch_start "${inner}" title right
   elif [[ "${D_OK}" == Y ]]; then
     ui_putw "${C_MUTED}" "${inner}" "${D_IMPL} has not reported an epoch yet."
   else
-    ui_putw "${C_DANGER}" "${inner}" "${D_IMPL}: ${D_DOWN:-no metrics}. Trying again every ${REFRESH_RATE} s."
+    glv_panel_epoch_down "${inner}"
   fi
   ui_endl UI_BODY "${inner}"
 
-  if node_metric_has node_alert && [[ -n "${node_alert:-}" ]]; then
+  if [[ -n "${GLV_EPOCH_NOTE}" ]]; then
+    ui_putw "${C_MUTED}" "${inner}" "${GLV_EPOCH_NOTE}"
+    ui_endl UI_BODY "${inner}"
+  elif node_metric_has node_alert && [[ -n "${node_alert:-}" ]]; then
     ui_putw "${C_DANGER}" "${inner}" "Alert: ${node_alert}"
     ui_endl UI_BODY "${inner}"
-  elif node_metric_has sync_phase && [[ -n "${sync_phase:-}" ]]; then
+  elif ! glv_launch_shown && node_metric_has sync_phase && [[ -n "${sync_phase:-}" ]]; then
     text="Sync: ${sync_phase}"
     if node_metric_has sync_progress; then text+=" · ${sync_progress} %"; fi
     if node_metric_has sync_rate && [[ -n "${sync_rate:-}" ]]; then text+=" · ${sync_rate}"; fi
@@ -2996,10 +3790,19 @@ glv_vital() {
 glv_vitals() {
   local list="$1" colour text value last
   GLV_VITAL_W="$2"
-  if [[ "${D_OK}" != Y ]]; then
+  if [[ "${D_STAGE}" == starting ]]; then
+    text=starting
+    if glv_is_int "${D_START_PROGRESS}"; then
+      ui_fmt_tenths value "${D_START_PROGRESS}"
+      text+=" ${value} %"
+    fi
+    glv_vital "${list}" "${C_WARN}" "Node" "${text}"
+  elif [[ "${D_OK}" != Y ]]; then
     glv_vital "${list}" "${C_DANGER}" "Node" "${D_DOWN:-no metrics}"
   fi
-  if node_metric_has sync_phase && [[ -n "${sync_phase:-}" ]]; then
+  if glv_launch_shown; then
+    :
+  elif node_metric_has sync_phase && [[ -n "${sync_phase:-}" ]]; then
     text="${sync_phase}"
     if node_metric_has sync_progress; then text="${sync_progress} %"; fi
     glv_vital "${list}" "${C_WARN}" "Sync" "${text}"
@@ -5729,7 +6532,21 @@ glv_view_details() {
   text="${D_VERSION}"
   if node_metric_has running_node_rev && [[ "${running_node_rev:-?}" != '?' ]]; then text+=" (${running_node_rev})"; fi
   node+=("Implementation|${D_IMPL}" "Version|${text}" "Role|${D_ROLE}" "Service|${NODE_SERVICE:-unknown}"
-         "Process|${D_PID:-not running}")
+         "Process|${D_PID:-not running}${D_STAGE:+ · ${D_STAGE}}")
+  # The consensus mode the node started in, then what config.json sets now.
+  text="${D_RUN_MODE:-${D_CONF_MODE}}"
+  if [[ -n "${text}" ]]; then
+    text="${text%Mode}"
+    [[ -n "${D_RUN_MODE}" ]] || text+=" (config.json)"
+    case "${D_GSM}" in
+      0) text+=" · pre-syncing" ;;
+      1) text+=" · syncing" ;;
+      2) text+=" · caught up" ;;
+    esac
+    [[ -z "${D_RUN_MODE}" || -z "${D_CONF_MODE}" || "${D_RUN_MODE}" == "${D_CONF_MODE}" ]] ||
+      text+=" · config.json: ${D_CONF_MODE%Mode}"
+    node+=("Consensus|${text}")
+  fi
   if [[ -n "${D_UPTIME}" ]]; then
     ui_fmt_duration text "${D_UPTIME}"
     node+=("Uptime|${text}")
@@ -6083,6 +6900,10 @@ glv_help_entries() {
       fi
       glv_help_add "Sync or alert" \
         "While the node reports a sync phase or an alert, that line takes the place of the marks."
+      glv_help_add "Starting" \
+        "While cardano-node starts, the panel follows its log: opening the database, checking the immutable DB after an unclean stop, replaying the ledger, selecting the chain. A bar shows how far a check or a replay is, with the time left at the pace so far. The node reports its tip once its database is open and its socket is up."
+      glv_help_add "Stopped, failed, restarting" \
+        "When there is no node process, its systemd service says why: stopped, failed (systemd does not start it again) or waiting to be restarted after it stopped on its own. The second line gives the last error in its log, or the command to start it."
       ;;
     chain)
       glv_help_add "Block · Slot" \
@@ -6604,7 +7425,7 @@ glv_help_keys() {
 
 glv_help_events() {
   glv_help_add "Events" \
-    "Things that happened to the node while gLiveView was running: it went away or came back, restarted, an epoch started, it lost all hot peers, a sync phase changed, a block of yours was adopted, or it raised an alert. Fork switches and late blocks are listed too."
+    "Things that happened to the node while gLiveView was running: its service stopped, failed or is restarting it, a new process started, each phase of its start (opening and checking its database, replaying the ledger, selecting the chain) and when it was ready, the consensus mode it started in, the Genesis state machine changing (pre-syncing, syncing, caught up), it lost its metrics or got them back, restarted, an epoch started, it lost all hot peers, a sync phase changed, a block of yours was adopted, or it raised an alert. Fork switches and late blocks are listed too."
   glv_help_add "Notices" \
     "A notice that comes up is an event in its level's colour: red for an error, amber for a warning, grey for info. One that clears is an event in green. The Notices page (!) keeps the last ${GLV_EVENTS_MAX} events; the Overview shows the newest."
 }
@@ -6623,7 +7444,7 @@ glv_help_notices() {
   glv_help_add "x Acknowledge" \
     "Takes the warnings and info listed now out of the side rail and the count beside Notices. The page still lists them, marked acknowledged. gLiveView remembers this in gLiveView.sh.notices beside the script."
   glv_help_add "What is checked" \
-    "The node: no metrics or not running, an alert it raises, no outgoing peers five minutes after the start. A block producer: KES periods (error at 5 or fewer, warning at 15 or fewer), the operational certificate counter, and from Koios the pledge, retirement and saturation. The deployment: files a refresh kept although the release changes them (guild-deploy.sh -s u updates them), the disk (warning at 90 %, error at 95 %), a binary replaced while the node runs (a warning for a new version, info for the same one installed again), and a release pin the node does not run yet."
+    "The node: stopped, failed or restarting (with the last error in its log), starting (info, with how far it is), no metrics or not running, an alert it raises, no outgoing peers five minutes after the start. Its files: config.json changed after the start, or a consensus mode the running node did not start in (restart it), topology.json or the peer snapshot changed and not reloaded since (cnode.sh systemd reload), and no node socket a minute after the start. Genesis mode: five minutes in PreSyncing. A block producer: KES periods (error at 5 or fewer, warning at 15 or fewer), the operational certificate counter, and from Koios the pledge, retirement and saturation. The deployment: files a refresh kept although the release changes them (guild-deploy.sh -s u updates them), the disk (warning at 90 %, error at 95 %), a binary replaced while the node runs (a warning for a new version, info for the same one installed again), and a release pin the node does not run yet."
 }
 
 # glv_help_lines <panel> <width> [page]: the panel's help as typed lines in
@@ -6778,6 +7599,8 @@ PEER_JOB_FILE="${TMPDIR:-/tmp}/gLiveView.$$.peers"
 PARAMS_JOB_FILE="${TMPDIR:-/tmp}/gLiveView.$$.params"
 POOL_JOB_FILE="${TMPDIR:-/tmp}/gLiveView.$$.pool"
 HIST_JOB_FILE="${TMPDIR:-/tmp}/gLiveView.$$.history"
+RELOAD_JOB_FILE="${TMPDIR:-/tmp}/gLiveView.$$.reload"
+RELOAD_JOB_PID=''
 glv_peers_geo_load
 
 # ── terminal ─────────────────────────────────────────────────────────────────
@@ -6836,6 +7659,8 @@ glv_cleanup() {
   rm -f -- "${PARAMS_JOB_FILE:-/nonexistent}" "${PARAMS_JOB_FILE:-/nonexistent}.part"
   [[ -z "${POOL_JOB_PID:-}" ]] || kill "${POOL_JOB_PID}" 2>/dev/null || true
   [[ -z "${HIST_JOB_PID:-}" ]] || kill "${HIST_JOB_PID}" 2>/dev/null || true
+  [[ -z "${RELOAD_JOB_PID:-}" ]] || kill "${RELOAD_JOB_PID}" 2>/dev/null || true
+  rm -f -- "${RELOAD_JOB_FILE:-/nonexistent}" "${RELOAD_JOB_FILE:-/nonexistent}.part"
   rm -f -- "${POOL_JOB_FILE:-/nonexistent}" "${POOL_JOB_FILE:-/nonexistent}.part" "${POOL_JOB_FILE:-/nonexistent}.head" \
     "${HIST_JOB_FILE:-/nonexistent}" "${HIST_JOB_FILE:-/nonexistent}.part" "${HIST_JOB_FILE:-/nonexistent}.head"
   [[ "${GLV_TITLE_PUSHED}" == N ]] || printf '\e[23;0t'

@@ -41,7 +41,8 @@ keeps its OTLP/gRPC receiver and Prometheus exporter on loopback.
 
 ## Start gLiveView
 
-Run gLiveView after the node process and its metrics endpoint are available:
+Run gLiveView at any time. While the node is stopped, failed or still starting,
+it says so, and follows the node until it reports its tip:
 
 ```bash
 cd "${NODE_HOME}/scripts"
@@ -184,7 +185,9 @@ the shell sets its own.
 | Time left | Counted from the wall clock. |
 | Marks | On a producer with a leader schedule, one mark per leader slot: adopted, still to come, passed without a result yet, or lost. While the block log holds no block results, a passed slot is grey. |
 | Alert | Shown only while the node reports a condition that needs operator action, such as a halted or stuck ledger, the operator's own pool equivocating, or invalid forging keys. |
-| Sync | Shown only while the node reports bootstrap or catch-up progress, such as Dingo's Mithril download or ledger import, or cardano-node's ledger replay after a restart, with its percentage and rate. |
+| Sync | Shown only while the node reports bootstrap or catch-up progress, such as Dingo's Mithril download or ledger import, with its percentage and rate. |
+| Starting | While cardano-node starts, the panel is titled Starting and follows the node's log: opening the database, checking the immutable DB after an unclean stop, opening and replaying the ledger, selecting the chain, starting the network. A check or a replay has a bar, its percentage, and the time left at the pace so far. The node is ready when its socket is up or it reports a tip. Other nodes show Starting until they report a tip. |
+| Stopped, failed, restarting | With no node process, the node's systemd service says why: stopped, failed (systemd does not start it again), or stopped on its own and waiting to be restarted. The second line gives the last error in the node's log, or the command to start it. |
 
 ### Chain
 
@@ -517,7 +520,7 @@ terminals and scrolls as a whole.
 
 | Panel | Rows |
 | --- | --- |
-| Node | Implementation, version and revision, role, service, process, uptime, and how gLiveView is set up |
+| Node | Implementation, version and revision, role, service, process and its stage (starting, ready, stopped), uptime, the consensus mode the node started in with its Genesis state (pre-syncing, syncing, caught up) and the mode `config.json` sets when that differs, and how gLiveView is set up |
 | Binary | The program file the node process runs, the version and build it reports, its size and date, and the release pin of the deployment. When the file was replaced after the node started, as after an upgrade, `On disk` turns amber and says to restart. `File` shows whether the node runs the deployment's own binary or a shared copy elsewhere |
 | Start-up options | The options on the node's command line, and the settings in its environment that carry the node's own prefix (`AMARU_`, `DINGO_`, `CARDANO_`). A setting whose name suggests a key, token or password shows as `hidden` |
 | Deployment | Node home, configuration, node socket and metrics endpoint where the start-up options do not already show them, and the block log and pool folder when they exist |
@@ -550,7 +553,14 @@ gLiveView checks:
 
 | Notice | Level |
 | --- | --- |
+| The node stopped, failed, or restarting after it stopped on its own, with the last error in its log | Error |
+| The node starting, with its phase and how far it is | Info |
 | No metrics from the node, or its process not running | Error |
+| Metrics port taken: the metrics on the node's port come from another node that started earlier, or the node logged that it could not open the port. Give each deployment its own `PrometheusSimple` port | Error |
+| `config.json` sets a consensus mode the running node did not start in, such as `GenesisMode` after `guild-deploy.sh -s u`, or `config.json` changed after the node started. Both need a restart; a reload does not change them | Warning |
+| `topology.json` or the peer snapshot changed after the node started, and its log shows no reload since: `cnode.sh systemd reload` | Warning |
+| No node socket a minute after the node is ready, so CNTools and `cardano-cli` cannot reach it; names the node's own `--socket-path` when it differs from `SOCKET` in `env` | Warning |
+| Genesis mode: five minutes in PreSyncing, with the big ledger peers active and needed | Warning |
 | An alert the node raises | Error |
 | No outgoing peers five minutes after the node started | Error |
 | KES periods left, on a producer | Warning at 15 or fewer, error at 5 or fewer |
@@ -563,9 +573,14 @@ gLiveView checks:
 | A release pin the binary on disk does not meet: `guild-deploy.sh -s d` installs it | Info |
 
 When a notice comes up or clears, that is an event too, in the notice's
-colour, or green when it clears. Below the notices the page lists the last 200
-events since gLiveView started, newest first; `Tab` puts the focus on the list
-to scroll it.
+colour, or green when it clears. The node's own changes are events as well: its
+service stopped, failed or restarting it, a new process starting, each phase of
+a cardano-node start and when it was ready, the consensus mode it started in,
+and the Genesis state machine moving between pre-syncing, syncing and caught
+up. Below the notices the Notices page lists the last 200 events since
+gLiveView started, newest first; `Tab` puts the focus on the list to scroll it.
+The [Node & network page](#node-network-page) shows the consensus mode the node
+started in and its Genesis state.
 
 ## Peer analysis
 
@@ -710,10 +725,11 @@ read by background jobs whose results the page picks up when they are ready.
 ## Troubleshooting
 
 gLiveView treats node-process discovery and metric collection separately. If
-either fails, the rail and the epoch panel say whether the node is not running
-or its metrics are not answering, and gLiveView keeps trying every
-`REFRESH_RATE` seconds; it does not render a stale scrape, and it does not
-exit.
+either fails, the rail and the epoch panel say whether the node is stopped,
+failed, restarting, starting, or its metrics are not answering, and gLiveView
+keeps trying every `REFRESH_RATE` seconds; it does not render a stale scrape,
+and it does not exit. What a stopped or starting node is doing comes from its
+systemd service and its journal, which the node's own user can read.
 
 Check the implementation's endpoint directly:
 

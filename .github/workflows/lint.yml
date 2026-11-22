@@ -54,6 +54,8 @@ jobs:
       run: bash files/tests/gliveview-views.sh
     - name: gLiveView notice tests
       run: bash files/tests/gliveview-notices.sh
+    - name: gLiveView node lifecycle tests
+      run: bash files/tests/gliveview-lifecycle.sh
     - name: Block validation tests
       run: bash files/tests/block-validation.sh
     - name: CNTools Dijkstra tests
