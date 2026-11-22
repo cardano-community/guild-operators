@@ -147,11 +147,13 @@ cntools_blocklog_epoch() {
   cntools_blocklog_prepare || return 1
   # Read one more than the bound so truncation is rejected, not hidden. Block
   # details join in when the block log has them; texts are cut to safe lengths.
+  # A slot battle goes to the lower VRF output, 64 bytes; a 32-byte value is a
+  # leader value an older cncli.sh stored, which says nothing about it.
   local detail="json('null')"
   if [[ "${CNTOOLS_BLOCKLOG_HAS_DETAIL}" == Y ]]; then
     detail="(SELECT json_object('reason',substr(d.reason,1,64),'forge_ms',d.forge_ms,
       'winner_slot',d.winner_slot,'winner_pool',substr(d.winner_pool,1,64),'winner_ticker',substr(d.winner_ticker,1,16),'winner_ms',d.winner_ms,
-      'vrf_lower',CASE WHEN d.winner_vrf <> '' AND d.vrf <> '' THEN d.winner_vrf < d.vrf END,
+      'vrf_lower',CASE WHEN length(d.vrf) = 128 AND length(d.winner_vrf) = 128 THEN d.winner_vrf < d.vrf END,
       'prev_slot',d.prev_slot,'prev_pool',substr(d.prev_pool,1,64),'prev_ticker',substr(d.prev_ticker,1,16),'prev_ms',d.prev_ms,
       'next_slot',d.next_slot,'next_pool',substr(d.next_pool,1,64),'next_ticker',substr(d.next_ticker,1,16),'next_ms',d.next_ms)
       FROM main.blockdetail d WHERE d.slot=b.slot)"

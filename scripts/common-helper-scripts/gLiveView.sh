@@ -2063,9 +2063,11 @@ glv_data_blocklog() {
       FROM blocklog b GROUP BY b.epoch ORDER BY b.epoch DESC LIMIT 6;
     SELECT 'L', epoch, COUNT(*) FROM blocklog GROUP BY epoch;
     SELECT 'V', EXISTS(SELECT 1 FROM blocklog WHERE status <> 'leader');
+    -- A slot battle goes to the lower VRF output, 64 bytes; a 32-byte value is
+    -- a leader value an older cncli.sh stored, which says nothing about it.
     SELECT 'D', d.slot, d.reason, IFNULL(d.forge_ms, ''), IFNULL(d.winner_slot, ''),
            CASE WHEN d.winner_ticker <> '' THEN d.winner_ticker ELSE d.winner_pool END, IFNULL(d.winner_ms, ''),
-           CASE WHEN d.winner_vrf <> '' AND d.vrf <> '' THEN d.winner_vrf < d.vrf ELSE '' END
+           CASE WHEN length(d.vrf) = 128 AND length(d.winner_vrf) = 128 THEN d.winner_vrf < d.vrf ELSE '' END
       FROM blockdetail d JOIN blocklog b ON b.slot = d.slot WHERE b.epoch=${epochnum};" 2>/dev/null)
   D_SCHEDULE_EPOCH="${epochnum}"
   D_STATUS[total]="${total}"

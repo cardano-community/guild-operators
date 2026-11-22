@@ -309,7 +309,7 @@ if command -v sqlite3 >/dev/null 2>&1; then
       (500,'$(printf '%(%FT%T)T+00:00' $((now - 10800)))',100,5,'unknown');
     INSERT INTO blockdetail (slot,reason,forge_ms,vrf,winner_slot,winner_pool,winner_ticker,winner_ms,winner_vrf) VALUES
       (1000,'height_battle',120,'',998,'pool1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq','ABCD',2600,''),
-      (900,'slot_battle',NULL,'ff',900,'pool1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq','',NULL,'0a'),
+      (900,'slot_battle',NULL,'$(printf 'f%.0s' {1..128})',900,'pool1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq','',NULL,'$(printf '0%.0s' {1..128})'),
       (800,'woke_late',NULL,'',NULL,'','',NULL,''),
       (700,'',110,'',NULL,'','',NULL,''),
       (500,'koios_failed',NULL,'',NULL,'','',NULL,'');"
@@ -322,6 +322,10 @@ if command -v sqlite3 >/dev/null 2>&1; then
   assert_eq "${text}" "pool1qqqqqqq… 3 s later, same parent · forged in 0.12 s" "height battle note, winner later"
   glv_block_note text 900 stolen
   assert_eq "${text}" "slot battle with pool1qqqqqqq…, their VRF lower" "slot battle note"
+  sqlite3 "${db}" "UPDATE blockdetail SET vrf='$(printf 'f%.0s' {1..64})', winner_vrf='$(printf '0%.0s' {1..64})' WHERE slot=900;"
+  glv_data_blocklog
+  glv_block_note text 900 stolen
+  assert_eq "${text}" "slot battle with pool1qqqqqqq…" "no VRF verdict from 32-byte leader values"
   glv_block_note text 800 missed
   assert_eq "${text}" "node woke late" "missed note"
   glv_block_note text 700 confirmed
@@ -464,7 +468,7 @@ if command -v sqlite3 >/dev/null 2>&1; then
   assert_eq "${CNTOOLS_BLOCKLOG_HAS_DETAIL}|$(jq -c '[.[].detail]' <<< "${CNTOOLS_BLOCKLOG_DATA}")" 'N|[null,null]' "CNTools without block details"
   sqlite3 "${CNTOOLS_BLOCKLOG_DB}" "$(blocklogDetailSchema)
     INSERT INTO blockdetail (slot,reason,forge_ms,vrf,winner_slot,winner_pool,winner_ticker,winner_ms,winner_vrf,prev_slot,prev_ms)
-      VALUES (1070,'height_battle',120,'aa',1068,'pool1xyz','ABC',2600,'bb',1063,900);"
+      VALUES (1070,'height_battle',120,'$(printf 'a%.0s' {1..128})',1068,'pool1xyz','ABC',2600,'$(printf 'b%.0s' {1..128})',1063,900);"
   cntools_blocklog_epoch 100 || fail "CNTools epoch read with block details: ${CNTOOLS_BLOCKLOG_ERROR}"
   assert_eq "$(jq -c '.[0].detail | [.reason, .forge_ms, .winner_slot, .winner_ticker, .winner_ms, .vrf_lower, .prev_slot, .next_slot]' <<< "${CNTOOLS_BLOCKLOG_DATA}")|$(jq -c '.[1].detail' <<< "${CNTOOLS_BLOCKLOG_DATA}")" \
     '["height_battle",120,1068,"ABC",2600,0,1063,null]|null' "CNTools block details"

@@ -167,6 +167,15 @@ won instead and names the battle:
 | `heightbattle` | Height battle: another pool's block in a different slot was built on the same parent as ours | The block on the chain at our height has our parent |
 | `ghosted` | Our block was built on a block that lost a fork, or lost for another reason | Our parent is orphaned |
 
+A slot battle goes to the block with the lower VRF output in its header, the
+value cardano-node compares to break the tie. From Babbage on, CNCLI keeps it in
+`block_vrf_0`; `leader_vrf_0` is then the leader value used for the slot
+lottery, which says nothing about the tie. `validate` records the VRF output
+of both blocks, and gLiveView and CNTools say whose was lower. Block details
+recorded by an older `cncli.sh` held leader values; `validate` replaces them
+when it starts. A pool with the lower VRF output can still lose when the next
+leader builds on the other block before ours reaches it.
+
 A height battle won by a block in a **later** slot means the next leader had
 not received our block yet. One won by a block in an **earlier** slot means
 that block reached our node after we forged, which the details below show.

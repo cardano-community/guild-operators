@@ -657,6 +657,7 @@ cncliValidate() {
   echo "~ CNCLI Block Validation started ~"
   if ! getPoolVrfVkeyCborHex; then exit 1; fi # We need this to properly validate block
   createBlocklogDB || exit 1 # create db if needed
+  cncliRefreshDetailVrf
   getNodeMetrics
   if ! getShelleyTransitionEpoch; then echo "ERROR: failed to calculate shelley transition epoch" && exit 1; fi
   # The node's journal adds what CNCLI can't see: blocks the node forged that
@@ -717,10 +718,33 @@ cncliValidate() {
 }
 
 # Rows of the CNCLI chain table, as
-# 0 block_number | 1 slot | 2 hash | 3 prev_hash | 4 node_vkey | 5 leader_vrf_0 | 6 orphaned | 7 node_vrf_vkey | 8 block_size
+# 0 block_number | 1 slot | 2 hash | 3 prev_hash | 4 node_vkey | 5 tie-break VRF | 6 orphaned | 7 node_vrf_vkey | 8 block_size
 # $1 = the rest of the query after FROM chain
+# The tie-break VRF decides a slot battle: cardano-node keeps the block with the
+# lower VRF output of its header, before the range extension that gives the
+# leader value (pTieBreakVRFValue in ouroboros-consensus). From Babbage on that
+# is block_vrf_0 (64 bytes); CNCLI's leader_vrf_0 is then the 32-byte leader
+# value, which says nothing about the tie. Before Babbage, leader_vrf_0 was the
+# 64-byte output the node compared.
 cncliChainRows() {
-  sqlite3 -cmd ".timeout 5000" "${CNCLI_DB}" "SELECT block_number, slot_number, hash, prev_hash, node_vkey, leader_vrf_0, orphaned, node_vrf_vkey, block_size FROM chain $1;" 2>/dev/null
+  sqlite3 -cmd ".timeout 5000" "${CNCLI_DB}" "SELECT block_number, slot_number, hash, prev_hash, node_vkey, CASE WHEN block_vrf_0 <> '' THEN block_vrf_0 ELSE leader_vrf_0 END, orphaned, node_vrf_vkey, block_size FROM chain $1;" 2>/dev/null
+}
+
+# Block details written before cncli.sh read the tie-break VRF hold CNCLI's
+# 32-byte leader values. Replace them with the blocks' tie-break VRF from the
+# CNCLI chain table, or clear them when it no longer has the block. A no-op
+# once no such value is left.
+cncliRefreshDetailVrf() {
+  local quote="'" cncli_db
+  cncli_db="${CNCLI_DB//${quote}/${quote}${quote}}"
+  sqlite3 -bail -cmd ".timeout 10000" "${BLOCKLOG_DB}" "
+    ATTACH DATABASE '${cncli_db}' AS c;
+    BEGIN IMMEDIATE;
+    UPDATE main.blockdetail SET vrf = IFNULL((SELECT CASE WHEN block_vrf_0 <> '' THEN block_vrf_0 ELSE leader_vrf_0 END FROM c.chain WHERE c.chain.hash = main.blockdetail.hash LIMIT 1), '')
+      WHERE length(vrf) = 64;
+    UPDATE main.blockdetail SET winner_vrf = IFNULL((SELECT CASE WHEN block_vrf_0 <> '' THEN block_vrf_0 ELSE leader_vrf_0 END FROM c.chain WHERE c.chain.hash = main.blockdetail.winner_hash LIMIT 1), '')
+      WHERE length(winner_vrf) = 64;
+    COMMIT;" >/dev/null || echo "WARN: could not replace the leader VRF values of older block details in ${BLOCKLOG_DB}"
 }
 
 # $1 = name of an array for the first row, $2 = the rest of the query after FROM chain

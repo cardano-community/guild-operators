@@ -105,7 +105,7 @@ assert_eq "$(sqlite3 "${BLOCKLOG_DB}" "SELECT COUNT(*) FROM pragma_table_info('b
 #############################################################################
 
 load_functions "${REPO_ROOT}/scripts/cnode-helper-scripts/cncli.sh" \
-  cncliChainRows cncliChainRow cncliPoolOf cncliForgeRecord cncliArrivals cncliSaveDetail validateBlock
+  cncliChainRows cncliChainRow cncliRefreshDetailVrf cncliPoolOf cncliForgeRecord cncliArrivals cncliSaveDetail validateBlock
 
 hash_of() { printf '%s%063x' "$1" "$2"; }  # family (a final chain, b ours, c other pools, d fork), height
 OUR_VRF="$(printf 'e%.0s' {1..64})"
@@ -114,7 +114,8 @@ other_vkey() { printf '%063x%x' 0 "$1"; }
 OTHER_VRF="$(printf '5%.0s' {1..64})"
 CNCLI_DB="${TEST_ROOT}/cncli.db"
 sqlite3 "${CNCLI_DB}" "CREATE TABLE chain (id INTEGER PRIMARY KEY AUTOINCREMENT, block_number INTEGER, slot_number INTEGER,
-  hash TEXT, prev_hash TEXT, node_vkey TEXT, node_vrf_vkey TEXT, leader_vrf_0 TEXT, block_size INTEGER, orphaned INTEGER DEFAULT 0);"
+  hash TEXT, prev_hash TEXT, node_vkey TEXT, node_vrf_vkey TEXT, leader_vrf_0 TEXT, block_size INTEGER, orphaned INTEGER DEFAULT 0,
+  block_vrf_0 TEXT NOT NULL DEFAULT '');"
 
 # The final chain from height 100 to 140, one block every 10 slots, except
 # where a case below needs another slot or our block.
@@ -126,17 +127,21 @@ for (( height = 100; height <= 140; height++ )); do
   family=a; vkey="$(other_vkey $(( height % 5 )))"; vrf="${OTHER_VRF}"
   if (( height == 103 || height == 139 )); then family=b; vkey="${OUR_VKEY}"; vrf="${OUR_VRF}"; fi
   final_hash[${height}]="$(hash_of "${family}" "${height}")"
-  sql+="INSERT INTO chain (block_number, slot_number, hash, prev_hash, node_vkey, node_vrf_vkey, leader_vrf_0, block_size)
-    VALUES (${height}, ${slot}, '${final_hash[${height}]}', '${final_hash[$((height - 1))]:-$(hash_of a 99)}', '${vkey}', '${vrf}', '$(printf '%064x' $(( height * 7 )))', 1000);"
+  # From Babbage on, CNCLI keeps the 32-byte leader value in leader_vrf_0 and
+  # the 64-byte VRF output, which breaks a slot battle's tie, in block_vrf_0.
+  sql+="INSERT INTO chain (block_number, slot_number, hash, prev_hash, node_vkey, node_vrf_vkey, leader_vrf_0, block_size, block_vrf_0)
+    VALUES (${height}, ${slot}, '${final_hash[${height}]}', '${final_hash[$((height - 1))]:-$(hash_of a 99)}', '${vkey}', '${vrf}', '$(printf '%064x' $(( height * 7 )))', 1000,
+    '$(printf '%0128x' $(( height * 7 )))');"
 done
 # Orphaned blocks: ours lost a slot battle at 1050 (h105), a height battle at
 # 1060 (h106, the winner came 3 s later) and at 1070 (h107, the winner came
 # 2 s earlier), and was built on a fork at 1080 (h109 on d108).
-orphan() { # height slot hash prev vkey vrf_vkey leader_vrf
-  sql+="INSERT INTO chain (block_number, slot_number, hash, prev_hash, node_vkey, node_vrf_vkey, leader_vrf_0, block_size, orphaned)
-    VALUES ($1, $2, '$3', '$4', '$5', '$6', '$7', 900, 1);"
+orphan() { # height slot hash prev vkey vrf_vkey leader_vrf [block_vrf]
+  sql+="INSERT INTO chain (block_number, slot_number, hash, prev_hash, node_vkey, node_vrf_vkey, leader_vrf_0, block_size, orphaned, block_vrf_0)
+    VALUES ($1, $2, '$3', '$4', '$5', '$6', '$7', 900, 1, '${8:-}');"
 }
-orphan 105 1050 "$(hash_of b 105)" "${final_hash[104]}" "${OUR_VKEY}" "${OUR_VRF}" "$(printf 'f%.0s' {1..64})"
+# At 1050 our leader value is the lower one, but the winner has the lower VRF output.
+orphan 105 1050 "$(hash_of b 105)" "${final_hash[104]}" "${OUR_VKEY}" "${OUR_VRF}" "$(printf '0%.0s' {1..64})" "$(printf '9%.0s' {1..128})"
 orphan 106 1060 "$(hash_of b 106)" "${final_hash[105]}" "${OUR_VKEY}" "${OUR_VRF}" "$(printf '1%.0s' {1..64})"
 orphan 107 1070 "$(hash_of b 107)" "${final_hash[106]}" "${OUR_VKEY}" "${OUR_VRF}" "$(printf '1%.0s' {1..64})"
 orphan 108 1078 "$(hash_of d 108)" "${final_hash[107]}" "$(other_vkey 9)" "${OTHER_VRF}" "$(printf '2%.0s' {1..64})"
@@ -182,8 +187,8 @@ cncli_output="$(run_cncli 2>&1)"
 
 assert_eq "$(status_of 1030)|$(detail "reason,block,prev_slot,next_slot,winner_hash" 1030)" \
   "confirmed||103|1020|1040|" "cnode: our block on the chain"
-assert_eq "$(status_of 1050)|$(detail "reason,winner_slot,winner_vrf < vrf" 1050)" \
-  "stolen|slot_battle|1050|1" "cnode: slot battle, the winner had the lower VRF"
+assert_eq "$(status_of 1050)|$(detail "reason,winner_slot,length(vrf),length(winner_vrf),winner_vrf < vrf" 1050)" \
+  "stolen|slot_battle|1050|128|128|1" "cnode: slot battle, the winner had the lower VRF output, not the lower leader value"
 assert_eq "$(status_of 1060)|$(detail "reason,block,forge_ms,winner_slot,winner_ms,prev_slot,next_slot" 1060)" \
   "heightbattle|height_battle|106|150|1063|420|1050|1068" "cnode: height battle won by a block 3 s later, its header first"
 assert_eq "$(status_of 1070)|$(detail "reason,forge_ms,winner_slot,winner_ms" 1070)" \
@@ -208,6 +213,18 @@ assert_eq "$(status_of 1060)|$(detail "forge_ms,winner_ms" 1060)" "heightbattle|
 assert_eq "$(status_of 1095)|$(detail "hash,winner_ms" 1095)" "heightbattle|$(hash_of b 110)|400" \
   "cnode: re-validation keeps a block CNCLI never saw"
 assert_eq "$(status_of 1090)|$(detail "reason" 1090)" "missed|NodeCannotForge" "cnode: re-validation keeps the missed reason"
+
+# An older cncli.sh stored CNCLI's 32-byte leader values. The refresh puts in
+# the VRF output that broke the tie, and clears a value for a block CNCLI
+# doesn't have (at 1120 we forged nothing).
+leader_value="$(printf 'c%.0s' {1..64})"
+sqlite3 "${BLOCKLOG_DB}" "UPDATE blockdetail SET vrf = '${leader_value}', winner_vrf = '${leader_value}' WHERE slot IN (1050, 1120);"
+cncliRefreshDetailVrf
+assert_eq "$(detail "vrf,winner_vrf" 1050)" "$(printf '9%.0s' {1..128})|$(printf '%0128x' 735)" \
+  "cnode: older leader values replaced by the VRF output"
+assert_eq "$(detail "vrf,winner_vrf" 1120)" "|$(printf '%0128x' 784)" "cnode: a value without a block in CNCLI is cleared"
+cncliRefreshDetailVrf
+assert_eq "$(detail "vrf,winner_vrf" 1050)" "$(printf '9%.0s' {1..128})|$(printf '%0128x' 735)" "cnode: the refresh leaves VRF outputs alone"
 
 #############################################################################
 # Amaru: amaru-leaderlog.sh validate

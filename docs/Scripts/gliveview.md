@@ -269,10 +269,12 @@ details the validation recorded:
 ✓ confirmed      Tue 17 21:10:52   76,252  131,940  forged in 0.11 s
 ```
 
-A winner in a later slot means the next leader had not received our block. A
-winner in an earlier slot reached this node only after we forged. Times are as
-this node saw them; how fast our own block reached other pools cannot be seen
-locally. A shared measurement such as
+A slot battle note says whose VRF output was lower, the value cardano-node
+compares to break the tie; the lower one wins unless the next leader built on
+the other block first. A winner in a later slot means the next leader had not
+received our block. A winner in an earlier slot reached this node only after
+we forged. Times are as this node saw them; how fast our own block reached
+other pools cannot be seen locally. A shared measurement such as
 [openblockperf](https://github.com/cardano-foundation/openblockperf) may add
 that later. CNTools shows every detail, including the blocks before and after.
 
