@@ -3,7 +3,8 @@
 # gLiveView follows the node through its life: the systemd service says
 # whether a node without a process is stopped, failed or restarting; while
 # cardano-node starts, its log says which phase it is in and how far a check
-# or a replay is; then it is ready. Each change is an event, and the node's
+# or a replay is; with its socket up it waits for the next block, and with
+# that block it is ready. Each change is an event, and the node's
 # notice says what to do. It also notices files changed after the start
 # (config.json, the consensus mode, the topology and the peer snapshot), a
 # Genesis node that stays in PreSyncing, and a missing node socket.
@@ -68,7 +69,8 @@ glv_load "${GLIVEVIEW}" ui_colour_256 ui_colour ui_theme ui_put ui_gap ui_putw u
   glv_binary_state glv_binary_pin glv_event_colour glv_process_start glv_data_service glv_data_last_error \
   glv_launch_summary glv_launch_reset glv_launch_phase glv_launch_progress glv_launch_chunk glv_launch_line \
   glv_launch_read glv_launch_event glv_launch_events glv_data_launch glv_launch_shown glv_launch_has_tip glv_data_stage glv_data_stage_events \
-  glv_data_running_config glv_data_metrics_owner glv_reload_job_start glv_reload_job_poll glv_status glv_slots glv_panel_epoch glv_panel_epoch_start glv_panel_epoch_down
+  glv_data_running_config glv_data_metrics_owner glv_reload_job_start glv_reload_job_poll glv_status glv_slots glv_panel_epoch glv_panel_epoch_start glv_panel_epoch_down \
+  glv_launch_wait glv_launch_tip_age glv_data_reference_slot glv_data_watch
 eval "$(grep -E '^(UI_RESET|UI_BOLD|UI_L|UI_LW|GLV_ROWS_MAX|GLV_EVENTS_MAX|GLV_NOTICE_NEEDS_NODE|GLV_NOTICE_QUIET)=' "${GLIVEVIEW}")"
 printf -v UI_SPACES '%500s' ''
 UI_DASHES="${UI_SPACES// /─}"
@@ -287,8 +289,9 @@ D_COLLECTED_AT=1020
 collect
 assert_eq "${D_START_TEXT}" "Replaying the ledger from a snapshot" "the replay"
 assert_eq "${D_START_PROGRESS}" 125 "the replay's progress in tenths of a percent"
-assert_eq "$(event 0)" "startup|replaying the ledger from a snapshot" "only the newest phase of a batch is an event"
-assert_eq "$(event 1)" "startup|checking the immutable DB" "the phases in between are skipped"
+assert_eq "$(event 0)" "startup|replaying the ledger from a snapshot" "the newest phase of a batch"
+assert_eq "$(event 1)" "startup|opening the ledger" "a phase a read passed is an event too"
+assert_eq "$(event 2)" "startup|checking the immutable DB" "the phase before"
 assert_eq "${D_START_LEFT}" "" "no time left from one figure"
 JOURNAL+=('{"at":"2026-11-21T23:08:03Z","ns":"Resources","data":{"kind":"ResourceStats"},"sev":"Info"}'
   '{"at":"2026-11-21T23:08:03Z","ns":"ChainDB.ReplayBlock.LedgerReplay","data":{"kind":"ReplayBlockStats","progress":"42.5"},"sev":"Info"}')
@@ -317,15 +320,45 @@ D_COLLECTED_AT=1052
 collect
 assert_eq "${D_START_TEXT}" "Selecting the chain" "the chain selection"
 assert_eq "${D_START_PROGRESS}" "" "a phase without a figure"
-JOURNAL+=('{"at":"2026-11-21T23:08:06Z","ns":"ChainDB.OpenEvent.OpenedDB","data":{"kind":"OpenedDB"},"sev":"Info"}'
+JOURNAL+=('{"at":"2026-11-21T23:08:06Z","ns":"ChainDB.OpenEvent.OpenedDB","data":{"immtip":{"headerHash":"99cd","kind":"BlockPoint","slot":900},"kind":"OpenedDB","tip":{"headerHash":"d15d","kind":"BlockPoint","slot":1022}},"sev":"Info"}'
   '{"at":"2026-11-21T23:08:06Z","ns":"Consensus.GSM.InitializedInCaughtUp","data":{"kind":"GsmEventInitializedInCaughtUp"},"sev":"Notice"}'
   '{"at":"2026-11-21T23:08:06Z","ns":"Startup.DiffusionInit.LocalSocketUp","data":{"kind":"LocalSocketUp"},"sev":"Info"}')
-D_COLLECTED_AT=1074
+# Slot n starts n seconds after genesis, so the wall clock is slot 1074.
+SHELLEY_TRANS_EPOCH=0; BYRON_EPOCH_LENGTH=21600; BYRON_SLOT_LENGTH=20000; BYRON_GENESIS_START_SEC=0; SLOT_LENGTH=1
+D_BLOCK_EVERY=20
+D_COLLECTED_AT=1074; D_NOW=1074
 METRIC=()
 collect
-assert_eq "${D_STAGE}" ready "the socket is up"
-assert_eq "$(event 0)" "ready|started in 1 min" "ready is an event with the time the start took"
+# cardano-node reports its tip only when it adds a block to its chain: after a
+# short stop, that is the next block the network makes.
+assert_eq "${D_STAGE}" starting "the socket is up, but the node reports no tip yet"
+assert_eq "${D_START_TIP_SLOT}" 1022 "the last block on its chain, not the immutable tip"
+assert_eq "$(event 0)" "startup|socket up after 1 min, waiting for the next block" "the socket is an event"
+assert_eq "$(event 1)" "startup|starting the network" "the network phase the same read passed"
+assert_eq "${N_LEVEL[node]}" info "still starting"
+assert_has "${N_TEXT[node]}" "cardano-node: waiting for the next block. It started 1 min ago. Its socket is up." "the notice says what it waits for"
+panel="$(epoch_panel)"
+assert_has "${panel}" "Waiting for the next block · last block 52 s ago · started 1 min ago" "the wait and the age of the chain"
+assert_has "${panel}" "Socket up. The tip shows with the next block; one every 20 s on average." "what it waits for"
+assert_has "${N_TEXT[node]}" "its last block is 52 s old, and a new one comes every 20 s on average." "the notice says how old its chain is"
+D_GSM=2
+glv_data_watch
+assert_eq "$(event 0)" "caught up|the node follows the tip" "the first Genesis state of a new process is an event"
+D_GSM=0; D_BIG_HOT=3; D_CONF_MIN_BIG=5
+glv_launch_wait text
+assert_eq "${text}" "Its socket is up. In Genesis mode it fetches blocks once enough big ledger peers are active (3 of 5)." \
+  "a pre-syncing node waits for big ledger peers"
+glv_launch_wait text short
+assert_eq "${text}" "Socket up. Genesis pre-syncing: blocks come once enough big ledger peers are active (3 of 5)." \
+  "the same on the Epoch panel's line"
+D_GSM=2
+D_COLLECTED_AT=1109; D_NOW=1109
+METRIC=([slotnum]=1 [blocknum]=1); slotnum=1100; blocknum=4882008
+collect
+assert_eq "${D_STAGE}" ready "the first block"
+assert_eq "$(event 0)" "ready|started in 1 min, at block 4,882,008" "ready is an event with the time the start took and the block"
 assert_eq "${N_LEVEL[node]:-}" "" "the node's notice clears"
+METRIC=()
 reads=${#JOURNAL[@]}
 JOURNAL+=('{"at":"2026-11-21T23:09:00Z","ns":"ChainDB.ReplayBlock.LedgerReplay","data":{"progress":"1.0"},"sev":"Info"}')
 D_OK=Y
@@ -347,6 +380,40 @@ assert_eq "${D_START_TEXT}" "" "its start is not replayed"
 assert_eq "${D_RUN_MODE}" GenesisMode "its consensus mode is still read"
 assert_eq "${#D_EVENTS[@]}" 1 "only the consensus mode is an event"
 assert_eq "$(event 0)" "consensus|Genesis mode" "the consensus mode event"
+D_GSM=2
+glv_data_watch
+assert_eq "${#D_EVENTS[@]}" 1 "the Genesis state of a node that runs already is no event"
+
+# Metrics that stop answering end the wait for the next block.
+fresh_state
+D_PID=55; D_OK=Y; FAKE_START=1000; D_COLLECTED_AT=1020
+JOURNAL=('{"ns":"Startup.DiffusionInit.LocalSocketUp","sev":"Info"}')
+collect
+assert_eq "${D_START_PHASE}" tip "waiting for the next block"
+D_OK=N; D_FAILS=1
+collect
+assert_eq "${D_STAGE}" starting "one failed read keeps the wait"
+D_FAILS=2
+collect
+assert_eq "${D_STAGE}" "no metrics" "two failed reads end it"
+D_FAILS=0
+
+# A start whose first tip comes in the read that sees its socket, as after a
+# long replay: the Genesis state of the new process still follows ready.
+fresh_state
+D_PID=66; D_OK=Y; FAKE_START=1000; D_COLLECTED_AT=1010
+JOURNAL=('{"ns":"ChainDB.OpenEvent.StartedOpeningDB","sev":"Info"}')
+collect
+assert_eq "${D_STAGE}" starting "opening its database"
+JOURNAL+=('{"ns":"Startup.DiffusionInit.LocalSocketUp","sev":"Info"}')
+METRIC=([slotnum]=1 [blocknum]=1); slotnum=1100; blocknum=4882008
+D_COLLECTED_AT=1090
+collect
+assert_eq "${D_STAGE}" ready "the socket and the tip in one read"
+D_GSM=2
+glv_data_watch
+assert_eq "$(event 0)" "caught up|the node follows the tip" "its first Genesis state is still an event"
+assert_has "$(event 1)" "ready|started in 1 min, at block 4,882,008" "right after the ready event"
 
 # With no log to read, a node that has run for three minutes counts as started.
 fresh_state

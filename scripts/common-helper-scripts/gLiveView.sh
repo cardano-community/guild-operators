@@ -744,7 +744,7 @@ glv_data_init() {
   D_START_READ=N
   D_START_PHASE=''
   D_START_TEXT=''
-  D_START_SHOWN=''
+  D_START_TIP_SLOT=''
   D_START_PROGRESS=''
   D_START_SAMPLE_AT=''
   D_START_SAMPLE=''
@@ -1018,8 +1018,52 @@ glv_launch_text() {
     glv_fmt_span value "$((D_COLLECTED_AT - D_START_AT))"
     _launch_text+=". It started ${value} ago"
   fi
+  if [[ "${D_START_PHASE}" == tip ]]; then
+    glv_launch_wait value
+    _launch_text+=". ${value}"
+    return 0
+  fi
   _launch_text+=". It reports its tip once its database is open"
   if node_has n2c; then _launch_text+=" and its socket is up."; else _launch_text+="."; fi
+}
+
+# glv_launch_tip_age <variable>: how long ago the last block on the chain of
+# a starting node was made, from the slot its log gave; empty if unknown.
+glv_launch_tip_age() {
+  local -n _tip_age="$1"
+  local _tip_ref
+  _tip_age=''
+  glv_is_int "${D_START_TIP_SLOT}" && glv_data_reference_slot _tip_ref && (( _tip_ref >= D_START_TIP_SLOT )) || return 0
+  glv_fmt_span _tip_age "$(((_tip_ref - D_START_TIP_SLOT) * SLOT_LENGTH))"
+}
+
+# glv_launch_wait <variable> [short]: why a node whose socket is up reports
+# no tip yet. It reports one when it adds a block to its chain: after a short
+# stop, the next block the network makes; in Genesis pre-syncing, only once
+# enough big ledger peers are active. Short is for the Epoch panel's one line.
+glv_launch_wait() {
+  local -n _wait_out="$1"
+  local _wait_age
+  if [[ "${D_GSM}" == 0 ]]; then
+    _wait_out="Its socket is up. In Genesis mode it fetches blocks once enough big ledger peers are active"
+    [[ -z "${2:-}" ]] || _wait_out="Socket up. Genesis pre-syncing: blocks come once enough big ledger peers are active"
+    if glv_is_int "${D_BIG_HOT}"; then _wait_out+=" (${D_BIG_HOT} of ${D_CONF_MIN_BIG:-5})"; fi
+    _wait_out+="."
+    return 0
+  fi
+  if [[ -n "${2:-}" ]]; then
+    _wait_out="Socket up. The tip shows with the next block"
+    if glv_is_int "${D_BLOCK_EVERY:-}"; then _wait_out+="; one every ${D_BLOCK_EVERY} s on average"; fi
+    _wait_out+="."
+    return 0
+  fi
+  _wait_out="Its socket is up. It reports its tip when it adds the next block to its chain"
+  glv_launch_tip_age _wait_age
+  if [[ -n "${_wait_age}" ]]; then
+    _wait_out+="; its last block is ${_wait_age} old"
+    if glv_is_int "${D_BLOCK_EVERY:-}"; then _wait_out+=", and a new one comes every ${D_BLOCK_EVERY} s on average"; fi
+  fi
+  _wait_out+="."
 }
 
 # glv_notices_node: the node's own notice, for each stage short of ready.
@@ -1106,8 +1150,10 @@ glv_notices_check() {
     text+=" Give each deployment its own PrometheusSimple port in config.json (TraceOptions); if scripts/env sets PROM_PORT, change it to match. Then restart the node and gLiveView."
     glv_notice metrics error "Metrics port taken" "${text}" "metrics|${D_METRICS_URL}"
   fi
-  # Genesis mode syncs only once enough big ledger peers are active.
-  if [[ "${D_STAGE}" == ready && "${D_GSM}" == 0 ]] && (( D_COLLECTED_AT - D_GSM_SINCE >= 300 )); then
+  # Genesis mode syncs only once enough big ledger peers are active; until then
+  # a node that has just started waits for its first block.
+  if [[ "${D_STAGE}" == ready || "${D_START_PHASE}" == tip ]] && [[ "${D_GSM}" == 0 ]] &&
+     (( D_COLLECTED_AT - D_GSM_SINCE >= 300 )); then
     glv_fmt_span when "$((D_COLLECTED_AT - D_GSM_SINCE))"
     text="${D_IMPL} runs in Genesis mode and has waited ${when} in PreSyncing: it syncs only once enough big ledger peers from its peer snapshot are active."
     [[ -z "${D_BIG_HOT}" ]] || text+=" It has ${D_BIG_HOT}; MinBigLedgerPeersForTrustedState asks for ${D_CONF_MIN_BIG:-5}."
@@ -1318,7 +1364,8 @@ glv_data_watch() {
     D_LAST_ADOPTED="${adopted}"
   fi
   if [[ -n "${D_GSM}" && "${D_GSM}" != "${D_LAST_GSM}" ]]; then
-    if [[ -n "${D_LAST_GSM}" ]]; then
+    # The first state of a node that gLiveView sees start is an event too.
+    if [[ -n "${D_LAST_GSM}" || "${D_START_DONE}" == N ]]; then
       case "${D_GSM}" in
         0) glv_data_event 'pre-syncing' "waiting for enough big ledger peers" ;;
         1) glv_data_event syncing "the node is behind and catches up" ;;
@@ -1464,11 +1511,13 @@ glv_launch_reset() {
   local -a arguments=()
   D_START_PID="${D_PID}"
   glv_process_start D_START_AT "${D_PID}" || D_START_AT=''
-  D_START_CURSOR=''; D_START_READ=N; D_START_PHASE=''; D_START_TEXT=''; D_START_SHOWN=''
+  D_START_CURSOR=''; D_START_READ=N; D_START_PHASE=''; D_START_TEXT=''; D_START_TIP_SLOT=''
   D_START_PROGRESS=''; D_START_SAMPLE_AT=''; D_START_SAMPLE=''; D_START_LEFT=''
   D_START_DONE=N; D_START_SOCKET=N; D_START_ERROR=''; D_START_LAST_CHUNK=''; D_START_PROM=''
   D_START_DB=''; D_START_SOCKET_PATH=''; D_START_TOPOLOGY=''
   D_RUN_MODE=''; D_READY_AT=''; D_TOPO_CHECKED=''; D_TOPO_RELOADED=N; D_TOPO_SEEN=''; D_TOPO_KNOWN=N; D_START_SEEN=0
+  # The new process reports its own Genesis state, which is an event.
+  D_LAST_GSM=''
   [[ -r "/proc/${D_PID}/cmdline" ]] || return 0
   mapfile -d '' -t arguments < "/proc/${D_PID}/cmdline" 2>/dev/null || return 0
   for word in "${arguments[@]}"; do
@@ -1485,12 +1534,15 @@ glv_launch_reset() {
   fi
 }
 
-# glv_launch_phase <name> <text>: the start has got to a new phase.
+# glv_launch_phase <name> <text> [event]: the start has got to a new phase,
+# which is an event: the text, or the event's own wording. Each phase a read
+# passes is one, also those that were over by the time of the read.
 glv_launch_phase() {
   [[ "${D_START_PHASE}" != "$1" ]] || return 0
   D_START_PHASE="$1"
   D_START_TEXT="$2"
   D_START_PROGRESS=''; D_START_SAMPLE_AT=''; D_START_SAMPLE=''; D_START_LEFT=''
+  glv_launch_event startup "${3:-${2,}}"
 }
 
 # glv_launch_progress <percent>: how far the phase is, in tenths of a percent.
@@ -1560,7 +1612,10 @@ glv_launch_line() {
       [[ "${D_START_PHASE}" == replay ]] || glv_launch_phase replay "Replaying the ledger"
       [[ ! "${line}" =~ \"progress\":\"?([0-9]+([.][0-9]+)?) ]] || glv_launch_progress "${BASH_REMATCH[1]}" ;;
     ChainDB.InitChainSelEvent.StartedInitChainSelection) glv_launch_phase select "Selecting the chain" ;;
-    ChainDB.OpenEvent.OpenedDB) glv_launch_phase network "Starting the network" ;;
+    ChainDB.OpenEvent.OpenedDB)
+      # The slot of the last block on its chain; "immtip" is the immutable one.
+      [[ ! "${line}" =~ \"tip\":\{[^}]*\"slot\":([0-9]+) ]] || D_START_TIP_SLOT="${BASH_REMATCH[1]}"
+      glv_launch_phase network "Starting the network" ;;
     Startup.DiffusionInit.LocalSocketUp) D_START_SOCKET=Y ;;
     # The metrics port could not be opened, for one, by another node.
     NodeState.PrometheusSimple.Stop) glv_launch_summary D_START_PROM "${line}" ;;
@@ -1615,7 +1670,6 @@ glv_data_launch() {
   if [[ "${D_START_DONE}" == N && "${D_START_READ}" == N ]] && glv_launch_has_tip; then
     D_START_DONE=Y
     D_READY_AT="${D_COLLECTED_AT}"
-    D_START_SHOWN=ready
   fi
   if [[ "${D_START_DONE}" == N ]] && node_has block_replay_log && glv_launch_read; then
     for line in "${GLV_LAUNCH_LINES[@]}"; do glv_launch_line "${line}"; done
@@ -1643,10 +1697,23 @@ glv_data_launch() {
     if (( D_START_SEEN == 0 )) && glv_is_int "${D_START_AT}" && (( D_COLLECTED_AT - D_START_AT >= 180 )); then
       D_START_DONE=Y
       D_READY_AT="${D_COLLECTED_AT}"
-      D_START_SHOWN=ready
       return 0
     fi
-    if [[ "${D_START_SOCKET}" == Y ]] || glv_launch_has_tip; then
+    # With its socket up, the node waits for the next block: it reports its
+    # tip only when it adds one to its chain, and after a short stop that is
+    # the next block the network makes. Metrics that stop answering end the
+    # wait, so that the node is shown without them.
+    if [[ "${D_START_SOCKET}" == Y ]] && ! glv_launch_has_tip &&
+       { [[ "${D_OK}" == Y ]] || { [[ "${D_START_PHASE}" == tip ]] && (( D_FAILS < 2 )); }; }; then
+      if [[ "${D_START_PHASE}" != tip ]]; then
+        text='socket up'
+        if glv_is_int "${D_START_AT}" && (( D_COLLECTED_AT >= D_START_AT )); then
+          glv_fmt_span elapsed "$((D_COLLECTED_AT - D_START_AT))"
+          text+=" after ${elapsed}"
+        fi
+        glv_launch_phase tip "Waiting for the next block" "${text}, waiting for the next block"
+      fi
+    elif [[ "${D_START_SOCKET}" == Y ]] || glv_launch_has_tip; then
       D_START_DONE=Y
       D_READY_AT="${D_COLLECTED_AT}"
       text='ready'
@@ -1654,15 +1721,18 @@ glv_data_launch() {
         glv_fmt_span text "$((D_COLLECTED_AT - D_START_AT))"
         text="started in ${text}"
       fi
+      if glv_launch_has_tip && node_metric_has blocknum && glv_is_int "${blocknum:-}"; then
+        ui_fmt_int elapsed "${blocknum}"
+        text+=", at block ${elapsed}"
+      fi
       # Only a start that was shown ends in an event.
-      [[ "${D_STAGE_SHOWN}" != starting ]] || glv_launch_event ready "${text}"
-      D_START_SHOWN=ready
+      if [[ "${D_STAGE_SHOWN}" == starting ]]; then
+        glv_launch_event ready "${text}"
+        # Its first Genesis state can come in this same read; it is an event too.
+        [[ -n "${D_LAST_GSM}" ]] || D_LAST_GSM=start
+      fi
       D_START_PHASE=''; D_START_TEXT=''; D_START_PROGRESS=''; D_START_LEFT=''
       return 0
-    fi
-    if [[ -n "${D_START_PHASE}" && "${D_START_PHASE}" != "${D_START_SHOWN}" ]]; then
-      glv_launch_event startup "${D_START_TEXT,}"
-      D_START_SHOWN="${D_START_PHASE}"
     fi
     # The time left, from the pace since the first figure of this phase.
     if glv_is_int "${D_START_PROGRESS}"; then
@@ -3236,6 +3306,11 @@ glv_panel_epoch_start() {
     fi
     ui_bar "${inner}" "$((inner * D_START_PROGRESS / 1000))" UI_BLOCKS "${C_WARN}"
     GLV_EPOCH_NOTE="${text}"
+  elif [[ "${D_START_PHASE}" == tip ]]; then
+    glv_launch_tip_age value
+    [[ -z "${value}" ]] || text="${text/ · started/ · last block ${value} ago · started}"
+    ui_putw "${C_WARN}" "${inner}" "${text}"
+    glv_launch_wait GLV_EPOCH_NOTE short
   else
     ui_putw "${C_WARN}" "${inner}" "${text}"
     GLV_EPOCH_NOTE="It reports its tip once its database is open"
@@ -3371,7 +3446,10 @@ glv_panel_chain() {
   UI_BASE="${UI_BASE_MAIN}"
   UI_BODY=()
   glv_chain_cells cells
-  if (( ${#cells[@]} == 0 )); then
+  if (( ${#cells[@]} == 0 )) && [[ "${D_START_PHASE}" == tip ]]; then
+    ui_put "${C_MUTED}" "Chain figures come with the next block."
+    ui_endl UI_BODY "${inner}"
+  elif (( ${#cells[@]} == 0 )); then
     ui_put "${C_MUTED}" "No chain metrics yet."
     ui_endl UI_BODY "${inner}"
   else
