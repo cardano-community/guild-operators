@@ -72,6 +72,8 @@ jobs:
       run: bash files/tests/cntools-fzf-picker.sh
     - name: CNTools wallet pool link tests
       run: bash files/tests/cntools-wallet-pool-links.sh
+    - name: CNTools pool Calidus status tests
+      run: bash files/tests/cntools-pool-calidus-status.sh
   jsonlint:
     name: JSON and YAML Check
     runs-on: ubuntu-latest

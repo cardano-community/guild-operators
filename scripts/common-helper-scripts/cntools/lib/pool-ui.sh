@@ -23,6 +23,11 @@ cntools_pool_identity_rows() {
     state='Public only'
   fi
   [[ "${state}" == Missing ]] || cntools_table_pair 'Calidus key' "${state}" value
+  if [[ -n "${CNTOOLS_POOL_CALIDUS_STATUS[index]:-}" ]]; then
+    cntools_table_pair 'Calidus registration' "${CNTOOLS_POOL_CALIDUS_STATUS[index]}" "${CNTOOLS_POOL_CALIDUS_ROLE[index]}"
+    [[ "${detailed}" != Y || -z "${CNTOOLS_POOL_CALIDUS_ID[index]:-}" ]] ||
+      cntools_table_pair 'Calidus ID' "${CNTOOLS_POOL_CALIDUS_ID[index]}" identifier
+  fi
   if [[ "${detailed}" == Y ]]; then
     for kind in kes-skey vrf-skey; do
       cntools_pool_key_state_into state "${CNTOOLS_POOL_DIRECTORIES[index]}" "${kind}" || return 1
@@ -310,7 +315,7 @@ cntools_pool_action_list() {
     fi
     if ((status == 0)); then
       cntools_transaction_log CHOICE 'Pool list chain information requested'
-      cntools_ui_spin_function 'Fetching pool information…' cntools_pool_inspect_catalog || return 1
+      cntools_ui_spin_function 'Fetching pool information…' cntools_pool_inspect_list || return 1
       query_node=Y
     else
       (( status == 1 )) || return "${status}"

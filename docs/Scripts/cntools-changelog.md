@@ -19,6 +19,7 @@ and this adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Funds transfers with multiple recipients, ADA Handle/subhandle resolution, CIP-20/CIP-83 messages and custom metadata; delegation, withdrawal and UTxO collection.
 - Configurable coin selection, token fragmentation, ADA-only change management and send change-address selection.
 - Guided pool registration/modification, retirement, recoverable online/offline KES rotation and Calidus credential management.
+- Pool List and Show check the pool's Calidus registration through Koios and say whether the local Calidus key is the registered one, a different key is registered, or none is.
 - DRep keys and multisig identities, registration/update/retirement, voting delegation, proposal browsing and voting; Catalyst registration, QR and snapshot verification.
 - Native asset policy creation/protection, minting/burning and Token Registry metadata preparation; verified backups, no-overwrite restoration and block-history views.
 - Privacy-aware command/API logging, snapshot-based deployment and integrated updates, including forced refresh of the current version.

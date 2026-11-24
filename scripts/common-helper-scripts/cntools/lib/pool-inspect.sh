@@ -3,15 +3,20 @@
 # shellcheck disable=SC2034
 declare -a CNTOOLS_POOL_CHAIN_STATUS=() CNTOOLS_POOL_CHAIN_SOURCE=() CNTOOLS_POOL_CURRENT=() CNTOOLS_POOL_FUTURE=()
 declare -a CNTOOLS_POOL_RETIREMENT=() CNTOOLS_POOL_CHAIN_METADATA=()
+# Calidus registration (CIP-151 metadata, so Koios only): status text, its
+# theme role and the registered Calidus ID. Empty while not checked.
+declare -a CNTOOLS_POOL_CALIDUS_STATUS=() CNTOOLS_POOL_CALIDUS_ROLE=() CNTOOLS_POOL_CALIDUS_ID=()
 
 cntools_pool_inspect_reset() {
   local index=0
   CNTOOLS_POOL_CHAIN_STATUS=(); CNTOOLS_POOL_CHAIN_SOURCE=(); CNTOOLS_POOL_CURRENT=(); CNTOOLS_POOL_FUTURE=()
   CNTOOLS_POOL_RETIREMENT=(); CNTOOLS_POOL_CHAIN_METADATA=()
+  CNTOOLS_POOL_CALIDUS_STATUS=(); CNTOOLS_POOL_CALIDUS_ROLE=(); CNTOOLS_POOL_CALIDUS_ID=()
   for index in "${!CNTOOLS_POOL_NAMES[@]}"; do
     CNTOOLS_POOL_CHAIN_STATUS[index]='Not checked'; CNTOOLS_POOL_CHAIN_SOURCE[index]=''
     CNTOOLS_POOL_CURRENT[index]='{}'; CNTOOLS_POOL_FUTURE[index]='{}'
     CNTOOLS_POOL_RETIREMENT[index]=''; CNTOOLS_POOL_CHAIN_METADATA[index]='{}'
+    CNTOOLS_POOL_CALIDUS_STATUS[index]=''; CNTOOLS_POOL_CALIDUS_ROLE[index]=''; CNTOOLS_POOL_CALIDUS_ID[index]=''
   done
 }
 
@@ -166,8 +171,112 @@ cntools_pool_inspect_metadata() {
   fi
 }
 
+# The public key of a pool's Calidus verification key (normal or extended
+# envelope), read without the CLI. Empty without one; 1 when it is invalid.
+cntools_pool_calidus_local_public_into() {
+  local output="$1" index="$2" filename='' file='' cbor=''
+  printf -v "${output}" '%s' ''
+  cntools_pool_file_name_into filename calidus-vkey || return 1
+  file="${CNTOOLS_POOL_DIRECTORIES[index]}/${filename}"
+  [[ -e "${file}" || -L "${file}" ]] || return 0
+  cntools_pool_public_file_safe "${file}" 65536 || return 1
+  cbor="$(jq -er 'select(.type == "PaymentVerificationKeyShelley_ed25519" or
+    .type == "PaymentExtendedVerificationKeyShelley_ed25519") | .cborHex | ascii_downcase' "${file}" 2>/dev/null)" || return 1
+  [[ "${cbor}" =~ ^5820([0-9a-f]{64})$ || "${cbor}" =~ ^5840([0-9a-f]{64})[0-9a-f]{64}$ ]] || return 1
+  printf -v "${output}" '%s' "${BASH_REMATCH[1]}"
+}
+
+cntools_pool_calidus_status_set() {
+  CNTOOLS_POOL_CALIDUS_STATUS[$1]="$2"; CNTOOLS_POOL_CALIDUS_ROLE[$1]="$3"; CNTOOLS_POOL_CALIDUS_ID[$1]="${4:-}"
+}
+
+# Calidus registration of the given pools (default: all) from Koios
+# pool_calidus_keys, compared with each pool's local Calidus key. CIP-151
+# registrations are transaction metadata, not ledger state, so the node cannot
+# answer. A pool without a local key shows a status only when one is on chain.
+cntools_pool_inspect_calidus() {
+  local index=0 offset=0 response='' url='' record='' state='' public='' key=N epoch='' status='' role='' ids=''
+  local -a indices=("$@") pools=() batch=()
+  local -A has_key=() local_public=() records=() failed=()
+  [[ "${CNTOOLS_MODE:-offline}" != offline ]] || return 0
+  (( ${#indices[@]} != 0 )) || indices=("${!CNTOOLS_POOL_NAMES[@]}")
+  for index in "${indices[@]}"; do
+    cntools_pool_inspect_eligible "${index}" || continue
+    cntools_pool_key_state_into state "${CNTOOLS_POOL_DIRECTORIES[index]}" calidus-skey || return 1
+    key=N; [[ "${state}" == Missing ]] || key=Y
+    if cntools_pool_calidus_local_public_into public "${index}"; then
+      [[ -z "${public}" ]] || key=Y
+    else
+      key=Y; public=invalid
+    fi
+    has_key["${index}"]="${key}"; local_public["${index}"]="${public}"
+    pools+=("${index}")
+  done
+  (( ${#pools[@]} != 0 )) || return 0
+  if [[ "${CNTOOLS_KOIOS_ENABLED:-N}" != Y || ! "${CNTOOLS_KOIOS_API:-}" =~ ^https://[^[:space:]]+$ ]]; then
+    for index in "${pools[@]}"; do
+      [[ "${has_key[${index}]}" != Y ]] || cntools_pool_calidus_status_set "${index}" 'Not checked · needs Koios' muted
+    done
+    return 0
+  fi
+  for ((offset=0; offset<${#pools[@]}; offset+=40)); do
+    batch=("${pools[@]:offset:40}")
+    ids="$(for index in "${batch[@]}"; do printf '%s\n' "${CNTOOLS_POOL_IDS[index]}"; done | jq -Rsc 'split("\n")[:-1]')" || return 1
+    url="${CNTOOLS_KOIOS_API%/}/pool_calidus_keys?pool_id_bech32=in.%28$(jq -r 'join("%2C")' <<< "${ids}")%29"
+    url+='&select=pool_id_bech32%2Ccalidus_nonce%3A%3Atext%2Ccalidus_pub_key%2Ccalidus_id_bech32%2Ctx_hash%2Cepoch_no%2Cregistered'
+    cntools_transaction_temp_file response pool-calidus-status || return 1
+    if cntools_wallet_query_http "${url}" '' "${response}" 2097152 GET && jq -e --argjson ids "${ids}" '
+        type == "array" and ((map(.pool_id_bech32) | unique | length) == length) and all(.[];
+          (.pool_id_bech32 as $id | $ids | index($id) != null) and
+          (.calidus_nonce | type == "string" and test("^(0|[1-9][0-9]*)$")) and
+          (.calidus_pub_key | type == "string" and test("^[0-9a-f]{64}$")) and
+          (.tx_hash | type == "string" and test("^[0-9a-f]{64}$")) and
+          (.epoch_no == null or (.epoch_no | type == "number" and . >= 0 and floor == .)) and
+          (.registered | type == "boolean") and (.registered == (.calidus_pub_key != ("0" * 64))) and
+          (if .registered then (.calidus_id_bech32 | type == "string" and test("^calidus1[0-9a-z]+$")) else true end))
+      ' "${response}" >/dev/null 2>&1; then
+      for index in "${batch[@]}"; do
+        records["${index}"]="$(jq -c --arg id "${CNTOOLS_POOL_IDS[index]}" '.[] | select(.pool_id_bech32 == $id)' "${response}")" || return 1
+      done
+    else
+      cntools_transaction_log WARN 'Koios Calidus registration lookup failed or returned invalid data'
+      for index in "${batch[@]}"; do failed["${index}"]=Y; done
+    fi
+  done
+  for index in "${pools[@]}"; do
+    key="${has_key[${index}]}"; public="${local_public[${index}]}"; record="${records[${index}]:-}"
+    if [[ -n "${failed[${index}]:-}" ]]; then
+      [[ "${key}" != Y ]] || cntools_pool_calidus_status_set "${index}" Unavailable muted
+      continue
+    fi
+    if [[ -z "${record}" ]]; then
+      [[ "${key}" != Y ]] || cntools_pool_calidus_status_set "${index}" 'Not registered' warning
+      continue
+    fi
+    epoch="$(jq -r '.epoch_no // empty' <<< "${record}")"
+    if [[ "$(jq -r .registered <<< "${record}")" == true ]]; then
+      if [[ "${public}" == "$(jq -r .calidus_pub_key <<< "${record}")" ]]; then status='Registered · this key'; role=success
+      elif [[ "${public}" == invalid ]]; then status='Registered · local verification key is invalid'; role=warning
+      elif [[ -n "${public}" ]]; then status='A different key is registered'; role=warning
+      elif [[ "${key}" == Y ]]; then status='Registered · not compared, no Calidus verification key'; role=value
+      else status='Registered · key not in this pool folder'; role=value; fi
+      [[ -z "${epoch}" ]] || status+=" · epoch ${epoch}"
+      cntools_pool_calidus_status_set "${index}" "${status}" "${role}" "$(jq -r .calidus_id_bech32 <<< "${record}")"
+    else
+      status=Revoked; [[ -z "${epoch}" ]] || status+=" · epoch ${epoch}"
+      cntools_pool_calidus_status_set "${index}" "${status}" "$([[ "${key}" == Y ]] && printf warning || printf muted)"
+    fi
+    cntools_transaction_log POOL "Calidus pool=${CNTOOLS_POOL_NAMES[index]} status=${CNTOOLS_POOL_CALIDUS_STATUS[index]}"
+  done
+}
+
 cntools_pool_inspect_show() {
-  cntools_pool_inspect_catalog "$1" && cntools_pool_inspect_metadata "$1"
+  cntools_pool_inspect_catalog "$1" && cntools_pool_inspect_metadata "$1" && cntools_pool_inspect_calidus "$1"
+}
+
+# Pool List: every pool's registration and Calidus registration.
+cntools_pool_inspect_list() {
+  cntools_pool_inspect_catalog && cntools_pool_inspect_calidus
 }
 
 # Read public local JSON only. Missing/invalid data never hides the pool itself.

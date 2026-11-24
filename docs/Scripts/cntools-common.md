@@ -436,6 +436,15 @@ with the reason. A pool without a local cold key reads "Public only · offline
 signing". With a local node, List asks before fetching chain data; light mode
 fetches it directly. Unavailable data is identified rather than treated as zero.
 
+Key rows say where a signing key stands: **Open** is an unencrypted key file in
+the pool folder, **Encrypted** is protected by Pool → Encrypt, and **Public
+only** means only the public key is here. **Calidus registration** compares the
+pool's Calidus key with the one registered on chain: **Registered · this key**
+(with the epoch it was registered), **A different key is registered**, **Not
+registered** or **Revoked**. A registered key is shown even when this pool
+folder has no Calidus key. Calidus registrations are transaction metadata, not
+node ledger state, so this check needs Koios in local mode too.
+
 **Pool → Encrypt / Decrypt** protects or unlocks cold and applicable Calidus
 signing keys. GnuPG is checked first. For Encrypt, entering the password is the
 confirmation (Escape cancels); Decrypt confirms first, asks again only after a
