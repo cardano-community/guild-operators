@@ -599,7 +599,6 @@ cntools_startup_normalize_session() {
       ;;
   esac
 
-  CNTOOLS_SESSION_ID="$(command date '+%Y%m%dT%H%M%S')-$$"
   CNTOOLS_TIMEZONE="${BLOCKLOG_TZ:-UTC}"
   export CNTOOLS_TIMEZONE
   export CNTOOLS_NODE_HOME CNTOOLS_IMPLEMENTATION CNTOOLS_IMPLEMENTATION_NAME
@@ -646,7 +645,7 @@ cntools_startup_normalize_session() {
   export CNTOOLS_WALLET_DREP_REGISTER_CERT_FILENAME
   export CNTOOLS_WALLET_DREP_RETIRE_CERT_FILENAME
   export CNTOOLS_MODE CNTOOLS_BACKEND
-  export CNTOOLS_ADVANCED CNTOOLS_SESSION_ID
+  export CNTOOLS_ADVANCED
 }
 
 cntools_startup_branch_valid() {

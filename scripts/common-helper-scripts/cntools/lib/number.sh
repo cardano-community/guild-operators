@@ -21,55 +21,6 @@ cntools_number_trim_into() {
   printf -v "${_cntools_trim_output}" '%s' "${_cntools_trim_value}"
 }
 
-cntools_number_format_lovelace_compact() {
-  local amount="${1:-}"
-  local whole=""
-  local fraction=""
-  local formatted=""
-  local scaled_whole=""
-  local scaled_fraction=""
-  local divisor_digits=0
-  local split_at=0
-  local suffix=""
-
-  [[ "${amount}" =~ ^[0-9]+$ ]] || {
-    printf '—\n'
-    return 0
-  }
-  [[ "${amount}" =~ ^0*([1-9][0-9]*|0)$ ]] || return 1
-  amount="${BASH_REMATCH[1]}"
-  while (( ${#amount} <= 6 )); do
-    amount="0${amount}"
-  done
-  split_at=$((${#amount} - 6))
-  whole="${amount:0:split_at}"
-  fraction="${amount:split_at}"
-  if (( ${#whole} < 9 )); then
-    formatted="${whole}.${fraction}"
-    if declare -F cntools_number_format_into >/dev/null 2>&1; then
-      cntools_number_format_into formatted "${formatted}" || return 1
-    fi
-    cntools_number_trim_into formatted "${formatted}"
-    printf '%s\n' "${formatted}"
-    return 0
-  fi
-  if (( ${#whole} >= 10 )); then
-    divisor_digits=9
-    suffix="B"
-  else
-    divisor_digits=6
-    suffix="M"
-  fi
-  split_at=$((${#whole} - divisor_digits))
-  scaled_whole="${whole:0:split_at}"
-  scaled_fraction="${whole:split_at:3}"
-  formatted="${scaled_whole}.${scaled_fraction}"
-  if declare -F cntools_number_format_into >/dev/null 2>&1; then
-    cntools_number_format_into formatted "${formatted}" || return 1
-  fi
-  cntools_number_trim_into formatted "${formatted}"
-  printf '%s%s\n' "${formatted}" "${suffix}"
-}
 
 
 cntools_number_format_lovelace() {
@@ -99,12 +50,6 @@ cntools_number_format_lovelace() {
   printf '%s ADA\n' "${formatted}"
 }
 
-
-cntools_uint_add() {
-  local sum_result=''
-  cntools_uint_add_into sum_result "$1" "$2" || return $?
-  printf '%s\n' "${sum_result}"
-}
 
 # Lossless formatting and normalization for human-readable decimal numbers.
 # All operations are string based so values are never constrained by Bash's
@@ -187,13 +132,6 @@ cntools_number_units_into() {
   cntools_uint_normalize_into _cntools_units_ref "${_cntools_units_integer}${_cntools_units_fraction}"
 }
 
-cntools_number_normalize() {
-  (( $# == 1 )) || return 2
-  local _cntools_number_result=""
-
-  cntools_number_normalize_into _cntools_number_result "${1:-}" || return $?
-  printf '%s\n' "${_cntools_number_result}"
-}
 
 cntools_number_format_into() {
   (( $# == 2 )) || return 2
@@ -270,12 +208,6 @@ cntools_number_format_units() {
   printf '%s\n' "${_units_formatted}"
 }
 
-cntools_number_is_valid() {
-  (( $# == 1 )) || return 2
-  local _cntools_number_result=""
-
-  cntools_number_normalize_into _cntools_number_result "${1:-}"
-}
 
 # Exact unsigned-integer helpers used for ledger quantities. These deliberately
 # avoid Bash arithmetic for complete values and keep every amount as a decimal

@@ -55,9 +55,6 @@ cntools_collect_select() {
     cntools_collect_fail "Nothing to collect: ${CNTOOLS_SEND_WALLET} has one eligible UTxO, already at its return address, and no change setting would reshape it."; return 1
   fi
   CNTOOLS_COLLECT_INPUTS=("${CNTOOLS_COIN_SELECTED_REFS[@]}")
-  CNTOOLS_COIN_SELECTION_REASON='Explicit collection of all eligible inputs'
-  (( CNTOOLS_COLLECT_ELIGIBLE == ${#CNTOOLS_COLLECT_INPUTS[@]} )) ||
-    CNTOOLS_COIN_SELECTION_REASON="Explicit collection of ${#CNTOOLS_COLLECT_INPUTS[@]} of ${CNTOOLS_COLLECT_ELIGIBLE} eligible inputs (one transaction's limit)"
 }
 
 # Run in a subshell: prints the eligible count, or the reason and fails.

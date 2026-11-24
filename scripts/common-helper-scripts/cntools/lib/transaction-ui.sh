@@ -247,7 +247,7 @@ cntools_transaction_ui_review_into() {
         esac
         ;;
       'Review transaction')
-        status=0; cntools_transaction_ui_detail_view "${begin}" || status=$?
+        status=0; cntools_transaction_ui_detail_view || status=$?
         (( status == 0 )) || { (( status == 130 )) && return 130; return 2; } ;;
       'Show required signers')
         "${begin}" || return 2
@@ -464,17 +464,6 @@ cntools_transaction_ui_styled_signer_row() {
   printf '%s\t%s\t%s\n' "${signer}" "${property}" "${styled}"
 }
 
-cntools_transaction_ui_render_json() {
-  local heading="${1:-Declared script}" value="${2:-}" rows='' label='' cell='' role=''
-  rows="$(cntools_json_scalar_records <<< "${value}")" || return 1
-  {
-    while IFS=$'\037' read -r label cell; do
-      role=value
-      if [[ "${cell}" =~ ^-?[0-9]+$ ]]; then cell="$(cntools_number_format "${cell}")" || return 1; role=number; fi
-      cntools_table_pair "${label}" "${cell}" "${role}"
-    done <<< "${rows}"
-  } | cntools_table_render "${heading}"
-}
 cntools_transaction_ui_render_package_overview() {
   local widths="" expiry_label="No expiry" fee="" expiry_role=number validity_state=''
   cntools_transaction_ui_validity_state_into validity_state
@@ -649,101 +638,6 @@ cntools_transaction_ui_render_signer_progress() {
   } | cntools_ui_table --separator $'\t' --widths "${widths}" || return 1
 }
 
-cntools_transaction_ui_render_change_plan() {
-  local package_file="${1:-}"
-  local count=""
-  local record=""
-  local labels=""
-  local hardware_group=""
-  local key_id=""
-  local reference=""
-  local widths=""
-  local index=0
-
-  count="$(jq -r '.signing.changeKeys | length' "${package_file}")" || return 1
-  (( count > 0 )) || return 0
-  cntools_transaction_ui_signer_widths_into widths || return 1
-  cntools_ui_render_detail "Hardware change references" || return 1
-  {
-    printf 'Reference\tProperty\tValue\n'
-    while IFS= read -r record; do
-      IFS=$'\037' read -r labels hardware_group key_id <<< "${record}"
-      index=$((index + 1))
-      printf -v reference '%02d · %s' "${index}" "${labels}"
-      cntools_transaction_ui_styled_signer_row \
-        "${reference}" "Hardware session" "${hardware_group}" identifier
-      cntools_transaction_ui_styled_signer_row \
-        "" "Public key ID" "${key_id}" credential
-    done < <(jq -r '.signing.changeKeys[] |
-      [(.labels | join(", ")), .hardwareGroup, .keyId] | join("\u001f")' \
-      "${package_file}")
-  } | cntools_ui_table --separator $'\t' --widths "${widths}" || return 1
-}
-
-cntools_transaction_ui_render_native_scripts() {
-  local package_file="${1:-}"
-  local count=""
-  local record=""
-  local label=""
-  local purpose=""
-  local source=""
-  local script_hash=""
-  local reference_input=""
-  local signer_record=""
-  local signer_labels=""
-  local signer_key_id=""
-  local declared_script=""
-  local script=""
-  local widths=""
-  local index=0
-
-  count="$(jq -r '.signing.nativeScripts | length' "${package_file}")" ||
-    return 1
-  (( count > 0 )) || return 0
-  cntools_transaction_ui_signer_widths_into widths || return 1
-  cntools_ui_render_detail "Native scripts" || return 1
-  {
-    printf 'Script\tProperty\tValue\n'
-    while IFS= read -r record; do
-      IFS=$'\037' read -r label purpose source script_hash reference_input \
-        <<< "${record}"
-      index=$((index + 1))
-      printf -v script '%02d · %s' "${index}" "${label}"
-      cntools_transaction_ui_styled_signer_row \
-        "${script}" "Purpose" "${purpose}" accent
-      cntools_transaction_ui_styled_signer_row \
-        "" "Source" "${source}" value
-      cntools_transaction_ui_styled_signer_row \
-        "" "Script hash" "${script_hash}" credential
-      if [[ -n "${reference_input}" ]]; then
-        cntools_transaction_ui_styled_signer_row \
-          "" "Reference input" "${reference_input}" identifier
-      fi
-      while IFS= read -r signer_record; do
-        IFS=$'\037' read -r signer_labels signer_key_id <<< "${signer_record}"
-        cntools_transaction_ui_styled_signer_row \
-          "" "Selected signer" "${signer_labels}" value
-        cntools_transaction_ui_styled_signer_row \
-          "" "Signer key ID" "${signer_key_id}" credential
-      done < <(jq -r --argjson script_index "$((index - 1))" '
-        . as $package |
-        $package.signing.nativeScripts[$script_index].selectedKeyIds[] as $id |
-        $package.signing.required[] |
-        select(.keyId == $id) |
-        [(.labels | join(", ")), .keyId] | join("\u001f")
-      ' "${package_file}")
-    done < <(jq -r '.signing.nativeScripts[] |
-      [.label, .purpose, .source, .scriptHash, (.referenceInput // "")] |
-      join("\u001f")' "${package_file}")
-  } | cntools_ui_table --separator $'\t' --widths "${widths}" || return 1
-
-  while IFS=$'\037' read -r label declared_script; do
-    cntools_transaction_ui_render_json \
-      "Declared reference script · ${label}" "${declared_script}" || return 1
-  done < <(jq -r '.signing.nativeScripts[] |
-    select(.source == "reference") | [.label, (.script | tojson)] |
-    join("\u001f")' "${package_file}")
-}
 
 cntools_transaction_ui_render_package_review() {
   cntools_transaction_ui_render_package_overview "${CNTOOLS_TRANSACTION_PACKAGE_FILE}"

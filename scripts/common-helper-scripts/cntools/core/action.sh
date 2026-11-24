@@ -64,8 +64,6 @@ cntools_action_run() {
       cntools_log ERROR "Selected action has no valid label: ${action_id}" || true
       return 2
     }
-    CNTOOLS_ACTION_LABEL="${action_label}"
-    export CNTOOLS_ACTION_LABEL
     action_modes="${CNTOOLS_MENU_VALIDATED_MODES:-}"
     if [[ ",${action_modes}," != *",${CNTOOLS_MODE:-local},"* ]]; then
       cntools_log ACTION "blocked in ${CNTOOLS_MODE:-unknown} mode" || true

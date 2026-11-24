@@ -11,7 +11,6 @@ cntools_gov_vote_operation_set() {
   CNTOOLS_WALLET_REGISTER_TITLE='Cast vote'
   CNTOOLS_WALLET_REGISTER_PATH='/ Vote / On-chain Governance / Cast vote'
   CNTOOLS_WALLET_REGISTER_NOUN='governance vote'
-  CNTOOLS_WALLET_REGISTER_VERB='cast a DRep vote'
   CNTOOLS_WALLET_REGISTER_INTENT='DRep governance vote'
   CNTOOLS_WALLET_REGISTER_SUMMARY_ACTION=gov-vote
   CNTOOLS_WALLET_REGISTER_DEPOSIT_EFFECT=charged

@@ -2,7 +2,6 @@
 # Cardano CLI transaction builders backed by the shared signer plan. Functions only.
 # shellcheck disable=SC2034
 
-CNTOOLS_TRANSACTION_BUILD_MESSAGE=""
 CNTOOLS_TRANSACTION_MIN_FEE=""
 CNTOOLS_TRANSACTION_MAX_ARGUMENT_BYTES=65536
 CNTOOLS_TRANSACTION_MAX_COMMAND_BYTES=524288
@@ -58,7 +57,6 @@ cntools_transaction_build_body() {
   shift
   caller_arguments=("$@")
 
-  CNTOOLS_TRANSACTION_BUILD_MESSAGE=""
   cntools_transaction_clear_error
   [[ "${CNTOOLS_TRANSACTION_PLAN_READY:-N}" == "Y" ]] || {
     cntools_transaction_set_error \
@@ -159,7 +157,6 @@ cntools_transaction_build_body() {
       "Cardano CLI did not produce a valid transaction body."
     return 1
   fi
-  CNTOOLS_TRANSACTION_BUILD_MESSAGE="$(< "${command_output}")"
   cntools_transaction_publish "${staged_file}" "${output_file}" || return 1
   cntools_transaction_log TRANSACTION \
     "body built builder=${builder} witnesses=${witness_count} file=${output_file}"

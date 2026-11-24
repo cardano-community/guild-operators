@@ -25,8 +25,6 @@ cntools_drep_lifecycle_operation_set() {
   [[ "${operation}" != drep-retire ]] || CNTOOLS_WALLET_REGISTER_TITLE='Retire DRep'
   CNTOOLS_WALLET_REGISTER_PATH="/ Vote / On-chain Governance / ${CNTOOLS_WALLET_REGISTER_TITLE}"
   CNTOOLS_WALLET_REGISTER_NOUN="DRep ${noun}"
-  CNTOOLS_WALLET_REGISTER_VERB="perform DRep ${noun}"
-  CNTOOLS_WALLET_REGISTER_PAST="${noun}"
   CNTOOLS_WALLET_REGISTER_CERTIFICATE_COMMAND="${command}"
   CNTOOLS_WALLET_REGISTER_INTENT="DRep ${noun}"
   CNTOOLS_WALLET_REGISTER_SUMMARY_ACTION="${operation}"

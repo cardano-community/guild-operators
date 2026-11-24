@@ -45,14 +45,6 @@ cntools_text_sanitize_into() {
 }
 
 
-cntools_text_sanitize() {
-  local sanitized=""
-
-  cntools_text_sanitize_into sanitized "${1:-}" || return $?
-  printf '%s' "${sanitized}"
-}
-
-
 cntools_table_row() {
   local cell=""
   local separator=""

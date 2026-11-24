@@ -7,25 +7,8 @@ cntools_wallet_asset_label_into() {
 }
 
 
-cntools_wallet_asset_label() {
-  local label=""
-
-  cntools_wallet_asset_label_into label "${1:-}" "${2:-0}" || return $?
-  printf '%s' "${label}"
-}
-
-
 cntools_wallet_format_token_amount_into() {
   cntools_number_format_units_into "${1:-}" "${2:-}" "${3:-0}"
-}
-
-
-cntools_wallet_format_token_amount() {
-  local amount=""
-
-  cntools_wallet_format_token_amount_into \
-    amount "${1:-}" "${2:-}" || return $?
-  printf '%s\n' "${amount}"
 }
 
 

@@ -33,7 +33,6 @@ CNTOOLS_TRANSACTION_DIJKSTRA_PROTOCOL=12
 declare -ag CNTOOLS_TRANSACTION_TEMP_FILES=()
 CNTOOLS_TRANSACTION_TEMP_DIR=""
 CNTOOLS_TRANSACTION_TEMP_BASE=""
-declare -ag CNTOOLS_TRANSACTION_NETWORK_ARGS=()
 declare -Ag CNTOOLS_TRANSACTION_RUNTIME_SOURCES=()
 declare -Ag CNTOOLS_TRANSACTION_RUNTIME_SOURCE_KINDS=()
 declare -Ag CNTOOLS_TRANSACTION_RUNTIME_CHANGE_SOURCES=()
@@ -57,9 +56,7 @@ CNTOOLS_TRANSACTION_SIGNED_FILE=""
 CNTOOLS_TRANSACTION_ID=""
 CNTOOLS_TRANSACTION_PACKAGE_NETWORK=""
 CNTOOLS_TRANSACTION_PACKAGE_ASSURANCE=""
-CNTOOLS_TRANSACTION_PACKAGE_INTENT=""
 CNTOOLS_TRANSACTION_PACKAGE_DESCRIPTION=""
-CNTOOLS_TRANSACTION_PACKAGE_INVALID_BEFORE=""
 CNTOOLS_TRANSACTION_PACKAGE_INVALID_HEREAFTER=""
 CNTOOLS_TRANSACTION_PACKAGE_HARDWARE_PREPARED="N"
 CNTOOLS_TRANSACTION_REQUIRED_COUNT=0
@@ -1667,44 +1664,6 @@ cntools_transaction_plan_add_change_key() {
   fi
 }
 
-cntools_transaction_plan_mark_change_key() {
-  local key_id="${1:-}"
-  local label=""
-  local hardware_group=""
-  local runtime_source=""
-  local runtime_kind=""
-
-  key_id="${key_id,,}"
-  label="$(jq -r --arg id "${key_id}" \
-    '.[] | select(.keyId == $id) | .labels[0] // "Change address"' \
-    <<< "${CNTOOLS_TRANSACTION_PLAN_REQUIRED}")" || return 1
-  hardware_group="$(jq -r --arg id "${key_id}" \
-    '.[] | select(.keyId == $id) | .hardwareGroup // ""' \
-    <<< "${CNTOOLS_TRANSACTION_PLAN_REQUIRED}")" || return 1
-  [[ -n "${hardware_group}" ]] || {
-    cntools_transaction_set_error \
-      "A signer used for hardware change must belong to a hardware session."
-    return 1
-  }
-  cntools_transaction_plan_add_public_change_key \
-    "${label}" "${key_id}" "${hardware_group}" || return 1
-  runtime_source="${CNTOOLS_TRANSACTION_RUNTIME_SOURCES[${key_id}]:-}"
-  if [[ -n "${runtime_source}" ]]; then
-    cntools_transaction_source_kind_into \
-      runtime_kind "${runtime_source}" || return 1
-    [[ "${runtime_kind}" == "hardware" ]] || {
-      cntools_transaction_set_error \
-        "A hardware change reference cannot use a CLI signing source."
-      return 1
-    }
-    cntools_transaction_hardware_change_source_valid "${runtime_source}" || {
-      cntools_transaction_set_error \
-        "A hardware change reference must be a standard CIP-1852 payment or stake hardware key."
-      return 1
-    }
-    CNTOOLS_TRANSACTION_RUNTIME_CHANGE_SOURCES["${key_id}"]="${runtime_source}"
-  fi
-}
 
 cntools_transaction_native_script_valid() {
   local script_file="${1:-}"
@@ -1910,22 +1869,6 @@ cntools_transaction_plan_add_native_script() {
     "${label}" "${purpose}" embedded "${script_file}" "" "$@"
 }
 
-cntools_transaction_plan_add_native_reference_script() {
-  local label="${1:-}"
-  local purpose="${2:-}"
-  local script_file="${3:-}"
-  local reference_input="${4:-}"
-  shift 4 2>/dev/null || return 2
-  cntools_transaction_plan_add_native_script_internal \
-    "${label}" "${purpose}" reference "${script_file}" \
-    "${reference_input}" "$@" || return $?
-  # The transaction body is now bound to the selected reference input, but it
-  # does not carry that input's output or script. Without querying the UTxO,
-  # its script hash cannot be verified from a portable offline package alone.
-  CNTOOLS_TRANSACTION_PLAN_ASSURANCE="manual"
-  cntools_transaction_log TRANSACTION \
-    "signer-plan assurance changed to manual for reference script"
-}
 
 cntools_transaction_body_matches_plan() {
   local body_file="${1:-}"
@@ -2296,9 +2239,7 @@ cntools_transaction_package_reset_loaded() {
   CNTOOLS_TRANSACTION_ID=""
   CNTOOLS_TRANSACTION_PACKAGE_NETWORK=""
   CNTOOLS_TRANSACTION_PACKAGE_ASSURANCE=""
-  CNTOOLS_TRANSACTION_PACKAGE_INTENT=""
   CNTOOLS_TRANSACTION_PACKAGE_DESCRIPTION=""
-  CNTOOLS_TRANSACTION_PACKAGE_INVALID_BEFORE=""
   CNTOOLS_TRANSACTION_PACKAGE_INVALID_HEREAFTER=""
   CNTOOLS_TRANSACTION_PACKAGE_HARDWARE_PREPARED="N"
   CNTOOLS_TRANSACTION_REQUIRED_COUNT=0
@@ -2526,10 +2467,7 @@ cntools_transaction_package_load() {
   CNTOOLS_TRANSACTION_ID="${calculated_id}"
   CNTOOLS_TRANSACTION_PACKAGE_NETWORK="$(jq -r '.network.name' "${package_file}")"
   CNTOOLS_TRANSACTION_PACKAGE_ASSURANCE="$(jq -r '.signing.assurance' "${package_file}")"
-  CNTOOLS_TRANSACTION_PACKAGE_INTENT="$(jq -r '.intent.kind' "${package_file}")"
   CNTOOLS_TRANSACTION_PACKAGE_DESCRIPTION="$(jq -r '.intent.description' "${package_file}")"
-  CNTOOLS_TRANSACTION_PACKAGE_INVALID_BEFORE="$(jq -r \
-    '.validity.invalidBefore // ""' "${package_file}")"
   CNTOOLS_TRANSACTION_PACKAGE_INVALID_HEREAFTER="$(jq -r \
     '.validity.invalidHereafter // ""' "${package_file}")"
   if jq -e '.transaction.hardwarePrepared' "${package_file}" >/dev/null; then
@@ -2717,40 +2655,4 @@ cntools_transaction_package_create_staged_into() {
   _cntools_output_ref="${_cntools_staged_file}"
 }
 
-cntools_transaction_package_create() {
-  local body_file="${1:-}"
-  local output_file="${2:-}"
-  local staged_file=""
 
-  cntools_transaction_package_create_staged_into \
-    staged_file "${body_file}" || return 1
-  cntools_transaction_publish "${staged_file}" "${output_file}"
-}
-
-cntools_transaction_default_output_into() {
-  local _cntools_output_name="${1:-}"
-  local _cntools_input_file="${2:-}"
-  local _cntools_suffix="${3:-signed}"
-  local _cntools_parent=""
-  local _cntools_name=""
-  local _cntools_stem=""
-  local _cntools_candidate=""
-  local _cntools_index=0
-
-  [[ "${_cntools_output_name}" =~ ^[A-Za-z_][A-Za-z0-9_]*$ &&
-     "${_cntools_suffix}" =~ ^[A-Za-z0-9._-]+$ ]] || return 2
-  local -n _cntools_output_ref="${_cntools_output_name}"
-  _cntools_output_ref=""
-  _cntools_parent="${_cntools_input_file%/*}"
-  _cntools_name="${_cntools_input_file##*/}"
-  [[ -n "${_cntools_parent}" && -n "${_cntools_name}" ]] || return 1
-  _cntools_stem="${_cntools_name%.*}"
-  [[ -n "${_cntools_stem}" ]] || _cntools_stem="transaction"
-  _cntools_candidate="${_cntools_parent}/${_cntools_stem}.${_cntools_suffix}.json"
-  while [[ -e "${_cntools_candidate}" || -L "${_cntools_candidate}" ]]; do
-    _cntools_index=$((_cntools_index + 1))
-    (( _cntools_index <= 999 )) || return 1
-    _cntools_candidate="${_cntools_parent}/${_cntools_stem}.${_cntools_suffix}.${_cntools_index}.json"
-  done
-  _cntools_output_ref="${_cntools_candidate}"
-}

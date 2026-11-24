@@ -147,7 +147,7 @@ cntools_delegate_choose_target() {
 # Pool choice state a review 'Change pool' keeps, or restores after a failed rebuild.
 declare -ag CNTOOLS_DELEGATE_TARGET_STATE=(CNTOOLS_DELEGATE_POOL_ID CNTOOLS_DELEGATE_POOL_HEX CNTOOLS_DELEGATE_RETIRING
   CNTOOLS_DELEGATE_REGISTRATION_CONFIRMED CNTOOLS_DELEGATE_LOCAL_NAME CNTOOLS_POOL_STATUS CNTOOLS_POOL_RETIRING
-  CNTOOLS_POOL_NAME CNTOOLS_POOL_TICKER CNTOOLS_POOL_SOURCE)
+  CNTOOLS_POOL_NAME CNTOOLS_POOL_TICKER)
 
 # Review 'Change pool': any non-zero status keeps the reviewed pool.
 cntools_delegate_change_target() {

@@ -6,23 +6,17 @@
 # Menu metadata is parsed once into a session catalog for the lifetime of the
 # process. Restarting CNTools rebuilds it from disk.
 declare -Ag CNTOOLS_MENU_CACHE_MENU_DIRS=()
-declare -Ag CNTOOLS_MENU_CACHE_MENU_LABELS=()
 declare -Ag CNTOOLS_MENU_CACHE_MENU_BREADCRUMBS=()
 declare -Ag CNTOOLS_MENU_CACHE_MENU_COUNTS=()
 declare -Ag CNTOOLS_MENU_CACHE_ITEMS=()
 declare -Ag CNTOOLS_MENU_CACHE_ROUTE_BREADCRUMBS=()
 declare -Ag CNTOOLS_MENU_CACHE_DIRECTORY_IDS=()
-declare -Ag CNTOOLS_MENU_CACHE_ACTION_MODES=()
-declare -Ag CNTOOLS_MENU_CACHE_ACTION_LIBS=()
 declare -Ag CNTOOLS_MENU_STAGE_MENU_DIRS=()
-declare -Ag CNTOOLS_MENU_STAGE_MENU_LABELS=()
 declare -Ag CNTOOLS_MENU_STAGE_MENU_BREADCRUMBS=()
 declare -Ag CNTOOLS_MENU_STAGE_MENU_COUNTS=()
 declare -Ag CNTOOLS_MENU_STAGE_ITEMS=()
 declare -Ag CNTOOLS_MENU_STAGE_ROUTE_BREADCRUMBS=()
 declare -Ag CNTOOLS_MENU_STAGE_DIRECTORY_IDS=()
-declare -Ag CNTOOLS_MENU_STAGE_ACTION_MODES=()
-declare -Ag CNTOOLS_MENU_STAGE_ACTION_LIBS=()
 CNTOOLS_MENU_CACHE_READY="N"
 CNTOOLS_MENU_CACHE_ROOT=""
 CNTOOLS_MENU_STAGE_ROOT=""
@@ -47,7 +41,6 @@ CNTOOLS_MENU_VALIDATED_KOIOS="false"
 # cache remains untouched until collection, parsing, and staging all succeed.
 declare -ag CNTOOLS_MENU_CATALOG_DIRS=()
 declare -ag CNTOOLS_MENU_CATALOG_METADATA=()
-declare -ag CNTOOLS_MENU_CATALOG_PARENTS=()
 declare -ag CNTOOLS_MENU_CATALOG_IDS=()
 declare -ag CNTOOLS_MENU_CATALOG_KINDS=()
 declare -ag CNTOOLS_MENU_CATALOG_LABELS=()
@@ -55,7 +48,6 @@ declare -ag CNTOOLS_MENU_CATALOG_DESCRIPTIONS=()
 declare -ag CNTOOLS_MENU_CATALOG_ORDERS=()
 declare -ag CNTOOLS_MENU_CATALOG_ADVANCED=()
 declare -ag CNTOOLS_MENU_CATALOG_MODES=()
-declare -ag CNTOOLS_MENU_CATALOG_LIBS=()
 declare -ag CNTOOLS_MENU_CATALOG_KOIOS=()
 declare -ag CNTOOLS_MENU_CATALOG_HAS_CHILD_DIR=()
 declare -ag CNTOOLS_MENU_CATALOG_HAS_CHILD_LINK=()
@@ -382,7 +374,6 @@ cntools_menu_koios_available() {
 cntools_menu_catalog_reset() {
   CNTOOLS_MENU_CATALOG_DIRS=()
   CNTOOLS_MENU_CATALOG_METADATA=()
-  CNTOOLS_MENU_CATALOG_PARENTS=()
   CNTOOLS_MENU_CATALOG_IDS=()
   CNTOOLS_MENU_CATALOG_KINDS=()
   CNTOOLS_MENU_CATALOG_LABELS=()
@@ -390,7 +381,6 @@ cntools_menu_catalog_reset() {
   CNTOOLS_MENU_CATALOG_ORDERS=()
   CNTOOLS_MENU_CATALOG_ADVANCED=()
   CNTOOLS_MENU_CATALOG_MODES=()
-  CNTOOLS_MENU_CATALOG_LIBS=()
   CNTOOLS_MENU_CATALOG_KOIOS=()
   CNTOOLS_MENU_CATALOG_HAS_CHILD_DIR=()
   CNTOOLS_MENU_CATALOG_HAS_CHILD_LINK=()
@@ -421,7 +411,6 @@ cntools_menu_catalog_collect_directory() {
 
   CNTOOLS_MENU_CATALOG_DIRS[index]="${directory}"
   CNTOOLS_MENU_CATALOG_METADATA[index]="${metadata}"
-  CNTOOLS_MENU_CATALOG_PARENTS[index]="${parent_index}"
   CNTOOLS_MENU_CATALOG_INDEX_BY_DIR["${directory}"]="${index}"
   CNTOOLS_MENU_CATALOG_HAS_CHILD_DIR[index]="N"
   CNTOOLS_MENU_CATALOG_HAS_CHILD_LINK[index]="N"
@@ -452,7 +441,7 @@ cntools_menu_catalog_parse() {
   local output=""
   local record=""
   local index="" source="" kind="" label="" description=""
-  local order="" advanced="" modes="" libs="" koios="" sentinel=""
+  local order="" advanced="" modes="" koios="" sentinel=""
   local expected=0 count="${#CNTOOLS_MENU_CATALOG_METADATA[@]}" errors_file="" jq_error="" status=0
 
   (( count > 0 )) || cntools_menu_fail "No module metadata was collected" || return 1
@@ -510,7 +499,6 @@ cntools_menu_catalog_parse() {
           (($entry.order // 0) | tostring),
           (($entry.advanced // false) | tostring),
           (($entry.modes // []) | join(",")),
-          (($entry.libs // []) | join(",")),
           (($entry.requiresKoios // false) | tostring),
           "."
         ] | join("\u001f")
@@ -528,7 +516,7 @@ cntools_menu_catalog_parse() {
   while IFS= read -r record; do
     [[ -n "${record}" ]] || continue
     IFS=$'\037' read -r index source kind label description order \
-      advanced modes libs koios sentinel <<< "${record}"
+      advanced modes koios sentinel <<< "${record}"
     [[ "${index}" =~ ^[0-9]+$ && "${index}" -eq "${expected}" &&
        "${source}" == "${CNTOOLS_MENU_CATALOG_METADATA[expected]}" &&
        "${sentinel}" == "." ]] ||
@@ -539,7 +527,6 @@ cntools_menu_catalog_parse() {
     CNTOOLS_MENU_CATALOG_ORDERS[index]="${order}"
     CNTOOLS_MENU_CATALOG_ADVANCED[index]="${advanced}"
     CNTOOLS_MENU_CATALOG_MODES[index]="${modes}"
-    CNTOOLS_MENU_CATALOG_LIBS[index]="${libs}"
     CNTOOLS_MENU_CATALOG_KOIOS[index]="${koios}"
     (( expected += 1 ))
   done <<< "${output}"
@@ -638,14 +625,11 @@ cntools_menu_catalog_open() {
 
 cntools_menu_cache_reset_stage() {
   CNTOOLS_MENU_STAGE_MENU_DIRS=()
-  CNTOOLS_MENU_STAGE_MENU_LABELS=()
   CNTOOLS_MENU_STAGE_MENU_BREADCRUMBS=()
   CNTOOLS_MENU_STAGE_MENU_COUNTS=()
   CNTOOLS_MENU_STAGE_ITEMS=()
   CNTOOLS_MENU_STAGE_ROUTE_BREADCRUMBS=()
   CNTOOLS_MENU_STAGE_DIRECTORY_IDS=()
-  CNTOOLS_MENU_STAGE_ACTION_MODES=()
-  CNTOOLS_MENU_STAGE_ACTION_LIBS=()
   CNTOOLS_MENU_STAGE_ROOT=""
 }
 
@@ -653,15 +637,12 @@ cntools_menu_cache_stage_directory() {
   local menu_directory="${1:-}"
   local menu_id="${2:-}"
   local menu_breadcrumb="${3:-/}"
-  local menu_label="" catalog_index=""
   local item_key="" item_record="" item_breadcrumb=""
   local index=0 count=0
   local -a paths=() ids=() names=() kinds=() labels=() descriptions=()
   local -a orders=() enabled=() disabled_reasons=()
 
   cntools_menu_catalog_open "${menu_directory}" || return 1
-  catalog_index="${CNTOOLS_MENU_CATALOG_INDEX_BY_DIR[${menu_directory}]}"
-  menu_label="${CNTOOLS_MENU_CATALOG_LABELS[catalog_index]}"
   paths=("${CNTOOLS_MENU_PATHS[@]}")
   ids=("${CNTOOLS_MENU_IDS[@]}")
   names=("${CNTOOLS_MENU_NAMES[@]}")
@@ -674,7 +655,6 @@ cntools_menu_cache_stage_directory() {
   count="${#paths[@]}"
 
   CNTOOLS_MENU_STAGE_MENU_DIRS["${menu_id}"]="${menu_directory}"
-  CNTOOLS_MENU_STAGE_MENU_LABELS["${menu_id}"]="${menu_label}"
   CNTOOLS_MENU_STAGE_MENU_BREADCRUMBS["${menu_id}"]="${menu_breadcrumb}"
   CNTOOLS_MENU_STAGE_MENU_COUNTS["${menu_id}"]="${count}"
   CNTOOLS_MENU_STAGE_ROUTE_BREADCRUMBS["${menu_id}"]="${menu_breadcrumb}"
@@ -695,11 +675,6 @@ cntools_menu_cache_stage_directory() {
     CNTOOLS_MENU_STAGE_ITEMS["${item_key}"]="${item_record}"
     CNTOOLS_MENU_STAGE_ROUTE_BREADCRUMBS["${ids[index]}"]="${item_breadcrumb}"
     CNTOOLS_MENU_STAGE_DIRECTORY_IDS["${paths[index]}"]="${ids[index]}"
-    if [[ "${kinds[index]}" == "action" ]]; then
-      catalog_index="${CNTOOLS_MENU_CATALOG_INDEX_BY_DIR[${paths[index]}]}"
-      CNTOOLS_MENU_STAGE_ACTION_MODES["${ids[index]}"]="${CNTOOLS_MENU_CATALOG_MODES[catalog_index]}"
-      CNTOOLS_MENU_STAGE_ACTION_LIBS["${ids[index]}"]="${CNTOOLS_MENU_CATALOG_LIBS[catalog_index]}"
-    fi
   done
 
   for (( index = 0; index < count; index++ )); do
@@ -724,8 +699,8 @@ cntools_menu_cache_copy_map() {
 cntools_menu_cache_commit() {
   local suffix=""
   local -a suffixes=(
-    MENU_DIRS MENU_LABELS MENU_BREADCRUMBS MENU_COUNTS ITEMS
-    ROUTE_BREADCRUMBS DIRECTORY_IDS ACTION_MODES ACTION_LIBS
+    MENU_DIRS MENU_BREADCRUMBS MENU_COUNTS ITEMS
+    ROUTE_BREADCRUMBS DIRECTORY_IDS
   )
 
   for suffix in "${suffixes[@]}"; do
@@ -824,7 +799,6 @@ cntools_menu_cache_open() {
     CNTOOLS_MENU_ENABLED[index]="${item_enabled}"
     CNTOOLS_MENU_DISABLED_REASONS[index]="${disabled_reason}"
   done
-  CNTOOLS_MENU_LABEL="${CNTOOLS_MENU_CACHE_MENU_LABELS[${menu_id}]}"
   CNTOOLS_MENU_BREADCRUMB="${CNTOOLS_MENU_CACHE_MENU_BREADCRUMBS[${menu_id}]}"
 }
 

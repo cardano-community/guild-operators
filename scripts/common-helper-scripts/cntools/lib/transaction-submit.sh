@@ -2,33 +2,23 @@
 # Local-node and Koios submission for reviewed transaction artifacts. Functions only.
 # shellcheck disable=SC2034
 
-CNTOOLS_TRANSACTION_SUBMIT_BACKEND=""
 CNTOOLS_TRANSACTION_SUBMIT_ID=""
 CNTOOLS_TRANSACTION_SUBMIT_INPUT_KIND=""
-CNTOOLS_TRANSACTION_SUBMIT_COMPLETENESS=""
 CNTOOLS_TRANSACTION_SUBMIT_VKEY_WITNESS_COUNT=0
 CNTOOLS_TRANSACTION_SUBMIT_SOURCE_FILE=""
-CNTOOLS_TRANSACTION_SUBMIT_HTTP_STATUS=""
 CNTOOLS_TRANSACTION_SUBMIT_MESSAGE=""
 CNTOOLS_TRANSACTION_SUBMIT_ACCEPTED_ID=""
 CNTOOLS_TRANSACTION_SUBMIT_ACCEPTED_SECONDS=""
 CNTOOLS_TRANSACTION_SUBMIT_XXD=""
-CNTOOLS_TRANSACTION_SUBMIT_CBOR_SHA256=""
-CNTOOLS_TRANSACTION_SUBMIT_CBOR_BYTES=""
 
 cntools_transaction_submit_reset() {
   CNTOOLS_TRANSACTION_SUBMIT_ACCEPTED_ID=""
   CNTOOLS_TRANSACTION_SUBMIT_ACCEPTED_SECONDS=""
-  CNTOOLS_TRANSACTION_SUBMIT_BACKEND=""
   CNTOOLS_TRANSACTION_SUBMIT_ID=""
   CNTOOLS_TRANSACTION_SUBMIT_INPUT_KIND=""
-  CNTOOLS_TRANSACTION_SUBMIT_COMPLETENESS=""
   CNTOOLS_TRANSACTION_SUBMIT_VKEY_WITNESS_COUNT=0
   CNTOOLS_TRANSACTION_SUBMIT_SOURCE_FILE=""
-  CNTOOLS_TRANSACTION_SUBMIT_HTTP_STATUS=""
   CNTOOLS_TRANSACTION_SUBMIT_MESSAGE=""
-  CNTOOLS_TRANSACTION_SUBMIT_CBOR_SHA256=""
-  CNTOOLS_TRANSACTION_SUBMIT_CBOR_BYTES=""
 }
 
 cntools_transaction_submit_local_ready() {
@@ -111,7 +101,6 @@ cntools_transaction_submit_input_prepare() {
     signed_file="${CNTOOLS_TRANSACTION_SIGNED_FILE}"
     transaction_id="${CNTOOLS_TRANSACTION_ID}"
     CNTOOLS_TRANSACTION_SUBMIT_INPUT_KIND="package"
-    CNTOOLS_TRANSACTION_SUBMIT_COMPLETENESS="verified"
     CNTOOLS_TRANSACTION_SUBMIT_VKEY_WITNESS_COUNT="${CNTOOLS_TRANSACTION_WITNESS_COUNT}"
   else
     cntools_transaction_envelope_kind_into \
@@ -136,7 +125,6 @@ cntools_transaction_submit_input_prepare() {
     cntools_transaction_witness_signatures_valid \
       "${transaction_id}" "${witnesses}" || return 1
     CNTOOLS_TRANSACTION_SUBMIT_INPUT_KIND="external-envelope"
-    CNTOOLS_TRANSACTION_SUBMIT_COMPLETENESS="unverified"
     CNTOOLS_TRANSACTION_SUBMIT_VKEY_WITNESS_COUNT="$(
       jq -r 'length' <<< "${witnesses}"
     )" || return 1
@@ -208,7 +196,6 @@ cntools_transaction_submit_local() {
     return 1
   fi
 
-  CNTOOLS_TRANSACTION_SUBMIT_BACKEND="local"
   CNTOOLS_TRANSACTION_SUBMIT_MESSAGE="Transaction accepted by the local node."
   CNTOOLS_TRANSACTION_SUBMIT_ACCEPTED_ID="${transaction_id}"
   CNTOOLS_TRANSACTION_SUBMIT_ACCEPTED_SECONDS="${SECONDS}"
@@ -422,8 +409,6 @@ cntools_transaction_submit_log_koios_replay() {
     *) return 1 ;;
   esac
 
-  CNTOOLS_TRANSACTION_SUBMIT_CBOR_SHA256="${digest}"
-  CNTOOLS_TRANSACTION_SUBMIT_CBOR_BYTES="${byte_count}"
   cntools_transaction_log API \
     "Submission provenance: transaction_id=${transaction_id} signed_cbor_sha256=${digest} bytes=${byte_count}"
 
@@ -525,7 +510,6 @@ cntools_transaction_submit_koios() {
     cntools_http_secret_file_remove "${auth_header_file}" || true
   cntools_transaction_submit_http_status_into \
     http_status "${header_file}" || http_status=""
-  CNTOOLS_TRANSACTION_SUBMIT_HTTP_STATUS="${http_status}"
 
   if (( request_status != 0 )); then
     cntools_transaction_submit_response_detail_into \
@@ -556,7 +540,6 @@ cntools_transaction_submit_koios() {
     return 1
   fi
 
-  CNTOOLS_TRANSACTION_SUBMIT_BACKEND="koios"
   CNTOOLS_TRANSACTION_SUBMIT_MESSAGE="Transaction accepted by Koios."
   CNTOOLS_TRANSACTION_SUBMIT_ACCEPTED_ID="${transaction_id}"
   CNTOOLS_TRANSACTION_SUBMIT_ACCEPTED_SECONDS="${SECONDS}"
@@ -564,63 +547,4 @@ cntools_transaction_submit_koios() {
     "submitted id=${transaction_id} backend=koios network=${CNTOOLS_NETWORK} http=202"
 }
 
-cntools_transaction_submit_impl() {
-  local input_file="${1:-}"
-  local backend=""
 
-  if [[ "${CNTOOLS_MODE:-}" == "offline" ]]; then
-    cntools_transaction_set_error \
-      "Transaction submission is unavailable in offline mode. Move the transaction envelope or complete CNTools package to an online CNTools session."
-    return 1
-  fi
-  if cntools_transaction_submit_local_ready; then
-    backend="local"
-  elif [[ "${CNTOOLS_KOIOS_ENABLED:-N}" == "Y" ]]; then
-    backend="koios"
-  else
-    cntools_transaction_set_error \
-      "No transaction submission backend is available. Start a reachable local node or enable Koios."
-    return 1
-  fi
-
-  cntools_transaction_submit_input_prepare "${input_file}" || return 1
-  case "${backend}" in
-    local)
-      cntools_transaction_submit_local \
-        "${CNTOOLS_TRANSACTION_SIGNED_FILE}" \
-        "${CNTOOLS_TRANSACTION_SUBMIT_ID}"
-      ;;
-    koios)
-      cntools_transaction_submit_koios \
-        "${CNTOOLS_TRANSACTION_SIGNED_FILE}" \
-        "${CNTOOLS_TRANSACTION_SUBMIT_ID}"
-      ;;
-    *) return 2 ;;
-  esac
-}
-
-cntools_transaction_submit() {
-  local input_file="${1:-}"
-  local temporary_start=${#CNTOOLS_TRANSACTION_TEMP_FILES[@]}
-  local status=0
-  local candidate=""
-  local -a temporary_files=()
-
-  cntools_transaction_submit_reset
-  cntools_transaction_clear_error
-  cntools_transaction_package_reset_loaded
-  if cntools_transaction_submit_impl "${input_file}"; then
-    status=0
-  else
-    status=$?
-  fi
-
-  # Submission consumes private snapshots only. Remove every transaction temp
-  # allocated by this call while leaving the caller's input untouched.
-  temporary_files=("${CNTOOLS_TRANSACTION_TEMP_FILES[@]:temporary_start}")
-  for candidate in "${temporary_files[@]}"; do
-    cntools_transaction_temp_remove "${candidate}" || true
-  done
-  cntools_transaction_package_reset_loaded
-  return "${status}"
-}

@@ -46,8 +46,6 @@ for case in "340000000|340 ADA|340.000000 ADA" "340050000|340.05 ADA|340.050000 
   assert_eq "$(cntools_number_format_lovelace "${lovelace}")" "${full}" "${lovelace} lovelace, full precision"
 done
 CNTOOLS_AMOUNT_PRECISION=''
-assert_eq "$(cntools_number_format_lovelace_compact 1500000000000000)" 1.5B "compact billions"
-assert_eq "$(cntools_number_format_lovelace_compact 2000000)" 2 "compact whole ADA"
 assert_eq "$(cntools_number_format_units 340050000 6) ADA" "340.05 ADA" "a fee row built from the units formatter"
 assert_eq "$(cntools_number_format_units 1200 0)" 1,200 "no decimals"
 assert_eq "$(cntools_number_format 1000.500)" 1,000.500 "plain numbers are never trimmed"

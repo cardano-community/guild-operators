@@ -25,21 +25,17 @@ CNTOOLS_WALLET_REGISTER_DEPOSIT=""
 CNTOOLS_WALLET_REGISTER_LOVELACE="0"
 CNTOOLS_WALLET_REGISTER_AVAILABLE_LOVELACE="0"
 CNTOOLS_WALLET_REGISTER_AVAILABLE_INPUT_COUNT=0
-CNTOOLS_WALLET_REGISTER_TOTAL_VALUE=""
 CNTOOLS_WALLET_REGISTER_ASSET_COUNT=0
 CNTOOLS_WALLET_REGISTER_INITIAL_FEE="0"
 CNTOOLS_WALLET_REGISTER_FEE=0
 CNTOOLS_WALLET_REGISTER_LIFETIME=1800
 CNTOOLS_WALLET_REGISTER_EXPIRY=""
-CNTOOLS_WALLET_REGISTER_SELECTION_REASON=""
 CNTOOLS_WALLET_REGISTER_POLICY_JSON="{}"
 CNTOOLS_WALLET_REGISTER_CAN_SIGN="N"
 CNTOOLS_WALLET_REGISTER_OPERATION="register"
 CNTOOLS_WALLET_REGISTER_TITLE="Register"
 CNTOOLS_WALLET_REGISTER_PATH="/ Wallet / Register"
 CNTOOLS_WALLET_REGISTER_NOUN="registration"
-CNTOOLS_WALLET_REGISTER_VERB="register"
-CNTOOLS_WALLET_REGISTER_PAST="registered"
 CNTOOLS_WALLET_REGISTER_CERTIFICATE_COMMAND="registration-certificate"
 CNTOOLS_WALLET_REGISTER_INTENT="Wallet stake registration"
 CNTOOLS_WALLET_REGISTER_SUMMARY_ACTION="stake-address-registration"
@@ -63,8 +59,6 @@ cntools_wallet_register_operation_set() {
       CNTOOLS_WALLET_REGISTER_TITLE=Delegate
       CNTOOLS_WALLET_REGISTER_PATH='/ Vote / On-chain Governance / Delegate'
       CNTOOLS_WALLET_REGISTER_NOUN='voting delegation'
-      CNTOOLS_WALLET_REGISTER_VERB='delegate voting power'
-      CNTOOLS_WALLET_REGISTER_PAST=delegated
       CNTOOLS_WALLET_REGISTER_CERTIFICATE_COMMAND=vote-delegation-certificate
       CNTOOLS_WALLET_REGISTER_INTENT='Governance voting delegation'
       CNTOOLS_WALLET_REGISTER_SUMMARY_ACTION=voting-delegation
@@ -77,8 +71,6 @@ cntools_wallet_register_operation_set() {
       CNTOOLS_WALLET_REGISTER_TITLE=Delegate
       CNTOOLS_WALLET_REGISTER_PATH='/ Funds / Delegate'
       CNTOOLS_WALLET_REGISTER_NOUN=delegation
-      CNTOOLS_WALLET_REGISTER_VERB=delegate
-      CNTOOLS_WALLET_REGISTER_PAST=delegated
       CNTOOLS_WALLET_REGISTER_CERTIFICATE_COMMAND=stake-delegation-certificate
       CNTOOLS_WALLET_REGISTER_INTENT='Stake pool delegation'
       CNTOOLS_WALLET_REGISTER_SUMMARY_ACTION=stake-pool-delegation
@@ -91,8 +83,6 @@ cntools_wallet_register_operation_set() {
       CNTOOLS_WALLET_REGISTER_TITLE="Register"
       CNTOOLS_WALLET_REGISTER_PATH="/ Wallet / Register"
       CNTOOLS_WALLET_REGISTER_NOUN="registration"
-      CNTOOLS_WALLET_REGISTER_VERB="register"
-      CNTOOLS_WALLET_REGISTER_PAST="registered"
       CNTOOLS_WALLET_REGISTER_CERTIFICATE_COMMAND="registration-certificate"
       CNTOOLS_WALLET_REGISTER_INTENT="Wallet stake registration"
       CNTOOLS_WALLET_REGISTER_SUMMARY_ACTION="stake-address-registration"
@@ -105,8 +95,6 @@ cntools_wallet_register_operation_set() {
       CNTOOLS_WALLET_REGISTER_TITLE="Unregister"
       CNTOOLS_WALLET_REGISTER_PATH="/ Wallet / Unregister"
       CNTOOLS_WALLET_REGISTER_NOUN="de-registration"
-      CNTOOLS_WALLET_REGISTER_VERB="de-register"
-      CNTOOLS_WALLET_REGISTER_PAST="de-registered"
       CNTOOLS_WALLET_REGISTER_CERTIFICATE_COMMAND="deregistration-certificate"
       CNTOOLS_WALLET_REGISTER_INTENT="Wallet stake de-registration"
       CNTOOLS_WALLET_REGISTER_SUMMARY_ACTION="stake-address-deregistration"
@@ -137,11 +125,9 @@ cntools_wallet_register_reset_chain_state() {
   CNTOOLS_WALLET_REGISTER_LOVELACE="0"
   CNTOOLS_WALLET_REGISTER_AVAILABLE_LOVELACE="0"
   CNTOOLS_WALLET_REGISTER_AVAILABLE_INPUT_COUNT=0
-  CNTOOLS_WALLET_REGISTER_TOTAL_VALUE=""
   CNTOOLS_WALLET_REGISTER_ASSET_COUNT=0
   CNTOOLS_WALLET_REGISTER_INITIAL_FEE="0"
   CNTOOLS_WALLET_REGISTER_FEE=0
-  CNTOOLS_WALLET_REGISTER_SELECTION_REASON=""
   CNTOOLS_WALLET_REGISTER_POLICY_JSON="{}"
   CNTOOLS_WALLET_REGISTER_INPUTS=()
   CNTOOLS_WALLET_REGISTER_ASSET_IDS=()
@@ -167,36 +153,7 @@ cntools_wallet_register_uint_normalize_into() {
   _cntools_output_ref="${_cntools_value}"
 }
 
-cntools_wallet_register_uint_greater() {
-  local LC_ALL=C
-  local left=""
-  local right=""
 
-  cntools_wallet_register_uint_normalize_into left "${1:-}" || return 2
-  cntools_wallet_register_uint_normalize_into right "${2:-}" || return 2
-  (( ${#left} > ${#right} )) ||
-    { (( ${#left} == ${#right} )) && [[ "${left}" > "${right}" ]]; }
-}
-
-cntools_wallet_register_asset_add() {
-  local asset_id="${1:-}"
-  local quantity="${2:-}"
-  local current=""
-  local total=""
-
-  asset_id="${asset_id,,}"
-  [[ "${asset_id}" =~ ^[0-9a-f]{56}\.([0-9a-f]{2}){0,32}$ &&
-     "${quantity}" =~ ^[0-9]+$ && ${#quantity} -le 80 ]] || return 2
-  cntools_wallet_register_uint_normalize_into quantity "${quantity}" || return 1
-  if [[ -z "${CNTOOLS_WALLET_REGISTER_ASSETS[${asset_id}]+x}" ]]; then
-    CNTOOLS_WALLET_REGISTER_ASSET_IDS+=("${asset_id}")
-    CNTOOLS_WALLET_REGISTER_ASSETS["${asset_id}"]="${quantity}"
-  else
-    current="${CNTOOLS_WALLET_REGISTER_ASSETS[${asset_id}]}"
-    cntools_uint_add_into total "${current}" "${quantity}" || return 1
-    CNTOOLS_WALLET_REGISTER_ASSETS["${asset_id}"]="${total}"
-  fi
-}
 
 cntools_wallet_register_sort_assets() {
   local sorted=""
@@ -212,20 +169,10 @@ cntools_wallet_register_sort_assets() {
   CNTOOLS_WALLET_REGISTER_ASSET_IDS=("${asset_ids[@]}")
 }
 
-cntools_wallet_register_total_value_build() {
-  local asset_id=""
-  local cli_asset_id=""
-  local value="${CNTOOLS_WALLET_REGISTER_LOVELACE}"
-
+cntools_wallet_register_assets_count() {
   [[ "${CNTOOLS_WALLET_REGISTER_LOVELACE}" =~ ^[0-9]+$ ]] || return 1
   cntools_wallet_register_sort_assets || return 1
-  for asset_id in "${CNTOOLS_WALLET_REGISTER_ASSET_IDS[@]}"; do
-    cli_asset_id="${asset_id}"
-    [[ "${cli_asset_id}" != *. ]] || cli_asset_id="${cli_asset_id%.}"
-    value+=" + ${CNTOOLS_WALLET_REGISTER_ASSETS[${asset_id}]} ${cli_asset_id}"
-  done
   CNTOOLS_WALLET_REGISTER_ASSET_COUNT="${#CNTOOLS_WALLET_REGISTER_ASSET_IDS[@]}"
-  CNTOOLS_WALLET_REGISTER_TOTAL_VALUE="${value}"
 }
 
 cntools_wallet_register_inventory_use_indices() {
@@ -244,7 +191,7 @@ cntools_wallet_register_inventory_use_indices() {
       CNTOOLS_WALLET_REGISTER_ASSET_IDS \
       CNTOOLS_WALLET_REGISTER_ASSETS || return 1
   done
-  cntools_wallet_register_total_value_build
+  cntools_wallet_register_assets_count
 }
 
 # Stake and governance builds price no reference scripts, so every loader
@@ -557,7 +504,6 @@ cntools_wallet_register_select_inputs() {
     return 9
   fi
 
-  CNTOOLS_WALLET_REGISTER_SELECTION_REASON="${CNTOOLS_COIN_SELECTION_REASON}"
   cntools_wallet_register_inventory_use_indices \
     "${CNTOOLS_COIN_SELECTED_INDICES[@]}" || return 1
   CNTOOLS_WALLET_REGISTER_POLICY_JSON="$(cntools_change_policy_json)" ||

@@ -5,7 +5,7 @@ CNTOOLS_CATALYST_METADATA='' CNTOOLS_CATALYST_NONCE='' CNTOOLS_CATALYST_STAKE_PU
 CNTOOLS_CATALYST_REWARD='' CNTOOLS_CATALYST_REWARD_HEX=''
 
 cntools_catalyst_identity() {
-  local directory="$1" normalized='' response='' errors='' form='' status=0
+  local directory="$1" normalized='' response='' errors='' status=0
   cntools_payment_prepare_wallet "${directory}" &&
     cntools_wallet_key_validate "${directory}/${CNTOOLS_WALLET_STAKE_VKEY_FILENAME}" stake any || {
     cntools_catalyst_fail 'Catalyst registration needs a payment wallet with a key-based stake identity.'; return 1;

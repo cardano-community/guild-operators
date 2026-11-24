@@ -8,8 +8,6 @@ CNTOOLS_TRANSACTION_HARDWARE_TIMEOUT="${CNTOOLS_TRANSACTION_HARDWARE_TIMEOUT:-30
   CNTOOLS_TRANSACTION_HARDWARE_TIMEOUT=300
 CNTOOLS_TRANSACTION_HWCLI=""
 CNTOOLS_TRANSACTION_HWCLI_VERSION=""
-CNTOOLS_TRANSACTION_SIGN_OUTPUT=""
-CNTOOLS_TRANSACTION_SIGN_ADDED=0
 CNTOOLS_TRANSACTION_SIGN_COMPLETE="N"
 
 declare -ag CNTOOLS_TRANSACTION_SELECTED_KEY_IDS=()
@@ -705,8 +703,6 @@ cntools_transaction_sign_package() {
   local -n signer_sources_ref="${signer_sources_name}"
   local -n change_sources_ref="${change_sources_name}"
 
-  CNTOOLS_TRANSACTION_SIGN_OUTPUT=""
-  CNTOOLS_TRANSACTION_SIGN_ADDED=0
   CNTOOLS_TRANSACTION_SIGN_COMPLETE="N"
   cntools_transaction_clear_error
   cntools_transaction_package_load "${input_file}" || return 1
@@ -878,8 +874,6 @@ cntools_transaction_sign_package() {
   cntools_transaction_package_hardware_groups_valid \
     "${working_file}" || return 1
   cntools_transaction_publish "${working_file}" "${output_file}" || return 1
-  CNTOOLS_TRANSACTION_SIGN_OUTPUT="${output_file}"
-  CNTOOLS_TRANSACTION_SIGN_ADDED="${added}"
   cntools_transaction_log TRANSACTION \
     "signing complete file=${output_file} added=${added} complete=${CNTOOLS_TRANSACTION_SIGN_COMPLETE}"
 }

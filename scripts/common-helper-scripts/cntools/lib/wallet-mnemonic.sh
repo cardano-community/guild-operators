@@ -5,7 +5,6 @@
 
 declare -ag CNTOOLS_WALLET_MNEMONIC_TEMP_FILES=()
 declare -g CNTOOLS_WALLET_MNEMONIC_ERROR=""
-declare -g CNTOOLS_WALLET_MNEMONIC_ORIGIN=""
 declare -g CNTOOLS_WALLET_MNEMONIC_ACCOUNT=""
 declare -g CNTOOLS_WALLET_MNEMONIC_KEY_INDEX=""
 # Y only when Cardano CLI rejected the phrase itself (an unknown word, a
@@ -188,7 +187,6 @@ cntools_wallet_mnemonic_set_error() {
 
 cntools_wallet_mnemonic_reset_result() {
   CNTOOLS_WALLET_MNEMONIC_ERROR=""
-  CNTOOLS_WALLET_MNEMONIC_ORIGIN=""
   CNTOOLS_WALLET_MNEMONIC_ACCOUNT=""
   CNTOOLS_WALLET_MNEMONIC_KEY_INDEX=""
   CNTOOLS_WALLET_MNEMONIC_PHRASE_REJECTED="N"
@@ -754,7 +752,6 @@ cntools_wallet_mnemonic_create() {
   fi
   CNTOOLS_WALLET_CREATED_NAME="${name}"
   CNTOOLS_WALLET_CREATED_DIRECTORY="${target}"
-  CNTOOLS_WALLET_MNEMONIC_ORIGIN="${origin}"
   CNTOOLS_WALLET_MNEMONIC_ACCOUNT="${account}"
   CNTOOLS_WALLET_MNEMONIC_KEY_INDEX="${key_index}"
   cntools_wallet_mnemonic_log WALLET \

@@ -730,14 +730,6 @@ cntools_gum_breadcrumb_into() {
   CNTOOLS_GUM_BREADCRUMB_FRAGMENTS["${cache_id}"]="${output_ref}"
 }
 
-cntools_gum_breadcrumb() {
-  local breadcrumb=""
-  local rendered=""
-
-  cntools_ui_path_into breadcrumb "${1:-/}" || return 1
-  cntools_gum_breadcrumb_into rendered "${breadcrumb}" "@adhoc" || return 1
-  printf '%s' "${rendered}"
-}
 
 cntools_gum_health_color_into() {
   local output_name="${1:-}"
@@ -886,18 +878,12 @@ cntools_gum_header() {
 cntools_ui_init() {
   CNTOOLS_UI_INTERACTIVE="N"
   [[ -t 0 && -t 1 ]] && CNTOOLS_UI_INTERACTIVE="Y"
-  CNTOOLS_UI_CAPABLE="Y"
   CNTOOLS_UI_CLEANED="N"
   CNTOOLS_UI_UTF8="Y"
   CNTOOLS_UI_COLUMNS="$(cntools_gum_width)"
-  CNTOOLS_UI_LINES="$(tput lines 2>/dev/null || printf '24')"
   CNTOOLS_UI_RESET=""
   CNTOOLS_UI_BOLD=""
-  CNTOOLS_UI_DIM=""
-  CNTOOLS_UI_CYAN=""
-  CNTOOLS_UI_GREEN=""
   CNTOOLS_UI_YELLOW=""
-  CNTOOLS_UI_RED=""
   CNTOOLS_GUM_LAST_HEADER_ROWS=""
   CNTOOLS_GUM_LAST_HEADER_MODE=""
   CNTOOLS_GUM_STATIC_HEADER_KEY=""
@@ -1040,9 +1026,6 @@ cntools_ui_render_detail() {
     --foreground "${CNTOOLS_GUM_COLOR_BRAND}" "${1:-}"
 }
 
-cntools_ui_render_empty() {
-  cntools_ui_render_status warn "No actions are available in this menu."
-}
 
 cntools_ui_confirm() {
   cntools_ui_seen
@@ -1076,14 +1059,6 @@ cntools_ui_wait() {
     --cursor.foreground "${CNTOOLS_GUM_COLOR_BRAND}" >/dev/null || true
 }
 
-cntools_ui_read_key() {
-  local _cntools_output_name="${1:-}"
-
-  [[ "${_cntools_output_name}" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || return 2
-  local -n _cntools_output_ref="${_cntools_output_name}"
-  cntools_ui_wait
-  _cntools_output_ref="enter"
-}
 
 # Reusable interaction helpers for actions added later.
 cntools_ui_input() {
@@ -1218,20 +1193,6 @@ cntools_ui_choose_matching() {
   return "${_cntools_status}"
 }
 
-cntools_ui_static_table() {
-  local header="${1:-}"
-  local row=""
-  shift || return 2
-
-  [[ -n "${header}" ]] || return 2
-  cntools_gum style --margin "0 2" --padding "0 1" --bold \
-    --foreground "${CNTOOLS_GUM_COLOR_BRAND}" \
-    --background "${CNTOOLS_GUM_COLOR_SURFACE}" "${header}" || return 1
-  for row in "$@"; do
-    cntools_gum style --margin "0 2" --padding "0 1" \
-      --foreground "${CNTOOLS_GUM_COLOR_TEXT}" "${row}" || return 1
-  done
-}
 
 cntools_ui_pager() {
   cntools_gum pager --show-line-numbers=false \
@@ -1587,13 +1548,6 @@ cntools_ui_table() {
   printf '\n'
 }
 
-cntools_ui_spin() {
-  local title="${1:-Working…}"
-  shift || true
-  (( $# > 0 )) || return 2
-  cntools_gum spin --spinner dot --title "${title}" \
-    --spinner.foreground "${CNTOOLS_GUM_COLOR_BRAND}" -- "$@"
-}
 
 # Run a shell function in this process while Gum owns only the spinner. Running
 # the function itself through `gum spin --` would put it in a child process and
@@ -1733,13 +1687,6 @@ cntools_gum_menu_row_into() {
     "${CNTOOLS_MENU_DESCRIPTIONS[index]}" "${suffix}"
 }
 
-cntools_gum_menu_row() {
-  local index="${1:-0}"
-  local row=""
-
-  cntools_gum_menu_row_into row "${index}" || return 1
-  printf '%s\n' "${row}"
-}
 
 cntools_gum_menu_run() {
   local -a menu_stack=()

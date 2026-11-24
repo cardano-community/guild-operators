@@ -31,7 +31,6 @@ cntools_theme_apply() {
   case "${theme_id}" in
     default)
       CNTOOLS_THEME_COLOR_CANVAS="#1B1B1F"
-      CNTOOLS_THEME_COLOR_DEEP="#161618"
       CNTOOLS_THEME_COLOR_SURFACE="#202127"
       CNTOOLS_THEME_COLOR_DIVIDER="#2E2E32"
       CNTOOLS_THEME_COLOR_TEXT="#DFDFD6"
@@ -52,7 +51,6 @@ cntools_theme_apply() {
       # navigation, blue identifiers and warm gold quantities. Keep familiar
       # green/amber/red status colors so the theme never changes their meaning.
       CNTOOLS_THEME_COLOR_CANVAS="#0B1220"
-      CNTOOLS_THEME_COLOR_DEEP="#070D18"
       CNTOOLS_THEME_COLOR_SURFACE="#111E31"
       CNTOOLS_THEME_COLOR_DIVIDER="#27415F"
       CNTOOLS_THEME_COLOR_TEXT="#E6F0FA"
@@ -73,7 +71,6 @@ cntools_theme_apply() {
   # Compatibility aliases keep the Gum implementation decoupled from theme
   # definitions while the semantic roles remain available to action views.
   CNTOOLS_GUM_COLOR_CANVAS="${CNTOOLS_THEME_COLOR_CANVAS}"
-  CNTOOLS_GUM_COLOR_DEEP="${CNTOOLS_THEME_COLOR_DEEP}"
   CNTOOLS_GUM_COLOR_SURFACE="${CNTOOLS_THEME_COLOR_SURFACE}"
   CNTOOLS_GUM_COLOR_DIVIDER="${CNTOOLS_THEME_COLOR_DIVIDER}"
   CNTOOLS_GUM_COLOR_TEXT="${CNTOOLS_THEME_COLOR_TEXT}"
@@ -348,12 +345,6 @@ cntools_theme_style_value_into() {
     "${_cntools_value}"
 }
 
-cntools_theme_style_value() {
-  local styled=""
-
-  cntools_theme_style_value_into styled "${1:-value}" "${2:-}" || return $?
-  printf '%s' "${styled}"
-}
 
 # Source-time defaults keep all downstream UI functions fully defined before
 # startup resolves a saved selection.

@@ -540,14 +540,6 @@ cntools_wallet_display_address() {
 }
 
 
-cntools_wallet_render_table() {
-  local title="${1:-Details}"
-
-  cntools_ui_render_detail "${title}" || return 1
-  cntools_ui_table --separator $'\t' || return 1
-}
-
-
 cntools_wallet_render_table_file() {
   local title="${1:-Details}"
   local source_file="${2:-}"

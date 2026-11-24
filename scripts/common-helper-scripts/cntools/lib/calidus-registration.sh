@@ -6,7 +6,7 @@ CNTOOLS_CALIDUS_REG_COLD='' CNTOOLS_CALIDUS_REG_PUBLIC='' CNTOOLS_CALIDUS_REG_ID
 CNTOOLS_CALIDUS_REG_METADATA='' CNTOOLS_CALIDUS_REG_NONCE=''
 CNTOOLS_CALIDUS_OPERATION=register
 CNTOOLS_CALIDUS_CHAIN_STATE='' CNTOOLS_CALIDUS_CHAIN_NONCE='' CNTOOLS_CALIDUS_CHAIN_PUBLIC=''
-CNTOOLS_CALIDUS_CHAIN_ID='' CNTOOLS_CALIDUS_CHAIN_TX='' CNTOOLS_CALIDUS_CHAIN_STATUS='Not checked'
+CNTOOLS_CALIDUS_CHAIN_ID='' CNTOOLS_CALIDUS_CHAIN_STATUS='Not checked'
 
 cntools_calidus_registration_fail() { cntools_transaction_set_error "$1"; return 1; }
 
@@ -39,7 +39,7 @@ cntools_calidus_registration_identity() {
   CNTOOLS_CALIDUS_REG_PUBLIC='' CNTOOLS_CALIDUS_REG_ID='' CNTOOLS_CALIDUS_REG_COLD=''
   CNTOOLS_CALIDUS_REG_POOL='' CNTOOLS_CALIDUS_REG_HEX=''
   CNTOOLS_CALIDUS_CHAIN_STATUS='Not checked'; CNTOOLS_CALIDUS_CHAIN_STATE=''
-  CNTOOLS_CALIDUS_CHAIN_NONCE=''; CNTOOLS_CALIDUS_CHAIN_PUBLIC=''; CNTOOLS_CALIDUS_CHAIN_ID=''; CNTOOLS_CALIDUS_CHAIN_TX=''
+  CNTOOLS_CALIDUS_CHAIN_NONCE=''; CNTOOLS_CALIDUS_CHAIN_PUBLIC=''; CNTOOLS_CALIDUS_CHAIN_ID=''
   [[ "${CNTOOLS_POOL_IDENTITIES[index]}" == 'Verified cold public key' ]] || {
     cntools_calidus_registration_fail 'A verified pool cold public key is required.'; return 1;
   }
@@ -76,7 +76,7 @@ cntools_calidus_registration_identity() {
 cntools_calidus_registration_lookup() {
   local response='' record='' nonce=''
   CNTOOLS_CALIDUS_CHAIN_STATE=''; CNTOOLS_CALIDUS_CHAIN_STATUS=Unavailable
-  CNTOOLS_CALIDUS_CHAIN_NONCE='' CNTOOLS_CALIDUS_CHAIN_PUBLIC='' CNTOOLS_CALIDUS_CHAIN_ID='' CNTOOLS_CALIDUS_CHAIN_TX=''
+  CNTOOLS_CALIDUS_CHAIN_NONCE='' CNTOOLS_CALIDUS_CHAIN_PUBLIC='' CNTOOLS_CALIDUS_CHAIN_ID=''
   [[ "${CNTOOLS_MODE:-}" != offline && "${CNTOOLS_KOIOS_ENABLED:-N}" == Y && "${CNTOOLS_KOIOS_API:-}" =~ ^https://[^[:space:]]+$ &&
      "${CNTOOLS_CALIDUS_REG_POOL}" =~ ^pool1[0-9a-z]+$ ]] || {
     cntools_calidus_registration_fail 'Calidus on-chain lookup requires Koios. Offline key setup and metadata authorization remain available.'; return 1;
@@ -106,7 +106,6 @@ cntools_calidus_registration_lookup() {
   CNTOOLS_CALIDUS_CHAIN_NONCE="${nonce}"
   CNTOOLS_CALIDUS_CHAIN_PUBLIC="$(jq -r '.[0].calidus_pub_key' "${response}")"
   CNTOOLS_CALIDUS_CHAIN_ID="$(jq -r '.[0].calidus_id_bech32 // empty' "${response}")"
-  CNTOOLS_CALIDUS_CHAIN_TX="$(jq -r '.[0].tx_hash' "${response}")"
   CNTOOLS_CALIDUS_CHAIN_STATUS=Revoked
   if jq -e '.[0].registered' "${response}" >/dev/null; then
     if [[ "${CNTOOLS_CALIDUS_OPERATION}" == revoke ]]; then

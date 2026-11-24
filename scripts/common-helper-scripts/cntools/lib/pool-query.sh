@@ -5,7 +5,6 @@ CNTOOLS_POOL_STATUS=""
 CNTOOLS_POOL_RETIRING=""
 CNTOOLS_POOL_NAME=""
 CNTOOLS_POOL_TICKER=""
-CNTOOLS_POOL_SOURCE=""
 
 cntools_pool_parse_local() {
   local file="$1" bech="$2" hex="$3" record=""
@@ -47,7 +46,7 @@ cntools_pool_parse_koios() {
 cntools_pool_query() {
   local bech="$1" hex="$2" backend="$3" response="" errors="" payload="" status=0
   local -a network=()
-  CNTOOLS_POOL_STATUS=""; CNTOOLS_POOL_RETIRING=""; CNTOOLS_POOL_NAME=""; CNTOOLS_POOL_TICKER=""; CNTOOLS_POOL_SOURCE=""
+  CNTOOLS_POOL_STATUS=""; CNTOOLS_POOL_RETIRING=""; CNTOOLS_POOL_NAME=""; CNTOOLS_POOL_TICKER=""
   cntools_transaction_temp_file response pool-state || return 1
   case "${backend}" in
     local)
@@ -59,14 +58,12 @@ cntools_pool_query() {
         cntools_transaction_log_cli_failure 'Pool state query failed' "${status}" "${errors}" "${response}"
         return 1
       fi
-      cntools_pool_parse_local "${response}" "${bech}" "${hex}" || return $?
-      CNTOOLS_POOL_SOURCE='Local node' ;;
+      cntools_pool_parse_local "${response}" "${bech}" "${hex}" || return $? ;;
     koios)
       [[ "${CNTOOLS_KOIOS_ENABLED:-N}" == Y && "${CNTOOLS_KOIOS_API:-}" =~ ^https://[^[:space:]]+$ ]] || return 1
       payload="$(jq -cn --arg pool "${bech}" '{_pool_bech32_ids:[$pool]}')" || return 1
       cntools_wallet_query_http "${CNTOOLS_KOIOS_API%/}/pool_info" "${payload}" "${response}" || return 1
-      cntools_pool_parse_koios "${response}" "${bech}" "${hex}" || return $?
-      CNTOOLS_POOL_SOURCE='Koios API' ;;
+      cntools_pool_parse_koios "${response}" "${bech}" "${hex}" || return $? ;;
     *) return 2 ;;
   esac
   cntools_transaction_log POOL "Pool checked id=${bech} status=${CNTOOLS_POOL_STATUS} retiring=${CNTOOLS_POOL_RETIRING:-none} source=${backend}"

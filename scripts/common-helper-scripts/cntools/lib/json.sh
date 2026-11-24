@@ -27,14 +27,3 @@ cntools_json_exact_integer_strings() {
   '
 }
 
-
-# Compact scalar paths for a readable tree/property table, preserving values.
-cntools_json_scalar_records() {
-  cntools_json_exact_integer_strings | jq -r '
-    def compact: walk(if type=="object" then with_entries(select(.value!=null and .value!=[] and .value!={}))
-      elif type=="array" then map(select(.!=null and .!=[] and .!={})) else . end);
-    compact | paths(scalars) as $p |
-    [($p|map(if type=="number" then .+1|tostring else . end)|join(" / ")),
-      (getpath($p)|tostring)] |
-    map(gsub("[\u0000-\u001f\u007f]"; " ")) | join("\u001f")'
-}

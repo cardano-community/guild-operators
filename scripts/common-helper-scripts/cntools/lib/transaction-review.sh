@@ -52,7 +52,7 @@ cntools_transaction_review_normalize() {
 }
 
 cntools_transaction_ui_detail_view() {
-  local begin="$1" detail_file='' display_file='' status=0
+  local detail_file='' display_file='' status=0
   local CNTOOLS_DETAIL_METADATA=N CNTOOLS_TABLE_MARGIN=4
   cntools_transaction_temp_file detail_file review-detail || return 2
   cntools_transaction_temp_file display_file review-display || return 2

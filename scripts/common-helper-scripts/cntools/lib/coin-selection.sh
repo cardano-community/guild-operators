@@ -4,11 +4,9 @@
 # shellcheck disable=SC2034
 
 CNTOOLS_COIN_ERROR=""
-CNTOOLS_COIN_REQUIRED_LOVELACE="0"
 CNTOOLS_COIN_SELECTED_LOVELACE="0"
 CNTOOLS_COIN_SELECTED_ASSET_COUNT=0
 CNTOOLS_COIN_PROTECTED_COLLATERAL_INDEX=""
-CNTOOLS_COIN_SELECTION_REASON=""
 # Y when every usable UTxO was selected and the total was still short.
 CNTOOLS_COIN_SHORT=N
 declare -ag CNTOOLS_COIN_SELECTED_INDICES=()
@@ -19,11 +17,9 @@ declare -Ag CNTOOLS_COIN_SELECTED_ASSETS=()
 
 cntools_coin_reset() {
   CNTOOLS_COIN_ERROR=""
-  CNTOOLS_COIN_REQUIRED_LOVELACE="0"
   CNTOOLS_COIN_SELECTED_LOVELACE="0"
   CNTOOLS_COIN_SELECTED_ASSET_COUNT=0
   CNTOOLS_COIN_PROTECTED_COLLATERAL_INDEX=""
-  CNTOOLS_COIN_SELECTION_REASON=""
   CNTOOLS_COIN_SHORT=N
   CNTOOLS_COIN_SELECTED_INDICES=()
   CNTOOLS_COIN_SELECTED_REFS=()
@@ -386,7 +382,6 @@ cntools_coin_next_largest_into() {
 cntools_coin_select_lovelace() {
   local required="${1:-}"
   local strategy="${2:-${CNTOOLS_TX_SELECTION_STRATEGY:-balanced}}"
-  local remaining=""
   local candidate=""
   local maximum_class=4
   local plain_total=0
@@ -397,7 +392,6 @@ cntools_coin_select_lovelace() {
   case "${strategy}" in balanced|fewest-inputs) ;; *) return 2 ;; esac
   (( ${#CNTOOLS_UTXO_REFS[@]} > 0 )) ||
     cntools_coin_fail "No spendable UTxOs are available." || return 1
-  CNTOOLS_COIN_REQUIRED_LOVELACE="${required}"
   cntools_coin_find_collateral_candidate || return 1
   if [[ "${strategy}" == "balanced" ]]; then
     cntools_coin_balanced_class_limit_into maximum_class "${required}" ||
@@ -429,9 +423,7 @@ cntools_coin_select_lovelace() {
       cntools_coin_add_index "${candidate}" || return 1
     done
   fi
-  cntools_uint_subtract_into remaining \
-    "${CNTOOLS_COIN_SELECTED_LOVELACE}" "${required}" || return 1
-  CNTOOLS_COIN_SELECTION_REASON="Selected ${#CNTOOLS_COIN_SELECTED_INDICES[@]} of ${#CNTOOLS_UTXO_REFS[@]} UTxOs; ${CNTOOLS_COIN_SELECTED_ASSET_COUNT} native assets touched; conservative balance margin ${remaining} lovelace."
+  cntools_uint_greater_equal "${CNTOOLS_COIN_SELECTED_LOVELACE}" "${required}" || return 1
 }
 
 # Cover an exact asset demand first, then ADA. The demand is an associative
@@ -448,7 +440,7 @@ cntools_coin_select_value() {
     return $?
   fi
   cntools_coin_reset
-  cntools_uint_normalize_into CNTOOLS_COIN_REQUIRED_LOVELACE "${required}" || return 2
+  cntools_uint_normalize_into required "${required}" || return 2
   cntools_coin_find_collateral_candidate || return 1
   local sorted=""
   sorted="$(printf '%s\n' "${!demand_ref[@]}" | LC_ALL=C sort)" || return 1
@@ -485,5 +477,4 @@ cntools_coin_select_value() {
     (( ${#CNTOOLS_COIN_SELECTED_INDICES[@]} < 100 )) || { cntools_coin_fail_input_limit; return 1; }
     cntools_coin_add_index "${candidate}" || return 1
   done
-  CNTOOLS_COIN_SELECTION_REASON="Selected ${#CNTOOLS_COIN_SELECTED_INDICES[@]} of ${#CNTOOLS_UTXO_REFS[@]} UTxOs to cover ADA and requested native assets."
 }

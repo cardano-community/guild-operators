@@ -13,7 +13,7 @@ cntools_private_keys_fail() {
 
 cntools_private_key_stamp_into() {
   local -n pk_stamp="$1"
-  local pk_path="$2" pk_stat='' pk_digest='' pk_links=''
+  local pk_path="$2" pk_stat='' pk_digest=''
   cntools_transaction_file_safe "${pk_path}" 65536 && [[ -O "${pk_path}" ]] &&
     cntools_transaction_directory_safe "${pk_path%/*}" || return 1
   pk_stat="$(stat -c '%d:%i:%h:%s' -- "${pk_path}" 2>/dev/null || stat -f '%d:%i:%l:%z' "${pk_path}" 2>/dev/null)" || return 1

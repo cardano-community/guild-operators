@@ -8,13 +8,9 @@ declare -Ag CNTOOLS_WALLET_ASSET_DECIMALS=()
 declare -Ag CNTOOLS_WALLET_ASSET_ASCII_NAMES=()
 declare -Ag CNTOOLS_WALLET_ASSET_METADATA_NAMES=()
 declare -Ag CNTOOLS_WALLET_ASSET_TICKERS=()
-declare -Ag CNTOOLS_WALLET_ASSET_DESCRIPTIONS=()
-declare -Ag CNTOOLS_WALLET_ASSET_URLS=()
 declare -Ag CNTOOLS_WALLET_ASSET_TOTAL_SUPPLIES=()
-declare -Ag CNTOOLS_WALLET_ASSET_METADATA_AVAILABLE=()
 declare -Ag CNTOOLS_WALLET_ASSET_METADATA_DECIMALS=()
 declare -Ag CNTOOLS_WALLET_ASSET_CLASSES=()
-declare -Ag CNTOOLS_WALLET_ASSET_CIP67_LABELS=()
 declare -Ag CNTOOLS_WALLET_ASSET_METADATA_SOURCES=()
 declare -Ag CNTOOLS_WALLET_ASSET_METADATA_JSON=()
 declare -Ag CNTOOLS_WALLET_ASSET_METADATA_QUERIED=()
@@ -67,22 +63,7 @@ cntools_wallet_asset_add() {
       CNTOOLS_WALLET_ASSET_DECIMALS["${asset_id}"]="$((10#${decimals}))"
     fi
   fi
-  asset_name="${asset_id#*.}"
   CNTOOLS_WALLET_ASSET_CLASSES["${asset_id}"]="FT"
-  case "${asset_name}" in
-    000de140*)
-      CNTOOLS_WALLET_ASSET_CIP67_LABELS["${asset_id}"]="222"
-      ;;
-    0014df10*)
-      CNTOOLS_WALLET_ASSET_CIP67_LABELS["${asset_id}"]="333"
-      ;;
-    001bc280*)
-      CNTOOLS_WALLET_ASSET_CIP67_LABELS["${asset_id}"]="444"
-      ;;
-    *)
-      CNTOOLS_WALLET_ASSET_CIP67_LABELS["${asset_id}"]=""
-      ;;
-  esac
   CNTOOLS_WALLET_ASSET_COUNT="${#CNTOOLS_WALLET_ASSET_IDS[@]}"
 }
 
@@ -192,10 +173,7 @@ cntools_wallet_query_koios_asset_metadata_batch() {
   local metadata_name=""
   local ticker=""
   local decimals=""
-  local description=""
-  local url=""
   local asset_class=""
-  local cip67_label=""
   local metadata_source=""
   local metadata_json=""
 
@@ -661,20 +639,17 @@ cntools_wallet_query_koios_asset_metadata_batch() {
       $row.fingerprint,
       $row.total_supply,
       asset_class($row.total_supply),
-      $cip67,
       $selected.source,
       $name,
       $ticker,
       $decimals,
-      $description,
-      $url,
       $details
     ] | join("\u001f")
   ' "${response_file}" 2>/dev/null)" || return 1
   while IFS=$'\037' read -r \
       policy_id asset_name ascii_name fingerprint total_supply \
-      asset_class cip67_label metadata_source metadata_name ticker \
-      decimals description url metadata_json; do
+      asset_class metadata_source metadata_name ticker \
+      decimals metadata_json; do
     [[ -n "${policy_id}" ]] || continue
     asset_id="${policy_id,,}.${asset_name,,}"
     [[ -n "${CNTOOLS_WALLET_ASSET_QUANTITIES[${asset_id}]+x}" ]] ||
@@ -691,16 +666,10 @@ cntools_wallet_query_koios_asset_metadata_batch() {
     fi
     CNTOOLS_WALLET_ASSET_TOTAL_SUPPLIES["${asset_id}"]="${total_supply}"
     CNTOOLS_WALLET_ASSET_CLASSES["${asset_id}"]="${asset_class}"
-    CNTOOLS_WALLET_ASSET_CIP67_LABELS["${asset_id}"]="${cip67_label}"
     CNTOOLS_WALLET_ASSET_METADATA_SOURCES["${asset_id}"]="${metadata_source}"
     CNTOOLS_WALLET_ASSET_METADATA_JSON["${asset_id}"]="${metadata_json}"
     CNTOOLS_WALLET_ASSET_METADATA_NAMES["${asset_id}"]="${metadata_name}"
     CNTOOLS_WALLET_ASSET_TICKERS["${asset_id}"]="${ticker}"
-    CNTOOLS_WALLET_ASSET_DESCRIPTIONS["${asset_id}"]="${description}"
-    CNTOOLS_WALLET_ASSET_URLS["${asset_id}"]="${url}"
-    if [[ -n "${metadata_source}" ]]; then
-      CNTOOLS_WALLET_ASSET_METADATA_AVAILABLE["${asset_id}"]=1
-    fi
     if [[ "${decimals}" =~ ^[0-9]+$ ]]; then
       if (( 10#${decimals} <= 255 )); then
         CNTOOLS_WALLET_ASSET_METADATA_DECIMALS["${asset_id}"]="$((10#${decimals}))"
@@ -722,10 +691,7 @@ cntools_wallet_query_koios_asset_metadata() {
   CNTOOLS_WALLET_ASSET_ASCII_NAMES=()
   CNTOOLS_WALLET_ASSET_METADATA_NAMES=()
   CNTOOLS_WALLET_ASSET_TICKERS=()
-  CNTOOLS_WALLET_ASSET_DESCRIPTIONS=()
-  CNTOOLS_WALLET_ASSET_URLS=()
   CNTOOLS_WALLET_ASSET_TOTAL_SUPPLIES=()
-  CNTOOLS_WALLET_ASSET_METADATA_AVAILABLE=()
   CNTOOLS_WALLET_ASSET_METADATA_DECIMALS=()
   CNTOOLS_WALLET_ASSET_METADATA_SOURCES=()
   CNTOOLS_WALLET_ASSET_METADATA_JSON=()

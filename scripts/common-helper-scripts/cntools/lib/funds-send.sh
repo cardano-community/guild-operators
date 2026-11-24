@@ -14,7 +14,6 @@ CNTOOLS_SEND_CREDENTIAL=""
 CNTOOLS_SEND_MODE=exact
 CNTOOLS_SEND_FEE=0
 CNTOOLS_SEND_EXPIRY=""
-CNTOOLS_SEND_POLICY='{}'
 # AMOUNTS are what the user entered; PAID are the built outputs (minimum ADA
 # raised, Max / Send everything resolved) and are empty until a build.
 declare -ag CNTOOLS_SEND_ADDRESSES=() CNTOOLS_SEND_LABELS=() CNTOOLS_SEND_AMOUNTS=() CNTOOLS_SEND_PAID=()
@@ -342,7 +341,6 @@ cntools_send_prepare_balanced_body() {
   CNTOOLS_TRANSACTION_TEMP_FILES+=("${body}")
   policy="$(cntools_change_policy_json | jq -c --arg mode "${CNTOOLS_SEND_MODE}" \
     '. + {selectionApplied: (if $mode == "exact" or $mode == "metadata" then .selection else "all-inputs" end)}')" || return 1
-  CNTOOLS_SEND_POLICY="${policy}"
   summary="$(jq -cn --arg wallet "${CNTOOLS_SEND_WALLET}" --arg mode "${CNTOOLS_SEND_MODE}" \
     --arg fee "${CNTOOLS_SEND_FEE}" --arg source "${CNTOOLS_FUNDING_BACKEND}" \
     --argjson transactionPolicy "${policy}" --argjson context "${context}" \
