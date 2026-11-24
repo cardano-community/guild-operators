@@ -11,7 +11,7 @@ on:
 
 env:
   # Keep in step with PINS_BRANCH in pins.yml.
-  PINS_BRANCH: cntools-rebuild
+  PINS_BRANCH: alpha
 
 jobs:
   check:

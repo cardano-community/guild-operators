@@ -26,8 +26,9 @@
 ######################################
 
 # Pre-release networks deploy from this branch unless a deployment has stored
-# its own. Their pin updates land here. Switch it to alpha when cntools-rebuild
-# merges, together with PINS_BRANCH in .github/workflows/pins.yml.
+# its own, and their pin updates land here (PINS_BRANCH in pins.yml). Until
+# cntools-rebuild merges into alpha, alpha has no such networks: switch this to
+# alpha in the last commit before that merge.
 GUILD_PRERELEASE_BRANCH="cntools-rebuild"
 
 export LANG="C.UTF-8"

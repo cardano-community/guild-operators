@@ -12,9 +12,9 @@ on:
     - cron: '17 */6 * * *'
 
 env:
-  # These networks deploy from this branch. Switch it to alpha when cntools-rebuild
-  # merges, together with GUILD_PRERELEASE_BRANCH in guild-deploy.sh.
-  PINS_BRANCH: cntools-rebuild
+  # The branch the pre-release networks deploy from (GUILD_PRERELEASE_BRANCH in
+  # guild-deploy.sh); pin updates are proposed against it.
+  PINS_BRANCH: alpha
 
 jobs:
   update:
