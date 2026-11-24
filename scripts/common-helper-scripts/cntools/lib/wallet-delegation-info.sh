@@ -11,7 +11,10 @@ cntools_wallet_delegation_info_collect() {
   cntools_wallet_query_temp_file response || return 1
   if [[ -n "${CNTOOLS_WALLET_POOL_DELEGATION:-}" ]] && cntools_pool_id_into pool pool_hex "${CNTOOLS_WALLET_POOL_DELEGATION}"; then
     payload="$(jq -nc --arg id "${pool}" '{_pool_bech32_ids:[$id]}')" || return 1
-    if cntools_wallet_query_http "${CNTOOLS_KOIOS_API%/}/pool_info" "${payload}" "${response}" &&
+    # The pool role check may already hold the validated record.
+    if declare -p CNTOOLS_WALLET_LINK_KOIOS >/dev/null 2>&1 && [[ -n "${CNTOOLS_WALLET_LINK_KOIOS[${pool}]:-}" ]]; then
+      CNTOOLS_WALLET_DELEGATED_POOL="${CNTOOLS_WALLET_LINK_KOIOS[${pool}]}"
+    elif cntools_wallet_query_http "${CNTOOLS_KOIOS_API%/}/pool_info" "${payload}" "${response}" &&
         jq -se --arg id "${pool}" --arg hash "${pool_hex}" 'length == 1 and (.[0] | type == "array" and length <= 1 and
           all(.[]; .pool_id_bech32 == $id and .pool_id_hex == $hash))' "${response}" >/dev/null; then
       CNTOOLS_WALLET_DELEGATED_POOL="$(jq -c '.[0] // {}' "${response}")"

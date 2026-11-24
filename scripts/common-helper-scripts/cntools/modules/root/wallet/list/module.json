@@ -27,6 +27,11 @@
     "wallet-list-query.sh",
     "asset-view.sh",
     "wallet-view.sh",
-    "wallet-query.sh"
+    "wallet-query.sh",
+    "filesystem.sh",
+    "transaction.sh",
+    "pool-id.sh",
+    "pool.sh",
+    "wallet-pool-link.sh"
   ]
 }

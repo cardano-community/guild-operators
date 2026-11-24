@@ -5,6 +5,8 @@
 declare -Ag CNTOOLS_WALLET_LIST_ADDRESS_BALANCES=()
 declare -Ag CNTOOLS_WALLET_LIST_ADDRESS_ASSETS=()
 declare -Ag CNTOOLS_WALLET_LIST_STAKE_REWARDS=()
+declare -Ag CNTOOLS_WALLET_LIST_STAKE_POOLS=()
+declare -Ag CNTOOLS_WALLET_LIST_STAKE_STATES=()
 
 declare -ag CNTOOLS_WALLET_LIST_BASE_ADDRESSES=()
 declare -ag CNTOOLS_WALLET_LIST_PAYMENT_ADDRESSES=()
@@ -16,6 +18,9 @@ declare -ag CNTOOLS_WALLET_LIST_REWARD_LOVELACE=()
 declare -ag CNTOOLS_WALLET_LIST_TOTAL_LOVELACE=()
 declare -ag CNTOOLS_WALLET_LIST_TOKEN_COUNTS=()
 declare -ag CNTOOLS_WALLET_LIST_QUERY_STATUSES=()
+# yes, no or empty while unknown, and the pool the stake is delegated to.
+declare -ag CNTOOLS_WALLET_LIST_STAKE_REGISTERED=()
+declare -ag CNTOOLS_WALLET_LIST_POOL_DELEGATIONS=()
 
 cntools_wallet_list_query_reset() {
   local index=0
@@ -30,9 +35,13 @@ cntools_wallet_list_query_reset() {
   CNTOOLS_WALLET_LIST_TOTAL_LOVELACE=()
   CNTOOLS_WALLET_LIST_TOKEN_COUNTS=()
   CNTOOLS_WALLET_LIST_QUERY_STATUSES=()
+  CNTOOLS_WALLET_LIST_STAKE_REGISTERED=()
+  CNTOOLS_WALLET_LIST_POOL_DELEGATIONS=()
   CNTOOLS_WALLET_LIST_ADDRESS_BALANCES=()
   CNTOOLS_WALLET_LIST_ADDRESS_ASSETS=()
   CNTOOLS_WALLET_LIST_STAKE_REWARDS=()
+  CNTOOLS_WALLET_LIST_STAKE_POOLS=()
+  CNTOOLS_WALLET_LIST_STAKE_STATES=()
   CNTOOLS_WALLET_LIST_QUERY_LEVEL=""
   CNTOOLS_WALLET_LIST_QUERY_SUMMARY=""
   # Y once live balances were requested: List then shows a Total (or —).
@@ -48,7 +57,10 @@ cntools_wallet_list_query_reset() {
     CNTOOLS_WALLET_LIST_TOTAL_LOVELACE[index]=""
     CNTOOLS_WALLET_LIST_TOKEN_COUNTS[index]=""
     CNTOOLS_WALLET_LIST_QUERY_STATUSES[index]="unavailable"
+    CNTOOLS_WALLET_LIST_STAKE_REGISTERED[index]=""
+    CNTOOLS_WALLET_LIST_POOL_DELEGATIONS[index]=""
   done
+  ! declare -F cntools_wallet_link_reset >/dev/null 2>&1 || cntools_wallet_link_reset
 }
 
 
@@ -199,7 +211,11 @@ cntools_wallet_list_query_koios_stake_batch() {
   local reward_address=""
   local reward_lovelace=""
   local reward_rows=""
+  local registered=""
+  local pool=""
   local -A batch_rewards=()
+  local -A batch_states=()
+  local -A batch_pools=()
 
   (( $# > 0 )) || return 2
   cntools_wallet_query_temp_file response_file || return 1
@@ -219,7 +235,9 @@ cntools_wallet_list_query_koios_stake_batch() {
       (.stake_address | type == "string") and
       (.stake_address as $address | ($requested | index($address)) != null) and
       (.status == "registered" or .status == "not registered") and
-      (.rewards_available | uint)) and
+      (.rewards_available | uint) and
+      (.delegated_pool == null or (.delegated_pool | type == "string" and
+        test("^pool1[023456789acdefghjklmnpqrstuvwxyz]{51}$")))) and
     ([.[].stake_address] | unique | length) == length
   ' "${response_file}" >/dev/null 2>&1 || {
     cntools_wallet_log ERROR "Koios account_info batch returned invalid JSON"
@@ -230,18 +248,26 @@ cntools_wallet_list_query_koios_stake_batch() {
   # those are known zero-reward accounts, not missing data.
   for reward_address in "$@"; do
     batch_rewards["${reward_address}"]=0
+    batch_states["${reward_address}"]=no
+    batch_pools["${reward_address}"]=""
   done
   reward_rows="$(jq -r '
-    .[] | [.stake_address, .rewards_available] | @tsv
+    .[] | [.stake_address, .rewards_available,
+      (if .status == "registered" then "yes" else "no" end),
+      (.delegated_pool // "-")] | @tsv
   ' "${response_file}")" || return 1
-  while IFS=$'\t' read -r reward_address reward_lovelace; do
+  while IFS=$'\t' read -r reward_address reward_lovelace registered pool; do
     [[ -n "${reward_address}" || -n "${reward_lovelace}" ]] || continue
     [[ -n "${reward_address}" && "${reward_lovelace}" =~ ^[0-9]+$ ]] ||
       return 1
     batch_rewards["${reward_address}"]="${reward_lovelace}"
+    batch_states["${reward_address}"]="${registered}"
+    [[ "${pool}" == - ]] || batch_pools["${reward_address}"]="${pool}"
   done <<< "${reward_rows}"
   for reward_address in "${!batch_rewards[@]}"; do
     CNTOOLS_WALLET_LIST_STAKE_REWARDS["${reward_address}"]="${batch_rewards[${reward_address}]}"
+    CNTOOLS_WALLET_LIST_STAKE_STATES["${reward_address}"]="${batch_states[${reward_address}]}"
+    CNTOOLS_WALLET_LIST_STAKE_POOLS["${reward_address}"]="${batch_pools[${reward_address}]}"
   done
 }
 
@@ -370,6 +396,8 @@ cntools_wallet_list_project_koios_results() {
     if [[ -n "${reward_address}" &&
           -n "${CNTOOLS_WALLET_LIST_STAKE_REWARDS[${reward_address}]+x}" ]]; then
       CNTOOLS_WALLET_LIST_REWARD_LOVELACE[index]="${CNTOOLS_WALLET_LIST_STAKE_REWARDS[${reward_address}]}"
+      CNTOOLS_WALLET_LIST_STAKE_REGISTERED[index]="${CNTOOLS_WALLET_LIST_STAKE_STATES[${reward_address}]}"
+      CNTOOLS_WALLET_LIST_POOL_DELEGATIONS[index]="${CNTOOLS_WALLET_LIST_STAKE_POOLS[${reward_address}]}"
     fi
   done
 }
@@ -393,6 +421,12 @@ cntools_wallet_list_query_local() {
       CNTOOLS_WALLET_LIST_REWARD_LOVELACE[index]="${CNTOOLS_WALLET_REWARD_LOVELACE}"
     [[ ! "${CNTOOLS_WALLET_ASSET_COUNT}" =~ ^[0-9]+$ ]] ||
       CNTOOLS_WALLET_LIST_TOKEN_COUNTS[index]="${CNTOOLS_WALLET_ASSET_COUNT}"
+    case "${CNTOOLS_WALLET_REGISTERED}" in
+      yes|no)
+        CNTOOLS_WALLET_LIST_STAKE_REGISTERED[index]="${CNTOOLS_WALLET_REGISTERED}"
+        CNTOOLS_WALLET_LIST_POOL_DELEGATIONS[index]="${CNTOOLS_WALLET_POOL_DELEGATION}"
+        ;;
+    esac
     cntools_wallet_query_cleanup
     if [[ -n "${CNTOOLS_WALLET_QUERY_SYSTEMIC_FAILURE}" ]]; then
       CNTOOLS_WALLET_LIST_QUERY_LEVEL="warn"
@@ -555,6 +589,14 @@ cntools_wallet_list_query_catalog() {
     *) return 2 ;;
   esac
   cntools_wallet_list_finalize_results
+  if [[ "${CNTOOLS_WALLET_LIST_QUERY_LIVE}" == Y ]] && declare -F cntools_wallet_link_collect >/dev/null 2>&1; then
+    cntools_wallet_link_collect "${CNTOOLS_WALLET_LIST_POOL_DELEGATIONS[@]}" || true
+    cntools_wallet_query_cleanup
+    if (( CNTOOLS_WALLET_LINK_UNCHECKED > 0 )) && [[ -z "${CNTOOLS_WALLET_LIST_QUERY_SUMMARY}" ]]; then
+      CNTOOLS_WALLET_LIST_QUERY_LEVEL="warn"
+      CNTOOLS_WALLET_LIST_QUERY_SUMMARY="Some pool registrations could not be checked; pool roles may be missing. See ${CNTOOLS_LOG}."
+    fi
+  fi
   cntools_wallet_log WALLET \
     "wallet catalog query completed backend=${CNTOOLS_BACKEND} wallets=${#CNTOOLS_WALLET_NAMES[@]}"
 }

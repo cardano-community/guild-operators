@@ -264,11 +264,19 @@ cntools_wallet_delegation_rows() {
   local drep_target="—"
   local pool_role="muted"
   local drep_role="muted"
+  local pool_note=""
+  local note_role=""
 
   if [[ "${CNTOOLS_WALLET_REGISTERED:-unknown}" != "unknown" ]]; then
     if [[ -n "${CNTOOLS_WALLET_POOL_DELEGATION:-}" ]]; then
       pool_status="Delegated"
       pool_target="${CNTOOLS_WALLET_POOL_DELEGATION}"
+      # The ticker or own pool folder, and a pool that no longer earns.
+      if declare -F cntools_wallet_link_pool_label_into >/dev/null 2>&1; then
+        cntools_wallet_link_pool_label_into pool_target "${CNTOOLS_WALLET_POOL_DELEGATION}" Y
+        IFS=$'\037' read -r pool_note note_role < <(
+          cntools_wallet_link_delegation_note "${CNTOOLS_WALLET_POOL_DELEGATION}") || true
+      fi
     else
       pool_status="Not delegated"
     fi
@@ -282,9 +290,9 @@ cntools_wallet_delegation_rows() {
   fi
   cntools_table_row "Delegation" "Status / target" || return 1
   if [[ "${pool_status}" == "Delegated" ]]; then
-    pool_role="success"
+    pool_role="${note_role:-success}"
     cntools_table_wrapped_pair \
-      "Stake pool delegation" "Delegated · ${pool_target}" 24 \
+      "Stake pool delegation" "Delegated · ${pool_target}${pool_note:+ · ${pool_note}}" 24 \
       "${pool_role}" || return 1
   else
     pool_role="$(cntools_text_status_role "${pool_status}")" || return 1
@@ -449,6 +457,13 @@ cntools_wallet_action_show_impl() {
     esac
   fi
 
+  # The delegated pool and the own pools, for the pools naming this wallet
+  # as owner or reward account. An unregistered stake address can be one.
+  if [[ "${CNTOOLS_MODE:-offline}" != offline && "${has_reward}" == Y ]] &&
+      declare -F cntools_wallet_link_collect >/dev/null 2>&1; then
+    cntools_ui_spin_function 'Checking stake pool registrations…' \
+      cntools_wallet_link_collect "${CNTOOLS_WALLET_POOL_DELEGATION:-}" || true
+  fi
   # Only look up pool/DRep details when there is a delegation to describe.
   CNTOOLS_WALLET_DELEGATED_POOL='{}' CNTOOLS_WALLET_DELEGATED_DREP='{}'
   if [[ "${CNTOOLS_MODE:-offline}" != offline && "${CNTOOLS_KOIOS_ENABLED:-N}" == Y &&
@@ -465,6 +480,10 @@ cntools_wallet_action_show_impl() {
   cntools_wallet_render_credential_table "${wallet_directory}" || return 1
   cntools_wallet_render_query \
     "${has_base}" "${has_payment}" "${has_reward}" skip || return 1
+  if [[ "${has_reward}" == Y ]] && declare -F cntools_wallet_link_render_roles >/dev/null 2>&1; then
+    cntools_wallet_link_render_roles "${query_reward}" \
+      "${CNTOOLS_WALLET_REGISTERED:-unknown}" "${CNTOOLS_WALLET_POOL_DELEGATION:-}" || return 1
+  fi
   cntools_wallet_delegation_info_render || return 1
   if [[ "${CNTOOLS_WALLET_ASSET_COUNT:-}" =~ ^[1-9][0-9]*$ ]]; then
     # Essentials first (both styles); the full metadata is one step away.

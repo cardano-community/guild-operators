@@ -574,6 +574,9 @@ cntools_wallet_catalog_rows() {
     cntools_table_wrapped_triple \
       "" "${primary_label}" "${primary_value}" \
       20 22 "" value address || return 1
+    if declare -F cntools_wallet_link_catalog_rows >/dev/null 2>&1; then
+      cntools_wallet_link_catalog_rows "${index}" || return 1
+    fi
 
     base_balance="${CNTOOLS_WALLET_LIST_BASE_UTXO_LOVELACE[index]:-}"
     payment_balance="${CNTOOLS_WALLET_LIST_PAYMENT_UTXO_LOVELACE[index]:-}"
@@ -789,7 +792,7 @@ cntools_wallet_cleanup_material() {
 cntools_wallet_action_list_impl() {
   local fetch_live="N"
   local ask_live="N"
-  local spinner_title="Fetching wallet balances and rewards…"
+  local spinner_title="Fetching wallet balances, rewards and delegations…"
   local confirmation_status=0
 
   cntools_ui_action_begin "List" "/ Wallet / List"
@@ -812,21 +815,21 @@ cntools_wallet_action_list_impl() {
   case "${CNTOOLS_MODE:-offline}" in
     light)
       fetch_live="Y"
-      spinner_title="Fetching wallet balances and rewards from Koios…"
+      spinner_title="Fetching wallet balances, rewards and delegations from Koios…"
       ;;
     local)
       if [[ "${CNTOOLS_LOCAL_CLI_CAPABLE:-false}" == "true" ]]; then
         fetch_live="Y"
         # Local address queries scan the UTxO set and can take minutes.
         ask_live="Y"
-        spinner_title="Fetching wallet balances and rewards from ${CNTOOLS_IMPLEMENTATION_NAME:-the local node}…"
+        spinner_title="Fetching wallet balances, rewards and delegations from ${CNTOOLS_IMPLEMENTATION_NAME:-the local node}…"
       fi
       ;;
   esac
 
   if [[ "${fetch_live}" == "Y" ]]; then
     if [[ "${ask_live}" != "Y" ]] ||
-        cntools_ui_confirm "Fetch balances and rewards for all wallets now? This can take a while on mainnet."; then
+        cntools_ui_confirm "Fetch balances, rewards and delegations for all wallets now? This can take a while on mainnet."; then
       cntools_wallet_log CHOICE "wallet catalog live balances requested"
       if ! cntools_ui_spin_function \
           "${spinner_title}" cntools_wallet_list_query_catalog; then

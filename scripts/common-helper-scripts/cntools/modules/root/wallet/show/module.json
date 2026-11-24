@@ -31,6 +31,10 @@
     "public-metadata.sh",
     "wallet-delegation-info.sh",
     "pool-id.sh",
-    "drep-id.sh"
+    "drep-id.sh",
+    "filesystem.sh",
+    "transaction.sh",
+    "pool.sh",
+    "wallet-pool-link.sh"
   ]
 }

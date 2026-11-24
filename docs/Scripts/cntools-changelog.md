@@ -14,6 +14,7 @@ and this adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Hotkey menus: type the highlighted start of a name, usually one letter, or the row number to open it at once. This uses fzf 0.75.0, which startup offers to install; Settings → Navigation chooses Hotkeys, Hotkeys with Enter or the Gum filter. Menu items were renamed so each starts with its own letter in its menu.
 - Local-node, Koios light and offline operation, with optional metadata enrichment and clear backend availability.
 - Wallet creation/import for CLI, mnemonic and hardware identities; balance, asset, transaction and UTxO inspection; stake registration and key protection/removal.
+- Wallet List and Show name the stake pool each wallet delegates to, and whether your own pools or the delegated pools name the wallet as owner or reward account. They warn when an owner's stake does not count toward the pledge, a reward account is not registered, or the delegated pool is retiring or gone. Local mode reads pool registrations from the node, with Koios for tickers and gaps; light mode uses Koios.
 - Shared transaction review, exact fee balancing, CLI/hardware/multisig signing, portable offline packages, submission and optional Koios block-inclusion monitoring.
 - Funds transfers with multiple recipients, ADA Handle/subhandle resolution, CIP-20/CIP-83 messages and custom metadata; delegation, withdrawal and UTxO collection.
 - Configurable coin selection, token fragmentation, ADA-only change management and send change-address selection.

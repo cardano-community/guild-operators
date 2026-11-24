@@ -73,10 +73,25 @@ on a remote server. Never enter a hardware recovery phrase into CNTools.
 In local mode, choose whether to fetch live balances; light mode fetches them
 directly. Without that lookup, the list opens quickly and omits balance rows. With it, applicable base/payment balances,
 stake rewards, total balance and native-asset counts are shown; a wallet whose
-only balance is unwithdrawn rewards keeps its Rewards row.
+only balance is unwithdrawn rewards keeps its Rewards row. The lookup also
+shows the stake pool each wallet delegates to (**Pool delegation**) and the
+wallets a pool registration names (**Pool owner**, **Pool reward account**).
+
+Pool roles are read from the registrations of your own pools (the pool folder)
+and of the pools your wallets delegate to; neither the node nor Koios can list
+every pool that names a stake address. Pools are named by ticker, by your
+pool folder name, or by pool ID. A role is flagged when it needs attention: an
+owner's stake counts toward the pledge only while it is registered and
+delegated to that pool; a pool's rewards go to the treasury while its reward
+account is not registered; a delegation to a retiring or unregistered pool
+stops earning. Local mode reads the registrations from the node and also notes
+roles that a pending pool update adds or removes; Koios adds tickers and
+answers for pools the node could not. Light mode uses Koios alone. Offline
+mode shows no delegation or pool roles.
 
 **Wallet → Show** presents addresses, credentials, registration, stake-pool
-and DRep delegation, balances and available native assets. Assets are listed
+and DRep delegation, the wallet's pool roles, balances and available native
+assets. Assets are listed
 in a compact table; **Show detailed asset metadata** adds every known field
 and names its source. Koios metadata is optional even when your
 balances come from the local node. An unused wallet shows zero balances;

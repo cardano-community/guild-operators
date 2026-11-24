@@ -8,4 +8,5 @@ cntools_action_main() {
 cntools_action_cleanup() {
   cntools_wallet_query_cleanup
   cntools_wallet_cleanup_material
+  cntools_transaction_cleanup
 }
