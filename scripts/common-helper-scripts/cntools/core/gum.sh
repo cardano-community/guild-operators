@@ -2070,7 +2070,7 @@ cntools_gum_menu_activate() {
         (( action_status != 0 )) || action_status=2
       fi
       ;;
-    settings/transaction-defaults|settings/flow-style|settings/navigation)
+    settings/transaction-defaults|settings/flow-style|settings/navigation|settings/decimals)
       if declare -F cntools_settings_reload >/dev/null 2>&1 &&
          ! cntools_settings_reload; then
         cntools_gum_log ERROR \

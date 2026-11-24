@@ -99,9 +99,12 @@ cntools_pool_settings_rows() {
       lovelace)
         [[ "${value}" =~ ^[0-9]+$ ]] || continue
         formatted="$(cntools_number_format_lovelace "${value}")" || return 1; kind=number ;;
-      ada|percent|number)
+      ada)
+        # Older pool.config files hold ADA as text.
+        cntools_number_units_into formatted "${value}" 6 || continue
+        formatted="$(cntools_number_format_lovelace "${formatted}")" || return 1; kind=number ;;
+      percent|number)
         cntools_number_format_into formatted "${value}" || continue
-        [[ "${kind}" != ada ]] || formatted+=' ADA'
         [[ "${kind}" != percent ]] || formatted+=' %'
         kind=number ;;
       stakekey|stakescript|stakeaddress)

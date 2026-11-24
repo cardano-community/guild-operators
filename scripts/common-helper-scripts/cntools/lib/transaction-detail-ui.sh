@@ -28,17 +28,16 @@ cntools_detail_address_type_rows() {
 }
 
 cntools_detail_asset_display() {
-  local asset="$1" prefix="${2:-Asset}" identity="" quantity="" label="" formatted="" decimals=""
+  local asset="$1" prefix="${2:-Asset}" identity="" quantity="" label="" formatted="" role=""
   identity="$(jq -r '.policy_id + "." + .asset_name' <<< "${asset}")" || return 1
   quantity="$(jq -r '.quantity // "" | tostring' <<< "${asset}")" || return 1
   [[ "${identity}" =~ ^[0-9a-f]{56}\.([0-9a-f]{2}){0,32}$ ]] || return 0
   if [[ "${CNTOOLS_DETAIL_METADATA:-${CNTOOLS_HISTORY_METADATA:-N}}" == Y ]]; then
     cntools_asset_label_into label "${identity}" 1 || return 1
     cntools_detail_pair "${prefix} name" "${label}" || return 1
-    decimals="${CNTOOLS_WALLET_ASSET_METADATA_DECIMALS[${identity}]:-}"
-    if [[ "${quantity}" =~ ^[0-9]+$ && "${decimals}" =~ ^[0-9]+$ ]]; then
-      cntools_number_format_units_into formatted "${quantity}" "${decimals}" || return 1
-      cntools_detail_pair "${prefix} amount" "${formatted}" number || return 1
+    if [[ "${quantity}" =~ ^[0-9]+$ ]] && ! cntools_asset_is_nft "${identity}"; then
+      cntools_asset_amount_into formatted "${identity}" "${quantity}" role || return 1
+      cntools_detail_pair "${prefix} amount" "${formatted}" "${role}" || return 1
     fi
   fi
 }
@@ -194,15 +193,13 @@ cntools_detail_asset_title_into() {
 }
 
 cntools_detail_asset_rows() {
-  local asset="$1" identity="$2" decimals="" quantity="" formatted=""
+  local asset="$1" identity="$2" decimals="" quantity="" formatted="" role=""
   if [[ "${CNTOOLS_DETAIL_METADATA:-${CNTOOLS_HISTORY_METADATA:-N}}" == Y ]]; then
-    decimals="${CNTOOLS_WALLET_ASSET_METADATA_DECIMALS[${identity}]:-}"
     quantity="$(jq -r '.quantity | tostring' <<< "${asset}")" || return 1
-    if [[ "${quantity}" =~ ^[0-9]+$ && "${decimals}" =~ ^[0-9]+$ ]]; then
-      cntools_number_format_units_into formatted "${quantity}" "${decimals}" || return 1
-      cntools_detail_pair Amount "${formatted}" number || return 1
-    else
-      decimals=""
+    if [[ "${quantity}" =~ ^[0-9]+$ ]] && ! cntools_asset_is_nft "${identity}"; then
+      cntools_asset_decimals_into decimals "${identity}"
+      cntools_asset_amount_into formatted "${identity}" "${quantity}" role || return 1
+      cntools_detail_pair Amount "${formatted}" "${role}" || return 1
     fi
   fi
   cntools_detail_tree_rows <(printf '%s\n' "${asset}") Asset "${decimals}"

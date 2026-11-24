@@ -74,6 +74,8 @@ jobs:
       run: bash files/tests/cntools-wallet-pool-links.sh
     - name: CNTools pool Calidus status tests
       run: bash files/tests/cntools-pool-calidus-status.sh
+    - name: CNTools amount precision tests
+      run: bash files/tests/cntools-amount-precision.sh
   jsonlint:
     name: JSON and YAML Check
     runs-on: ubuntu-latest

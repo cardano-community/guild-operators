@@ -189,7 +189,7 @@ cntools_send_prompt_recipient() {
 cntools_send_prompt_amounts() {
   local index="${1:-}" operation="${2:-Add}" choice="" entered="" units="" asset="" option="" asset_label="" i=0 status=0
   local amount_prompt="ADA amount (0 = minimum ADA for this output)" choose_mode=N previous_mode="${CNTOOLS_SEND_MODE}"
-  local keep="" placeholder="0" asset_back=N
+  local keep="" placeholder="0" asset_back=N asset_hint=""
   local -a options=()
   (( index != 0 || ${#CNTOOLS_SEND_ADDRESSES[@]} != 1 )) || choose_mode=Y
   # Without native assets, Max ADA already sends everything: offer one.
@@ -288,7 +288,7 @@ cntools_send_prompt_amounts() {
       cntools_asset_label_into asset_label "${asset}" "${i}" || return 2
       options+=("${i} · ${asset_label} · ${asset}")
     done
-    cntools_send_choose option "Native assets (quantities in smallest units)" "${options[@]}" || return $?
+    cntools_send_choose option "Native assets" "${options[@]}" || return $?
     [[ "${option}" != "${options[0]}" ]] || break
     asset=""
     for i in "${!CNTOOLS_FUNDING_ASSET_IDS[@]}"; do
@@ -296,15 +296,18 @@ cntools_send_prompt_amounts() {
     done
     [[ -n "${asset}" ]] || return 2
     asset_back=N
+    # Amounts use the token's registered decimals ("1.5"); without them,
+    # smallest units.
+    cntools_asset_input_hint_into asset_hint "${asset}"
     while true; do
       status=0
-      cntools_ui_input entered "Smallest-unit quantity (All or 0 to remove)" "All" || status=$?
+      cntools_ui_input entered "Amount, ${asset_hint} (All or 0 to remove)" "All" || status=$?
       # Esc returns to the asset list; the rest of the draft stays.
       if (( status == 1 )); then asset_back=Y; break; fi
       (( status == 0 )) || return "${status}"
       if [[ -z "${entered}" || "${entered,,}" == all ]]; then units="${CNTOOLS_FUNDING_ASSETS[${asset}]}"
-      elif ! cntools_number_units_into units "${entered}" 0; then
-        cntools_ui_render_status warn "Enter a whole smallest-unit quantity, optionally with commas, or All."; continue
+      elif ! cntools_asset_units_into units "${asset}" "${entered}"; then
+        cntools_ui_render_status warn "Enter an amount in ${asset_hint}, optionally with commas, or All."; continue
       fi
       if cntools_uint_greater_equal "${CNTOOLS_FUNDING_ASSETS[${asset}]}" "${units}"; then break; fi
       cntools_ui_render_status warn "That exceeds the wallet's available quantity."
@@ -327,13 +330,14 @@ cntools_send_amount_leaves_fee() {
 
 # One row per asset: friendly label and quantity, with the ID muted below.
 cntools_send_render_asset_rows() {
-  local index="$1" asset="" quantity="" asset_label="" n=0
+  local index="$1" asset="" quantity="" asset_label="" n=0 amount="" role=""
   for asset in "${CNTOOLS_FUNDING_ASSET_IDS[@]}"; do
     n=$((n+1))
     cntools_send_asset_quantity_into quantity "${index}" "${asset}"
     [[ "${quantity}" != 0 ]] || continue
     cntools_asset_label_into asset_label "${asset}" "${n}" || return 1
-    cntools_transaction_ui_styled_row Asset "${asset_label} · $(cntools_number_format "${quantity}")" number
+    cntools_asset_amount_into amount "${asset}" "${quantity}" role || return 1
+    cntools_transaction_ui_styled_row Asset "${asset_label} · ${amount}" "${role}"
     cntools_transaction_ui_styled_row '' "${asset}" muted
   done
 }
@@ -476,7 +480,11 @@ cntools_send_edit_recipients() {
     cntools_send_render_source || return 2
     cntools_send_render_recipients || return 2
     if (( ${#CNTOOLS_FUNDING_ASSET_IDS[@]} > 0 && ${#CNTOOLS_SEND_ADDRESSES[@]} > 0 )); then
-      cntools_ui_render_status info 'Asset quantities are in smallest units, without decimals. The review shows the fee and any minimum-ADA raise.'
+      if cntools_asset_any_decimals_unknown "${CNTOOLS_FUNDING_ASSET_IDS[@]}"; then
+        cntools_ui_render_status info 'Assets whose decimals are unknown are counted in smallest units. The review shows the fee and any minimum-ADA raise.'
+      else
+        cntools_ui_render_status info 'The review shows the fee and any minimum-ADA raise.'
+      fi
     fi
     cntools_send_metadata_render || return 2
     options=("Continue" "Edit" "Remove" "Message / metadata")

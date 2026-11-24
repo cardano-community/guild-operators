@@ -1,5 +1,26 @@
 #!/usr/bin/env bash
 # Lossless numeric parsing, grouping and ledger-quantity display.
+
+# Settings → Decimals: amounts drop the trailing zeros of their fraction
+# ("340.000000" → "340", "340.050000" → "340.05") unless full is chosen.
+cntools_number_trimmed() {
+  [[ "${CNTOOLS_AMOUNT_PRECISION:-trim}" != full ]]
+}
+
+# A formatted decimal without the trailing zeros of its fraction, when
+# trimming is on. Grouping commas and any sign are kept.
+cntools_number_trim_into() {
+  local _cntools_trim_output="${1:-}" _cntools_trim_value="${2:-}"
+  [[ "${_cntools_trim_output}" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || return 2
+  if cntools_number_trimmed && [[ "${_cntools_trim_value}" == *.* ]]; then
+    while [[ "${_cntools_trim_value}" == *0 && "${_cntools_trim_value}" == *.* ]]; do
+      _cntools_trim_value="${_cntools_trim_value%0}"
+    done
+    _cntools_trim_value="${_cntools_trim_value%.}"
+  fi
+  printf -v "${_cntools_trim_output}" '%s' "${_cntools_trim_value}"
+}
+
 cntools_number_format_lovelace_compact() {
   local amount="${1:-}"
   local whole=""
@@ -28,6 +49,7 @@ cntools_number_format_lovelace_compact() {
     if declare -F cntools_number_format_into >/dev/null 2>&1; then
       cntools_number_format_into formatted "${formatted}" || return 1
     fi
+    cntools_number_trim_into formatted "${formatted}"
     printf '%s\n' "${formatted}"
     return 0
   fi
@@ -45,6 +67,7 @@ cntools_number_format_lovelace_compact() {
   if declare -F cntools_number_format_into >/dev/null 2>&1; then
     cntools_number_format_into formatted "${formatted}" || return 1
   fi
+  cntools_number_trim_into formatted "${formatted}"
   printf '%s%s\n' "${formatted}" "${suffix}"
 }
 
@@ -72,6 +95,7 @@ cntools_number_format_lovelace() {
   if declare -F cntools_number_format_into >/dev/null 2>&1; then
     cntools_number_format_into formatted "${formatted}" || return 1
   fi
+  cntools_number_trim_into formatted "${formatted}"
   printf '%s ADA\n' "${formatted}"
 }
 
@@ -236,7 +260,8 @@ cntools_number_format_units_into() {
     while (( ${#_units_amount} <= _units_scale )); do _units_amount="0${_units_amount}"; done
     _units_amount="${_units_amount:0:${#_units_amount}-_units_scale}.${_units_amount: -_units_scale}"
   fi
-  cntools_number_format_into _units_result "${_units_amount}"
+  cntools_number_format_into _units_result "${_units_amount}" || return $?
+  cntools_number_trim_into _units_result "${_units_result}"
 }
 
 cntools_number_format_units() {

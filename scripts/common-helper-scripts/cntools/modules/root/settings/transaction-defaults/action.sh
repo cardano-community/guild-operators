@@ -19,10 +19,7 @@ cntools_settings_action_duration() {
 }
 
 cntools_settings_action_collateral_amount() {
-  local lovelace="${CNTOOLS_TX_COLLATERAL_LOVELACE:-5000000}"
-  if [[ "${lovelace}" =~ ^[0-9]+$ ]] && (( lovelace % 1000000 == 0 )); then
-    printf '%s ADA' "$(cntools_number_format "$((lovelace / 1000000))")"
-  else cntools_number_format_lovelace "${lovelace}" | tr -d '\n'; fi
+  cntools_number_format_lovelace "${CNTOOLS_TX_COLLATERAL_LOVELACE:-5000000}" | tr -d '\n'
 }
 
 # Table labels are the menu rows, so each value is found under its own name.

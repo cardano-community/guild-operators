@@ -26,20 +26,24 @@ cntools_send_render_recipient() {
 }
 
 cntools_send_render_assets() {
-  local index="$1" asset="" asset_label="" asset_identifier="" available="" selected="" width="" role="" n=0
+  local index="$1" asset="" asset_label="" asset_identifier="" available="" selected="" width="" role="" n=0 amount="" decimals=""
   width="$(cntools_ui_content_width 220 72)" || return 1
-  cntools_ui_render_detail 'Native assets · smallest units' || return 1
+  cntools_ui_render_detail 'Native assets' || return 1
   {
     printf 'Asset\tAvailable\tSelected\n'
     for asset in "${CNTOOLS_FUNDING_ASSET_IDS[@]}"; do
       n=$((n+1)); role=muted
       [[ "${CNTOOLS_FUNDING_ASSETS[${asset}]}" == 0 ]] || role=number
-      cntools_theme_style_value_into available "${role}" "$(cntools_number_format "${CNTOOLS_FUNDING_ASSETS[${asset}]}")" || return 1
+      cntools_asset_number_into amount "${asset}" "${CNTOOLS_FUNDING_ASSETS[${asset}]}" || return 1
+      cntools_theme_style_value_into available "${role}" "${amount}" || return 1
       role=muted
       [[ "${CNTOOLS_SEND_ASSETS[${index}|${asset}]:-0}" == 0 ]] || role=success
-      cntools_theme_style_value_into selected "${role}" "$(cntools_number_format "${CNTOOLS_SEND_ASSETS[${index}|${asset}]:-0}")" || return 1
+      cntools_asset_number_into amount "${asset}" "${CNTOOLS_SEND_ASSETS[${index}|${asset}]:-0}" || return 1
+      cntools_theme_style_value_into selected "${role}" "${amount}" || return 1
       cntools_asset_label_into asset_label "${asset}" "${n}" || return 1
-      cntools_theme_style_value_into asset_identifier muted "${asset}" || return 1
+      # The ID line says when the amounts are smallest units.
+      cntools_asset_decimals_into decimals "${asset}"
+      cntools_theme_style_value_into asset_identifier muted "${asset}$([[ -n "${decimals}" ]] || printf ' · decimals unknown, smallest units')" || return 1
       cntools_table_row_prepared "${n} · ${asset_label}" "${available}" "${selected}"
       cntools_table_row_prepared "${asset_identifier}" '' ''
     done

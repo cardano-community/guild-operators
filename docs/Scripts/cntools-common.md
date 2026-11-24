@@ -212,8 +212,11 @@ Choose **Exact amounts**, **Max ADA** or **Send everything** as offered.
 Exact mode supports multiple recipients; adding the same address twice asks
 first (default No). ADA amounts allow six decimal places; entering zero
 requests the required minimum ADA for the output, and an amount that leaves
-nothing for the fee is asked again (use `max` instead). Native-asset quantities
-use the smallest units specified by the prompt. A recipient's assets that do
+nothing for the fee is asked again (use `max` instead). Native-asset amounts
+use the token's registered decimals: enter `1.5` of a six-decimal token for
+1,500,000 smallest units. The prompt says how many decimals are allowed; a
+token whose decimals are unknown is entered in smallest units, and the asset
+table says so. A recipient's assets that do
 not fit one output are split across several outputs to the same address, and
 the review says so. Max ADA and Send everything use at most 100 UTxOs; for
 more, run **Funds → Collect UTxOs** first.
@@ -799,8 +802,10 @@ refused before any password. Asset records stay writable.
 **Mint Asset / Perform Asset Burn** select the policy, asset name and funding
 wallet. Asset names are text by default; enter `0x` followed by hex for a hex
 name, or leave it empty. A CIP-68 label prefix gets a warning, because CNTools
-mints only that one token. Quantities are exact smallest units;
-Perform Asset Burn can select all available units. Unrelated assets are
+mints only that one token. Amounts use the token's registered decimals when
+Koios has them (minting asks to look them up in local mode), otherwise exact
+smallest units; the prompt says which. Perform Asset Burn can select all
+available units. Unrelated assets are
 preserved. Review the fee, quantity and policy/transaction expiry through the
 shared flow; the review offers **Change asset** and **Change quantity** (Enter
 keeps the current value).

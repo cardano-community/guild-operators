@@ -8,12 +8,22 @@ cntools_asset_tx_begin() {
   cntools_policy_manage_begin "${title}"
 }
 
-# Smallest units, plus the decimal amount when Koios metadata gives decimals.
+# The amount with the token's registered decimals and, when they move the
+# point, its smallest units too; without decimals, marked as unknown.
 cntools_asset_tx_amount_into() {
-  local _amount_output="$1" _amount_units="$2" _amount_decimals="${CNTOOLS_WALLET_ASSET_METADATA_DECIMALS[${CNTOOLS_ASSET_TX_ID}]:-0}" _amount_scaled=''
-  printf -v "${_amount_output}" '%s units' "$(cntools_number_format "${_amount_units}")"
-  [[ "${_amount_decimals}" =~ ^[1-9][0-9]?$ ]] && cntools_wallet_format_token_amount_into _amount_scaled "${_amount_units}" "${_amount_decimals}" || return 0
-  printf -v "${_amount_output}" '%s (%s units)' "${_amount_scaled}" "$(cntools_number_format "${_amount_units}")"
+  local _amount_output="$1" _amount_units="$2" _amount_decimals='' _amount_value=''
+  cntools_asset_decimals_into _amount_decimals "${CNTOOLS_ASSET_TX_ID}"
+  cntools_asset_amount_into _amount_value "${CNTOOLS_ASSET_TX_ID}" "${_amount_units}" || return 1
+  [[ ! "${_amount_decimals}" =~ ^[1-9][0-9]*$ ]] ||
+    _amount_value+=" ($(cntools_number_format "${_amount_units}") smallest units)"
+  printf -v "${_amount_output}" '%s' "${_amount_value}"
+}
+
+# Registered decimals for the asset to mint, when Koios has not been asked.
+cntools_asset_tx_mint_enrich() {
+  [[ -z "${CNTOOLS_WALLET_ASSET_METADATA_QUERIED[${CNTOOLS_ASSET_TX_ID}]+x}" &&
+     -z "${CNTOOLS_WALLET_ASSET_TOTAL_SUPPLIES[${CNTOOLS_ASSET_TX_ID}]:-}" ]] || return 0
+  cntools_policy_asset_enrich "${CNTOOLS_ASSET_TX_ID}"
 }
 
 cntools_asset_tx_render() {
@@ -33,7 +43,8 @@ cntools_asset_tx_render() {
     cntools_transaction_ui_styled_row Fingerprint "${fingerprint}" identifier
     cntools_transaction_ui_styled_row "${CNTOOLS_ASSET_TX_OPERATION^} quantity" "${amount}" number
     if [[ "${CNTOOLS_ASSET_TX_OPERATION}" == burn ]] && cntools_uint_subtract_into after "${held}" "${CNTOOLS_ASSET_TX_QUANTITY}"; then
-      cntools_transaction_ui_styled_row 'Held → after burn' "$(cntools_number_format "${held}") → $(cntools_number_format "${after}")" number
+      cntools_asset_number_into held "${CNTOOLS_ASSET_TX_ID}" "${held}" && cntools_asset_number_into after "${CNTOOLS_ASSET_TX_ID}" "${after}" || return 1
+      cntools_transaction_ui_styled_row 'Held → after burn' "${held} → ${after}" number
     fi
     if [[ -n "${CNTOOLS_POLICY_SELECTED_BEFORE}" ]]; then
       cntools_slot_datetime_into date "${CNTOOLS_POLICY_SELECTED_BEFORE}" || date="Slot ${CNTOOLS_POLICY_SELECTED_BEFORE}"
@@ -54,39 +65,47 @@ cntools_asset_tx_render() {
 }
 
 # With a current quantity (review 'Change quantity'), Enter keeps it.
+# Amounts are typed with the token's registered decimals ("1.5"); without
+# them, in smallest units.
 cntools_asset_tx_quantity_prompt() {
   local current="${1:-}" entered='' available="${CNTOOLS_FUNDING_ASSETS[${CNTOOLS_ASSET_TX_ID}]:-0}" quantity='' label='' prompt='' placeholder=''
+  local hint='' units='' shown='' role=''
+  cntools_asset_input_hint_into hint "${CNTOOLS_ASSET_TX_ID}"
+  [[ -z "${current}" ]] || cntools_asset_number_into shown "${CNTOOLS_ASSET_TX_ID}" "${current}" || return 2
   if [[ "${CNTOOLS_ASSET_TX_OPERATION}" == burn ]]; then
     # Drawn once: a rejected entry adds only its warning below.
     cntools_asset_label_into label "${CNTOOLS_ASSET_TX_ID}" 1 || return 2
+    cntools_asset_amount_into units "${CNTOOLS_ASSET_TX_ID}" "${available}" role || return 2
     {
       cntools_table_pair Asset "${label}" accent
-      cntools_table_pair 'Available (smallest units)' "$(cntools_number_format "${available}")" number
+      cntools_table_pair Available "${units}" "${role}"
     } | cntools_table_render 'Burn amount'
-    prompt='Quantity to burn (Enter = all)'; placeholder=all
-    [[ -z "${current}" ]] || { prompt='Quantity to burn'; placeholder="Enter keeps $(cntools_number_format "${current}") · all = everything"; }
+    prompt="Amount to burn, ${hint} (Enter = all)"; placeholder=all
+    [[ -z "${current}" ]] || { prompt="Amount to burn, ${hint}"; placeholder="Enter keeps ${shown} · all = everything"; }
   else
-    prompt='Quantity to mint (smallest units)'; placeholder='Whole number; commas are allowed'
-    [[ -z "${current}" ]] || placeholder="Enter keeps $(cntools_number_format "${current}")"
+    prompt="Amount to mint, ${hint}"; placeholder='Commas are allowed'
+    [[ -z "${current}" ]] || placeholder="Enter keeps ${shown}"
   fi
   while true; do
     cntools_ui_input entered "${prompt}" "${placeholder}" || return $?
-    if [[ -z "${entered}" && -n "${current}" ]]; then entered="${current}"
-    elif [[ "${CNTOOLS_ASSET_TX_OPERATION}" == burn && ( -z "${entered}" || "${entered,,}" == all ) ]]; then entered="${available}"; fi
-    if cntools_asset_tx_quantity_into quantity "${entered}" &&
+    units=''
+    if [[ -z "${entered}" && -n "${current}" ]]; then units="${current}"
+    elif [[ "${CNTOOLS_ASSET_TX_OPERATION}" == burn && ( -z "${entered}" || "${entered,,}" == all ) ]]; then units="${available}"
+    else cntools_asset_units_into units "${CNTOOLS_ASSET_TX_ID}" "${entered}" || units=''; fi
+    if [[ -n "${units}" ]] && cntools_asset_tx_quantity_into quantity "${units}" &&
       { [[ "${CNTOOLS_ASSET_TX_OPERATION}" != burn ]] || cntools_uint_greater_equal "${available}" "${quantity}"; }; then
       CNTOOLS_ASSET_TX_QUANTITY="${quantity}"
       cntools_transaction_log CHOICE "Asset ${CNTOOLS_ASSET_TX_OPERATION} quantity=${quantity} asset=${CNTOOLS_ASSET_TX_ID}"
       return 0
     fi
-    cntools_ui_render_status warn 'Use a positive whole smallest-unit quantity, at most 9,223,372,036,854,775,807 and no more than available when burning.'
+    cntools_ui_render_status warn "Use a positive amount in ${hint}, at most 9,223,372,036,854,775,807 smallest units, and no more than available when burning."
   done
 }
 
 # Pass N to skip the Koios lookup (already done for this wallet).
 # CNTOOLS_ASSET_TX_CHOICES holds the number of burnable assets.
 cntools_asset_tx_burn_choose() {
-  local enrich="${1:-Y}" identity='' chosen='' label='' index=0
+  local enrich="${1:-Y}" identity='' chosen='' label='' index=0 amount=''
   local -a identities=() choices=()
   for identity in "${CNTOOLS_FUNDING_ASSET_IDS[@]}"; do
     [[ "${identity%%.*}" == "${CNTOOLS_POLICY_ID}" && "${CNTOOLS_FUNDING_ASSETS[${identity}]}" != 0 ]] || continue
@@ -104,7 +123,8 @@ cntools_asset_tx_burn_choose() {
   # The policy is fixed, so rows show the asset name only.
   for index in "${!identities[@]}"; do
     cntools_asset_label_into label "${identities[index]}" "$((index+1))" || return 2
-    choices+=("$((index+1)) · ${label} · ${identities[index]#*.} · $(cntools_number_format "${CNTOOLS_FUNDING_ASSETS[${identities[index]}]}") units")
+    cntools_asset_amount_into amount "${identities[index]}" "${CNTOOLS_FUNDING_ASSETS[${identities[index]}]}" || return 2
+    choices+=("$((index+1)) · ${label} · ${identities[index]#*.} · ${amount}")
   done
   cntools_ui_choose_for chosen 'Asset to burn from this wallet' 'Filter assets…' "${choices[@]}" Cancel || return $?
   [[ "${chosen}" != Cancel ]] || return 1
@@ -120,7 +140,7 @@ cntools_asset_tx_change_asset() {
   local previous_id="${CNTOOLS_ASSET_TX_ID}" previous_quantity="${CNTOOLS_ASSET_TX_QUANTITY}" chosen='' status=0
   if [[ "${CNTOOLS_ASSET_TX_OPERATION}" == mint ]]; then
     cntools_policy_asset_choose_into chosen "${CNTOOLS_POLICY_ID}" 'Asset to mint' || status=$?
-    ((status != 0)) || CNTOOLS_ASSET_TX_ID="${chosen}"
+    ((status != 0)) || { CNTOOLS_ASSET_TX_ID="${chosen}"; cntools_asset_tx_mint_enrich; }
   else
     cntools_asset_tx_burn_choose N || status=$?
     if ((status == 0)) && [[ "${CNTOOLS_ASSET_TX_ID}" != "${previous_id}" ]]; then
@@ -257,6 +277,7 @@ cntools_asset_tx_workflow() {
   if [[ "${CNTOOLS_ASSET_TX_OPERATION}" == mint ]]; then
     cntools_policy_asset_catalog "${CNTOOLS_ASSET_TX_DIRECTORY}" "${CNTOOLS_POLICY_ID}" || return 2
     cntools_policy_asset_choose_into CNTOOLS_ASSET_TX_ID "${CNTOOLS_POLICY_ID}" 'Asset to mint' || return $?
+    cntools_asset_tx_mint_enrich
   else cntools_asset_tx_burn_choose || return $?; fi
   # Another asset can be picked from the review when there is a choice.
   [[ "${CNTOOLS_ASSET_TX_OPERATION}" != mint && "${CNTOOLS_ASSET_TX_CHOICES}" -le 1 ]] || changes=('Change asset' "${changes[@]}")
@@ -367,10 +388,12 @@ cntools_asset_tx_workflow() {
 }
 
 cntools_asset_tx_metadata_overview() {
+  local amount=''
+  cntools_asset_tx_amount_into amount "${CNTOOLS_ASSET_TX_QUANTITY}" || return 1
   { cntools_table_pair Wallet "${CNTOOLS_SEND_WALLET}" identifier
     cntools_table_pair Asset "${CNTOOLS_ASSET_TX_ID}" identifier
     cntools_table_pair Action "${CNTOOLS_ASSET_TX_OPERATION^}" value
-    cntools_table_pair 'Quantity (smallest units)' "$(cntools_number_format "${CNTOOLS_ASSET_TX_QUANTITY}")" number
+    cntools_table_pair Quantity "${amount}" number
   } | cntools_table_render 'Asset transaction'
 }
 

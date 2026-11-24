@@ -98,9 +98,9 @@ cntools_wallet_asset_details_rows() {
   local policy_id=""
   local asset_name=""
   local quantity=""
-  local display_quantity=""
   local fingerprint=""
   local display_amount=""
+  local amount_role=""
   local display_decimals=""
   local asset_class=""
   local total_supply=""
@@ -120,32 +120,24 @@ cntools_wallet_asset_details_rows() {
     policy_id="${asset_id%%.*}"
     asset_name="${asset_id#*.}"
     quantity="${CNTOOLS_WALLET_ASSET_QUANTITIES[${asset_id}]:-Unavailable}"
-    cntools_text_format_number_into display_quantity "${quantity}" || return 1
     fingerprint="${CNTOOLS_WALLET_ASSET_FINGERPRINTS[${asset_id}]:-Unavailable}"
-    asset_class="${CNTOOLS_WALLET_ASSET_CLASSES[${asset_id}]:-FT}"
-    if [[ "${asset_class}" == "NFT" ]]; then
-      display_decimals=""
-    else
-      display_decimals="${CNTOOLS_WALLET_ASSET_METADATA_DECIMALS[${asset_id}]:-${CNTOOLS_WALLET_ASSET_DECIMALS[${asset_id}]:-}}"
-    fi
-    display_amount="${display_quantity}"
-    if [[ "${quantity}" =~ ^[0-9]+$ &&
-          "${display_decimals}" =~ ^[0-9]+$ ]]; then
-      cntools_wallet_format_token_amount_into \
-        display_amount "${quantity}" "${display_decimals}" || return 1
-    fi
+    # Without Koios metadata an asset could be either kind; its amount then
+    # says that its decimals are unknown.
+    cntools_asset_kind_into asset_class "${asset_id}"
+    cntools_asset_decimals_into display_decimals "${asset_id}"
+    cntools_asset_amount_into display_amount "${asset_id}" "${quantity}" amount_role || return 1
     cntools_table_wrapped_triple \
-      "${display_label}" "Type" "${asset_class}" \
-      22 20 "${table_width}" identifier value || return 1
+      "${display_label}" "Type" "${asset_class:-Unknown · no Koios metadata}" \
+      22 20 "${table_width}" identifier "$([[ -n "${asset_class}" ]] && printf value || printf muted)" || return 1
     if [[ "${asset_class}" != "NFT" ]]; then
       cntools_table_wrapped_triple \
         "" "Amount" "${display_amount}" \
-        22 20 "${table_width}" value number || return 1
+        22 20 "${table_width}" value "${amount_role}" || return 1
       total_supply="${CNTOOLS_WALLET_ASSET_TOTAL_SUPPLIES[${asset_id}]:-}"
       if [[ "${total_supply}" =~ ^[0-9]+$ ]]; then
         display_total_supply=""
         cntools_wallet_format_token_amount_into \
-          display_total_supply "${total_supply}" "${display_decimals}" || return 1
+          display_total_supply "${total_supply}" "${display_decimals:-0}" || return 1
         cntools_table_wrapped_triple \
           "" "Total supply" "${display_total_supply}" \
           22 20 "${table_width}" value number || return 1

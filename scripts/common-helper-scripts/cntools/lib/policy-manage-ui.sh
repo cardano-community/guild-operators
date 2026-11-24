@@ -101,9 +101,10 @@ cntools_policy_asset_enrich() {
   cntools_ui_spin_function 'Fetching Koios asset details…' cntools_asset_details_for_ids "$@" || true
 }
 
-# Last mint/burn this system recorded in the asset's local .asset file.
+# Last mint/burn this system recorded in the asset's local .asset file. With
+# the asset's identity, the quantity uses its registered decimals.
 cntools_policy_asset_last_action_into() {
-  local _last_output="$1" _last_record="$2" _last_row='' _last_operation='' _last_quantity='' _last_state='' _last_time='' _last_date=''
+  local _last_output="$1" _last_record="$2" _last_identity="${3:-}" _last_row='' _last_operation='' _last_quantity='' _last_state='' _last_time='' _last_date='' _last_amount=''
   printf -v "${_last_output}" ''
   [[ -n "${_last_record}" ]] && cntools_policy_public_file "${_last_record}" || return 0
   _last_row="$(jq -r '(.actions // [])|last|select(type=="object")|
@@ -111,7 +112,9 @@ cntools_policy_asset_last_action_into() {
   [[ -n "${_last_row}" ]] || return 0
   IFS=$'\037' read -r _last_operation _last_quantity _last_state _last_time <<< "${_last_row}"
   [[ "${_last_operation}" =~ ^(mint|burn)$ && "${_last_quantity}" =~ ^[0-9]+$ ]] || return 0
-  _last_row="${_last_operation^} $(cntools_number_format "${_last_quantity}") · ${_last_state}"
+  if [[ -n "${_last_identity}" ]]; then cntools_asset_number_into _last_amount "${_last_identity}" "${_last_quantity}" || return 1
+  else cntools_number_format_into _last_amount "${_last_quantity}" || return 1; fi
+  _last_row="${_last_operation^} ${_last_amount} · ${_last_state}"
   [[ ! "${_last_time}" =~ ^[0-9]{1,12}$ ]] || ! cntools_timestamp_datetime_into _last_date "${_last_time}" || _last_row+=" · ${_last_date}"
   printf -v "${_last_output}" '%s' "${_last_row}"
 }
@@ -122,17 +125,16 @@ cntools_policy_asset_render() {
   cntools_asset_label_into label "${identity}" 1 || return 1
   cntools_wallet_asset_fingerprint_into fingerprint "${identity%%.*}" "${identity#*.}" || fingerprint=Unavailable
   cntools_wallet_asset_metadata_source_into source "${identity}" || source=Unavailable
-  cntools_policy_asset_last_action_into last "${record}"
+  cntools_policy_asset_last_action_into last "${record}" "${identity}"
   supply="${CNTOOLS_WALLET_ASSET_TOTAL_SUPPLIES[${identity}]:-}"
-  decimals="${CNTOOLS_WALLET_ASSET_METADATA_DECIMALS[${identity}]:-}"
   {
     # The policy table above already names the policy ID.
     if [[ -n "${identity#*.}" ]]; then cntools_table_pair 'Asset name (hex)' "${identity#*.}" identifier
     else cntools_table_pair 'Asset name (hex)' '(empty)' muted; fi
     cntools_table_pair Fingerprint "${fingerprint}" identifier
     if [[ "${supply}" =~ ^[0-9]+$ ]]; then
-      cntools_wallet_format_token_amount_into supply "${supply}" "${decimals}" || return 1
-      cntools_table_pair 'Total supply' "${supply}" number
+      cntools_asset_amount_into supply "${identity}" "${supply}" decimals || return 1
+      cntools_table_pair 'Total supply' "${supply}" "${decimals}"
     fi
     [[ -z "${last}" ]] || cntools_table_pair 'Last local action' "${last}" value
     [[ "${show_source}" != Y ]] || cntools_table_pair 'Metadata source' "${source}" muted

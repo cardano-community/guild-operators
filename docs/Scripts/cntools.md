@@ -115,6 +115,15 @@ when needed. Numbers use US formatting: commas for thousands and a period for
 decimals. Numeric prompts accept values with or without valid comma grouping.
 Dates follow `BLOCKLOG_TZ` in `env`, defaulting to UTC.
 
+ADA and token amounts drop the trailing zeros of their decimals, so 340 ADA
+reads `340 ADA` and 340.05 ADA reads `340.05 ADA`. **Settings → Decimals**
+switches to full precision (`340.000000 ADA`) and back. Tokens use the
+decimals registered for them (Token Registry or CIP-68), fetched through
+Koios; a Token Registry or CIP-68 entry without a decimals field means none.
+A fungible token whose decimals are unknown, because Koios has no such entry
+or was not asked, shows its smallest-unit quantity marked **decimals
+unknown**. NFTs are whole and show no decimals.
+
 ## Available actions
 
 | Menu | Main tasks |
@@ -126,7 +135,7 @@ Dates follow `BLOCKLOG_TZ` in `env`, defaulting to UTC.
 | Transaction | Review and sign portable packages, or submit completed packages and supported external signed transactions. |
 | Restore & Backup | Create full or public-only backups and restore without overwriting existing folders. |
 | Blocks | Read block-production summaries and epoch details from the configured blocklog (CNCLI on cardano-node, `amaru-leaderlog.sh` on Amaru). |
-| Settings | Choose the Quick or Detailed flow style, set transaction defaults, save Go to shortcuts, choose how menus answer typing and, with `-a`, choose a theme. |
+| Settings | Choose the Quick or Detailed flow style, set transaction defaults, save Go to shortcuts, choose how menus answer typing, show amounts trimmed or with full precision and, with `-a`, choose a theme. |
 | Update | Check availability, read changes and refresh the deployment through Guild Deploy. |
 | Advanced (`-a`) | Manage native assets and policies, create multisig identities, clear asset metadata cache and explicitly delete private keys. |
 
