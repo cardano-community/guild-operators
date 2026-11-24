@@ -1378,6 +1378,74 @@ snapshot_checkout="$(sed -n 's/^root=//p' "${snapshot_child_log}")"
 [[ ! -e "${snapshot_checkout%/repository}" ]] ||
   fail "successful snapshot deployment left its temporary checkout"
 
+# Run from memory, as with bash <(curl ...): the caller has no file to give
+# the user variables from. The deployment's own copy gives them when there is
+# one, else the branch's guild-deploy.sh does.
+memory_home="${TEST_DIR}/memory-parent/memnode"
+memory_child_log="${TEST_DIR}/snapshot-memory.log"
+memory_snapshot() {
+  (
+    trap cleanup_dispatcher EXIT
+    TMPDIR="${TEST_DIR}"
+    G_ACCOUNT="fixture-account"
+    BRANCH="feature/snapshot"
+    REPO_RAW="https://raw.invalid/fixture-account/guild-operators"
+    URL_RAW="${REPO_RAW}/${BRANCH}"
+    NODE_IMPLEMENTATION="dingo"
+    NODE_HOME="${memory_home}"
+    GUILD_DEPLOY_USER_HEADER=""
+    configure_local_git_remote "${snapshot_remote}"
+    SNAPSHOT_CHILD_LOG="${memory_child_log}"
+    export SNAPSHOT_CHILD_LOG
+    dispatcher_prepare_snapshot -i dingo -n preprod -b feature/snapshot
+  ) >/dev/null
+}
+memory_snapshot
+grep -q '^node_parent=/remote/header/must-not-win$' "${memory_child_log}" ||
+  fail "run from memory without a deployment, the branch's user header was not used"
+mkdir -p "${memory_home}/scripts"
+printf '%s\n' '#!/usr/bin/env bash' 'NODE_PARENT="/installed/header"' 'SUDO="N"' \
+  '# Do NOT modify code below' 'true' > "${memory_home}/scripts/guild-deploy.sh"
+memory_snapshot
+grep -q '^node_parent=/installed/header$' "${memory_child_log}" ||
+  fail "run from memory, the deployment's own user header was not used"
+grep -q '^sudo=N$' "${memory_child_log}" ||
+  fail "run from memory, the deployment's own sudo setting was not used"
+
+# The whole start, as bash <(curl ...) runs it: the script is not a file. It
+# reaches the snapshot's dispatcher, and points at the deployment's own copy.
+# The target looks like an incomplete Dingo deployment, which the start accepts.
+touch "${memory_home}/scripts/dingo.sh" "${memory_home}/scripts/dingo.env"
+rm -f "${memory_child_log}"
+memory_output="$(
+  TMPDIR="${TEST_DIR}"
+  SUDO="N"
+  configure_local_git_remote "${snapshot_remote}"
+  SNAPSHOT_CHILD_LOG="${memory_child_log}"
+  export TMPDIR SUDO SNAPSHOT_CHILD_LOG
+  bash <(cat "${REPO_ROOT}/scripts/cnode-helper-scripts/guild-deploy.sh") \
+    -g fixture-account -i dingo -n preprod -b feature/snapshot \
+    -p "${TEST_DIR}/memory-parent" -t memnode 2>&1
+)" || fail "guild-deploy.sh run from memory failed: ${memory_output}"
+grep -q '^stage=ready$' "${memory_child_log}" ||
+  fail "guild-deploy.sh run from memory did not reach the snapshot dispatcher: ${memory_output}"
+grep -q '^node_parent=/installed/header$' "${memory_child_log}" ||
+  fail "guild-deploy.sh run from memory did not keep the deployment's user header"
+grep -qF "This deployment has its own guild-deploy.sh: ${memory_home}/scripts/guild-deploy.sh" <<< "${memory_output}" ||
+  fail "a copy other than the deployment's own did not point at it: ${memory_output}"
+memory_output="$(
+  TMPDIR="${TEST_DIR}"
+  SUDO="N"
+  configure_local_git_remote "${snapshot_remote}"
+  SNAPSHOT_CHILD_LOG="${memory_child_log}"
+  export TMPDIR SUDO SNAPSHOT_CHILD_LOG
+  cp "${REPO_ROOT}/scripts/cnode-helper-scripts/guild-deploy.sh" "${memory_home}/scripts/guild-deploy.sh"
+  bash "${memory_home}/scripts/guild-deploy.sh" -g fixture-account -i dingo -n preprod -b feature/snapshot \
+    -p "${TEST_DIR}/memory-parent" -t memnode 2>&1
+)" || fail "the deployment's own guild-deploy.sh failed: ${memory_output}"
+grep -qF "This deployment has its own guild-deploy.sh" <<< "${memory_output}" &&
+  fail "the deployment's own copy pointed at itself"
+
 fallback_child_log="${TEST_DIR}/snapshot-fallback.log"
 (
   trap cleanup_dispatcher EXIT

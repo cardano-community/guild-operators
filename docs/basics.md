@@ -110,17 +110,32 @@ While we do not intend to hand out step-by-step instructions, the tools are ofte
 ##### Set up OS packages, folder structure and fetch files from repo {: #os-prereqs}
 
 The pre-requisites for Linux systems are automated to be executed as a single script. This script uses opt-in election of what you'd like the script to do. The defaults without any arguments will only update static part of script contents for you.
-To download the pre-requisites scripts, execute the below:
+
+The first deployment runs `guild-deploy.sh` straight from GitHub, without
+saving a copy. Check that it runs and read its options:
 
 ```bash
-mkdir -p "$HOME/tmp"
-cd "$HOME/tmp"
-# Install curl and git
+# Install curl and git first
 # CentOS / RedHat - sudo dnf -y install curl git
 # Ubuntu / Debian - sudo apt -y install curl git
-curl -sS -o guild-deploy.sh https://raw.githubusercontent.com/cardano-community/guild-operators/master/scripts/cnode-helper-scripts/guild-deploy.sh
-chmod 755 guild-deploy.sh
+bash <(curl -sSfL https://raw.githubusercontent.com/cardano-community/guild-operators/master/scripts/cnode-helper-scripts/guild-deploy.sh) -h
 ```
+
+The deployment installs its own copy as
+`${NODE_HOME}/scripts/guild-deploy.sh`, for example
+`/opt/cardano/cnode/scripts/guild-deploy.sh`. Run that copy for every later
+refresh or upgrade: it knows the deployment's target, keeps your settings in
+its user-variable block, and updates itself on each run.
+
+!!! tip "Reading the script first"
+    To read it before it runs, download it to `/tmp`, which is cleared on the
+    next reboot, and run that file instead:
+
+    ```bash
+    curl -sSfL -o /tmp/guild-deploy.sh https://raw.githubusercontent.com/cardano-community/guild-operators/master/scripts/cnode-helper-scripts/guild-deploy.sh
+    less /tmp/guild-deploy.sh
+    bash /tmp/guild-deploy.sh -h
+    ```
 
 !!! info "Important !!"
     Please familiarise yourself with `guild-deploy.sh -h` before proceeding.
@@ -130,8 +145,9 @@ chmod 755 guild-deploy.sh
 The bootstrap URL intentionally remains under `scripts/cnode-helper-scripts`.
 That stable path preserves the existing download and upgrade workflow, but the
 downloaded dispatcher itself is node-agnostic. It prepares one temporary
-shallow Git checkout of the selected account and branch, then runs the
-dispatcher and reads every Guild-owned deployment file from that checkout.
+shallow Git checkout of the selected account and branch, then runs that
+checkout's dispatcher and reads every Guild-owned deployment file from it, so
+the copy you start only has to begin the run.
 Tracked files must still match the selected commit, and the chosen profile
 validates all required payloads before changing the node target. The temporary
 checkout is removed when deployment finishes or fails. Release APIs and
@@ -141,8 +157,9 @@ Fallback to `master` happens only after Git confirms that the selected branch
 or tag is absent. A historical branch that predates this snapshot protocol
 must be run with the matching historical `guild-deploy.sh` from that branch.
 
-The usage syntax can be checked using `./guild-deploy.sh -h`. The same
-downloaded entrypoint dispatches to the selected node implementation:
+The usage syntax can be checked with `-h`, as above, or with
+`${NODE_HOME}/scripts/guild-deploy.sh -h` on a deployment. The same entrypoint
+dispatches to the selected node implementation:
 
 ``` bash
 Usage: guild-deploy.sh [-g account] [-i <cnode|dingo|amaru>] [-n <network>] \
@@ -193,7 +210,7 @@ To see the package manager's unfiltered output during troubleshooting, set
 or for one invocation:
 
 ```bash
-PACKAGE_MANAGER_OUTPUT=verbose ./guild-deploy.sh -i amaru -n preprod -s p
+PACKAGE_MANAGER_OUTPUT=verbose /opt/cardano/amaru/scripts/guild-deploy.sh -s p
 ```
 
 !!! warning "Alternate implementations are experimental"
@@ -212,7 +229,8 @@ PACKAGE_MANAGER_OUTPUT=verbose ./guild-deploy.sh -i amaru -n preprod -s p
 A typical example install to install most components but not overwrite static part of existing files for preview network would be:
 
 ``` bash
-./guild-deploy.sh -b master -n preview -t cnode -s pdlcowx
+bash <(curl -sSfL https://raw.githubusercontent.com/cardano-community/guild-operators/master/scripts/cnode-helper-scripts/guild-deploy.sh) \
+  -n preview -s pdlcowx
 . "${HOME}/.bashrc"
 ```
 
@@ -222,21 +240,23 @@ toolchain and scripts, then follow the
 [cardano-node and cardano-cli build guide](Build/node-cli.md):
 
 ``` bash
-./guild-deploy.sh -b master -n preview -t cnode -s pbl
+bash <(curl -sSfL https://raw.githubusercontent.com/cardano-community/guild-operators/master/scripts/cnode-helper-scripts/guild-deploy.sh) \
+  -n preview -s pbl
 . "${HOME}/.bashrc"
 ```
 
-Lastly, if you'd want to update your scripts but not install any additional dependencies, you may simply run:
+Lastly, if you'd want to update your scripts but not install any additional dependencies, run the deployment's own copy:
 
 ``` bash
-./guild-deploy.sh -b master -n preview -t cnode
+/opt/cardano/cnode/scripts/guild-deploy.sh
 ```
 
 Experimental relay examples are:
 
 ```bash
-./guild-deploy.sh -i dingo -n preview -s pd
-./guild-deploy.sh -i amaru -n preprod -s pd
+GUILD_DEPLOY=https://raw.githubusercontent.com/cardano-community/guild-operators/master/scripts/cnode-helper-scripts/guild-deploy.sh
+bash <(curl -sSfL "${GUILD_DEPLOY}") -i dingo -n preview -s pd
+bash <(curl -sSfL "${GUILD_DEPLOY}") -i amaru -n preprod -s pd
 ```
 
 Each deployment installs its binaries in its own `${NODE_HOME}/bin`, so

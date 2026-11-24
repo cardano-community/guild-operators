@@ -55,18 +55,22 @@ network can no longer change what another one runs, including `gum` and
 `cardano-hw-cli`.
 
 Moving an existing deployment takes one run of the current `guild-deploy.sh`, with
-your usual `-n`, `-t` and `-p` values. Download it first, because an older copy
-can't do this. Check what it would do. This changes nothing:
+your usual `-n`, `-t` and `-p` values. Run it straight from GitHub, because an
+older copy can't do this. Check what it would do. This changes nothing:
 
 ``` bash
-./guild-deploy.sh -C -n mainnet -t cnode -p /opt/cardano
+GUILD_DEPLOY=https://raw.githubusercontent.com/cardano-community/guild-operators/master/scripts/cnode-helper-scripts/guild-deploy.sh
+bash <(curl -sSfL "${GUILD_DEPLOY}") -C -n mainnet -t cnode -p /opt/cardano
 ```
 
 Then deploy, and restart the node when you choose to:
 
 ``` bash
-./guild-deploy.sh -s d -n mainnet -t cnode -p /opt/cardano
+bash <(curl -sSfL "${GUILD_DEPLOY}") -s d -n mainnet -t cnode -p /opt/cardano
 ```
+
+From then on the deployment's own copy, `/opt/cardano/cnode/scripts/guild-deploy.sh`,
+is current and does every later refresh.
 
 ``` bash
 sudo systemctl restart cnode
@@ -236,23 +240,18 @@ upstream release notes before upgrading.
       files are backed up in `"${CNODE_HOME}"/files` for comparison.
 
       ``` bash
-      mkdir -p "$HOME/tmp"
-      cd "$HOME/tmp"
-      curl -sfS -o guild-deploy.sh https://raw.githubusercontent.com/cardano-community/guild-operators/master/scripts/cnode-helper-scripts/guild-deploy.sh
-      chmod 700 guild-deploy.sh
-      ./guild-deploy.sh -s dlfm -b master -n mainnet -t cnode -p /opt/cardano
+      /opt/cardano/cnode/scripts/guild-deploy.sh -s dlfm
       ```
     - When an upgrade does not require configuration changes, refresh the
       scripts and selected binaries without `f`. Existing configuration and
       script user variables are preserved:
 
       ``` bash
-      mkdir -p "$HOME/tmp"
-      cd "$HOME/tmp"
-      curl -sfS -o guild-deploy.sh https://raw.githubusercontent.com/cardano-community/guild-operators/master/scripts/cnode-helper-scripts/guild-deploy.sh
-      chmod 700 guild-deploy.sh
-      ./guild-deploy.sh -s dlm -b master -n mainnet -t cnode -p /opt/cardano
+      /opt/cardano/cnode/scripts/guild-deploy.sh -s dlm
       ```
+
+    The deployment's own copy uses its recorded network, target and branch;
+    add `-b <branch>` to move to another branch.
 
 !!! warning "Beware"
     A cnode upgrade, especially across a major version, may revalidate or

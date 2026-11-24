@@ -11,7 +11,7 @@
     Current Amaru releases refuse chain databases created by older releases,
     and the environment template now uses Amaru's renamed settings. Start over
     fresh: stop both services, remove `chain/`, `ledger/`, and `snapshots/`,
-    refresh with `guild-deploy.sh -i amaru -n <network> -s df`, reinstall the
+    refresh with `/opt/cardano/amaru/scripts/guild-deploy.sh -s df`, reinstall the
     units with `amaru.sh -d`, and bootstrap again.
 
 ## Supported deployment
@@ -19,8 +19,12 @@
 The common deployment entrypoint selects Amaru with `-i amaru`. For example:
 
 ```bash
-./guild-deploy.sh -i amaru -n preview -s pd
+bash <(curl -sSfL https://raw.githubusercontent.com/cardano-community/guild-operators/master/scripts/cnode-helper-scripts/guild-deploy.sh) \
+  -i amaru -n preview -s pd
 ```
+
+Later refreshes run the deployment's own copy,
+`/opt/cardano/amaru/scripts/guild-deploy.sh`.
 
 A mainnet relay is deployed the same way with `-n mainnet`. The deployment
 then prints a reminder that Amaru is still under heavy development and that
@@ -503,7 +507,8 @@ Deploy Amaru next to the running relay. It uses `/opt/cardano/amaru`, its own
 services, and port 3000, so it does not clash with cnode:
 
 ```bash
-./guild-deploy.sh -i amaru -n preview -s pd
+bash <(curl -sSfL https://raw.githubusercontent.com/cardano-community/guild-operators/master/scripts/cnode-helper-scripts/guild-deploy.sh) \
+  -i amaru -n preview -s pd
 ```
 
 Copy the relay's `localRoots`, such as its block producer and other relays,

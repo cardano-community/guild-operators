@@ -441,7 +441,7 @@ dispatcher_resolve_github_release() {
 dispatcher_usage() {
   cat <<-EOF
 
-	Usage: $(basename "$0") [-g account] [-i <cnode|dingo|amaru>] [-n <network>] [-p path] [-t name] [-b branch] [-s flags]
+	Usage: guild-deploy.sh [-g account] [-i <cnode|dingo|amaru>] [-n <network>] [-p path] [-t name] [-b branch] [-s flags]
 
 	Common Guild Operators deployment entrypoint.
 
@@ -1336,6 +1336,19 @@ dispatcher_prepare_snapshot() {
   dispatcher_validate_snapshot "${GIT_SOURCE_ROOT}"
   snapshot_dispatcher="$(dispatcher_source_path 'scripts/cnode-helper-scripts/guild-deploy.sh')" ||
     err_exit "Could not locate guild-deploy.sh in the prepared source snapshot."
+  # Run from memory, as with bash <(curl ...), there was no file to read the
+  # user variables from: take them from the deployment's own copy, or else
+  # from the branch.
+  if [[ -z "${GUILD_DEPLOY_USER_HEADER:-}" ]]; then
+    if [[ -f "${NODE_HOME:-}/scripts/guild-deploy.sh" && ! -L "${NODE_HOME}/scripts/guild-deploy.sh" ]]; then
+      GUILD_DEPLOY_USER_HEADER="$(dispatcher_extract_user_header "${NODE_HOME}/scripts/guild-deploy.sh")" ||
+        GUILD_DEPLOY_USER_HEADER=""
+    fi
+    if [[ -z "${GUILD_DEPLOY_USER_HEADER}" ]]; then
+      GUILD_DEPLOY_USER_HEADER="$(dispatcher_extract_user_header "${snapshot_dispatcher}")" ||
+        err_exit "The source snapshot guild-deploy.sh has an invalid user-variable header."
+    fi
+  fi
   dispatcher_compose_snapshot_dispatcher "${snapshot_dispatcher}"
   snapshot_dispatcher="${SNAPSHOT_DISPATCHER_PATH}"
   dispatcher_validate_prepared_dispatcher "${snapshot_dispatcher}"
@@ -3344,6 +3357,16 @@ dispatcher_write_manifest() {
   fi
 }
 
+# An existing deployment is best refreshed with its own copy of
+# guild-deploy.sh: it knows the deployment's target and keeps its user
+# variables, and it updates itself on every run. Any other copy still works.
+dispatcher_note_installed_copy() {
+  local installed="${NODE_HOME}/scripts/guild-deploy.sh"
+  [[ -f "${installed}" ]] || return 0
+  [[ ! -f "${DISPATCHER_SCRIPT_PATH}" || ! "${DISPATCHER_SCRIPT_PATH}" -ef "${installed}" ]] || return 0
+  log_info "This deployment has its own guild-deploy.sh: ${installed}. Use it for later refreshes; it knows the deployment's target and keeps its settings."
+}
+
 # The kept files this release would change, repeated at the end because the
 # profile's own warning scrolls away in a long run.
 dispatcher_pending_config_report() {
@@ -3472,8 +3495,14 @@ guild_deploy_main() {
 
   case "${snapshot_stage}" in
     bootstrap)
-      GUILD_DEPLOY_USER_HEADER="$(dispatcher_extract_user_header "${DISPATCHER_SCRIPT_PATH}")" ||
-        err_exit "The running guild-deploy.sh has an invalid user-variable header."
+      # Run from memory, as with bash <(curl ...), the script is not a file;
+      # the snapshot step then finds the user variables itself.
+      if [[ -f "${DISPATCHER_SCRIPT_PATH}" ]]; then
+        GUILD_DEPLOY_USER_HEADER="$(dispatcher_extract_user_header "${DISPATCHER_SCRIPT_PATH}")" ||
+          err_exit "The running guild-deploy.sh has an invalid user-variable header."
+      else
+        GUILD_DEPLOY_USER_HEADER=""
+      fi
       dispatcher_select_installed_target
       DISPATCHER_LOCK_TARGET="Y"
       ;;
@@ -3506,6 +3535,7 @@ guild_deploy_main() {
 
   dispatcher_set_defaults
   if [[ "${snapshot_stage}" = "bootstrap" ]]; then
+    dispatcher_note_installed_copy
     GUILD_DEPLOY_TARGET_PATH="${DISPATCHER_LOCK_CANONICAL_TARGET}"
     GUILD_DEPLOY_TARGET_STATE_TOKEN="$(dispatcher_target_state_token "${DEPLOYMENT_FILE}")" ||
       err_exit "Could not record the deployment state before preparing the source snapshot."
@@ -3557,6 +3587,7 @@ guild_deploy_main() {
   printf "\n%sDeployment finished%s\n" "${STYLE_GREEN}${STYLE_BOLD}" "${STYLE_RESET}"
   dispatcher_pending_config_report
   dispatcher_binary_layout_report
+  printf "\n  To refresh this deployment later, run its own copy:\n    %s/scripts/guild-deploy.sh\n" "${NODE_HOME}"
   printf "\n  To use this deployment's binaries in a shell:\n    source %s/scripts/activate\n" "${NODE_HOME}"
 }
 

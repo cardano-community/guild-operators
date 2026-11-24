@@ -13,10 +13,14 @@ Omitting `-i` selects `cnode`, preserving the existing install path and
 behavior:
 
 ```bash
-./guild-deploy.sh -n mainnet -s pd
-./guild-deploy.sh -i dingo -n preview -s pd
-./guild-deploy.sh -i amaru -n preprod -s pd
+GUILD_DEPLOY=https://raw.githubusercontent.com/cardano-community/guild-operators/master/scripts/cnode-helper-scripts/guild-deploy.sh
+bash <(curl -sSfL "${GUILD_DEPLOY}") -n mainnet -s pd
+bash <(curl -sSfL "${GUILD_DEPLOY}") -i dingo -n preview -s pd
+bash <(curl -sSfL "${GUILD_DEPLOY}") -i amaru -n preprod -s pd
 ```
+
+Each deployment installs its own copy as `${NODE_HOME}/scripts/guild-deploy.sh`;
+later refreshes run that copy.
 
 Alternate implementations require an explicit network on their initial
 deployment. A later run against an existing, valid `.deployment.json` may omit

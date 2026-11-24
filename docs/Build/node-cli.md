@@ -18,11 +18,11 @@ The cnode `b` and `l` deployment flags install the manifest-selected Haskell
 toolchain, C build dependencies, and libsodium source dependency:
 
 ```bash
-./guild-deploy.sh -i cnode -n mainnet -s bl
+/opt/cardano/cnode/scripts/guild-deploy.sh -s bl
 ```
 
-Use the network and deployment arguments that match your existing cnode
-installation. Source builds still require the upstream project prerequisites;
+Run the copy of your existing cnode deployment, which knows its network and
+target. Source builds still require the upstream project prerequisites;
 review the selected release notes before building.
 
 When `b` replaces an installed Cabal release, for example 3.12.1.0 with

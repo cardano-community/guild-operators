@@ -54,8 +54,10 @@ binaries in `"${NODE_HOME}"/bin` and installs the Guild wrapper scripts in the
 selected node's `scripts` directory.
 
 ```bash
-./guild-deploy.sh -i cnode -n mainnet -s m
+/opt/cardano/cnode/scripts/guild-deploy.sh -s m
 ```
+
+On a first deployment, add `m` to the flags of that run instead.
 
 
 ### Bootstrapping a node using Mithril Client

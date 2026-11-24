@@ -11,15 +11,19 @@
     The profile tracks the newest Dingo release, whose database format is not
     compatible with databases created by older releases. Start over fresh:
     stop the service, delete the contents of `db/`, refresh the configuration
-    with `guild-deploy.sh -i dingo -n <network> -s df`, and bootstrap again.
+    with `/opt/cardano/dingo/scripts/guild-deploy.sh -s df`, and bootstrap again.
 
 ## Supported deployment
 
 The common deployment entrypoint selects Dingo with `-i dingo`. For example:
 
 ```bash
-./guild-deploy.sh -i dingo -n preview -s pd
+bash <(curl -sSfL https://raw.githubusercontent.com/cardano-community/guild-operators/master/scripts/cnode-helper-scripts/guild-deploy.sh) \
+  -i dingo -n preview -s pd
 ```
+
+Later refreshes run the deployment's own copy,
+`/opt/cardano/dingo/scripts/guild-deploy.sh`.
 
 A mainnet relay is deployed the same way with `-n mainnet`. The deployment
 then prints a reminder that Dingo is still under heavy development and that

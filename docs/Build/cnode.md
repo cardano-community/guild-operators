@@ -4,9 +4,13 @@ The `cnode` profile deploys Intersect's `cardano-node` implementation and
 remains the default when `guild-deploy.sh -i` is omitted:
 
 ```bash
-./guild-deploy.sh -n mainnet -s pd
-./guild-deploy.sh -i cnode -n preview -s pd
+GUILD_DEPLOY=https://raw.githubusercontent.com/cardano-community/guild-operators/master/scripts/cnode-helper-scripts/guild-deploy.sh
+bash <(curl -sSfL "${GUILD_DEPLOY}") -n mainnet -s pd
+bash <(curl -sSfL "${GUILD_DEPLOY}") -i cnode -n preview -s pd
 ```
+
+Later refreshes run the deployment's own copy, for example
+`/opt/cardano/cnode/scripts/guild-deploy.sh -s d`.
 
 It supports `mainnet`, `preprod`, `preview`, and the Guild development network.
 When `-t` is omitted, the deployment root and service name default to `cnode`.
