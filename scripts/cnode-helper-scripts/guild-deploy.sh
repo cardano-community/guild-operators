@@ -26,10 +26,8 @@
 ######################################
 
 # Pre-release networks deploy from this branch unless a deployment has stored
-# its own, and their pin updates land here (PINS_BRANCH in pins.yml). Until
-# cntools-rebuild merges into alpha, alpha has no such networks: switch this to
-# alpha in the last commit before that merge.
-GUILD_PRERELEASE_BRANCH="cntools-rebuild"
+# its own, and their pin updates land here (PINS_BRANCH in pins.yml).
+GUILD_PRERELEASE_BRANCH="alpha"
 
 export LANG="C.UTF-8"
 export LC_ALL="${LANG}"

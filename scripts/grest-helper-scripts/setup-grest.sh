@@ -16,7 +16,7 @@
 # Do NOT modify code below           #
 ######################################
 
-SGVERSION=v1.4.2
+SGVERSION=v1.5.0-wip
 
 ######## Functions ########
   usage() {
@@ -624,7 +624,7 @@ SGVERSION=v1.4.2
     if [[ -z ${PGPASSFILE} || ! -f "${PGPASSFILE}" ]]; then
       err_exit "PGPASSFILE env variable not set or pointing to a non-existing file: ${PGPASSFILE}\n ${DOCS_URL}/Build/dbsync"
     fi
-    if [[ "$(psql -qtAX -d ${PGDATABASE} -c "SELECT protocol_major FROM public.param_proposal WHERE protocol_major > 4 ORDER BY protocol_major DESC LIMIT 1" 2>/dev/null)" == "" ]]; then
+    if [[ "$(psql -qtAX -d ${PGDATABASE} -c "SELECT 1 FROM public.epoch_param WHERE protocol_major > 4 LIMIT 1" 2>/dev/null)" == "" ]]; then
       return 1
     fi
 
@@ -728,7 +728,10 @@ SGVERSION=v1.4.2
   if [[ "${INSTALL_PG_CARDANO}" == "Y" ]]; then deploy_pgcardano_ext; fi
   if [[ "${OVERWRITE_CONFIG}" == "Y" ]]; then deploy_configs; fi
   if [[ "${OVERWRITE_SYSTEMD}" == "Y" ]]; then deploy_systemd; fi
-  if [[ "${RESET_GREST}" == "Y" ]]; then remove_all_grest_cron_jobs; reset_grest; deploy_pgcardano_ext; fi
+  if [[ "${RESET_GREST}" == "Y" ]]; then
+    check_db_status || err_exit "Please wait for Cardano DBSync to populate PostgreSQL DB at least until Alonzo fork, and then re-run this setup script with the -r flag."
+    remove_all_grest_cron_jobs; reset_grest; deploy_pgcardano_ext
+  fi
   if [[ "${DB_QRY_UPDATES}" == "Y" ]]; then remove_all_grest_cron_jobs; setup_db_basics; deploy_query_updates; update_grest_version; fi
   pushd -0 >/dev/null || err_exit
   dirs -c

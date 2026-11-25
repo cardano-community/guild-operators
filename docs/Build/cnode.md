@@ -321,7 +321,7 @@ released (see [Dijkstra era](../Scripts/cntools-common.md#dijkstra-era)). When
 `bls.skey` is in the folder of `POOL_NAME`, `cnode.sh` starts the node with
 `--shelley-bls-key`, if the node release has that option.
 
-These networks deploy from `cntools-rebuild` unless you pass `-b`. Their pins
+These networks deploy from `alpha` unless you pass `-b`. Their pins
 change often, so a scheduled job, `pins.yml`, watches what each network requires and
 proposes a pull request for a person to merge: it reads `MinNodeVersion` from the
 book's config, updates the overlay and config with `files/tools/update-network-pins.sh`,
