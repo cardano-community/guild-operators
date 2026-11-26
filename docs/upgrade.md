@@ -1,3 +1,190 @@
+This page is for operators upgrading a deployment they already have. It starts
+with the steps, in order, for a deployment made from `master` before this
+release: CNTools 13, binaries in `~/.local/bin` and services set up by
+`deploy-as-systemd.sh`. The sections after the steps explain each change in
+more detail, and [Later upgrades](#later-upgrades) covers refreshes once you are
+on the new layout.
+
+!!! danger "Older scripts stop working until you upgrade"
+    Older helper scripts check for updates when they start, and exit when they
+    can't find the old file paths. Once this release is on `master`, on a
+    deployment that hasn't been upgraded:
+
+    - gLiveView, CNTools, the Mithril helper scripts and older copies of
+      `blockPerf.sh` and `topologyUpdater.sh` exit at startup
+    - CNCLI services fail at their next restart, because their units don't skip
+      the check
+    - the node, db-sync, the submit API and Ogmios keep running and restarting,
+      as they have no update check
+
+    Upgrade as below to fix this. To keep the old scripts working until you can,
+    set this in the deployment's `scripts/env`:
+
+    ``` bash
+    UPDATE_CHECK="N"
+    ```
+
+### Upgrading from master {: #from-master}
+
+The examples use a mainnet cnode deployment in `/opt/cardano/cnode`. Use your
+own `-n`, `-t` and `-p` values and your own folder in the paths.
+
+#### Before you start
+
+- Upgrade one relay first, and check it before you move on to the other relays
+  and the block producer.
+- This release runs cardano-node 11.1.3 and cardano-cli 11.7.0.0. `master`
+  installed 11.0.1 and 11.0.0.0, so the first run installs the new versions
+  with `-s d`. The new node may replay the ledger when it restarts, which can
+  take several hours.
+- Run the commands as the OS user that owns the deployment, not as root. That
+  user needs `sudo`.
+- CNTools 14 needs Bash 4.4 or newer and a UTF-8 terminal.
+- Back up `priv` (wallets, pools and keys), and note any changes you made by
+  hand to `config.json`, `topology.json` or systemd units.
+
+#### 1. Check what the upgrade would do
+
+Run the new `guild-deploy.sh` straight from GitHub, because an older copy can't
+do this upgrade. `-C` reports what the run would do and changes nothing:
+
+``` bash
+GUILD_DEPLOY=https://raw.githubusercontent.com/cardano-community/guild-operators/master/scripts/cnode-helper-scripts/guild-deploy.sh
+bash <(curl -sSfL "${GUILD_DEPLOY}") -C -s pd -n mainnet -t cnode -p /opt/cardano
+```
+
+It shows the versions it found, what will happen to your binaries, and anything
+that would stop the run (see [When it stops](#when-it-stops)).
+
+!!! note "Testing alpha before it reaches master"
+    Until this release is on `master`, take `guild-deploy.sh` from `alpha` and
+    add `-b alpha` to the commands in steps 1 and 2. The copy on `master`
+    doesn't know the new layout.
+
+    ``` bash
+    GUILD_DEPLOY=https://raw.githubusercontent.com/cardano-community/guild-operators/alpha/scripts/cnode-helper-scripts/guild-deploy.sh
+    ```
+
+    The deployment then records `alpha`, so later refreshes stay on it. Pass
+    `-b master` to move it back once the release is out.
+
+#### 2. Deploy
+
+``` bash
+bash <(curl -sSfL "${GUILD_DEPLOY}") -s pd -n mainnet -t cnode -p /opt/cardano
+```
+
+`p` installs the OS packages this release needs, and `d` the pinned node and
+CLI. Add the letters for anything else you run: `m` for the Mithril signer and
+client, `c` for CNCLI, `o` for Ogmios and `w` for `cardano-hw-cli`. `l` is now
+only needed to build from source. `guild-deploy.sh -h` lists every flag.
+
+The run:
+
+- installs the binaries in the deployment's own `/opt/cardano/cnode/bin` and
+  leaves `~/.local/bin` as it is ([details](#per-deployment-binaries))
+- refreshes the helper scripts, keeping the user variables you set in them, and
+  moves the files this release no longer uses (`cntools.library`,
+  `deploy-as-systemd.sh`, `topologyUpdater.sh`) into `scripts/archive`
+- removes Topology Updater's systemd units, if you had them
+- removes group and other write access under `priv`, which CNTools now requires
+- writes `/opt/cardano/cnode/.deployment.json` with the network, folder and
+  branch ([details](#branches-and-pins))
+- keeps your `config.json` and `topology.json`; step 3 updates them
+
+The running node isn't touched. From now on the deployment's own copy,
+`/opt/cardano/cnode/scripts/guild-deploy.sh`, does every refresh, and it
+remembers `-n`, `-t`, `-p` and `-b`.
+
+#### 3. Move the configuration to Ouroboros Genesis
+
+Mainnet, preprod and preview now run Ouroboros Genesis, because the public
+bootstrap peers that nodes sync from are being shut down. Until the
+configuration is updated, the deployer, `cnode.sh` and gLiveView warn about it.
+Update it in place, with backups:
+
+``` bash
+/opt/cardano/cnode/scripts/guild-deploy.sh -s u
+```
+
+[Moving to Ouroboros Genesis](#genesis-mode) lists exactly what changes and how
+to check the switch. The guild network stays in PraosMode.
+
+#### 4. Restart the node
+
+``` bash
+sudo systemctl restart cnode
+```
+
+Watch it with `/opt/cardano/cnode/scripts/gLiveView.sh`, which shows ledger
+replay progress. Your existing `cnode.service` keeps working, because it starts
+`scripts/cnode.sh` as before.
+
+#### 5. Check the other services
+
+- The run lists units that still start binaries from `~/.local/bin`, with the
+  command that moves each one, such as `mithril-signer.sh -d` for the Mithril
+  signer.
+- `deploy-as-systemd.sh` is gone. Each script now installs and manages its own
+  unit; see [Services](#services).
+- Restart the other services you run (db-sync, the submit API, Ogmios, CNCLI,
+  the Mithril signer) when it suits you, so they pick up the new binaries and
+  scripts.
+
+#### 6. Commands you type yourself
+
+Scripts and services find the deployment's binaries on their own. In a shell,
+select the deployment first. This also sets the socket and network:
+
+``` bash
+source /opt/cardano/cnode/scripts/activate
+cardano-cli version
+```
+
+The run lists the old copies in `~/.local/bin` that this deployment no longer
+uses, and prints the command to remove them once no other deployment of the
+same user needs them.
+
+#### 7. CNTools and gLiveView
+
+- **CNTools 14** is a new application under the same name. Start it with
+  `./cntools.sh` in the scripts folder. The first start offers to install
+  Charm Gum 2.0.2, which it needs, and fzf, which is optional, and asks whether
+  you want Quick or Detailed flows. Wallets, pools and keys in `priv` are used
+  as they are. Its settings and saved transactions are kept in
+  `scripts/cntools/`, its work files in `/opt/cardano/cnode/.cntools/`. On an
+  offline machine, install Gum before it goes offline. See the
+  [CNTools guide](Scripts/cntools.md).
+- **gLiveView 2.0** is one script for cardano-node, Dingo and Amaru. `?` shows
+  the keys and help, and `!` opens the Notices page, which lists anything the
+  deployment still needs. See the [gLiveView guide](Scripts/gliveview.md).
+
+#### What is gone
+
+| Before | Now |
+| --- | --- |
+| `deploy-as-systemd.sh` | each script's `-d` or `systemd install\|remove\|status`; see [Services](#services) |
+| CNTools 13 and `cntools.library` | CNTools 14 in `scripts/cntools/`, started with `cntools.sh` |
+| Topology Updater | removed, as P2P finds its own peers; the refresh archives the script and removes its units |
+| `blockPerf.sh` and `logMonitor.sh` | still disabled under the current node tracing; openBlockPerf (`-s r`) instead |
+| binaries shared in `~/.local/bin` | each deployment's own `bin` |
+| `POOL_DIR` in `env` | the pool folder is always `${POOL_FOLDER}/${POOL_NAME}` |
+| `scripts/.env_branch` | the branch is stored in `.deployment.json` |
+| `guild-deploy.sh -u` | no longer needed, and ignored |
+
+#### Going back {: #unintended}
+
+This release keeps no copies of files at their old paths. To return to the old
+layout, take `guild-deploy.sh` from the tag of the release you came from and
+pass the same tag with `-b`. Don't mix scripts from the old and new layouts.
+Available tags are listed
+[on GitHub](https://github.com/cardano-community/guild-operators/tags). Check
+the node release notes before you start an older node on a database a newer one
+has used.
+
+If a refresh replaced a file you wanted to keep, the previous copy is in
+`/opt/cardano/cnode/scripts/archive`.
+
 ### Moving to Ouroboros Genesis {: #genesis-mode}
 
 The public bootstrap peers that nodes in PraosMode sync from are being shut
@@ -7,12 +194,12 @@ the largest pools listed in the network's peer snapshot and compares their
 chains, instead of trusting a few bootstrap hosts. The Guild network stays in
 PraosMode.
 
-A refresh with the current `guild-deploy.sh` keeps an existing cnode
-deployment's `config.json` and `topology.json` as they are and warns that they
-still need this release's changes. gLiveView shows the same as a warning in its
-side rail and on its Notices page (`!`), and `cnode.sh` logs it each time the
-node starts; the node still starts, also under systemd. Refresh with `-s u` to
-move both over in place, keeping everything else you set:
+A refresh keeps an existing cnode deployment's `config.json` and
+`topology.json` as they are and warns that they still need this release's
+changes. gLiveView shows the same as a warning in its side rail and on its
+Notices page (`!`), and `cnode.sh` logs it each time the node starts; the node
+still starts, also under systemd. Refresh with `-s u` to move both over in
+place, keeping everything else you set:
 
 ``` bash
 /opt/cardano/cnode/scripts/guild-deploy.sh -s u
@@ -52,61 +239,43 @@ on every refresh. Its retired bootstrap peer is removed from `AMARU_PEER`, and
 Each deployment now keeps its binaries in its own `${NODE_HOME}/bin`, instead of
 sharing `~/.local/bin` with every other deployment of the OS user. Deploying one
 network can no longer change what another one runs, including `gum` and
-`cardano-hw-cli`.
+`cardano-hw-cli`. The move happens in step 2 of
+[Upgrading from master](#from-master).
 
-Moving an existing deployment takes one run of the current `guild-deploy.sh`, with
-your usual `-n`, `-t` and `-p` values. Run it straight from GitHub, because an
-older copy can't do this. Check what it would do. This changes nothing:
+#### What the deployment does for you
 
-``` bash
-GUILD_DEPLOY=https://raw.githubusercontent.com/cardano-community/guild-operators/master/scripts/cnode-helper-scripts/guild-deploy.sh
-bash <(curl -sSfL "${GUILD_DEPLOY}") -C -n mainnet -t cnode -p /opt/cardano
-```
-
-Then deploy, and restart the node when you choose to:
-
-``` bash
-bash <(curl -sSfL "${GUILD_DEPLOY}") -s d -n mainnet -t cnode -p /opt/cardano
-```
-
-From then on the deployment's own copy, `/opt/cardano/cnode/scripts/guild-deploy.sh`,
-is current and does every later refresh.
-
-``` bash
-sudo systemctl restart cnode
-```
-
-The running node isn't touched. The new version takes effect when you restart it,
-and a major upgrade can replay the ledger for several hours, so test on a relay
-first.
-
-**What the deployment does for you.** Tools you already have, such as `cncli`, are
-copied into `bin` unchanged. If you leave out `-s d` and your versions are already
-new enough, all your binaries are copied unchanged and no restart is needed.
-`~/.local/bin` is never changed. The run lists any old copies this deployment no
-longer uses, and when it's safe to remove them.
+Tools you already have, such as `cncli`, are copied into `bin` unchanged. If
+you leave out `-s d` and your versions are already new enough, all your
+binaries are copied unchanged and no restart is needed. `~/.local/bin` is never
+changed. The run lists any old copies this deployment no longer uses, and when
+it's safe to remove them.
 
 It also removes group and other write access from the folders and files under
-`priv`, because CNTools now refuses to work with them otherwise. Read access is left
-as it is.
+`priv`, because CNTools now refuses to work with them otherwise. Read access is
+left as it is.
 
-**When it stops.** It checks first, and a stop leaves the deployment exactly as it
-was. It stops, and says what to do, when:
+#### When it stops {: #when-it-stops}
 
-- your node or CLI is older than the new scripts need and you left out `-s d`. New
-  scripts on an old node would work until the next restart, and then the node
-  wouldn't start
+It checks first, and a stop leaves the deployment exactly as it was. It stops,
+and says what to do, when:
+
+- your node or CLI is older than the new scripts need and you left out `-s d`.
+  New scripts on an old node would work until the next restart, and then the
+  node wouldn't start
 - `CNODEBIN` or `CCLI` in `env` points at a binary that's too old
 - the deployment has a chain database, but this OS user has no `cardano-node`
-- the target isn't writable, is low on disk, or can't run programs (a `noexec` mount)
-- a Dingo or Amaru deployment still has its binaries in `~/.local/bin` and you left
-  out `-s d`
+- the target isn't writable, is low on disk, or can't run programs (a `noexec`
+  mount)
+- a Dingo or Amaru deployment still has its binaries in `~/.local/bin` and you
+  left out `-s d`
 
-**Commands typed by hand.** Guild scripts and services find their binaries without
-any change. For commands you type yourself, select the deployment in that shell.
-This also sets the socket and network, and sourcing another deployment's copy
-switches to it, as
-[Several deployments under one user](basics.md#several-deployments) describes:
+#### Commands typed by hand
+
+Guild scripts and services find their binaries without any change. For
+commands you type yourself, select the deployment in that shell. This also sets
+the socket and network, and sourcing another deployment's copy switches to it,
+as [Several deployments under one user](basics.md#several-deployments)
+describes:
 
 ``` bash
 source /opt/cardano/cnode/scripts/activate
@@ -116,149 +285,80 @@ Without it, a migrated user's plain `cardano-cli` still runs the old copy in
 `~/.local/bin` until you remove it. A new deployment has no copy there, so the
 command isn't found.
 
-**Units that still use the old path.** The run lists any that do. For example, an
-existing Mithril signer keeps running from `~/.local/bin` until you regenerate its
-unit and environment with `mithril-signer.sh -d`.
+#### Units that still use the old path
 
-**To undo a copy,** rename the folder and the deployment returns to the shared
-files. This doesn't apply after `-s d`, because the old binaries would be below the
-new minimum:
+The run lists any that do. For example, an existing Mithril signer keeps
+running from `~/.local/bin` until you regenerate its unit and environment with
+`mithril-signer.sh -d`.
+
+#### To undo a copy
+
+Rename the folder and the deployment returns to the shared files. This doesn't
+apply after `-s d`, because the old binaries would be below the new minimum:
 
 ``` bash
 mv /opt/cardano/cnode/bin /opt/cardano/cnode/bin.disabled
 ```
 
-!!! danger "Older scripts stop working until you migrate"
-    Older helper scripts check for updates when they start, and exit when they
-    can't find the old file path. Once this release is on `master`, on a deployment
-    that hasn't migrated:
+### Services {: #services}
 
-    - gLiveView, CNTools, the Mithril helper scripts and older copies of
-      `blockPerf.sh` and `topologyUpdater.sh` exit at startup
-    - CNCLI services fail at their next restart, because their units don't skip the
-      check
-    - the node, db-sync, the submit API and Ogmios keep running and restarting, as
-      they have no update check
+`deploy-as-systemd.sh` is gone. Each script installs and manages its own unit:
 
-    Migrate as above to fix this. To keep the old scripts working until you can, set
-    this in the deployment's `scripts/env`:
+- `cnode.sh -d` (or `cnode.sh systemd install`) installs `cnode.service`, and
+  `cnode.sh systemd remove|status|reload` manage it. `reload` sends SIGHUP to
+  the running node.
+- db-sync, the submit API, Ogmios and the Mithril signer have
+  `<script> systemd install|remove|status`, and CNCLI has `cncli.sh -d [scope]`.
 
-    ``` bash
-    UPDATE_CHECK="N"
-    ```
+The [component-owned unit table](Build/node-implementations.md#component-owned-systemd-units)
+lists them all. Installing a unit enables it but doesn't start the node.
 
-### Steps for Upgrading
+Units made by the old script keep working. Running a script's `-d` replaces its
+unit with one that carries an ownership marker, so one deployment's scripts
+never remove another deployment's unit with the same name. Check a unit you
+changed by hand before you replace it.
 
-!!! important "Deployment metadata and service migration"
-    Run the current `guild-deploy.sh` before accepting individual helper-script
-    updates on an older flat cnode installation. The former cnode-specific
-    helper URLs are retired, so an old updater will fail safely without
-    replacing its local file. The deployment entrypoint installs the complete
-    shared runtime and manifest in one operation.
+### Branches and pins {: #branches-and-pins}
 
-    The common deployment entrypoint now accepts
-    `-i cnode|dingo|amaru`; omitting it still selects `cnode`. Existing cnode
-    operators should keep their current `-p`, `-t`, and `-n` values on the
-    first run. A successful run creates `.deployment.json` at the deployment
-    root (normally `${CNODE_HOME}` for cnode),
-    imports the branch from the former `scripts/.env_branch`, and archives
-    that sidecar. Subsequent `-b` updates are stored in the manifest.
-    Manifest-backed runtime helpers never choose a different branch on their
-    own. Guild-deploy retains its visible fallback to `master`, but only after
-    Git confirms that the recorded branch or tag no longer exists; clone or
-    verification errors stop instead. For a new Dingo or Amaru deployment,
-    `-n preprod` or `-n preview` is required. Later dispatcher runs may omit
-    `-n` because the valid manifest restores the network.
+`.deployment.json` in the deployment folder records the implementation,
+network, folder, branch and service name. Later runs read it, so `-n`, `-t`,
+`-p` and `-b` are only needed the first time, and a new `-b` is stored. The old
+`scripts/.env_branch` is read once and archived.
 
-    cnode now uses the same repository structure as the alternate profiles:
-    release metadata is installed from
-    `files/node-implementations/cnode/release.json`, and network templates are
-    read from `files/configs/cnode/<network>`. Older Guild Operators tags retain
-    the previous paths for deliberately tagged deployments. The current
-    profile verifies the pinned cardano-node and cardano-cli checksums before
-    extracting `-s d` downloads. Dingo owns a separate cardano-cli pin and
-    installs it in its own `bin` folder; re-run the Dingo deployment with
-    `-s d` when either its rolling node or pinned CLI companion should be
-    refreshed.
+Scripts never choose another branch on their own. `guild-deploy.sh` falls back
+to `master` only when Git confirms that the recorded branch or tag no longer
+exists; set `GUILD_DEPLOY_STRICT_REF=Y` to stop instead. Clone or verification
+errors always stop the run.
 
-    When selecting a tag from before this restructuring, download
-    `guild-deploy.sh` from that same tag and also pass it with `-b`. For example,
-    the existing `node-10.1.4` tag contains the historical flat configuration
-    layout, so use its dispatcher together with `-b node-10.1.4`. The tag
-    contains the whole historical layout; the current branch intentionally
-    carries no compatibility copies or fallback paths.
+Versions are pinned in `files/node-implementations/cnode/release.json`, and
+every `-s d` download is checked against its SHA-256 checksum. Network
+configurations come from `files/configs/cnode/<network>/`. The same deployer
+installs Dingo and Amaru with `-i dingo` or `-i amaru`; see
+[Node implementations](Build/node-implementations.md).
 
-    `deploy-as-systemd.sh` has been removed. Node and component launchers now
-    own `systemd install`, `remove`, and `status` operations; existing `-d`
-    install aliases are retained. A cnode refresh moves any previously
-    installed copy into `scripts/archive` after the replacement launchers have
-    been installed. Review the
-    [component-owned unit table](Build/node-implementations.md#component-owned-systemd-units)
-    before deleting any locally customized legacy unit. New unit files carry
-    a deployment-specific Guild ownership marker, and component removal
-    refuses an unrelated same-name unit, including one owned by another Guild
-    target. Missing expected unit files are left as no-ops. Units produced by
-    the old orchestrator are recognized by their component-specific command or
-    description during migration.
+Older tags keep the old layout. To deploy one, take `guild-deploy.sh` from that
+tag and pass the same tag with `-b`, for example `-b node-10.1.4`.
 
-    Topology Updater predates Cardano P2P and has been removed. A cnode
-    refresh archives `topologyUpdater.sh` into `scripts/archive` and removes
-    its `cnode-tu-push`, `cnode-tu-fetch` and `cnode-tu-restart` units, because
-    the restart timer would otherwise keep restarting the node every day. If a
-    unit can't be removed, the run says so and shows the commands to remove it
-    by hand.
+### Later upgrades {: #later-upgrades}
 
-!!! danger "Current cnode logging configuration"
-    The current Guild cnode configurations use the tracing infrastructure
-    introduced in cardano-node 10.4.x rather than the former legacy logging
-    layout. Guild Operators does not configure the separate cardano-tracer
-    service. Consult the
-    [official cardano-tracer documentation](https://github.com/intersectmbo/cardano-node/blob/master/cardano-tracer/docs/cardano-tracer.md)
-    if you need it.
+Once a deployment is on this layout, refresh it with its own copy. With no
+flags it refreshes the scripts and keeps your binaries, configuration and user
+variables:
 
-    What this means, as a SPO:
+``` bash
+/opt/cardano/cnode/scripts/guild-deploy.sh
+```
 
-      - You will no longer have EKG monitoring, there is equivalent SimplePrometheus backend available in node, which should suffice monitoring setup requirements.
-      - The logging will not be sent to JSON file formats, but instead be available to stdout - we have updated all our references to include monitoring logs via journald (which allows electing JSON formats should one want to).
-      - Since not only the log locations but also the formats of the logging have changed, we have to temporarily disable blockperf/logmonitor for now, as developers of corresponding tools will need to start from scratch reading newer log formats. This should not impact an average SPO not using those tools.
-      - A side-effect change that got introduced is also to update logging for submitapi and dbsync configs to use stdout (thus, journald) instead of log files.
+- Add `-s d` when a release changes the pinned node or CLI, then restart the
+  node.
+- Add `-s u` when a release changes the configuration; the run says so.
+  `-s f` replaces `config.json` and `topology.json` with the shipped files
+  instead (backups are kept), and you add your own changes back.
+- `-s s` also overwrites the user variables in the helper scripts. Without it
+  they are kept, and the previous copies go to `scripts/archive`.
+- Add `-b <branch>` to move the deployment to another branch.
 
-    Lastly, given the changes above, we **strongly** recommend you to make sure you go through upgrade steps for your setup in a non-mainnet environment first!!
-
-This is a generic upgrade reference rather than a guide for one node release.
-The supported cnode and companion versions are defined in
-`files/node-implementations/cnode/release.json`; always review the corresponding
-upstream release notes before upgrading.
-
-- Download the current `guild-deploy.sh` and review its options with
-  `guild-deploy.sh -h`. When helper scripts are refreshed, their user-variable
-  sections are retained unless `-s s` is selected, and previous copies are
-  placed in `scripts/archive`. Static files such as genesis and submit-api
-  configuration are not treated as user-maintained backups.
-
-!!! warning "Remember"
-    You are expected to provide appropriate environment-specific parameters (eg: custom top level folder [-p], alternate name for top level folder [-t], network flag [-n], any additional components you use, etc) to the examples that pertain to your use case.
-
-- Depending on node release, you may be able to simply perform an update-in-place of scripts and node, or for some cases, you may need to overwrite configs as well. Some Examples below:
-
-    - For an upgrade that changes configuration formats, overwrite the cnode
-      configuration with `f`. Check the upstream release notes first. Reapply
-      any local configuration changes afterwards; topology, config, and db-sync
-      files are backed up in `"${CNODE_HOME}"/files` for comparison.
-
-      ``` bash
-      /opt/cardano/cnode/scripts/guild-deploy.sh -s dlfm
-      ```
-    - When an upgrade does not require configuration changes, refresh the
-      scripts and selected binaries without `f`. Existing configuration and
-      script user variables are preserved:
-
-      ``` bash
-      /opt/cardano/cnode/scripts/guild-deploy.sh -s dlm
-      ```
-
-    The deployment's own copy uses its recorded network, target and branch;
-    add `-b <branch>` to move to another branch.
+Check the upstream release notes before a node upgrade.
 
 !!! warning "Beware"
     A cnode upgrade, especially across a major version, may revalidate or
@@ -267,30 +367,24 @@ upstream release notes before upgrading.
     a compatible snapshot is available, the
     [Mithril client](Scripts/mithril-client.md) can reduce replay time.
 
-- After running the deployment script, select the deployment in your shell to use
-  its binaries for commands you type yourself:
-
-``` bash
-source "${CNODE_HOME}"/scripts/activate
-cardano-cli version
-```
-
 ### Troubleshooting {: #troubleshooting}
 
-- We've found users often confuse between `$PATH` variable resolution between multiple shell sessions, systemd, etc. While if you only used this guide, the binaries should be in `"${CNODE_HOME}/bin"`, you may have manually downloaded to another location before. To avoid this, you can edit the following files and uncomment and set the following variables to the appropriate paths as per your deployment (eg: `CCLI="${CNODE_HOME}"/bin/cardano-cli` if following above):
+- Binaries can be found in more than one place, for example in shell sessions
+  and in systemd, especially if you downloaded some by hand before. Scripts use
+  the deployment's `${CNODE_HOME}/bin`. To point them at a specific binary,
+  uncomment and set these variables:
 
-    - env : CCLI, CNCLI, CNODEBIN
-    - [If applicable] dbsync.sh: DBSYNCBIN
-    - [If applicable] submitapi.sh: SUBMITAPIBIN
-    - [If applicable] ogmios.sh: OGMIOSBIN
+    - `env`: `CCLI`, `CNCLI`, `CNODEBIN`
+    - `dbsync.sh`: `DBSYNCBIN` (if you use it)
+    - `submitapi.sh`: `SUBMITAPIBIN` (if you use it)
+    - `ogmios.sh`: `OGMIOSBIN` (if you use it)
 
-- The above should take care of tools and services. However, you might still have duplicate binaries in your `$PATH` (previous artifacts, re-build using old scripts, etc) - it is best that you remove any old binary files from alternate folders. You can do so by executing the below:
+- Old copies elsewhere in your `$PATH` can still run when you type a command.
+  List them, and remove the ones nothing uses any more:
 
 ``` bash
 whereis bech32 cardano-address cardano-cli cardano-db-sync cardano-hw-cli cardano-node cardano-submit-api cncli ogmios
 ```
-
-For some cases - you might have no values (eg: you may not use `cardano-db-sync`, `cncli`, `ogmios` and/or `cardano-hw-cli`. You need not take any actions for the binaries you do not use.
 
 - If gLiveView cannot connect after an upgrade, first distinguish a missing
   node process from an unavailable metrics endpoint. Set `DEPLOYMENT_HOME` to
@@ -324,16 +418,6 @@ For some cases - you might have no values (eg: you may not use `cardano-db-sync`
   that is replaying or revalidating the ledger may take time before all normal
   metrics are available. gLiveView hides individual unsupported metrics, but
   it requires a live process and a successful metrics scrape.
-
-### Unintended update-in-place {: #unintended}
-
-If an update replaced files unintentionally, use the copies in
-`"${CNODE_HOME}/scripts/archive"` for a targeted comparison or restoration.
-For a deliberate downgrade across a repository restructuring boundary, use
-the `guild-deploy.sh` from the chosen existing tag and pass that same tag with
-`-b`, as described above. Do not mix one historical helper with the current
-runtime and manifest. Available tags are listed
-[on GitHub](https://github.com/cardano-community/guild-operators/tags).
 
 ### Support/Improvements {: #support}
 
