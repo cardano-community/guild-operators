@@ -1,0 +1,18 @@
+{
+  "kind": "action",
+  "label": "Epoch",
+  "description": "Show block production for an epoch",
+  "order": 20,
+  "modes": [
+    "local",
+    "light",
+    "offline"
+  ],
+  "libs": [
+    "number.sh",
+    "presentation.sh",
+    "table.sh",
+    "blocklog.sh",
+    "blocklog-ui.sh"
+  ]
+}

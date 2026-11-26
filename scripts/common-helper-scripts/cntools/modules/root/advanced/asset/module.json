@@ -1,0 +1,6 @@
+{
+  "kind": "menu",
+  "label": "Asset",
+  "description": "Create policies and manage native assets",
+  "order": 20
+}

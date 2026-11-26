@@ -1,0 +1,191 @@
+#!/usr/bin/env bash
+# shellcheck shell=bash
+
+# Shared, deliberately small helpers for component-owned systemd units.
+#
+# SYSTEMD_UNIT_DIR and SYSTEMCTL_BIN may be overridden by tests or packagers.
+# SUDO=N keeps privileged commands unwrapped (for example inside containers).
+
+SYSTEMD_UNIT_DIR="${SYSTEMD_UNIT_DIR:-/etc/systemd/system}"
+SYSTEMCTL_BIN="${SYSTEMCTL_BIN:-systemctl}"
+SYSTEMD_GUILD_MARKER="# X-Guild-Operators-Managed: true"
+SYSTEMD_GUILD_OWNER_PREFIX="# X-Guild-Operators-Owner:"
+
+systemd_assert_unit_name() {
+  local unit_name="${1:-}"
+
+  case "${unit_name}" in
+    ""|*[!A-Za-z0-9_.@:-]*)
+      echo "ERROR: Invalid systemd unit name: ${unit_name}" >&2
+      return 1
+      ;;
+  esac
+
+  case "${unit_name}" in
+    *.service|*.timer|*.socket|*.path|*.target) ;;
+    *)
+      echo "ERROR: Unsupported systemd unit type: ${unit_name}" >&2
+      return 1
+      ;;
+  esac
+}
+
+systemd_as_root() {
+  if [[ ${EUID} -eq 0 || ${SUDO:-Y} != "Y" ]]; then
+    "$@"
+  else
+    sudo "$@"
+  fi
+}
+
+systemd_control() {
+  systemd_as_root "${SYSTEMCTL_BIN}" "$@"
+}
+
+systemd_assert_owner_token() {
+  local owner_token="${1:-}"
+
+  [[ -n "${owner_token}" &&
+     "${owner_token}" != *$'\n'* &&
+     "${owner_token}" != *$'\r'* ]] || {
+    echo "ERROR: Invalid or missing Guild systemd owner token." >&2
+    return 1
+  }
+}
+
+systemd_unit_is_guild_owned() {
+  local unit_path="${1:-}"
+  local owner_token="${2:-}"
+  local legacy_token="${3:-${owner_token}}"
+
+  systemd_assert_owner_token "${owner_token}" || return 1
+  [[ -f "${unit_path}" && ! -L "${unit_path}" ]] || return 1
+  if grep -Fqx "${SYSTEMD_GUILD_MARKER}" "${unit_path}" 2>/dev/null; then
+    # A managed unit belongs to one concrete launcher/deployment. Do not let a
+    # generic Guild marker authorize another target with the same unit name.
+    grep -Fqx "${SYSTEMD_GUILD_OWNER_PREFIX} ${owner_token}" \
+      "${unit_path}" 2>/dev/null
+    return
+  fi
+
+  # Unmarked units from the retired orchestrator are recognized only by the
+  # component-specific legacy signature supplied by their current owner.
+  [[ -n "${legacy_token}" ]] &&
+    grep -F -- "${legacy_token}" "${unit_path}" >/dev/null 2>&1
+}
+
+systemd_install_unit() {
+  local unit_name="${1:-}"
+  local unit_content="${2:-}"
+  local owner_token="${3:-}"
+  local legacy_token="${4:-${owner_token}}"
+  local temporary_file
+  local unit_path
+
+  systemd_assert_unit_name "${unit_name}" || return 1
+  systemd_assert_owner_token "${owner_token}" || return 1
+  systemd_assert_owner_token "${legacy_token}" || return 1
+  unit_path="${SYSTEMD_UNIT_DIR}/${unit_name}"
+  if [[ -e "${unit_path}" || -L "${unit_path}" ]]; then
+    if ! systemd_unit_is_guild_owned \
+      "${unit_path}" "${owner_token}" "${legacy_token}"; then
+      echo "ERROR: Refusing to replace unmanaged systemd unit ${unit_path}." >&2
+      return 1
+    fi
+  fi
+
+  temporary_file=$(mktemp) || return 1
+  if ! printf '%s\n%s %s\n%s\n' \
+    "${SYSTEMD_GUILD_MARKER}" \
+    "${SYSTEMD_GUILD_OWNER_PREFIX}" "${owner_token}" \
+    "${unit_content}" > "${temporary_file}"; then
+    rm -f "${temporary_file}"
+    return 1
+  fi
+
+  if ! systemd_as_root install -m 0644 "${temporary_file}" "${unit_path}"; then
+    rm -f "${temporary_file}"
+    return 1
+  fi
+
+  rm -f "${temporary_file}"
+}
+
+systemd_daemon_reload() {
+  systemd_control daemon-reload
+}
+
+systemd_enable_units() {
+  local unit_name
+
+  for unit_name in "$@"; do
+    systemd_assert_unit_name "${unit_name}" || return 1
+  done
+  systemd_control enable "$@"
+}
+
+systemd_remove_units() {
+  local owner_token=""
+  local legacy_token=""
+  local unit_name
+  local unit_path
+  local result=0
+  local removed=0
+
+  while [[ $# -gt 0 ]]; do
+    case "${1}" in
+      --owner-token)
+        [[ $# -ge 2 ]] || return 1
+        owner_token="${2}"
+        shift 2
+        ;;
+      --legacy-token)
+        [[ $# -ge 2 ]] || return 1
+        legacy_token="${2}"
+        shift 2
+        ;;
+      *) break ;;
+    esac
+  done
+  systemd_assert_owner_token "${owner_token}" || return 1
+  [[ -n "${legacy_token}" ]] || legacy_token="${owner_token}"
+  systemd_assert_owner_token "${legacy_token}" || return 1
+  [[ $# -gt 0 ]] || return 1
+
+  for unit_name in "$@"; do
+    systemd_assert_unit_name "${unit_name}" || return 1
+    unit_path="${SYSTEMD_UNIT_DIR}/${unit_name}"
+    if [[ -e "${unit_path}" || -L "${unit_path}" ]]; then
+      if ! systemd_unit_is_guild_owned \
+        "${unit_path}" "${owner_token}" "${legacy_token}"; then
+        echo "ERROR: Refusing to remove unmanaged systemd unit ${unit_path}." >&2
+        result=1
+        continue
+      fi
+      if ! systemd_control disable --now "${unit_name}" >/dev/null 2>&1; then
+        echo "ERROR: Could not stop and disable ${unit_name}; its unit file was left intact." >&2
+        result=1
+        continue
+      fi
+      if systemd_as_root rm -f -- "${unit_path}"; then
+        removed=1
+      else
+        result=1
+      fi
+    fi
+  done
+
+  if [[ "${removed}" -eq 1 ]]; then
+    systemd_daemon_reload || result=1
+  fi
+  return "${result}"
+}
+
+systemd_status_units() {
+  local unit_name
+
+  for unit_name in "$@"; do
+    systemd_assert_unit_name "${unit_name}" || return 1
+  done
+  "${SYSTEMCTL_BIN}" --no-pager status "$@"
+}

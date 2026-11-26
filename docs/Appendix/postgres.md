@@ -1,5 +1,10 @@
-These deployment instructions used for reference while building [cardano-db-sync](../Build/dbsync.md) tool, with the scope being ease of set up, and some tuning baselines for those who are new to Postgres DB.
-It is recommended to customise these as per your needs for Production builds.
+# PostgreSQL for cardano-db-sync
+
+These reference instructions provide a simple PostgreSQL 18 setup and tuning
+baseline for the Guild [cardano-db-sync](../Build/dbsync.md) workflow. They are
+not part of the Dingo or Amaru deployment profiles. Adapt the package version,
+paths, access controls, backups, and tuning to your operating system and
+production requirements.
 
 !!! important
     You'd find it pretty useful to set up ZFS on your system prior to setting up Postgres, to help with your IOPs throughput requirements. You can find sample install instructions [here](https://openzfs.github.io/openzfs-docs/Getting%20Started/Debian/index.html). You can set up your entire root mount to be on ZFS, or you can opt to mount a file as ZFS on "${CNODE_HOME}"
@@ -15,7 +20,7 @@ DISTRO=$(grep -i ^NAME= /etc/os-release | cut -d= -f 2)
 
 if [ -z "${OS_ID##*debian*}" ]; then
   #Debian/Ubuntu
-  sudo apt install curl ca-certificates -y
+  sudo apt install curl ca-certificates lsb-release -y
   sudo install -d /usr/share/postgresql-common/pgdg
   sudo curl -s -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc --fail https://www.postgresql.org/media/keys/ACCC4CF8.asc
   sudo sh -c 'echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" > /etc/apt/sources.list.d/pgdg.list'
@@ -57,6 +62,12 @@ In a typical Koios [gRest] setup, we use below for *minimum* viable specs (i.e. 
 
 In addition to above, due to the nature of usage by dbsync (synching from node and restart traversing back to last saved ledger-state snapshot), we leverage data retention on blockchain - as we're not affected by loss of volatile information upon a restart of instance. Thus, we can relax some of the data retention and protection against corruption related settings, as those are IOPs/CPU Load Average impacts that the instance does not need to spend. We'd recommend setting 3 of those below in your `/etc/postgresql/18/main/postgresql.conf`:
 
+!!! danger "Use only for a rebuildable db-sync database"
+    These settings reduce PostgreSQL durability and disable replication/PITR
+    capabilities. Do not apply them to a cluster that contains unrelated or
+    authoritative data. Maintain tested backups and understand the recovery
+    consequences before using them.
+
 | Parameter          | Value   |
 |--------------------|---------|
 | wal_level          | minimal |
@@ -76,24 +87,39 @@ sudo su postgres
 psql
 ```
 
-Note the <user> returned as the output of `echo $(whoami)` command. Replace all instance of <user> in the documentation below.
-Execute the below in psql prompt. Replace **<username>** and **PasswordYouWant** with your OS user (output of `echo $(whoami)` command executed above) and a password you'd like to authenticate to Postgres with:
+Note the `<user>` returned by `whoami` before changing to the `postgres`
+account. Replace `<user>` below with that exact OS user name:
 
 ``` sql
-CREATE ROLE <user> SUPERUSER LOGIN;
+CREATE ROLE "<user>" SUPERUSER CREATEDB LOGIN;
 \q
 ```
-Type `exit` at shell to return to your user from postgres
+
+This local example relies on Debian/Ubuntu's default peer authentication for a
+matching OS and PostgreSQL role and therefore does not create a database
+password. Do not expose this superuser for remote login. If your PostgreSQL
+access policy requires password or network authentication, create a dedicated
+credential, restrict `pg_hba.conf` and firewall rules, and store the real
+password in the final field of `.pgpass`.
+
+Type `exit` at the shell to return to your original user.
 
 #### Verify Login to postgres instance
 
 ``` bash
-export PGPASSFILE=$CNODE_HOME/priv/.pgpass
-echo "/var/run/postgresql:5432:cexplorer:*:*" > $PGPASSFILE
-chmod 0600 $PGPASSFILE
+export PGPASSFILE="$CNODE_HOME/priv/.pgpass"
+printf '/var/run/postgresql:5432:cexplorer:%s:peer-auth-no-password\n' \
+  "$(id -un)" > "$PGPASSFILE"
+chmod 0600 "$PGPASSFILE"
 psql postgres
-# psql (18.3)
+# psql (18.x)
 # Type "help" for help.
 # 
 # postgres=#
 ```
+
+The placeholder final field is not used by local peer authentication. Replace
+it with the actual password when using a password-based policy. The
+`cardano-db-sync` setup script reads the host, port, database, and user from
+this file and creates the `cexplorer` database in the next step of the
+[db-sync guide](../Build/dbsync.md#prepare-db-for-sync).

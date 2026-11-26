@@ -1,0 +1,26 @@
+{
+  "kind": "action",
+  "label": "Delete Private Keys",
+  "description": "Delete private keys from CNTools storage",
+  "order": 40,
+  "modes": [
+    "local",
+    "light",
+    "offline"
+  ],
+  "libs": [
+    "number.sh",
+    "filesystem.sh",
+    "bech32.sh",
+    "presentation.sh",
+    "wallet.sh",
+    "wallet-material.sh",
+    "wallet-key.sh",
+    "wallet-protection.sh",
+    "transaction.sh",
+    "table.sh",
+    "catalyst-key.sh",
+    "private-keys.sh",
+    "private-keys-ui.sh"
+  ]
+}

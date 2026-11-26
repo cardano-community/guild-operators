@@ -1,0 +1,28 @@
+{
+  "kind": "action",
+  "label": "Post / Submit",
+  "description": "Review and submit a transaction artifact",
+  "order": 20,
+  "modes": [
+    "local",
+    "light"
+  ],
+  "libs": [
+    "number.sh",
+    "bech32.sh",
+    "drep-id.sh",
+    "address-credential.sh",
+    "filesystem.sh",
+    "presentation.sh",
+    "table.sh",
+    "asset.sh",
+    "transaction-detail-ui.sh",
+    "transaction.sh",
+    "transaction-submit.sh",
+    "transaction-monitor.sh",
+    "json.sh",
+    "transaction-ui.sh",
+    "transaction-picker.sh",
+    "transaction-review.sh"
+  ]
+}

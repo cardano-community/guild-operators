@@ -9,7 +9,7 @@
 ######################################
 
 #PGPASSFILE="${CNODE_HOME}/priv/.pgpass"                    # PGPass file containing connection information for the postgres instance
-#DBSYNCBIN="${HOME}/.local/bin/cardano-db-sync"             # Path for cardano-db-sync binary, assumed to be available in $PATH
+#DBSYNCBIN="${CNODE_HOME}/bin/cardano-db-sync"               # Path for cardano-db-sync binary, assumed to be available in $PATH
 #DBSYNC_STATE_DIR="${CNODE_HOME}/guild-db/ledger-state"     # Folder where DBSync instance will dump ledger-state files
 #DBSYNC_SCHEMA_DIR="${CNODE_HOME}/guild-db/schema"          # Path to DBSync repository's schema folder
 #DBSYNC_CONFIG="${CNODE_HOME}/files/dbsync.json"            # Config file for dbsync instance
@@ -25,11 +25,14 @@
 
 usage() {
   cat <<-EOF
-		
+
 		Usage: $(basename "$0") [-d]
-		
+		       $(basename "$0") systemd <install|remove|status>
+
 		Cardano DB Sync wrapper script !!
 		-d    Deploy dbsync as a systemd service
+		systemd
+		      Install, remove, or show the status of the dbsync service
 		
 		EOF
   exit 1
@@ -37,7 +40,13 @@ usage() {
 
 set_defaults() {
   if [[ -z "${DBSYNCBIN}" ]]; then
-    [[ -f "${HOME}/.local/bin/cardano-db-sync" ]] && DBSYNCBIN="${HOME}/.local/bin/cardano-db-sync" || DBSYNCBIN="$(command -v cardano-db-sync)"
+    if [[ -f "${CNODE_HOME}/bin/cardano-db-sync" ]]; then
+      DBSYNCBIN="${CNODE_HOME}/bin/cardano-db-sync"
+    elif [[ -f "${HOME}/.local/bin/cardano-db-sync" ]]; then
+      DBSYNCBIN="${HOME}/.local/bin/cardano-db-sync"
+    else
+      DBSYNCBIN="$(command -v cardano-db-sync)"
+    fi
   fi
   [[ -z "${PGPASSFILE}" ]] && PGPASSFILE="${CNODE_HOME}/priv/.pgpass"
   [[ -z "${DBSYNC_CONFIG}" ]] && DBSYNC_CONFIG="${CNODE_HOME}/files/dbsync.json"
@@ -61,45 +70,97 @@ check_defaults() {
 
 check_config_sanity() {
   BYGENHASH=$("${CCLI}" byron genesis print-genesis-hash --genesis-json "${BYRON_GENESIS_JSON}" 2>/dev/null)
-  BYGENHASHCFG=$(jq '.ByronGenesisHash' <"${CONFIG}" 2>/dev/null)
+  BYGENHASHCFG=$(jq '(.Configuration.Protocol // .).ByronGenesisHash' <"${CONFIG}" 2>/dev/null)
   SHGENHASH=$("${CCLI}" hash genesis-file --genesis "${GENESIS_JSON}" 2>/dev/null)
-  SHGENHASHCFG=$(jq '.ShelleyGenesisHash' <"${CONFIG}" 2>/dev/null)
+  SHGENHASHCFG=$(jq '(.Configuration.Protocol // .).ShelleyGenesisHash' <"${CONFIG}" 2>/dev/null)
   ALGENHASH=$("${CCLI}" hash genesis-file --genesis "${ALONZO_GENESIS_JSON}" 2>/dev/null)
-  ALGENHASHCFG=$(jq '.AlonzoGenesisHash' <"${CONFIG}" 2>/dev/null)
+  ALGENHASHCFG=$(jq '(.Configuration.Protocol // .).AlonzoGenesisHash' <"${CONFIG}" 2>/dev/null)
   CWGENHASH=$("${CCLI}" hash genesis-file --genesis "${CONWAY_GENESIS_JSON}" 2>/dev/null)
-  CWGENHASHCFG=$(jq '.ConwayGenesisHash' <"${CONFIG}" 2>/dev/null)
+  CWGENHASHCFG=$(jq '(.Configuration.Protocol // .).ConwayGenesisHash' <"${CONFIG}" 2>/dev/null)
+  # Genesis hashes live at the top level (legacy config format) or under .Configuration.Protocol (new nested format)
   # If hash are missing/do not match, add that to the end of config. We could have sorted it based on logic, but that would mess up sdiff comparison outputs
   if [[ "${BYGENHASH}" != "${BYGENHASHCFG}" ]] || [[ "${SHGENHASH}" != "${SHGENHASHCFG}" ]] || [[ "${ALGENHASH}" != "${ALGENHASHCFG}" ]] || [[ "${CWGENHASH}" != "${CWGENHASHCFG}" ]]; then
     cp "${CONFIG}" "${CONFIG}".tmp
-    jq --arg BYGENHASH ${BYGENHASH} --arg SHGENHASH ${SHGENHASH} --arg ALGENHASH ${ALGENHASH} --arg CWGENHASH ${CWGENHASH} '.ByronGenesisHash = $BYGENHASH | .ShelleyGenesisHash = $SHGENHASH | .AlonzoGenesisHash = $ALGENHASH | .ConwayGenesisHash = $CWGENHASH' <"${CONFIG}" >"${CONFIG}".tmp
+    jq --arg BYGENHASH ${BYGENHASH} --arg SHGENHASH ${SHGENHASH} --arg ALGENHASH ${ALGENHASH} --arg CWGENHASH ${CWGENHASH} '(if has("Configuration") then .Configuration.Protocol else . end) |= (.ByronGenesisHash = $BYGENHASH | .ShelleyGenesisHash = $SHGENHASH | .AlonzoGenesisHash = $ALGENHASH | .ConwayGenesisHash = $CWGENHASH)' <"${CONFIG}" >"${CONFIG}".tmp
     [[ -s "${CONFIG}".tmp ]] && mv -f "${CONFIG}".tmp "${CONFIG}"
+  fi
+  # Dijkstra genesis is optional, its hash lives at the top level (legacy config format) or under .Configuration.Testing (new nested format)
+  if [[ ${DIJKSTRA_GENESIS_JSON} != "null" && -f "${DIJKSTRA_GENESIS_JSON}" ]]; then
+    DJGENHASH=$("${CCLI}" hash genesis-file --genesis "${DIJKSTRA_GENESIS_JSON}" 2>/dev/null)
+    DJGENHASHCFG=$(jq -r '(.Configuration.Testing // .).DijkstraGenesisHash' <"${CONFIG}" 2>/dev/null)
+    if [[ -n "${DJGENHASH}" && "${DJGENHASH}" != "${DJGENHASHCFG}" ]]; then
+      jq --arg DJGENHASH ${DJGENHASH} '(if has("Configuration") then .Configuration.Testing else . end) |= (.DijkstraGenesisHash = $DJGENHASH)' <"${CONFIG}" >"${CONFIG}".tmp
+      [[ -s "${CONFIG}".tmp ]] && mv -f "${CONFIG}".tmp "${CONFIG}"
+    fi
   fi
 }
 
+load_systemd_library() {
+  local systemd_library="${PARENT}/lib/systemd.library"
+  [[ -f "${systemd_library}" ]] || systemd_library="${PARENT}/systemd.library"
+  [[ -f "${systemd_library}" ]] || systemd_library="${PARENT}/../common-helper-scripts/lib/systemd.library"
+  if [[ ! -f "${systemd_library}" ]]; then
+    echo "ERROR: systemd.library is missing. Re-run the deployment script to install shared helpers."
+    return 1
+  fi
+  # shellcheck disable=SC1091
+  . "${systemd_library}"
+}
+
 deploy_systemd() {
+  local unit_name="${CNODE_VNAME}-dbsync.service"
+  local unit_content
+
+  load_systemd_library || return 1
   echo "Deploying ${CNODE_VNAME}-dbsync as systemd service.."
-  sudo bash -c "cat <<-EOF > /etc/systemd/system/${CNODE_VNAME}-dbsync.service
-	[Unit]
-	Description=Cardano DB Sync
-	After=${CNODE_VNAME}.service ${SYSTEMD_PGNAME}.service
-	Requires=${SYSTEMD_PGNAME}.service
-	
-	[Service]
-	Type=simple
-	Restart=always
-	RestartSec=5
-	User=${USER}
-	LimitNOFILE=1048576
-	WorkingDirectory=${CNODE_HOME}/scripts
-	ExecStart=/bin/bash -l -c \"exec ${CNODE_HOME}/scripts/dbsync.sh\"
-	KillSignal=SIGINT
-	SyslogIdentifier=${CNODE_VNAME}-dbsync
-	TimeoutStopSec=5
-	KillMode=mixed
-	
-	[Install]
-	WantedBy=multi-user.target
-	EOF" && echo "${CNODE_VNAME}-dbsync.service deployed successfully!!" && sudo systemctl daemon-reload && sudo systemctl enable ${CNODE_VNAME}-dbsync.service
+  read -r -d '' unit_content <<-EOF || true
+		[Unit]
+		Description=Cardano DB Sync
+		After=${CNODE_VNAME}.service ${SYSTEMD_PGNAME}.service
+		Requires=${SYSTEMD_PGNAME}.service
+
+		[Service]
+		Type=simple
+		Restart=always
+		RestartSec=5
+		User=${USER}
+		LimitNOFILE=1048576
+		WorkingDirectory=${CNODE_HOME}/scripts
+		ExecStart=/bin/bash -l -c "exec ${CNODE_HOME}/scripts/dbsync.sh"
+		KillSignal=SIGINT
+		SyslogIdentifier=${CNODE_VNAME}-dbsync
+		TimeoutStopSec=5
+		KillMode=mixed
+
+		[Install]
+		WantedBy=multi-user.target
+	EOF
+  systemd_install_unit "${unit_name}" "${unit_content}" "${CNODE_HOME}/scripts/dbsync.sh" &&
+    systemd_daemon_reload &&
+    systemd_enable_units "${unit_name}" &&
+    echo "${unit_name} deployed successfully!!"
+}
+
+manage_systemd() {
+  local action="${1:-}"
+  local unit_name="${CNODE_VNAME}-dbsync.service"
+
+  case "${action}" in
+    install)
+      check_defaults
+      check_config_sanity
+      deploy_systemd
+      ;;
+    remove)
+      load_systemd_library &&
+        systemd_remove_units --owner-token "${CNODE_HOME}/scripts/dbsync.sh" "${unit_name}" &&
+        echo "${unit_name} removed successfully."
+      ;;
+    status)
+      load_systemd_library && systemd_status_units "${unit_name}"
+      ;;
+    *) usage ;;
+  esac
 }
 
 ###################
@@ -107,6 +168,12 @@ deploy_systemd() {
 ###################
 
 # Parse command line options
+SYSTEMD_ACTION=""
+if [[ ${1:-} == "systemd" ]]; then
+  [[ $# -eq 2 ]] || usage
+  SYSTEMD_ACTION="${2}"
+  shift 2
+fi
 while getopts :d opt; do
   case ${opt} in
     d ) DEPLOY_SYSTEMD="Y" ;;
@@ -115,8 +182,13 @@ while getopts :d opt; do
 done
 
 # Check if env file is missing in current folder (no update checks as will mostly run as daemon), source env if present
-[[ ! -f "$(dirname $0)"/env ]] && echo -e "\nCommon env file missing, please ensure latest guild-deploy.sh was run and this script is being run from ${CNODE_HOME}/scripts folder! \n" && exit 1
-. "$(dirname $0)"/env
+PARENT="$(dirname "$0")"
+[[ ! -f "${PARENT}"/env ]] && echo -e "\nCommon env file missing, please ensure latest guild-deploy.sh was run and this script is being run from ${CNODE_HOME}/scripts folder! \n" && exit 1
+if [[ "${SYSTEMD_ACTION}" == "remove" || "${SYSTEMD_ACTION}" == "status" ]]; then
+  . "${PARENT}"/env definitions
+else
+  . "${PARENT}"/env
+fi
 case $? in
   1) echo -e "ERROR: Failed to load common env file\nPlease verify set values in 'User Variables' section in env file or log an issue on GitHub" && exit 1;;
   2) clear ;;
@@ -124,6 +196,10 @@ esac
 
 # Set defaults and do basic sanity tests
 set_defaults
+if [[ -n "${SYSTEMD_ACTION}" ]]; then
+  manage_systemd "${SYSTEMD_ACTION}"
+  exit $?
+fi
 check_defaults
 check_config_sanity
 #Deploy systemd if -d argument was specified

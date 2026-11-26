@@ -1,0 +1,18 @@
+{
+  "kind": "action",
+  "label": "Summary",
+  "description": "Show a summary of block production",
+  "order": 10,
+  "modes": [
+    "local",
+    "light",
+    "offline"
+  ],
+  "libs": [
+    "number.sh",
+    "presentation.sh",
+    "table.sh",
+    "blocklog.sh",
+    "blocklog-ui.sh"
+  ]
+}

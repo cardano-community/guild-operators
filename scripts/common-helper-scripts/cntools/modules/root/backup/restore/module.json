@@ -1,0 +1,22 @@
+{
+  "kind": "action",
+  "label": "Perform Restore",
+  "description": "Restore CNTools data from a backup",
+  "order": 20,
+  "modes": [
+    "local",
+    "light",
+    "offline"
+  ],
+  "libs": [
+    "number.sh",
+    "filesystem.sh",
+    "presentation.sh",
+    "transaction.sh",
+    "table.sh",
+    "key-crypto.sh",
+    "backup-files.sh",
+    "backup.sh",
+    "backup-ui.sh"
+  ]
+}

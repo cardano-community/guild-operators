@@ -1,0 +1,87 @@
+#!/usr/bin/env bash
+# Compact Send presentation. Transaction validation remains in the shared engine.
+# shellcheck disable=SC2034
+
+cntools_send_render_source() {
+  local widths=""
+  cntools_transaction_ui_table_widths_into widths 22 || return 1
+  cntools_ui_render_detail 'Source wallet' || return 1
+  {
+    printf 'Wallet detail\tValue\n'
+    cntools_transaction_ui_styled_row Wallet "${CNTOOLS_SEND_WALLET}" identifier
+    cntools_transaction_ui_styled_row 'Spendable ADA' "$(cntools_number_format_lovelace "${CNTOOLS_FUNDING_TOTAL}")" number
+    (( ${#CNTOOLS_FUNDING_ASSET_IDS[@]} == 0 )) ||
+      cntools_transaction_ui_styled_row 'Native assets' "$(cntools_number_format "${#CNTOOLS_FUNDING_ASSET_IDS[@]}")" number
+  } | cntools_ui_table --separator $'\t' --widths "${widths}"
+}
+
+cntools_send_render_recipient() {
+  local widths=""
+  cntools_transaction_ui_table_widths_into widths 22 || return 1
+  {
+    printf 'Recipient detail\tValue\n'
+    cntools_transaction_ui_styled_row Recipient "$1" identifier
+    cntools_transaction_ui_styled_row Address "$2" address
+  } | cntools_ui_table --separator $'\t' --widths "${widths}"
+}
+
+cntools_send_render_assets() {
+  local index="$1" asset="" asset_label="" asset_identifier="" available="" selected="" width="" role="" n=0 amount="" decimals=""
+  width="$(cntools_ui_content_width 220 72)" || return 1
+  cntools_ui_render_detail 'Native assets' || return 1
+  {
+    printf 'Asset\tAvailable\tSelected\n'
+    for asset in "${CNTOOLS_FUNDING_ASSET_IDS[@]}"; do
+      n=$((n+1)); role=muted
+      [[ "${CNTOOLS_FUNDING_ASSETS[${asset}]}" == 0 ]] || role=number
+      cntools_asset_number_into amount "${asset}" "${CNTOOLS_FUNDING_ASSETS[${asset}]}" || return 1
+      cntools_theme_style_value_into available "${role}" "${amount}" || return 1
+      role=muted
+      [[ "${CNTOOLS_SEND_ASSETS[${index}|${asset}]:-0}" == 0 ]] || role=success
+      cntools_asset_number_into amount "${asset}" "${CNTOOLS_SEND_ASSETS[${index}|${asset}]:-0}" || return 1
+      cntools_theme_style_value_into selected "${role}" "${amount}" || return 1
+      cntools_asset_label_into asset_label "${asset}" "${n}" || return 1
+      # The ID line says when the amounts are smallest units.
+      cntools_asset_decimals_into decimals "${asset}"
+      cntools_theme_style_value_into asset_identifier muted "${asset}$([[ -n "${decimals}" ]] || printf ' · decimals unknown, smallest units')" || return 1
+      cntools_table_row_prepared "${n} · ${asset_label}" "${available}" "${selected}"
+      cntools_table_row_prepared "${asset_identifier}" '' ''
+    done
+  } | cntools_ui_table --separator $'\t' --widths "$((width-57)),23,24"
+}
+
+cntools_send_render_information() {
+  local widths="" selection="${CNTOOLS_TX_SELECTION_STRATEGY}" expiry_label="" change_total=0 amount="" label=""
+  for amount in "${CNTOOLS_CHANGE_OUTPUT_LOVELACE[@]}"; do
+    cntools_uint_add_into change_total "${change_total}" "${amount}" || return 1
+  done
+  label="$(cntools_number_format_lovelace "${change_total}") · $(cntools_number_format "${#CNTOOLS_CHANGE_OUTPUTS[@]}") output"
+  (( ${#CNTOOLS_CHANGE_OUTPUTS[@]} == 1 )) || label+=s
+  cntools_transaction_ui_table_widths_into widths 22 || return 1
+  [[ "${CNTOOLS_SEND_MODE}" == exact ]] || selection='All spendable inputs'
+  cntools_transaction_ui_expiry_label_into expiry_label "${CNTOOLS_TRANSACTION_PACKAGE_INVALID_HEREAFTER}"
+  cntools_ui_render_detail 'Transaction information' || return 1
+  {
+    printf 'Transaction detail\tValue\n'
+    cntools_transaction_ui_styled_row Wallet "${CNTOOLS_SEND_WALLET}" identifier
+    cntools_transaction_ui_styled_row Fee "$(cntools_number_format_lovelace "${CNTOOLS_SEND_FEE}")" number
+    # Change normally returns to the source address; name it only when not.
+    if [[ "${CNTOOLS_SEND_CHANGE_ADDRESS:-${CNTOOLS_SEND_ADDRESS}}" != "${CNTOOLS_SEND_ADDRESS}" ]]; then
+      cntools_transaction_ui_styled_row 'Change address' "${CNTOOLS_SEND_CHANGE_ADDRESS}" address
+    fi
+    (( ${#CNTOOLS_CHANGE_OUTPUTS[@]} == 0 )) ||
+      cntools_transaction_ui_styled_row 'Returned change' "${label}" number
+    cntools_transaction_ui_render_policy_rows "${selection}" "${#CNTOOLS_COIN_SELECTED_REFS[@]}"
+    cntools_funding_render_untouched_row
+    cntools_transaction_ui_styled_row 'Expires' "${expiry_label}" number
+  } | cntools_ui_table --separator $'\t' --widths "${widths}"
+}
+
+cntools_send_render_result() {
+  cntools_transaction_ui_render_result "$@" || return 1
+  CNTOOLS_SEND_RESULT_SHOWN=Y
+}
+
+cntools_send_render_review() {
+  cntools_send_render_recipients && cntools_send_metadata_render && cntools_send_render_information
+}

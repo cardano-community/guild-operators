@@ -23,11 +23,26 @@ A clear and concise description of what you expected to happen.
 **Screenshots**
 If applicable, add screenshots to help explain your problem.
 
-**Version:**
- - OS: [e.g. CentOS 8]
- - Product version: [e.g. CNTools 5.0.1]
- - Cardano Node version: [e.g. output of `cardano-node version`]
- - Network you're connecting to: [output of `jq -r .systemStart $CNODE_HOME/files/genesis.json`]
+**Deployment details**
+
+- OS and version: [e.g. Ubuntu 24.04]
+- Deployment type: [host or Docker]
+- Guild Operators branch/tag:
+- Node implementation: [cnode, Dingo, or Amaru]
+- Network: [mainnet, guild, preprod, or preview as applicable]
+- Product/script version:
+- Node version: [output of `cardano-node version`, `dingo version`, or
+  `amaru --version`]
+
+If this is a current Guild deployment, include the non-sensitive metadata from
+`${NODE_HOME}/.deployment.json`. Review it before posting and remove any local
+details you do not want to share:
+
+```bash
+jq '{schemaVersion, deploymentStatus, implementation, network, branch,
+     serviceName, nodeVersion, targetNodeVersion, metricsProvider,
+     capabilities}' "${NODE_HOME}/.deployment.json"
+```
 
 **Additional context**
 Add any other context about the problem here.

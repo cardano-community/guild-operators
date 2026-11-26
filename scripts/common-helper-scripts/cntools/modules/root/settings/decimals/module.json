@@ -1,0 +1,11 @@
+{
+  "kind": "action",
+  "label": "Decimals",
+  "description": "Show ADA and token amounts trimmed or with full precision",
+  "order": 22,
+  "modes": [
+    "local",
+    "light",
+    "offline"
+  ]
+}

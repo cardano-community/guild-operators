@@ -1,6 +1,14 @@
+!!! warning "Historical documentation"
+    This page describes the retired Incentivized Testnet reward workflow.
+    `itnRewards.sh` is no longer present in the repository or installed by any
+    current node profile. The commands below are retained only as historical
+    reference and must not be treated as a supported deployment workflow.
+
 #### Concept
 
-To claim rewards earned during the Incentivized TestNet the private and public keys from ITN must be converted to Shelley stake keys. A script called `itnRewards.sh` has been created to guide you through the process of converting the keys and to create a CNTools compatible wallet from were the rewards can be withdrawn. 
+The historical workflow converted Incentivized Testnet private and public keys
+to Shelley stake keys, then used `itnRewards.sh` to create a CNTools-compatible
+wallet.
 
 ```mermaid
 graph TB
@@ -18,7 +26,8 @@ graph TB
 
 #### Steps
 
-- If the secret key used for `jcli` account in ITN was ed25519_sk (not extended), you can run the `itnRewards.sh` script providing the name for the CNTools wallet and ITN owner _public_/_secret_ keys that were used to register your pool as below.
+- The retired workflow invoked `itnRewards.sh` with the CNTools wallet name and
+  the ITN owner public and secret keys:
   ``` bash
   cd $CNODE_HOME/scripts
   ./itnRewards.sh MyITNWallet ~/jormu/account/priv/owner.sk ~/jormu/account/priv/owner.pk

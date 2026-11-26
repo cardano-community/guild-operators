@@ -1,0 +1,6 @@
+{
+  "kind": "menu",
+  "label": "Transaction",
+  "description": "Sign and submit transaction files",
+  "order": 40
+}

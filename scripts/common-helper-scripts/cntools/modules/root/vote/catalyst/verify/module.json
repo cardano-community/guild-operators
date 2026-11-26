@@ -1,0 +1,24 @@
+{
+  "kind": "action",
+  "label": "Verify",
+  "description": "Verify Catalyst voting registration",
+  "order": 30,
+  "modes": [
+    "local",
+    "light"
+  ],
+  "libs": [
+    "number.sh",
+    "filesystem.sh",
+    "bech32.sh",
+    "presentation.sh",
+    "wallet.sh",
+    "transaction.sh",
+    "table.sh",
+    "recipient.sh",
+    "catalyst-key.sh",
+    "catalyst-query.sh",
+    "catalyst-ui.sh",
+    "wallet-selection.sh"
+  ]
+}

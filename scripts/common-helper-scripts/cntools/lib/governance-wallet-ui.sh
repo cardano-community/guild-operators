@@ -1,0 +1,267 @@
+#!/usr/bin/env bash
+# Wallet-scoped DRep key setup and read-only on-chain status.
+# shellcheck disable=SC2034,SC2153
+
+# <purpose> says what the wallet is for; the optional fourth argument is a
+# wallet-selection context that filters the list.
+# Returns 3 when no wallet qualifies (the picker showed why and waited).
+cntools_governance_wallet_select_into() {
+  local output_name="$1" selected="" title="$2" purpose="$3" context="${4:-}"
+  cntools_ui_action_begin "${title}" "/ Vote / On-chain Governance / ${title}"
+  cntools_wallet_catalog_build || return 2
+  cntools_wallet_choose selected "${purpose}" Cancel "${context}" || return $?
+  printf -v "${output_name}" '%s' "${CNTOOLS_WALLET_PATHS[selected]}"
+}
+
+# Shows the failure and waits; 1 = outcome already shown (no menu banner).
+cntools_governance_wallet_failure() {
+  cntools_ui_render_status error "${CNTOOLS_DREP_KEY_ERROR:-DRep wallet information could not be validated. Existing files were retained; see the log.}"
+  cntools_log ERROR "${CNTOOLS_DREP_KEY_ERROR:-DRep wallet operation failed validation.}" || true
+  cntools_ui_wait
+  return 1
+}
+
+# Menu status: cancel (1/130) returns quietly; "nothing to choose" (3) is done.
+cntools_governance_action_status() {
+  local status=0
+  "$@" || status=$?
+  ((status != 3)) || status=0
+  return "${status}"
+}
+
+cntools_governance_action_keys() { cntools_governance_action_status cntools_governance_keys_workflow; }
+
+cntools_governance_keys_workflow() {
+  local directory="" wallet="" method="" method_label="" account=0 phrase="" widths="" status=0 path="Not derived · back up the signing key"
+  local recorded="" backup="" choice=""
+  local -a sources=()
+  # Existing mnemonic controls share presentation but keep the governance path.
+  local CNTOOLS_MNEMONIC_INPUT_PATH='/ Vote / On-chain Governance / Key Derivation'
+  cntools_governance_wallet_select_into directory 'Key Derivation' 'Wallet to create DRep keys in' drep-create || return $?
+  wallet="${directory##*/}"
+  # Wallet type, open keys, Cardano CLI and no existing DRep: before any input.
+  cntools_drep_key_preflight "${directory}" || { cntools_governance_wallet_failure; return $?; }
+  # The wallet's own account (recorded at import) is the default.
+  if cntools_wallet_read_derivation_path "${directory}" recorded 2>/dev/null &&
+     [[ "${recorded}" =~ ^1852H/1815H/([0-9]+)H/ ]]; then
+    recorded="${BASH_REMATCH[1]}"
+  else
+    recorded=''
+  fi
+  # Quick offers the recorded account in the source menu itself; another
+  # account (and Detailed) asks for it, with the recorded one as default.
+  sources=('Derive from recovery phrase')
+  if [[ -n "${recorded}" ]] && cntools_flow_quick; then
+    sources=("Derive from recovery phrase · account ${recorded} (recorded)" 'Derive from recovery phrase · another account')
+  fi
+  while true; do
+    cntools_ui_render_status info "Create a separate DRep identity in ${wallet}. This does not register it or change your voting delegation."
+    cntools_ui_choose choice 'DRep key source' "${sources[@]}" 'Generate new CLI keys' Cancel || return $?
+    cntools_log CHOICE "DRep key source=${choice} wallet=${wallet}" || true
+    status=0
+    case "${choice}" in
+      'Derive from recovery phrase · account '*)
+        method=mnemonic method_label='Recovery phrase' account="${recorded}"
+        cntools_log CHOICE "DRep account=${account} recorded wallet account flow=quick" || true
+        ;;
+      'Derive from recovery phrase'*)
+        method=mnemonic method_label='Recovery phrase'
+        cntools_wallet_mnemonic_prompt_index_into account Account 'Key Derivation' "${CNTOOLS_MNEMONIC_INPUT_PATH}" "${recorded:-0}" || status=$?
+        ;;
+      'Generate new CLI keys') method=cli method_label='New CLI keys' ;;
+      Cancel) return 1 ;;
+      *) return 2 ;;
+    esac
+    # Esc at the account returns to the source menu.
+    ((status == 0)) && break
+    ((status == 1)) || return "${status}"
+    cntools_ui_action_begin 'Key Derivation' "${CNTOOLS_MNEMONIC_INPUT_PATH}"
+  done
+  if [[ "${method}" == mnemonic ]]; then
+    path="1852H/1815H/${account}H/3/0"
+    backup="Keep the recovery phrase and account ${account} backed up; the payment/stake keys cannot recover the DRep key."
+  else
+    backup='This new DRep key cannot be recovered from a recovery phrase: back up its signing key.'
+  fi
+  cntools_transaction_ui_table_widths_into widths 20 || return 2
+  # New key material: a real confirm in both styles. Detailed shows the plan.
+  if cntools_flow_quick; then
+    if [[ "${method}" == mnemonic ]]; then
+      cntools_ui_render_status warn "Deriving DRep keys at ${path}. Use an air-gapped machine for recovery phrases where possible; the phrase is not saved."
+    else
+      cntools_ui_render_status warn 'This independently generated DRep key cannot be recovered from a wallet recovery phrase. Back up the new signing key.'
+    fi
+  else
+    cntools_ui_action_begin 'Key Derivation' "${CNTOOLS_MNEMONIC_INPUT_PATH}"
+    {
+      printf 'DRep keys\tValue\n'
+      cntools_transaction_ui_styled_row Wallet "${wallet}" identifier
+      cntools_transaction_ui_styled_row Method "${method_label}" accent
+      cntools_transaction_ui_styled_row 'Derivation path' "${path}" identifier
+    } | cntools_ui_table --separator $'\t' --widths "${widths}" || return 2
+    if [[ "${method}" == mnemonic ]]; then
+      cntools_ui_render_status warn 'Use an air-gapped machine for recovery phrases where possible. The phrase is not saved. Back up this DRep recovery phrase and account separately if they differ from the payment wallet; the payment/stake keys cannot recover it.'
+    else
+      cntools_ui_render_status warn 'This independently generated DRep key cannot be recovered from a wallet recovery phrase. Back up the new signing key.'
+    fi
+  fi
+  cntools_ui_confirm "Add DRep keys to ${wallet}?" false || return $?
+  cntools_log CHOICE "DRep key creation confirmed wallet=${wallet} method=${method} account=${account}" || true
+  # A rejected phrase asks for it again; the wallet, method and account stay.
+  while true; do
+    if [[ "${method}" == mnemonic ]]; then
+      cntools_wallet_mnemonic_collect_import_into phrase || return $?
+    fi
+    cntools_ui_action_begin 'Key Derivation' "${CNTOOLS_MNEMONIC_INPUT_PATH}"
+    # The spinner runs the function in this shell: the phrase never reaches
+    # an external process's argv, the log or the screen.
+    status=0
+    cntools_ui_spin_function "Creating DRep keys in ${wallet}…" cntools_drep_key_create "${directory}" "${method}" "${account}" "${phrase}" || status=$?
+    phrase=''
+    ((status == 0)) && break
+    if [[ "${method}" == mnemonic && "${CNTOOLS_WALLET_MNEMONIC_PHRASE_REJECTED:-N}" == Y ]]; then
+      cntools_ui_render_status error "${CNTOOLS_DREP_KEY_ERROR:-Cardano CLI rejected the recovery phrase.}"
+      cntools_ui_render_status info "Enter the recovery phrase again; ${wallet}, the method and account ${account} are kept."
+      cntools_log CHOICE "DRep recovery phrase re-entry wallet=${wallet}" || true
+      cntools_ui_wait
+      continue
+    fi
+    cntools_governance_wallet_failure; return $?
+  done
+  cntools_ui_action_begin 'Key Derivation' "${CNTOOLS_MNEMONIC_INPUT_PATH}"
+  cntools_drep_key_inspect "${directory}" || { cntools_governance_wallet_failure; return $?; }
+  {
+    printf 'DRep keys\tValue\n'
+    cntools_transaction_ui_styled_row Wallet "${wallet}" identifier
+    cntools_transaction_ui_styled_row 'DRep ID' "${CNTOOLS_DREP_KEY_ID}" identifier
+    cntools_transaction_ui_styled_row 'Saved in' "${directory}" identifier
+    [[ -z "${CNTOOLS_DREP_KEY_PATH}" ]] || cntools_transaction_ui_styled_row 'Derivation path' "${CNTOOLS_DREP_KEY_PATH}" identifier
+  } | cntools_ui_table --separator $'\t' --widths "${widths}" || return 2
+  cntools_ui_render_status success "DRep keys created in ${wallet}. No transaction was made. ${backup} Then use Wallet → Encrypt to protect all private wallet keys, including the DRep key."
+  cntools_ui_wait
+}
+
+cntools_governance_status_collect() {
+  local status=0
+  CNTOOLS_DREP_STATUS=unknown CNTOOLS_DREP_ACTIVE=unknown CNTOOLS_DREP_SOURCE=Offline CNTOOLS_DREP_DETAILS='{}'
+  [[ "${CNTOOLS_MODE:-offline}" != offline ]] || return 0
+  if [[ "${CNTOOLS_MODE}" == local && "${CNTOOLS_LOCAL_CLI_CAPABLE:-false}" == true ]]; then
+    cntools_drep_query "${CNTOOLS_DREP_KEY_ID}" "${CNTOOLS_DREP_KEY_KIND}" "${CNTOOLS_DREP_KEY_HASH}" local || status=$?
+    if ((status == 0)) && [[ "${CNTOOLS_DREP_STATUS}" == registered ]]; then
+      cntools_governance_status_koios_activity; return 0
+    fi
+    ((status == 0 || status == 4)) && return 0
+    cntools_log WARN 'Local DRep status unavailable; trying Koios if enabled' || true
+  fi
+  status=0
+  if [[ "${CNTOOLS_KOIOS_ENABLED:-N}" == Y ]]; then
+    cntools_drep_query "${CNTOOLS_DREP_KEY_ID}" "${CNTOOLS_DREP_KEY_KIND}" "${CNTOOLS_DREP_KEY_HASH}" koios || status=$?
+    ((status == 0 || status == 4)) && return 0
+  fi
+  CNTOOLS_DREP_STATUS=unknown CNTOOLS_DREP_ACTIVE=unknown CNTOOLS_DREP_SOURCE=Unavailable CNTOOLS_DREP_DETAILS='{}'
+  cntools_log WARN 'DRep registration/activity could not be queried; retaining local identity information' || true
+}
+
+# The ledger state has no activity or voting power; Koios adds them when enabled.
+# Registration, deposit and anchor stay those of the local node.
+cntools_governance_status_koios_activity() {
+  local local_details="${CNTOOLS_DREP_DETAILS}" status=0
+  [[ "${CNTOOLS_KOIOS_ENABLED:-N}" == Y ]] || return 0
+  cntools_drep_query "${CNTOOLS_DREP_KEY_ID}" "${CNTOOLS_DREP_KEY_KIND}" "${CNTOOLS_DREP_KEY_HASH}" koios || status=$?
+  if ((status == 0)) && [[ "${CNTOOLS_DREP_STATUS}" == registered ]]; then
+    CNTOOLS_DREP_DETAILS="$(jq -c --argjson koios "${CNTOOLS_DREP_DETAILS}" '. + ($koios | {amount, live_delegator_count})' <<< "${local_details}")" ||
+      CNTOOLS_DREP_DETAILS="${local_details}"
+    CNTOOLS_DREP_SOURCE='Local node · Koios activity'
+  else
+    CNTOOLS_DREP_ACTIVE=unknown CNTOOLS_DREP_DETAILS="${local_details}" CNTOOLS_DREP_SOURCE='Local node'
+    cntools_log WARN 'Koios DRep activity unavailable; showing local registration only' || true
+  fi
+  CNTOOLS_DREP_STATUS=registered
+}
+
+cntools_governance_status_rows() {
+  local field="" value="" label="" role="" registration=Unavailable activity='Unknown · not in ledger state' activity_role=muted
+  case "${CNTOOLS_DREP_STATUS}" in
+    registered) registration=Registered ;;
+    deregistered) registration=Retired ;;
+    not_registered) registration='Not registered' ;;
+  esac
+  [[ "${CNTOOLS_DREP_SOURCE}" != Offline ]] || registration='Not queried · offline'
+  cntools_transaction_ui_styled_row Registration "${registration}" "$([[ "${CNTOOLS_DREP_STATUS}" == unknown ]] && printf muted || printf value)"
+  # Offline and failed queries already say so in the Registration row.
+  [[ "${CNTOOLS_DREP_SOURCE}" == Offline || "${CNTOOLS_DREP_SOURCE}" == Unavailable ]] ||
+    cntools_transaction_ui_styled_row 'Status source' "${CNTOOLS_DREP_SOURCE}" value
+  if [[ "${CNTOOLS_DREP_STATUS}" == registered ]]; then
+    case "${CNTOOLS_DREP_ACTIVE}" in true) activity=Active activity_role=success ;; false) activity=Inactive activity_role=warning ;; esac
+    cntools_transaction_ui_styled_row Activity "${activity}" "${activity_role}"
+    for field in deposit expiry amount live_delegator_count meta_url meta_hash; do
+      value="$(jq -r --arg field "${field}" '.[$field] | select(type == "string" or type == "number")' <<< "${CNTOOLS_DREP_DETAILS}")" || return 1
+      [[ -n "${value}" ]] || continue
+      role=number
+      case "${field}" in
+        deposit|amount)
+          [[ "${value}" =~ ^[0-9]+$ ]] || continue
+          value="$(cntools_number_format_units "${value}" 6) ADA" || return 1
+          label=Deposit; [[ "${field}" != amount ]] || label="${CNTOOLS_DREP_POWER_LABEL}"
+          ;;
+        expiry|live_delegator_count)
+          [[ "${value}" =~ ^[0-9]+$ ]] || continue
+          value="$(cntools_number_format "${value}")" || return 1
+          label='Expiry epoch'; [[ "${field}" != live_delegator_count ]] || label=Delegators
+          [[ "${field}" != expiry || "${CNTOOLS_DREP_SOURCE}" != 'Local node'* ]] || label='Ledger expiry epoch'
+          ;;
+        meta_url) label='Metadata URL'; role=identifier ;;
+        meta_hash) label='Metadata hash'; role=identifier ;;
+      esac
+      cntools_transaction_ui_styled_row "${label}" "${value}" "${role}"
+    done
+  fi
+}
+
+cntools_governance_action_info() { cntools_governance_action_status cntools_governance_info_workflow; }
+
+cntools_governance_info_workflow() {
+  local directory="" widths="" status=0 protection=Absent verification=Absent
+  cntools_governance_wallet_select_into directory 'Info & Status' 'Wallet whose DRep keys and registration to show' drep-info || return $?
+  cntools_drep_key_inspect "${directory}" || status=$?
+  if ((status == 4)); then
+    cntools_ui_render_status info 'No usable DRep identity found. Create keys through On-chain Governance → Key Derivation if none exist. Missing public files require Cardano CLI and an open key; restore the public verification key for encrypted/hardware keys.'
+    cntools_ui_wait; return 0
+  fi
+  ((status == 0)) || { cntools_governance_wallet_failure; return $?; }
+  if [[ "${CNTOOLS_MODE:-offline}" == offline ]]; then
+    cntools_governance_status_collect
+  else
+    cntools_ui_spin_function 'Checking DRep status…' cntools_governance_status_collect || return 2
+  fi
+  cntools_ui_action_begin 'Info & Status' '/ Vote / On-chain Governance / Info & Status'
+  [[ ! -f "${directory}/${CNTOOLS_WALLET_DREP_VKEY_FILENAME:-drep.vkey}" ]] || verification=Available
+  [[ ! -f "${directory}/${CNTOOLS_WALLET_DREP_SKEY_FILENAME:-drep.skey}" ]] || protection='Unencrypted signing key'
+  [[ ! -f "${directory}/${CNTOOLS_WALLET_DREP_SKEY_FILENAME:-drep.skey}.gpg" ]] || protection=Encrypted
+  [[ ! -f "${directory}/${CNTOOLS_WALLET_HW_DREP_SKEY_FILENAME:-drep.hwsfile}" ]] || protection='Hardware reference (device not checked)'
+  cntools_transaction_ui_table_widths_into widths 24 || return 2
+  {
+    printf 'DRep\tValue\n'
+    cntools_transaction_ui_styled_row Wallet "${directory##*/}" identifier
+    cntools_transaction_ui_styled_row 'DRep ID' "${CNTOOLS_DREP_KEY_ID}" identifier
+    cntools_transaction_ui_styled_row 'Credential (hex)' "${CNTOOLS_DREP_KEY_HASH}" identifier
+    if [[ "${CNTOOLS_DREP_KEY_KIND}" == script ]]; then
+      cntools_transaction_ui_styled_row Type 'Native script DRep' accent
+      cntools_transaction_ui_styled_row Participants "${CNTOOLS_DREP_SCRIPT_PARTICIPANTS}" number
+      [[ -z "${CNTOOLS_DREP_SCRIPT_THRESHOLD}" ]] || cntools_transaction_ui_styled_row Threshold "${CNTOOLS_DREP_SCRIPT_THRESHOLD} of ${CNTOOLS_DREP_SCRIPT_PARTICIPANTS}" number
+      cntools_transaction_ui_styled_row 'Identity check' "$([[ "${CNTOOLS_DREP_KEY_VERIFIED}" == Y ]] && printf 'Matches native script' || printf 'Cached ID checksum only · script hash not verified')" value
+    else
+      # A matching identity implies the key; say so only when it is missing.
+      [[ "${verification}" != Absent ]] || cntools_transaction_ui_styled_row 'Verification key' 'Absent' warning
+      cntools_transaction_ui_styled_row 'Identity check' "$([[ "${CNTOOLS_DREP_KEY_VERIFIED}" == Y ]] && printf 'Matches verification key' || printf 'Cached ID checksum only')" value
+      cntools_transaction_ui_styled_row 'Private key' "${protection}" "$([[ "${protection}" == 'Unencrypted signing key' ]] && printf warning || printf value)"
+    fi
+    [[ -z "${CNTOOLS_DREP_KEY_PATH}" ]] || cntools_transaction_ui_styled_row 'Derivation path' "${CNTOOLS_DREP_KEY_PATH}" identifier
+    cntools_governance_status_rows
+  } | cntools_ui_table --separator $'\t' --widths "${widths}" || return 2
+  status=0
+  cntools_public_metadata_offer "$(jq -r '.meta_url // ""' <<< "${CNTOOLS_DREP_DETAILS}")" \
+    "$(jq -r '.meta_hash // ""' <<< "${CNTOOLS_DREP_DETAILS}")" || status=$?
+  ((status != 130)) || return 130
+  cntools_ui_wait
+}

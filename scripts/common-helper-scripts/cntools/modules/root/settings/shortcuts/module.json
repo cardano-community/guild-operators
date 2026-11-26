@@ -1,0 +1,11 @@
+{
+  "kind": "action",
+  "label": "Shortcuts",
+  "description": "Save short codes that jump to a menu or action from Go to",
+  "order": 15,
+  "modes": [
+    "local",
+    "light",
+    "offline"
+  ]
+}

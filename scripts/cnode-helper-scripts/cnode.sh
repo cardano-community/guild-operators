@@ -21,13 +21,18 @@
 
 usage() {
   cat <<-EOF
-		
-		Usage: $(basename "$0") [-d]
-		
+
+		Usage: $(basename "$0") [-d|-s]
+		       $(basename "$0") systemd <install|remove|status|reload>
+
 		Cardano Node wrapper script !!
 		-d    Deploy cnode as a systemd service
 		-s    Stop cnode using SIGINT
-		
+		systemd
+		      Install, remove, or show the status of the cnode service
+		      reload sends SIGHUP to the running service: the node re-reads its
+		      topology and, on a block producer, its KES key, VRF key and op.cert
+
 		EOF
   exit 1
 }
@@ -44,19 +49,73 @@ set_defaults() {
 
 check_config_sanity() {
   BYGENHASH=$("${CCLI}" byron genesis print-genesis-hash --genesis-json "${BYRON_GENESIS_JSON}" 2>/dev/null)
-  BYGENHASHCFG=$(jq '.ByronGenesisHash' <"${CONFIG}" 2>/dev/null)
+  BYGENHASHCFG=$(jq '(.Configuration.Protocol // .).ByronGenesisHash' <"${CONFIG}" 2>/dev/null)
   SHGENHASH=$("${CCLI}" hash genesis-file --genesis "${GENESIS_JSON}" 2>/dev/null)
-  SHGENHASHCFG=$(jq '.ShelleyGenesisHash' <"${CONFIG}" 2>/dev/null)
+  SHGENHASHCFG=$(jq '(.Configuration.Protocol // .).ShelleyGenesisHash' <"${CONFIG}" 2>/dev/null)
   ALGENHASH=$("${CCLI}" hash genesis-file --genesis "${ALONZO_GENESIS_JSON}" 2>/dev/null)
-  ALGENHASHCFG=$(jq '.AlonzoGenesisHash' <"${CONFIG}" 2>/dev/null)
+  ALGENHASHCFG=$(jq '(.Configuration.Protocol // .).AlonzoGenesisHash' <"${CONFIG}" 2>/dev/null)
   CWGENHASH=$("${CCLI}" hash genesis-file --genesis "${CONWAY_GENESIS_JSON}" 2>/dev/null)
-  CWGENHASHCFG=$(jq '.ConwayGenesisHash' <"${CONFIG}" 2>/dev/null)
+  CWGENHASHCFG=$(jq '(.Configuration.Protocol // .).ConwayGenesisHash' <"${CONFIG}" 2>/dev/null)
+  # Genesis hashes live at the top level (legacy config format) or under .Configuration.Protocol (new nested format)
   # If hash are missing/do not match, add that to the end of config. We could have sorted it based on logic, but that would mess up sdiff comparison outputs
   if [[ "${BYGENHASH}" != "${BYGENHASHCFG}" ]] || [[ "${SHGENHASH}" != "${SHGENHASHCFG}" ]] || [[ "${ALGENHASH}" != "${ALGENHASHCFG}" ]] || [[ "${CWGENHASH}" != "${CWGENHASHCFG}" ]]; then
     cp "${CONFIG}" "${CONFIG}".tmp
-    jq --arg BYGENHASH ${BYGENHASH} --arg SHGENHASH ${SHGENHASH} --arg ALGENHASH ${ALGENHASH} --arg CWGENHASH ${CWGENHASH} '.ByronGenesisHash = $BYGENHASH | .ShelleyGenesisHash = $SHGENHASH | .AlonzoGenesisHash = $ALGENHASH | .ConwayGenesisHash = $CWGENHASH' <"${CONFIG}" >"${CONFIG}".tmp
+    jq --arg BYGENHASH ${BYGENHASH} --arg SHGENHASH ${SHGENHASH} --arg ALGENHASH ${ALGENHASH} --arg CWGENHASH ${CWGENHASH} '(if has("Configuration") then .Configuration.Protocol else . end) |= (.ByronGenesisHash = $BYGENHASH | .ShelleyGenesisHash = $SHGENHASH | .AlonzoGenesisHash = $ALGENHASH | .ConwayGenesisHash = $CWGENHASH)' <"${CONFIG}" >"${CONFIG}".tmp
     [[ -s "${CONFIG}".tmp ]] && mv -f "${CONFIG}".tmp "${CONFIG}"
   fi
+  # Dijkstra genesis is optional, its hash lives at the top level (legacy config format) or under .Configuration.Testing (new nested format)
+  if [[ ${DIJKSTRA_GENESIS_JSON} != "null" && -f "${DIJKSTRA_GENESIS_JSON}" ]]; then
+    DJGENHASH=$("${CCLI}" hash genesis-file --genesis "${DIJKSTRA_GENESIS_JSON}" 2>/dev/null)
+    DJGENHASHCFG=$(jq -r '(.Configuration.Testing // .).DijkstraGenesisHash' <"${CONFIG}" 2>/dev/null)
+    if [[ -n "${DJGENHASH}" && "${DJGENHASH}" != "${DJGENHASHCFG}" ]]; then
+      jq --arg DJGENHASH ${DJGENHASH} '(if has("Configuration") then .Configuration.Testing else . end) |= (.DijkstraGenesisHash = $DJGENHASH)' <"${CONFIG}" >"${CONFIG}".tmp
+      [[ -s "${CONFIG}".tmp ]] && mv -f "${CONFIG}".tmp "${CONFIG}"
+    fi
+  fi
+}
+
+# In GenesisMode a node that turns ledger peers off (useLedgerAfterSlot -1, the
+# block producer layout) leaves PreSyncing only when every peer it uses is a
+# trustable local root and peer sharing is off. Pool keys and that layout often
+# arrive after the deployment, so this runs on every start. It only warns and
+# changes nothing; guild-deploy.sh -s u fixes the topology.
+check_genesis_topology() {
+  local mode ulas forging="N"
+
+  mode="$(jq -r '(.Configuration.Consensus // .).ConsensusMode // "PraosMode"' "${CONFIG}" 2>/dev/null)"
+  [[ "${mode}" == "GenesisMode" ]] || return 0
+  [[ -f "${POOL_FOLDER}/${POOL_NAME}/${POOL_OPCERT_FILENAME}" && -f "${POOL_FOLDER}/${POOL_NAME}/${POOL_VRF_SK_FILENAME}" &&
+     -f "${POOL_FOLDER}/${POOL_NAME}/${POOL_HOTKEY_SK_FILENAME}" ]] && forging="Y"
+  ulas="$(jq -r '(.useLedgerAfterSlot | numbers) // 0' "${TOPOLOGY}" 2>/dev/null)"
+  [[ "${ulas}" =~ ^-?[0-9]+$ ]] || return 0
+  if (( ulas >= 0 )); then
+    [[ "${forging}" == "Y" ]] &&
+      echo "WARN: This block producer reads ledger peers (useLedgerAfterSlot ${ulas} in ${TOPOLOGY}), so it connects to public relays. To keep it behind your relays, set useLedgerAfterSlot to -1 and list them as local roots."
+    return 0
+  fi
+  # Only a warning: the node starts as it is, also under systemd.
+  if jq -e '([.localRoots[]?.trustable] | all | not) or has("bootstrapPeers")' "${TOPOLOGY}" >/dev/null 2>&1; then
+    echo "WARN: GenesisMode with ledger peers off syncs only from trusted local roots, but ${TOPOLOGY} has local roots that are not trustable or still lists bootstrapPeers, so the node may wait in PreSyncing. Run guild-deploy.sh -s u to fix it (a backup is kept)."
+  fi
+  [[ "${forging}" == "N" ]] && ! jq -e '(.Configuration.Network // .).PeerSharing == false' "${CONFIG}" >/dev/null 2>&1 &&
+    echo "WARN: ${TOPOLOGY} turns ledger peers off, but without pool keys this node shares peers, so in GenesisMode it would wait in PreSyncing. Set \"PeerSharing\": false in ${CONFIG}, or let it read ledger peers."
+  return 0
+}
+
+# The last guild-deploy.sh refresh lists kept files this release would change
+# in the deployment manifest. A warning only: the node starts as it is.
+check_pending_config() {
+  local manifest="${CNODE_HOME}/.deployment.json" files reason
+  [[ -f "${manifest}" ]] || return 0
+  files="$(jq -r '(.pendingConfigUpdate.files // []) | join(", ")' "${manifest}" 2>/dev/null)" || return 0
+  [[ -n "${files}" ]] || return 0
+  reason="$(jq -r '.pendingConfigUpdate.reason // ""' "${manifest}" 2>/dev/null)"
+  if [[ "${files}" == *,* ]]; then
+    echo "WARN: ${files} still need this release's changes${reason:+ (${reason})}. Run guild-deploy.sh -s u to update them in place (backups are kept)."
+  else
+    echo "WARN: ${files} still needs this release's changes${reason:+ (${reason})}. Run guild-deploy.sh -s u to update it in place (a backup is kept)."
+  fi
+  return 0
 }
 
 pre_startup_sanity() {
@@ -71,6 +130,8 @@ pre_startup_sanity() {
     fi
   fi
   check_config_sanity
+  check_pending_config
+  check_genesis_topology
 }
 
 mithril_snapshot_download() {
@@ -91,33 +152,110 @@ stop_node() {
   exit 0
 }
 
+load_systemd_library() {
+  local systemd_library="${PARENT}/lib/systemd.library"
+  [[ -f "${systemd_library}" ]] || systemd_library="${PARENT}/systemd.library"
+  [[ -f "${systemd_library}" ]] || systemd_library="${PARENT}/../common-helper-scripts/lib/systemd.library"
+  if [[ ! -f "${systemd_library}" ]]; then
+    echo "ERROR: systemd.library is missing. Re-run the deployment script to install shared helpers."
+    return 1
+  fi
+  # shellcheck disable=SC1091
+  . "${systemd_library}"
+}
+
 deploy_systemd() {
+  local unit_name="${CNODE_VNAME}.service"
+  local unit_content
+
+  load_systemd_library || return 1
   echo "Deploying ${CNODE_VNAME} as systemd service.."
-  sudo bash -c "cat <<-'EOF' > /etc/systemd/system/${CNODE_VNAME}.service
-	[Unit]
-	Description=Cardano Node
-	Wants=network-online.target
-	After=network-online.target
-	StartLimitIntervalSec=600
-	StartLimitBurst=5
-	
-	[Service]
-	Type=simple
-	Restart=on-failure
-	RestartSec=60
-	User=${USER}
-	LimitNOFILE=1048576
-	WorkingDirectory=${CNODE_HOME}/scripts
-	ExecStart=/bin/bash -l -c \"exec ${CNODE_HOME}/scripts/cnode.sh\"
-	ExecStop=/bin/bash -l -c \"exec ${CNODE_HOME}/scripts/cnode.sh -s\"
-	KillSignal=SIGINT
-	SuccessExitStatus=143
-	SyslogIdentifier=${CNODE_VNAME}
-	TimeoutStopSec=60
-	
-	[Install]
-	WantedBy=multi-user.target
-	EOF" && echo "${CNODE_VNAME}.service deployed successfully!!" && sudo systemctl daemon-reload && sudo systemctl enable ${CNODE_VNAME}.service
+  read -r -d '' unit_content <<-EOF || true
+		[Unit]
+		Description=Cardano Node
+		Wants=network-online.target
+		After=network-online.target
+		StartLimitIntervalSec=600
+		StartLimitBurst=5
+
+		[Service]
+		Type=simple
+		Restart=on-failure
+		RestartSec=60
+		User=${USER}
+		LimitNOFILE=1048576
+		WorkingDirectory=${CNODE_HOME}/scripts
+		ExecStart=/bin/bash -l -c "exec ${CNODE_HOME}/scripts/cnode.sh"
+		ExecStop=/bin/bash -l -c "exec ${CNODE_HOME}/scripts/cnode.sh -s"
+		KillSignal=SIGINT
+		SuccessExitStatus=143
+		SyslogIdentifier=${CNODE_VNAME}
+		TimeoutStopSec=60
+
+		[Install]
+		WantedBy=multi-user.target
+	EOF
+  systemd_install_unit "${unit_name}" "${unit_content}" "${CNODE_HOME}/scripts/cnode.sh" &&
+    systemd_daemon_reload &&
+    systemd_enable_units "${unit_name}" &&
+    echo "${unit_name} deployed successfully!!"
+}
+
+# cardano-node re-reads its topology and block-forging credentials on SIGHUP.
+# A SIGHUP that reaches cnode.sh itself, while it still prepares the start
+# (for example a Mithril download), would end the startup instead.
+reload_systemd() {
+  local unit_name="${CNODE_VNAME}.service"
+  local node_name main_pid process_name
+
+  load_systemd_library || return 1
+  if ! command -v "${SYSTEMCTL_BIN}" >/dev/null 2>&1; then
+    echo "ERROR: systemd is required to reload ${unit_name}."
+    return 1
+  fi
+  if [[ "$("${SYSTEMCTL_BIN}" show --property LoadState --value "${unit_name}" 2>/dev/null)" != "loaded" ]]; then
+    echo "ERROR: ${unit_name} is not deployed. Install it with: $(basename "$0") systemd install"
+    return 1
+  fi
+  main_pid="$("${SYSTEMCTL_BIN}" show --property MainPID --value "${unit_name}" 2>/dev/null)"
+  if [[ ! "${main_pid}" =~ ^[1-9][0-9]*$ ]]; then
+    echo "ERROR: ${unit_name} is not running. Start it with: sudo systemctl start ${unit_name}"
+    return 1
+  fi
+  node_name="$(basename "${CNODEBIN:-cardano-node}")"
+  if ! process_name="$(cat "${CNODE_PROCFS_ROOT:-/proc}/${main_pid}/comm" 2>/dev/null)"; then
+    echo "ERROR: Cannot inspect the main process of ${unit_name}; run the reload as the service user or root."
+    return 1
+  fi
+  # The kernel shortens process names to 15 characters.
+  if [[ "${process_name}" != "${node_name:0:15}" ]]; then
+    echo "ERROR: ${unit_name} is still starting (PID ${main_pid} runs ${process_name}, not ${node_name}). Try again once the node runs."
+    return 1
+  fi
+  if ! kill -HUP "${main_pid}" 2>/dev/null && ! systemd_as_root kill -HUP "${main_pid}"; then
+    echo "ERROR: Could not send SIGHUP to ${unit_name} (PID ${main_pid})."
+    return 1
+  fi
+  echo "Sent SIGHUP to ${unit_name} (PID ${main_pid}). The node re-reads its topology and, when it runs as a block producer, its KES key, VRF key and operational certificate."
+}
+
+manage_systemd() {
+  local action="${1:-}"
+  local unit_name="${CNODE_VNAME}.service"
+
+  case "${action}" in
+    install) deploy_systemd ;;
+    reload) reload_systemd ;;
+    remove)
+      load_systemd_library &&
+        systemd_remove_units --owner-token "${CNODE_HOME}/scripts/cnode.sh" "${unit_name}" &&
+        echo "${unit_name} removed successfully."
+      ;;
+    status)
+      load_systemd_library && systemd_status_units "${unit_name}"
+      ;;
+    *) usage ;;
+  esac
 }
 
 ###################
@@ -125,6 +263,12 @@ deploy_systemd() {
 ###################
 
 # Parse command line options
+SYSTEMD_ACTION=""
+if [[ ${1:-} == "systemd" ]]; then
+  [[ $# -eq 2 ]] || usage
+  SYSTEMD_ACTION="${2}"
+  shift 2
+fi
 while getopts :ds opt; do
   case ${opt} in
     d ) DEPLOY_SYSTEMD="Y" ;;
@@ -136,7 +280,11 @@ done
 [[ ${0} != '-bash' ]] && PARENT="$(dirname $0)" || PARENT="$(pwd)"
 # Check if env file is missing in current folder (no update checks as will mostly run as daemon), source env if present
 [[ ! -f "${PARENT}"/env ]] && echo -e "\nCommon env file missing in \"${PARENT}\", please ensure latest guild-deploy.sh was run and this script is being run from ${CNODE_HOME}/scripts folder! \n" && exit 1
-. "${PARENT}"/env offline
+if [[ "${SYSTEMD_ACTION}" == "remove" || "${SYSTEMD_ACTION}" == "status" || "${SYSTEMD_ACTION}" == "reload" ]]; then
+  . "${PARENT}"/env definitions
+else
+  . "${PARENT}"/env offline
+fi
 case $? in
   1) echo -e "ERROR: Failed to load common env file\nPlease verify set values in 'User Variables' section in env file or log an issue on GitHub" && exit 1;;
   2) clear ;;
@@ -146,6 +294,10 @@ esac
 
 # Set defaults and do basic sanity checks
 set_defaults
+if [[ -n "${SYSTEMD_ACTION}" ]]; then
+  manage_systemd "${SYSTEMD_ACTION}"
+  exit $?
+fi
 #Deploy systemd if -d argument was specified
 if [[ "${DEPLOY_SYSTEMD}" == "Y" ]]; then
   deploy_systemd && exit 0
@@ -159,15 +311,24 @@ if [[ "${MITHRIL_DOWNLOAD}" == "Y" ]]; then
 fi
 
 # Run Node
-if [[ -f "${POOL_DIR}/${POOL_OPCERT_FILENAME}" && -f "${POOL_DIR}/${POOL_VRF_SK_FILENAME}" && -f "${POOL_DIR}/${POOL_HOTKEY_SK_FILENAME}" ]]; then
+if [[ -f "${POOL_FOLDER}/${POOL_NAME}/${POOL_OPCERT_FILENAME}" && -f "${POOL_FOLDER}/${POOL_NAME}/${POOL_VRF_SK_FILENAME}" && -f "${POOL_FOLDER}/${POOL_NAME}/${POOL_HOTKEY_SK_FILENAME}" ]]; then
+  # The pool's BLS key (Dijkstra era) lets the node vote in the Leios committee.
+  # Nodes before 11.2 do not know the option, so it is passed only when the
+  # node lists it.
+  bls_key_args=()
+  bls_key_file="${POOL_FOLDER}/${POOL_NAME}/${POOL_BLS_SK_FILENAME:-bls.skey}"
+  if [[ -f "${bls_key_file}" ]] && "${CNODEBIN}" run --help 2>&1 | grep -q -- '--shelley-bls-key'; then
+    bls_key_args=(--shelley-bls-key "${bls_key_file}")
+  fi
   exec "${CNODEBIN}" "${CPU_RUNTIME[@]}" run \
     --topology "${TOPOLOGY}" \
     --config "${CONFIG}" \
     --database-path "${DB_DIR}" \
     --socket-path "${CARDANO_NODE_SOCKET_PATH}" \
-    --shelley-kes-key "${POOL_DIR}/${POOL_HOTKEY_SK_FILENAME}" \
-    --shelley-vrf-key "${POOL_DIR}/${POOL_VRF_SK_FILENAME}" \
-    --shelley-operational-certificate "${POOL_DIR}/${POOL_OPCERT_FILENAME}" \
+    --shelley-kes-key "${POOL_FOLDER}/${POOL_NAME}/${POOL_HOTKEY_SK_FILENAME}" \
+    --shelley-vrf-key "${POOL_FOLDER}/${POOL_NAME}/${POOL_VRF_SK_FILENAME}" \
+    --shelley-operational-certificate "${POOL_FOLDER}/${POOL_NAME}/${POOL_OPCERT_FILENAME}" \
+    "${bls_key_args[@]}" \
     --port ${CNODE_PORT} \
     ${MEMPOOL_OVERRIDE} "${host_addr[@]}"
 else

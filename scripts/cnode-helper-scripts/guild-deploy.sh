@@ -1,37 +1,40 @@
 #!/usr/bin/env bash
-# shellcheck disable=SC2086,SC1090,SC2059,SC2016,SC2035
+# shellcheck disable=SC1090,SC2034,SC2154,SC2317,SC2329
 # shellcheck source=/dev/null
 
 ##########################################
 # User Variables - Change as desired     #
 # command line flags override set values #
 ##########################################
-#G_ACCOUNT="cardano-community"  # Override github GUILD account if you forked the project
-#NETWORK='mainnet'              # Connect to specified network instead of public network (Default: connect to public cardano network)
-#WANT_BUILD_DEPS='Y'            # Skip installing OS level dependencies (Default: will check and install any missing OS level prerequisites)
-#FORCE_OVERWRITE='N'            # Force overwrite of all config files (topology.json, config.json and genesis files)
-#SCRIPTS_FORCE_OVERWRITE='N'    # Force overwrite of all scripts (including normally saved user config sections in env, cnode.sh and gLiveView.sh)
-#LIBSODIUM_FORK='Y'             # Use IOG fork of libsodium instead of official repositories - Recommended as per IOG instructions (Default: IOG fork)
-#INSTALL_CNCLI='N'              # Install/Upgrade and build CNCLI with RUST
-#INSTALL_CWHCLI='N'             # Install/Upgrade Vacuumlabs cardano-hw-cli for hardware wallet support
-#INSTALL_OGMIOS='N'             # Install Ogmios Server
-#INSTALL_CSIGNER='N'            # Install/Upgrade Cardano Signer
-#INSTALL_BLOCKPERF='N'          # Install openBlockPerf (enhanced global network monitoring)
-#CNODE_NAME='cnode'             # Alternate name for top level folder, non alpha-numeric chars will be replaced with underscore (Default: cnode)
-#CURL_TIMEOUT=60                # Maximum time in seconds that you allow the file download operation to take before aborting (Default: 60s)
-#UPDATE_CHECK='Y'               # Check if there is an updated version of guild-deploy.sh script to download
-#SUDO='Y'                       # Used by docker builds to disable sudo, leave unchanged if unsure.
-#SKIP_DBSYNC_DOWNLOAD='N'       # When using -i d switch, used by docker builds or users who might not want to download dbsync binary
+#G_ACCOUNT="cardano-community"       # Override GitHub account if using a fork
+#NODE_IMPLEMENTATION="cnode"         # cnode | dingo | amaru
+#NETWORK="mainnet"                   # Network selected for the node implementation
+#BRANCH="master"                     # Guild Operators repository branch
+#NODE_PARENT="/opt/cardano"          # Parent directory for the node installation
+#NODE_NAME="cnode"                   # Top-level directory/service name
+#NODE_PORT=                           # Node-to-node port (Default: cnode 6000, dingo 3001, amaru 3000)
+#CURL_TIMEOUT=60                     # Download timeout in seconds
+#DOWNLOAD_TIMEOUT=600                # Large binary download timeout in seconds
+#SUDO="Y"                            # Set to N in containers already running as root
+#PACKAGE_MANAGER_OUTPUT="compact"    # compact | verbose
+#GUILD_SKIP_HARDWARE_WALLET_RULES="N" # Skip host udev rules when using -s w
+#
+# cnode-specific variables
+#CNODE_SKIP_DBSYNC_DOWNLOAD="N"      # Skip cardano-db-sync when using cnode -s d
 ######################################
 # Do NOT modify code below           #
 ######################################
 
-unset CNODE_HOME
-
-PARENT="$(dirname $0)"
+# Pre-release networks deploy from this branch unless a deployment has stored
+# its own, and their pin updates land here (PINS_BRANCH in pins.yml).
+GUILD_PRERELEASE_BRANCH="alpha"
 
 export LANG="C.UTF-8"
-export LC_ALL=${LANG}
+export LC_ALL="${LANG}"
+GUILD_DEPLOY_SNAPSHOT_CAPABLE="Y"
+
+DISPATCHER_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+DISPATCHER_SCRIPT_PATH="${DISPATCHER_DIR}/$(basename "${BASH_SOURCE[0]}")"
 
 if [[ -t 1 ]] && command -v tput >/dev/null 2>&1; then
   STYLE_RESET="$(tput sgr0 2>/dev/null || true)"
@@ -49,937 +52,3547 @@ else
   STYLE_CYAN=""
 fi
 
-if [[ "${LC_ALL:-${LC_CTYPE:-${LANG:-}}}" =~ (UTF-8|utf-8|utf8) ]]; then
-  SYMBOL_RUN="…"
-  SYMBOL_OK="✓"
-  SYMBOL_INFO="i"
-  SYMBOL_WARN="!"
-  SYMBOL_ERROR="✗"
-else
-  SYMBOL_RUN=".."
-  SYMBOL_OK="OK"
-  SYMBOL_INFO="i"
-  SYMBOL_WARN="!"
-  SYMBOL_ERROR="X"
-fi
-
-ACTIVE_STEP="Initialize deployment"
-ACTIVE_FLAG=""
-NO_SELECTIVE_FLAGS="N"
-ADDED_LOCAL_BIN_PATH="N"
-FRESH_TARGET="N"
-
-log_header() {
-  printf "\n%sGuild Operators deployment%s\n" "${STYLE_BOLD}" "${STYLE_RESET}"
-  printf "  Target  : %s\n" "${CNODE_HOME}"
-  printf "  Network : %s\n" "${NETWORK}"
-  printf "  Branch  : %s\n" "${BRANCH}"
-  if [[ -n "${S_ARGS}" ]]; then
-    printf "  Flags   : -s %s\n" "${S_ARGS}"
-  else
-    printf "  Flags   : script/config refresh\n"
-  fi
-}
-
-log_section() {
-  printf "\n%s%s%s\n" "${STYLE_CYAN}${STYLE_BOLD}" "${1}" "${STYLE_RESET}"
-}
-
-log_progress() {
-  ACTIVE_STEP="${1}"
-  local detail="${2:-}"
-  local line="  ${SYMBOL_RUN} ${1}"
-  [[ -n "${detail}" ]] && line="${line} (${detail})"
-  if [[ -t 1 ]]; then
-    printf "\r\033[K%s" "${line}"
-  else
-    printf "%s\n" "${line}"
-  fi
-}
-
-log_ok() {
-  local step="${1:-${ACTIVE_STEP}}"
-  local detail="${2:-}"
-  local line="  ${SYMBOL_OK} ${step}"
-  [[ -n "${detail}" ]] && line="${line} (${detail})"
-  if [[ -t 1 ]]; then
-    printf "\r\033[K%s%s%s\n" "${STYLE_GREEN}" "${line}" "${STYLE_RESET}"
-  else
-    printf "%s\n" "${line}"
-  fi
-  ACTIVE_STEP="${step}"
-}
-
 log_info() {
-  [[ -t 1 ]] && printf "\r\033[K"
-  printf "%s  ${SYMBOL_INFO} %s%s\n" "${STYLE_CYAN}" "${1}" "${STYLE_RESET}"
+  printf "%s  i %s%s\n" "${STYLE_CYAN}" "$1" "${STYLE_RESET}"
 }
 
 log_warn() {
-  [[ -t 1 ]] && printf "\r\033[K"
-  printf "%s  ${SYMBOL_WARN} %s%s\n" "${STYLE_YELLOW}" "${1}" "${STYLE_RESET}"
+  printf "%s  ! %s%s\n" "${STYLE_YELLOW}" "$1" "${STYLE_RESET}" >&2
 }
 
-run_step() {
-  local label="${1}"
-  local flag="${2}"
-  shift 2
-  ACTIVE_STEP="${label}"
-  ACTIVE_FLAG="${flag}"
-  log_section "${label}"
-  "$@"
+log_progress() {
+  local detail="${2:-}"
+  printf "  .. %s%s\n" "$1" "$([[ -n "${detail}" ]] && printf ' (%s)' "${detail}")"
 }
 
-get_answer() {
-  printf "%s (yes/no): " "$*" >&2; read -r answer
-  while :
-  do
-    case $answer in
-    [Yy]*)
-      return 0;;
-    [Nn]*)
-      return 1;;
-    *) printf "%s" "Please enter 'yes' or 'no' to continue: " >&2; read -r answer
+log_ok() {
+  local detail="${2:-}"
+  printf "%s  OK %s%s%s\n" "${STYLE_GREEN}" "$1" "$([[ -n "${detail}" ]] && printf ' (%s)' "${detail}")" "${STYLE_RESET}"
+}
+
+err_exit() {
+  printf "\n%sDeployment failed: %s%s\n" "${STYLE_RED}" "${1:-unknown error}" "${STYLE_RESET}" >&2
+  exit 1
+}
+
+dispatcher_package_output_summary() {
+  local output_file="$1"
+  local line=""
+  local packages=""
+
+  while IFS= read -r line; do
+    [[ -n "${line}" ]] &&
+      log_info "Package transaction: ${line}"
+  done < <(
+    awk '
+      function emit(value) {
+        if (!seen[value]++) {
+          print value
+        }
+      }
+      {
+        sub(/\r$/, "")
+        sub(/^[[:space:]]+/, "")
+      }
+      /^[0-9]+ upgraded, [0-9]+ newly installed, [0-9]+ to remove/ {
+        emit($0)
+      }
+      /^(Install|Upgrade|Remove|Downgrade|Reinstall)[[:space:]]+[0-9]+ Package(s)?([[:space:](]|$)/ {
+        emit($0)
+      }
+      /^(Installing|Upgrading|Reinstalling|Replacing|Removing|Downgrading|Skipping):[[:space:]]+[0-9]+ package(s)?([[:space:](]|$)/ {
+        emit($0)
+      }
+      /^(Nothing to do|All packages are up to date)[.!]?$/ {
+        emit($0)
+      }
+    ' "${output_file}"
+  )
+
+  packages="$(
+    awk '
+      function remember(value) {
+        sub(/^[[:space:]]+/, "", value)
+        sub(/[,:][[:space:]]*$/, "", value)
+        if (value != "" && !seen[value]++) {
+          names[++count] = value
+        }
+      }
+      {
+        sub(/\r$/, "")
+      }
+      $1 == "Setting" && $2 == "up" {
+        remember($3)
+        next
+      }
+      $1 == "Removing" {
+        remember($2)
+        next
+      }
+      /^(Dependency )?(Installed|Updated|Upgraded|Removed|Downgraded|Reinstalled):[[:space:]]*$/ {
+        result_section = 1
+        next
+      }
+      /^(Installing|Upgrading|Reinstalling|Replacing|Removing|Downgrading)( dependencies| weak dependencies)?:[[:space:]]*$/ {
+        result_section = 1
+        next
+      }
+      result_section && /^[[:space:]]+/ {
+        remember($1)
+        next
+      }
+      result_section {
+        result_section = 0
+      }
+      /^(Dependency )?(Installed|Updated|Upgraded|Removed|Downgraded|Reinstalled):[[:space:]]+[^[:space:]]/ {
+        value = $0
+        sub(/^[^:]+:[[:space:]]*/, "", value)
+        split(value, fields, /[[:space:]]+/)
+        remember(fields[1])
+      }
+      END {
+        limit = count < 12 ? count : 12
+        for (i = 1; i <= limit; i++) {
+          printf "%s%s", (i > 1 ? ", " : ""), names[i]
+        }
+        if (count > limit) {
+          printf " (+%d more)", count - limit
+        }
+      }
+    ' "${output_file}"
+  )"
+  [[ -z "${packages}" ]] ||
+    log_info "Changed packages: ${packages}"
+
+  while IFS= read -r line; do
+    [[ -n "${line}" ]] || continue
+    case "${line}" in
+      N:*) log_info "${line}" ;;
+      *) log_warn "${line}" ;;
     esac
+  done < <(
+    awk '
+      {
+        sub(/\r$/, "")
+        sub(/^[[:space:]]+/, "")
+        normalized = tolower($0)
+        if ($0 ~ /^[NWE]:/ || normalized ~ /^(warning:|error:|dpkg: warning:|debconf:|failed to )/) {
+          if (!seen[$0]++) {
+            if (++count <= 12) {
+              print
+            } else {
+              omitted++
+            }
+          }
+        }
+      }
+      END {
+        if (omitted > 0) {
+          printf "W: %d additional package-manager notices omitted; use verbose output to inspect them.\n", omitted
+        }
+      }
+    ' "${output_file}"
+  )
+}
+
+dispatcher_package_failure_summary() {
+  local label="$1"
+  local status="$2"
+  local output_file="$3"
+  local line=""
+  local diagnostics=""
+
+  log_warn "${label} failed (exit ${status})."
+  diagnostics="$(
+    awk '
+      {
+        sub(/\r$/, "")
+        normalized = tolower($0)
+        if ($0 ~ /^(E:|Err:)/ || normalized ~ /(^|[^[:alpha:]])(error|failed|failure|unable|cannot|could not|no match for argument|conflict|gpg error)([^[:alpha:]]|$)/) {
+          if (!seen[$0]++) {
+            if (++count <= 12) {
+              print
+            } else {
+              omitted++
+            }
+          }
+        }
+      }
+      END {
+        if (omitted > 0) {
+          printf "[%d additional diagnostic lines omitted]\n", omitted
+        }
+      }
+    ' "${output_file}"
+  )"
+
+  if [[ -n "${diagnostics}" ]]; then
+    printf "  Package-manager diagnostics:\n" >&2
+    while IFS= read -r line; do
+      printf "    %s\n" "${line}" >&2
+    done <<< "${diagnostics}"
+  fi
+
+  printf "  Last 20 output lines:\n" >&2
+  tail -n 20 "${output_file}" |
+    while IFS= read -r line; do
+      printf "    %s\n" "${line%$'\r'}" >&2
+    done
+  printf "  Full output: %s\n" "${output_file}" >&2
+}
+
+dispatcher_run_package_command() {
+  local label="$1"
+  local output_file=""
+  local status=0
+  shift
+
+  [[ $# -gt 0 ]] || {
+    log_warn "No command was provided for ${label}."
+    return 2
+  }
+
+  if [[ "${PACKAGE_MANAGER_OUTPUT:-compact}" == "verbose" ]]; then
+    "$@"
+    return
+  fi
+
+  if ! output_file="$(
+    umask 077
+    mktemp "${TMPDIR:-/tmp}/guild-package-output.XXXXXX"
+  )"; then
+    log_warn "Could not create a compact output buffer; showing ${label} output."
+    "$@"
+    return
+  fi
+
+  if "$@" > "${output_file}" 2>&1; then
+    dispatcher_package_output_summary "${output_file}"
+    rm -f -- "${output_file}"
+    return 0
+  else
+    status=$?
+  fi
+
+  dispatcher_package_failure_summary "${label}" "${status}" "${output_file}"
+  return "${status}"
+}
+
+dispatcher_directory_has_entries() {
+  local directory="${1:-}"
+  local first_entry=""
+
+  [[ -d "${directory}" ]] || return 1
+  first_entry="$(find "${directory}" -mindepth 1 -print -quit 2>/dev/null)"
+  [[ -n "${first_entry}" ]]
+}
+
+dispatcher_systemd_unit_installed() {
+  local unit_name="${1:-}"
+  local unit_directory="${SYSTEMD_UNIT_DIR:-/etc/systemd/system}"
+
+  [[ "${unit_name}" =~ ^[A-Za-z0-9_.@:-]+[.]service$ ]] || return 1
+  [[ -f "${unit_directory}/${unit_name}" &&
+     ! -L "${unit_directory}/${unit_name}" ]]
+}
+
+# Printed by an experimental implementation's profile before it deploys to mainnet.
+dispatcher_mainnet_notice() {
+  log_warn "${1:-This node} is still under heavy development. Try it on preview or preprod first; running it on mainnet is at your own responsibility."
+}
+
+dispatcher_resolve_github_release() {
+  local component="$1"
+  local repository="$2"
+  local selector="$3"
+  local api_url response_file resolved_line expected_url digest
+
+  DISPATCHER_RELEASE_TAG=""
+  DISPATCHER_RELEASE_VERSION=""
+  DISPATCHER_RELEASE_ASSET=""
+  DISPATCHER_RELEASE_URL=""
+  DISPATCHER_RELEASE_SHA256=""
+  DISPATCHER_RELEASE_PRERELEASE=""
+  DISPATCHER_RELEASE_PUBLISHED_AT=""
+
+  [[ "${component}" =~ ^[A-Za-z0-9][A-Za-z0-9._+-]*$ ]] || {
+    err_exit "Invalid component name supplied to the GitHub release resolver."
+    return 1
+  }
+  [[ "${repository}" =~ ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ ]] || {
+    err_exit "Invalid GitHub repository configured for ${component}."
+    return 1
+  }
+  [[ -n "${selector}" && "${selector}" != *$'\n'* &&
+     "${selector}" != *$'\r'* && "${selector}" != *$'\t'* ]] || {
+    err_exit "Invalid release-asset selector configured for ${component}."
+    return 1
+  }
+
+  api_url="https://api.github.com/repos/${repository}/releases?per_page=100"
+  response_file="$(
+    umask 077
+    mktemp "${TMPDIR:-/tmp}/guild-${component}-release-api.XXXXXX"
+  )" || {
+    err_exit "Could not stage GitHub release metadata for ${component}."
+    return 1
+  }
+
+  if ! curl --fail --silent --show-error --location \
+    --connect-timeout "${CURL_TIMEOUT:-20}" \
+    --max-time "${CURL_TIMEOUT:-60}" \
+    --header "Accept: application/vnd.github+json" \
+    --header "X-GitHub-Api-Version: 2022-11-28" \
+    "${api_url}" --output "${response_file}"; then
+    rm -f -- "${response_file}"
+    err_exit "Could not resolve the newest published ${component} release from GitHub."
+    return 1
+  fi
+
+  if ! resolved_line="$(
+    jq -er --arg selector "${selector}" '
+      [
+        .[] |
+        select(
+          .draft == false and
+          (.prerelease | type) == "boolean" and
+          (.published_at | type) == "string" and
+          (.published_at | length) > 0
+        )
+      ] |
+      sort_by(.published_at) |
+      last as $release |
+      if ($release | type) != "object" or
+         ($release.tag_name | type) != "string" or
+         ($release.tag_name | length) == 0 or
+         ($release.assets | type) != "array"
+      then
+        error("no published release")
+      else
+        [
+          $release.assets[] |
+          select(
+            .state == "uploaded" and
+            (.name | type) == "string" and
+            (.name | test($selector))
+          )
+        ] as $matches |
+        if ($matches | length) != 1 then
+          error("asset selector did not match exactly one uploaded asset")
+        else
+          $matches[0] as $asset |
+          if ($asset.browser_download_url | type) != "string" or
+             ($asset.digest | type) != "string" or
+             ($asset.size | type) != "number" or
+             $asset.size <= 0
+          then
+            error("selected asset metadata is incomplete")
+          else
+            [
+              $release.tag_name,
+              $asset.name,
+              $asset.browser_download_url,
+              $asset.digest,
+              ($release.prerelease | tostring),
+              $release.published_at
+            ] | @tsv
+          end
+        end
+      end
+    ' "${response_file}" 2>/dev/null
+  )"; then
+    rm -f -- "${response_file}"
+    err_exit "Newest ${component} release metadata did not select exactly one valid asset."
+    return 1
+  fi
+  rm -f -- "${response_file}"
+
+  IFS=$'\t' read -r DISPATCHER_RELEASE_TAG DISPATCHER_RELEASE_ASSET \
+    DISPATCHER_RELEASE_URL digest DISPATCHER_RELEASE_PRERELEASE \
+    DISPATCHER_RELEASE_PUBLISHED_AT <<< "${resolved_line}"
+  [[ "${DISPATCHER_RELEASE_TAG}" =~ ^[A-Za-z0-9][A-Za-z0-9._+-]*$ ]] || {
+    err_exit "Newest ${component} release returned an unsafe tag."
+    return 1
+  }
+  [[ "${DISPATCHER_RELEASE_ASSET}" =~ ^[A-Za-z0-9][A-Za-z0-9._+-]*$ &&
+     "${DISPATCHER_RELEASE_ASSET}" != "." &&
+     "${DISPATCHER_RELEASE_ASSET}" != ".." ]] || {
+    err_exit "Newest ${component} release returned an unsafe asset filename."
+    return 1
+  }
+  expected_url="https://github.com/${repository}/releases/download/${DISPATCHER_RELEASE_TAG}/${DISPATCHER_RELEASE_ASSET}"
+  [[ "${DISPATCHER_RELEASE_URL}" == "${expected_url}" ]] || {
+    err_exit "Newest ${component} asset URL does not match its repository, tag, and filename."
+    return 1
+  }
+  [[ "${digest}" =~ ^sha256:[0-9a-f]{64}$ ]] || {
+    err_exit "Newest ${component} asset does not publish a valid GitHub SHA-256 digest."
+    return 1
+  }
+  DISPATCHER_RELEASE_VERSION="${DISPATCHER_RELEASE_TAG#v}"
+  [[ "${DISPATCHER_RELEASE_VERSION}" =~ ^[0-9][A-Za-z0-9._+-]*$ ]] || {
+    err_exit "Newest ${component} release returned an unsupported version tag."
+    return 1
+  }
+  DISPATCHER_RELEASE_SHA256="${digest#sha256:}"
+}
+
+dispatcher_usage() {
+  cat <<-EOF
+
+	Usage: guild-deploy.sh [-g account] [-i <cnode|dingo|amaru>] [-n <network>] [-p path] [-t name] [-b branch] [-s flags]
+
+	Common Guild Operators deployment entrypoint.
+
+	-g    GitHub account that owns the Guild Operators repository (Default: stored deployment account, then cardano-community)
+	-i    Node implementation (Default: cnode)
+	-n    Network. cnode defaults to mainnet; alternate implementations require an explicit supported network
+	-p    Parent path below which the top-level folder is created (Default: /opt/cardano)
+	-t    Alternate top-level folder/service name (Default: selected implementation)
+	      Without -p and -t, the copy installed as <target>/scripts/guild-deploy.sh
+	      defaults to its own <target> and implementation
+	-b    Guild Operators repository branch (Default: stored deployment branch, then master;
+	      the pre-release networks dijkstra and musashi use their own default branch)
+	-C    Check only: report what this run would do, including any binary move, and change nothing
+	-s    Selective install flags. All implementations:
+	        p  runtime OS prerequisites
+	        d  selected node implementation binaries
+	        f  force configuration overwrite (backups are kept)
+	        u  update the kept configuration in place for this release (backups are kept)
+	        s  force helper-script overwrite
+	        w  cardano-hw-cli and host device rules
+	      cnode only (dingo and amaru reject these):
+	        b  Haskell build toolchain (GHCup, GHC, Cabal, secp256k1, blst)
+	        l  libsodium fork for source builds
+	        m  Mithril signer and client
+	        c  CNCLI
+	        o  Ogmios
+	        x  Cardano Signer
+	        r  openBlockPerf
+	      Unsupported flags fail explicitly.
+	-h    Show this help
+
+	Package-manager output is compact by default. Set
+	PACKAGE_MANAGER_OUTPUT=verbose to stream it without filtering.
+	Set GUILD_DEPLOY_STRICT_REF=Y to reject a missing selected ref instead
+	of falling back to master.
+
+	Examples:
+	  ./guild-deploy.sh -n mainnet -s pd
+	  ./guild-deploy.sh -g my-guild-fork -n mainnet
+	  ./guild-deploy.sh -i dingo -n preprod -s pd
+	  ./guild-deploy.sh -i amaru -n preview -t amaru-preview -s pd
+
+	EOF
+}
+
+deployment_json_get() {
+  local file="$1"
+  local key="$2"
+  [[ -s "${file}" ]] || return 1
+  if command -v jq >/dev/null 2>&1; then
+    jq -er --arg key "${key}" '.[$key] // empty' "${file}" 2>/dev/null
+    return
+  fi
+  sed -nE \
+    -e 's/^[[:space:]]*"'"${key}"'"[[:space:]]*:[[:space:]]*"([^"]*)".*$/\1/p' \
+    -e 's/^[[:space:]]*"'"${key}"'"[[:space:]]*:[[:space:]]*([0-9]+|true|false)[[:space:]]*,?.*$/\1/p' \
+    "${file}" | head -n 1
+}
+
+validate_implementation() {
+  case "$1" in
+    cnode|dingo|amaru) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+validate_branch_name() {
+  local branch="$1"
+  local component
+  local -a components
+
+  [[ "${branch}" =~ ^[A-Za-z0-9_][A-Za-z0-9._/-]*$ ]] || return 1
+  [[ "${branch}" != */ &&
+     "${branch}" != *..* &&
+     "${branch}" != *//* &&
+     "${branch}" != *@\{* &&
+     "${branch}" != "@" &&
+     "${branch}" != *. ]] || return 1
+  IFS='/' read -r -a components <<< "${branch}"
+  for component in "${components[@]}"; do
+    [[ -n "${component}" &&
+       "${component}" != .* &&
+       "${component}" != *.lock ]] || return 1
   done
 }
 
-# Description : Exit with error message
-#             : $1 = Error message we'd like to display before exiting.
-err_exit() {
-  [[ -t 2 ]] && printf "\r\033[K" >&2
-  printf "\n%s${SYMBOL_ERROR} Deployment failed%s\n" "${STYLE_RED}" "${STYLE_RESET}" >&2
-  [[ -n "${ACTIVE_STEP}" ]] && printf "  Step : %s\n" "${ACTIVE_STEP}" >&2
-  [[ -n "${ACTIVE_FLAG}" ]] && printf "  Flag : %s\n" "${ACTIVE_FLAG}" >&2
-  printf "  Cause: %s\n" "${1:-Unknown error}" >&2
-  pushd -0 >/dev/null && dirs -c
-  exit 1
+validate_account_name() {
+  [[ "$1" =~ ^[A-Za-z0-9_.-]+$ ]]
 }
 
-usage() {
-  cat <<-EOF >&2
+dispatcher_source_relative_path_valid() {
+  local relative_path="${1:-}"
+  local component
+  local -a components
 
-		Usage: $(basename "$0") [-n <mainnet|guild|preprod|preview>] [-p path] [-t <name>] [-b <branch>] [-u] [-s [p][b][l][m][d][c][o][w][x][f][s]]
-		Set up dependencies for building/using common tools across cardano ecosystem.
-		The script will always update dynamic content from existing scripts retaining existing user variables
-
-		-n    Connect to specified network instead of mainnet network (Default: connect to cardano mainnet network) eg: -n guild
-		-p    Parent folder path underneath which the top-level folder will be created (Default: /opt/cardano)
-		-t    Alternate name for top level folder - only alpha-numeric chars allowed (Default: cnode)
-		-b    Use alternate branch of scripts to download - only recommended for testing/development (Default: master)
-		-u    Skip update check for script itself
-		-s    Selective Install, only deploy specific components as below:
-		  p   Install common pre-requisite OS-level Dependencies for most tools on this repo (Default: skip)
-		  b   Install OS level dependencies for tools required while building cardano-node/cardano-db-sync components (Default: skip)
-		  l   Build and Install libsodium fork from IO repositories (Default: skip)
-		  m   Download latest (released) binaries for mithril-signer, mithril-client (Default: skip)
-		  d   Download latest (released) binaries for bech32, cardano-address, cardano-node, cardano-cli, cardano-db-sync and cardano-submit-api (Default: skip)
-		  c   Download latest (released) binaries for CNCLI (Default: skip)
-		  o   Download latest (released) binaries for Ogmios (Default: skip)
-		  w   Download latest (released) binaries for Cardano Hardware CLI (Default: skip)
-		  x   Download latest (released) binaries for Cardano Signer binary (Default: skip)
-		  r   Download and install latest (released) openBlockPerf Network Monitoring (Default: skip)
-		  f   Force overwrite config files (backups of existing ones will be created) (Default: skip)
-		  s   Force overwrite entire content [including user variables] of scripts (Default: skip)
-
-		EOF
-  exit 1
+  [[ -n "${relative_path}" &&
+     "${relative_path}" != /* &&
+     "${relative_path}" != *$'\n'* &&
+     "${relative_path}" != *$'\r'* ]] || return 1
+  IFS='/' read -r -a components <<< "${relative_path}"
+  for component in "${components[@]}"; do
+    [[ -n "${component}" &&
+       "${component}" != "." &&
+       "${component}" != ".." ]] || return 1
+  done
 }
 
-# Set Default Environment Variables
-set_defaults() {
-  [[ -z ${G_ACCOUNT} ]] && G_ACCOUNT="cardano-community"
-  [[ -z ${NETWORK} ]] && NETWORK='mainnet'
-  [[ -z ${WANT_BUILD_DEPS} ]] && WANT_BUILD_DEPS='N'
-  [[ -z ${FORCE_OVERWRITE} ]] && FORCE_OVERWRITE='N'
-  [[ -z ${SCRIPTS_FORCE_OVERWRITE} ]] && SCRIPTS_FORCE_OVERWRITE='N'
-  [[ -z ${LIBSODIUM_FORK} ]] && LIBSODIUM_FORK='N'
-  [[ -z ${INSTALL_MITHRIL} ]] && INSTALL_MITHRIL='N'
-  [[ -z ${INSTALL_CNCLI} ]] && INSTALL_CNCLI='N'
-  [[ -z ${INSTALL_CWHCLI} ]] && INSTALL_CWHCLI='N'
-  [[ -z ${INSTALL_OGMIOS} ]] && INSTALL_OGMIOS='N'
-  [[ -z ${INSTALL_CSIGNER} ]] && INSTALL_CSIGNER='N'
-  [[ -z ${INSTALL_BLOCKPERF} ]] && INSTALL_BLOCKPERF='N'
-  [[ -z ${CNODE_PATH} ]] && CNODE_PATH="/opt/cardano"
-  [[ -z ${CNODE_NAME} ]] && CNODE_NAME='cnode'
-  [[ -z ${CURL_TIMEOUT} ]] && CURL_TIMEOUT=60
-  [[ -z ${UPDATE_CHECK} ]] && UPDATE_CHECK='Y'
-  [[ -z ${SKIP_DBSYNC_DOWNLOAD} ]] && SKIP_DBSYNC_DOWNLOAD='N'
-  [[ -z ${SUDO} ]] && SUDO='Y'
-  [[ -z "${BRANCH}" ]] && BRANCH="master"
-  [[ "${SUDO}" = 'Y' ]] && sudo="sudo" || sudo=""
-  [[ "${SUDO}" = 'Y' && $(id -u) -eq 0 ]] && err_exit "Please run as non-root user."
-  [[ -z "${CARDANO_NODE_VERSION}" ]] && CARDANO_NODE_VERSION="$(curl -sfk "https://raw.githubusercontent.com/${G_ACCOUNT}/guild-operators/${BRANCH}/files/docker/node/release-versions/cardano-node-latest.txt" || echo "11.1.3")"
-  [[ -z "${CARDANO_CLI_VERSION}" ]] && CARDANO_CLI_VERSION="$(curl -sfk "https://raw.githubusercontent.com/${G_ACCOUNT}/guild-operators/${BRANCH}/files/docker/node/release-versions/cardano-cli-latest.txt" || echo "11.5.0.0")"
-  [[ -z "${DBSYNC_VERSION}" ]] && DBSYNC_VERSION="13.7.2.1"
-  [[ -z "${CADDR_VERSION}" ]] && CADDR_VERSION="4.0.7"
-  CNODE_HOME="${CNODE_PATH}/${CNODE_NAME}"
-  CNODE_VNAME=$(echo "$CNODE_NAME" | awk '{print toupper($0)}')
-  [[ -z ${MITHRIL_HOME} ]] && MITHRIL_HOME="${CNODE_HOME}/mithril"
-  REPO_RAW="https://raw.githubusercontent.com/${G_ACCOUNT}/guild-operators"
-  URL_RAW="${REPO_RAW}/${BRANCH}"
-  U_ID=$(id -u)
-  G_ID=$(id -g)
-  # Determine OS platform
-  OS_ID=$(grep -i ^id_like= /etc/os-release | cut -d= -f 2)
-  [[ -z "${OS_ID}" ]] && OS_ID=$(grep -i ^id= /etc/os-release | cut -d= -f 2)
-  DISTRO=$(grep -i ^NAME= /etc/os-release | cut -d= -f 2)
-  VERSION_ID=$(grep -i ^version_id= /etc/os-release | cut -d= -f 2 | tr -d '"' | cut -d. -f 1)
-  ARCH=$(uname -a)
-  if ! curl -s -f -m ${CURL_TIMEOUT} "${REPO_RAW}/${BRANCH}/LICENSE" -o /dev/null ; then
-    log_warn "Branch '${BRANCH}' was not found, falling back to master."
-    BRANCH=master
-    URL_RAW="${REPO_RAW}/${BRANCH}"
+dispatcher_source_path() {
+  local relative_path="${1:-}"
+  local current_path="${GIT_SOURCE_ROOT:-}"
+  local component
+  local repository_root=""
+  local source_root=""
+  local -a components
+
+  dispatcher_source_relative_path_valid "${relative_path}" || return 2
+  [[ -n "${current_path}" &&
+     "${current_path}" = /* &&
+     -d "${current_path}" &&
+     ! -L "${current_path}" ]] || return 2
+  source_root="$(cd -- "${current_path}" && pwd -P)" || return 2
+  current_path="${source_root}"
+
+  IFS='/' read -r -a components <<< "${relative_path}"
+  for component in "${components[@]}"; do
+    current_path="${current_path}/${component}"
+    [[ ! -L "${current_path}" ]] || return 2
+  done
+  [[ -f "${current_path}" ]] || return 1
+  repository_root="$(git -C "${source_root}" rev-parse --show-toplevel 2>/dev/null || true)"
+  if [[ -n "${repository_root}" && "${repository_root}" = "${source_root}" ]]; then
+    git -C "${source_root}" ls-files --error-unmatch \
+      -- "${relative_path}" >/dev/null 2>&1 || return 2
+  fi
+  printf '%s\n' "${current_path}"
+}
+
+# Resolve a tracked source directory without following symbolic links. Directory
+# payloads are kept separate from dispatcher_source_path so regular file
+# callers retain their deliberately small contract.
+dispatcher_source_directory() {
+  local relative_path="${1:-}"
+  local current_path="${GIT_SOURCE_ROOT:-}"
+  local component
+  local repository_root=""
+  local source_root=""
+  local -a components
+
+  dispatcher_source_relative_path_valid "${relative_path}" || return 2
+  [[ -n "${current_path}" &&
+     "${current_path}" = /* &&
+     -d "${current_path}" &&
+     ! -L "${current_path}" ]] || return 2
+  source_root="$(cd -- "${current_path}" && pwd -P)" || return 2
+  current_path="${source_root}"
+
+  IFS='/' read -r -a components <<< "${relative_path}"
+  for component in "${components[@]}"; do
+    current_path="${current_path}/${component}"
+    [[ ! -L "${current_path}" ]] || return 2
+  done
+  [[ -d "${current_path}" ]] || return 1
+  repository_root="$(git -C "${source_root}" rev-parse --show-toplevel 2>/dev/null || true)"
+  if [[ -n "${repository_root}" && "${repository_root}" = "${source_root}" ]]; then
+    [[ -n "$(git -C "${source_root}" ls-files -- "${relative_path}")" ]] || return 2
+  fi
+  printf '%s\n' "${current_path}"
+}
+
+dispatcher_source_copy() {
+  local relative_path="${1:-}"
+  local destination="${2:-}"
+  local source_path=""
+
+  [[ -n "${destination}" ]] || return 2
+  source_path="$(dispatcher_source_path "${relative_path}")" || {
+    log_warn "Guild source payload is missing or unsafe: ${relative_path:-empty path}"
+    return 1
+  }
+  cp -- "${source_path}" "${destination}"
+}
+
+dispatcher_preflight_source_payloads() {
+  local relative_path=""
+  local source_path=""
+
+  for relative_path in "$@"; do
+    source_path="$(dispatcher_source_path "${relative_path}")" || {
+      log_warn "Required Guild source payload is missing or unsafe: ${relative_path}"
+      return 1
+    }
+    [[ -s "${source_path}" ]] || {
+      log_warn "Required Guild source payload is empty: ${relative_path}"
+      return 1
+    }
+  done
+}
+
+dispatcher_preflight_shell_payloads() {
+  local relative_path=""
+  local source_path=""
+  local bash_bin="${GUILD_DEPLOY_PREFLIGHT_BASH_BIN:-bash}"
+
+  for relative_path in "$@"; do
+    source_path="$(dispatcher_source_path "${relative_path}")" || {
+      log_warn "Required Guild shell payload is missing or unsafe: ${relative_path}"
+      return 1
+    }
+    [[ -s "${source_path}" ]] || {
+      log_warn "Required Guild shell payload is empty: ${relative_path}"
+      return 1
+    }
+    "${bash_bin}" -n "${source_path}" || {
+      log_warn "Required Guild shell payload failed validation: ${relative_path}"
+      return 1
+    }
+  done
+}
+
+dispatcher_preflight_json_payloads() {
+  local relative_path=""
+  local source_path=""
+
+  command -v jq >/dev/null 2>&1 || {
+    log_warn "jq is required to validate Guild JSON payloads; re-run with -s p."
+    return 1
+  }
+  for relative_path in "$@"; do
+    source_path="$(dispatcher_source_path "${relative_path}")" || {
+      log_warn "Required Guild JSON payload is missing or unsafe: ${relative_path}"
+      return 1
+    }
+    jq -e 'type == "object"' "${source_path}" >/dev/null 2>&1 || {
+      log_warn "Required Guild JSON payload failed validation: ${relative_path}"
+      return 1
+    }
+  done
+}
+
+dispatcher_common_tools_manifest() {
+  dispatcher_source_path "files/node-implementations/common/release.json"
+}
+
+dispatcher_validate_common_tools_manifest() {
+  local manifest="${1:-}"
+
+  [[ -f "${manifest}" && ! -L "${manifest}" && -s "${manifest}" ]] ||
+    return 1
+  jq -e '
+    def strict_https:
+      type == "string" and test("\\Ahttps://[^[:space:]]+\\z");
+    def concrete_version:
+      type == "string" and test("\\A[0-9]+([.][0-9]+){1,3}\\z");
+    def sha256:
+      type == "string" and test("\\A[0-9a-f]{64}\\z");
+    def artifact:
+      keys == ["sha256", "url"] and
+      (.url | strict_https) and
+      (.sha256 | sha256);
+    def artifact_map:
+      keys == ["linux-aarch64", "linux-x86_64"] and
+      all(.[]; artifact);
+    def hardware_wallet_rules:
+      keys == ["ledger", "trezor"] and
+      (.ledger | artifact) and
+      (.trezor | artifact) and
+      (.ledger.url |
+        test("\\Ahttps://raw\\.githubusercontent\\.com/LedgerHQ/udev-rules/[0-9a-f]{40}/add_udev_rules\\.sh\\z")) and
+      .trezor.url == "https://data.trezor.io/udev/51-trezor.rules";
+    keys == ["schemaVersion", "scope", "supportArtifacts", "tools"] and
+    .schemaVersion == 1 and
+    .scope == "guild-tools" and
+    (.tools | keys == ["cardano-hw-cli"]) and
+    (.tools["cardano-hw-cli"] |
+      keys == ["artifacts", "version"] and
+      (.version | concrete_version) and
+      (.artifacts | artifact_map)) and
+    (.supportArtifacts | keys == ["hardwareWalletRules"]) and
+    (.supportArtifacts.hardwareWalletRules | hardware_wallet_rules)
+  ' "${manifest}" >/dev/null
+}
+
+dispatcher_common_architecture() {
+  case "$(uname -m)" in
+    x86_64|amd64) printf 'linux-x86_64\n' ;;
+    aarch64|arm64) printf 'linux-aarch64\n' ;;
+    *) return 1 ;;
+  esac
+}
+
+dispatcher_privileged() {
+  if [[ -n "${sudo:-}" ]]; then
+    ${sudo} "$@"
+  elif [[ "${SUDO:-Y}" == "Y" ]]; then
+    sudo "$@"
+  else
+    "$@"
   fi
 }
 
-# Check and prompt/apply update for guild-deploy.sh itself
-update_check() {
-  log_progress "Checking guild-deploy.sh update" "${BRANCH}"
-  if ! curl -s -f -m ${CURL_TIMEOUT} -o "${PARENT}"/guild-deploy.sh.tmp ${URL_RAW}/scripts/cnode-helper-scripts/guild-deploy.sh 2>/dev/null; then
-    rm -f "${PARENT}"/guild-deploy.sh.tmp
-    log_warn "Could not check guild-deploy.sh update; continuing with the local copy."
+dispatcher_install_hardware_wallet_rules() (
+  local manifest="${1:-}"
+  local release_data=""
+  local ledger_url="" ledger_sha="" trezor_url="" trezor_sha=""
+  local staging_dir="" ledger_file="" trezor_file="" actual_sha=""
+  local rule_owner="" changed="N"
+
+  if [[ "${GUILD_SKIP_HARDWARE_WALLET_RULES:-N}" == "Y" ]]; then
+    log_info "Skipped hardware-wallet udev rules; device permissions are managed by the host."
+    return 0
+  fi
+  if [[ -L "/etc/udev/rules.d/20-hw1.rules" ||
+        -L "/etc/udev/rules.d/51-trezor.rules" ]]; then
+    log_warn "Hardware-wallet udev rule targets must not be symbolic links."
+    return 1
+  fi
+  [[ ! -f "/etc/udev/rules.d/20-hw1.rules" ||
+     ! -f "/etc/udev/rules.d/51-trezor.rules" ]] || return 0
+  dispatcher_validate_common_tools_manifest "${manifest}" || {
+    log_warn "Invalid common Guild tool metadata: ${manifest:-missing}"
+    return 1
+  }
+  command -v udevadm >/dev/null 2>&1 || {
+    log_warn "udevadm is required to install hardware-wallet device rules; re-run with -s p."
+    return 1
+  }
+  rule_owner="$(id -un 2>/dev/null)" || {
+    log_warn "Could not resolve the hardware-wallet rule owner."
+    return 1
+  }
+  [[ "${rule_owner}" =~ ^[A-Za-z0-9._-]+$ ]] || {
+    log_warn "The hardware-wallet rule owner is unsafe: ${rule_owner}"
+    return 1
+  }
+  release_data="$(
+    jq -er '
+      .supportArtifacts.hardwareWalletRules |
+      [.ledger.url, .ledger.sha256, .trezor.url, .trezor.sha256] | @tsv
+    ' "${manifest}"
+  )" || return 1
+  IFS=$'\t' read -r ledger_url ledger_sha trezor_url trezor_sha \
+    <<< "${release_data}"
+
+  staging_dir="$(mktemp -d "${TMPDIR:-/tmp}/guild-hardware-rules.XXXXXX")" ||
+    return 1
+  trap 'rm -rf -- "${staging_dir}"' EXIT
+  ledger_file="${staging_dir}/add_udev_rules.sh"
+  trezor_file="${staging_dir}/51-trezor.rules"
+
+  if [[ ! -f "/etc/udev/rules.d/20-hw1.rules" ]]; then
+    curl --fail --silent --show-error --location \
+      --connect-timeout "${CURL_TIMEOUT:-20}" \
+      --max-time "${DOWNLOAD_TIMEOUT:-600}" \
+      "${ledger_url}" --output "${ledger_file}" || return 1
+    actual_sha="$(sha256sum "${ledger_file}" | awk '{print $1}')" || return 1
+    [[ "${actual_sha}" == "${ledger_sha}" ]] || {
+      log_warn "Ledger udev installer failed SHA-256 verification."
+      return 1
+    }
+    bash -n "${ledger_file}" >/dev/null 2>&1 || {
+      log_warn "Ledger udev installer failed shell validation."
+      return 1
+    }
+    dispatcher_privileged bash "${ledger_file}" >/dev/null 2>&1 || return 1
+    dispatcher_privileged sed \
+      -e "s@TAG+=\"uaccess\"@OWNER=\"${rule_owner}\", TAG+=\"uaccess\"@g" \
+      -i /etc/udev/rules.d/20-hw1.rules || return 1
+    log_info "Installed checksum-verified Ledger udev rules."
+    changed="Y"
+  fi
+
+  if [[ ! -f "/etc/udev/rules.d/51-trezor.rules" ]]; then
+    curl --fail --silent --show-error --location \
+      --connect-timeout "${CURL_TIMEOUT:-20}" \
+      --max-time "${DOWNLOAD_TIMEOUT:-600}" \
+      "${trezor_url}" --output "${trezor_file}" || return 1
+    actual_sha="$(sha256sum "${trezor_file}" | awk '{print $1}')" || return 1
+    [[ "${actual_sha}" == "${trezor_sha}" ]] || {
+      log_warn "Trezor udev rules failed SHA-256 verification."
+      return 1
+    }
+    dispatcher_privileged install -m 0644 "${trezor_file}" \
+      /etc/udev/rules.d/51-trezor.rules || return 1
+    dispatcher_privileged sed \
+      -e "s@TAG+=\"uaccess\"@OWNER=\"${rule_owner}\", TAG+=\"uaccess\"@g" \
+      -i /etc/udev/rules.d/51-trezor.rules || return 1
+    log_info "Installed checksum-verified Trezor udev rules."
+    changed="Y"
+  fi
+
+  if [[ "${changed}" == "Y" ]]; then
+    dispatcher_privileged udevadm control --reload-rules >/dev/null 2>&1 || return 1
+    dispatcher_privileged udevadm trigger >/dev/null 2>&1 || return 1
+  fi
+)
+
+dispatcher_install_cardano_hw_cli() (
+  set -e
+  local manifest="" architecture="" release_data=""
+  local version="" url="" expected_sha="" actual_sha=""
+  local staging_dir="" archive="" extract_dir="" payload_root=""
+  local payload="" payload_name="" version_output="" installed_version=""
+  local install_stage=""
+  local -a payload_names
+
+  for required_command in \
+    awk bash curl find head id install jq mkdir mktemp mv rm rmdir sed \
+    sha256sum tar tr uname wc; do
+    command -v "${required_command}" >/dev/null 2>&1 ||
+      err_exit "Required command '${required_command}' is missing; re-run with -s p."
+  done
+  manifest="$(dispatcher_common_tools_manifest)" ||
+    err_exit "Common Guild tool metadata is missing from the source snapshot."
+  dispatcher_validate_common_tools_manifest "${manifest}" ||
+    err_exit "Invalid common Guild tool metadata: ${manifest}"
+  architecture="$(dispatcher_common_architecture)" ||
+    err_exit "Unsupported cardano-hw-cli architecture: $(uname -m)"
+  release_data="$(
+    jq -er --arg arch "${architecture}" '
+      .tools["cardano-hw-cli"] as $tool |
+      [$tool.version, $tool.artifacts[$arch].url,
+       $tool.artifacts[$arch].sha256] | @tsv
+    ' "${manifest}"
+  )" || err_exit "Could not resolve cardano-hw-cli for ${architecture}."
+  IFS=$'\t' read -r version url expected_sha <<< "${release_data}"
+
+  log_progress "Downloading cardano-hw-cli" "${version}"
+  staging_dir="$(mktemp -d "${TMPDIR:-/tmp}/guild-cardano-hw-cli.XXXXXX")" ||
+    err_exit "Could not create a private cardano-hw-cli staging directory."
+  trap '[[ -z "${install_stage}" ]] || rm -rf -- "${install_stage}"; rm -rf -- "${staging_dir}"' EXIT
+  archive="${staging_dir}/cardano-hw-cli.tar.gz"
+  extract_dir="${staging_dir}/extract"
+  mkdir "${extract_dir}"
+  curl --fail --silent --show-error --location \
+    --connect-timeout "${CURL_TIMEOUT:-20}" \
+    --max-time "${DOWNLOAD_TIMEOUT:-600}" \
+    "${url}" --output "${archive}" ||
+    err_exit "Could not download cardano-hw-cli ${version}."
+  actual_sha="$(sha256sum "${archive}" | awk '{print $1}')" ||
+    err_exit "Could not calculate the cardano-hw-cli archive checksum."
+  [[ "${actual_sha}" == "${expected_sha}" ]] ||
+    err_exit "cardano-hw-cli ${version} failed SHA-256 verification."
+  tar -xzf "${archive}" -C "${extract_dir}" ||
+    err_exit "Could not extract cardano-hw-cli ${version}."
+  payload_root="${extract_dir}/cardano-hw-cli"
+  payload_names=(HID_hidraw.node HID.node cardano-hw-cli)
+  [[ -z "$(find "${extract_dir}" -type l -print -quit)" &&
+     -z "$(find "${payload_root}" -mindepth 1 -maxdepth 1 ! -type f -print -quit)" &&
+     "$(find "${payload_root}" -mindepth 1 -maxdepth 1 -type f | wc -l | tr -d '[:space:]')" == "3" ]] ||
+    err_exit "The verified cardano-hw-cli archive contains unsafe payload entries."
+  for payload_name in "${payload_names[@]}"; do
+    [[ -f "${payload_root}/${payload_name}" &&
+       ! -L "${payload_root}/${payload_name}" ]] ||
+      err_exit "The verified cardano-hw-cli archive has an unexpected layout."
+  done
+  version_output="$("${payload_root}/cardano-hw-cli" version 2>&1)" ||
+    err_exit "The staged cardano-hw-cli executable could not be started."
+  installed_version="$(
+    sed -nE 's/^Cardano HW CLI Tool version v?([^[:space:]]+).*$/\1/p' \
+      <<< "${version_output}" | head -n 1
+  )"
+  [[ "${installed_version}" == "${version}" ]] ||
+    err_exit "Staged cardano-hw-cli reported '${installed_version:-unknown}', expected ${version}."
+
+  mkdir -p "${NODE_HOME}/bin" ||
+    err_exit "Could not prepare ${NODE_HOME}/bin."
+  install_stage="$(mktemp -d "${NODE_HOME}/bin/.cardano-hw-cli.install.XXXXXX")" ||
+    err_exit "Could not stage cardano-hw-cli in ${NODE_HOME}/bin."
+  for payload_name in "${payload_names[@]}"; do
+    payload="${payload_root}/${payload_name}"
+    install -m 0755 "${payload}" "${install_stage}/${payload_name}" ||
+      err_exit "Could not stage ${payload_name}."
+  done
+  for payload_name in "${payload_names[@]}"; do
+    mv -f -- "${install_stage}/${payload_name}" \
+      "${NODE_HOME}/bin/${payload_name}" ||
+      err_exit "Could not install ${payload_name}."
+  done
+  rmdir "${install_stage}"
+  install_stage=""
+
+  dispatcher_install_hardware_wallet_rules "${manifest}" ||
+    err_exit "Could not install hardware-wallet device rules."
+  log_ok "Deployed cardano-hw-cli" "${version}"
+)
+
+dispatcher_validate_cntools_tree() {
+  local tree="${1:-}"
+  local require_tracked="${2:-N}"
+  local bash_bin="${GUILD_DEPLOY_PREFLIGHT_BASH_BIN:-bash}"
+  local source_root="${GIT_SOURCE_ROOT:-}"
+  local repository_root=""
+  local entry=""
+  local relative_path=""
+  local source_tree_relative=""
+  local tracked_found="N"
+  local version=""
+  local -a required_files required_directories retired_files
+
+  case "${require_tracked}" in
+    Y|N) ;;
+    *) return 2 ;;
+  esac
+  [[ -n "${tree}" && "${tree}" = /* && -d "${tree}" && ! -L "${tree}" ]] || {
+    log_warn "The CNTools source tree is missing or unsafe."
+    return 1
+  }
+  tree="$(cd -- "${tree}" && pwd -P)" || return 1
+  [[ -x "${bash_bin}" ]] || command -v "${bash_bin}" >/dev/null 2>&1 || {
+    log_warn "Bash is required to validate CNTools."
+    return 1
+  }
+  "${bash_bin}" -c '
+    (( BASH_VERSINFO[0] > 4 ||
+       (BASH_VERSINFO[0] == 4 && BASH_VERSINFO[1] >= 4) ))
+  ' >/dev/null 2>&1 || {
+    log_warn "Bash 4.4 or newer is required to run CNTools."
+    return 1
+  }
+  command -v jq >/dev/null 2>&1 || {
+    log_warn "jq is required to validate CNTools; re-run with -s p."
+    return 1
+  }
+
+  required_directories=(
+    core
+    lib
+    modules
+    modules/root
+  )
+  required_files=(
+    VERSION
+    cntools_main.sh
+    core/action.sh
+    core/gum.sh
+    core/health.sh
+    core/log.sh
+    core/menu.sh
+    core/startup.sh
+    core/theme.sh
+    core/update.sh
+    lib/number.sh
+    modules/root/module.json
+  )
+  retired_files=(
+    cntools.sh
+    cntools_gum.sh
+    core/ui.sh
+  )
+  for relative_path in "${required_directories[@]}"; do
+    [[ -d "${tree}/${relative_path}" && ! -L "${tree}/${relative_path}" ]] || {
+      log_warn "Required CNTools directory is missing or unsafe: ${relative_path}"
+      return 1
+    }
+  done
+  for relative_path in "${required_files[@]}"; do
+    [[ -f "${tree}/${relative_path}" &&
+       ! -L "${tree}/${relative_path}" &&
+       -s "${tree}/${relative_path}" ]] || {
+      log_warn "Required CNTools file is missing, empty, or unsafe: ${relative_path}"
+      return 1
+    }
+  done
+  for relative_path in "${retired_files[@]}"; do
+    [[ ! -e "${tree}/${relative_path}" &&
+       ! -L "${tree}/${relative_path}" ]] || {
+      log_warn "Retired CNTools file is still present: ${relative_path}"
+      return 1
+    }
+  done
+
+  if [[ "${require_tracked}" = "Y" ]]; then
+    for relative_path in .state .cache .transactions; do
+      [[ ! -e "${tree}/${relative_path}" && ! -L "${tree}/${relative_path}" ]] || {
+        log_warn "The CNTools source snapshot must not contain runtime data: ${relative_path}"
+        return 1
+      }
+    done
+    [[ -n "${source_root}" && -d "${source_root}" && ! -L "${source_root}" ]] || return 1
+    source_root="$(cd -- "${source_root}" && pwd -P)" || return 1
+    repository_root="$(git -C "${source_root}" rev-parse --show-toplevel 2>/dev/null)" || return 1
+    repository_root="$(cd -- "${repository_root}" && pwd -P)" || return 1
+    [[ "${repository_root}" = "${source_root}" &&
+       "${tree}" == "${source_root}/"* ]] || return 1
+    source_tree_relative="${tree#"${source_root}"/}"
+    git -C "${source_root}" diff --quiet --no-ext-diff \
+      -- "${source_tree_relative}" || {
+      log_warn "CNTools contains modified or deleted tracked files."
+      return 1
+    }
+    git -C "${source_root}" diff --cached --quiet --no-ext-diff \
+      -- "${source_tree_relative}" || {
+      log_warn "CNTools contains staged tracked changes."
+      return 1
+    }
+    while IFS= read -r -d '' relative_path; do
+      tracked_found="Y"
+      entry="${source_root}/${relative_path}"
+      [[ -f "${entry}" && ! -L "${entry}" && -s "${entry}" ]] || {
+        log_warn "CNTools tracked payload is missing, empty, or unsafe: ${relative_path#"${source_tree_relative}"/}"
+        return 1
+      }
+    done < <(git -C "${source_root}" ls-files -z -- "${source_tree_relative}")
+    [[ "${tracked_found}" = "Y" ]] || return 1
+  fi
+
+  while IFS= read -r -d '' entry; do
+    relative_path="${entry#"${tree}"/}"
+    [[ "${entry}" != "${tree}" &&
+       -n "${relative_path}" &&
+       "${relative_path}" != *$'\n'* &&
+       "${relative_path}" != *$'\r'* ]] || {
+      log_warn "CNTools contains an unsafe path."
+      return 1
+    }
+    if [[ -L "${entry}" ]]; then
+      log_warn "CNTools must not contain symbolic links: ${relative_path}"
+      return 1
+    elif [[ -d "${entry}" ]]; then
+      :
+    elif [[ -f "${entry}" ]]; then
+      [[ -s "${entry}" ]] || {
+        log_warn "CNTools contains an empty file: ${relative_path}"
+        return 1
+      }
+      if [[ "${require_tracked}" = "Y" ]]; then
+        git -C "${source_root}" ls-files --error-unmatch \
+          -- "${entry#"${source_root}"/}" >/dev/null 2>&1 || {
+          log_warn "CNTools contains an untracked file: ${relative_path}"
+          return 1
+        }
+      fi
+    else
+      log_warn "CNTools contains an unsupported filesystem entry: ${relative_path}"
+      return 1
+    fi
+  done < <(find "${tree}" -mindepth 1 \
+    \( -path "${tree}/.state" -o -path "${tree}/.cache" -o \
+       -path "${tree}/.transactions" \) -prune -o -print0)
+
+  version="$(< "${tree}/VERSION")"
+  [[ "$(awk 'END { print NR }' "${tree}/VERSION")" = "1" &&
+     "${version}" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]] || {
+    log_warn "CNTools VERSION must contain one semantic version."
+    return 1
+  }
+
+  while IFS= read -r -d '' entry; do
+    "${bash_bin}" -n "${entry}" >/dev/null 2>&1 || {
+      log_warn "CNTools shell validation failed: ${entry#"${tree}"/}"
+      return 1
+    }
+  done < <(find "${tree}" \
+    \( -path "${tree}/.state" -o -path "${tree}/.cache" -o \
+       -path "${tree}/.transactions" \) -prune -o \
+    -type f -name '*.sh' -print0)
+  while IFS= read -r -d '' entry; do
+    jq -e 'type == "object"' "${entry}" >/dev/null 2>&1 || {
+      log_warn "CNTools metadata validation failed: ${entry#"${tree}"/}"
+      return 1
+    }
+  done < <(find "${tree}/modules" -type f -name 'module.json' -print0)
+
+  # shellcheck disable=SC2016
+  "${bash_bin}" -c '
+    tree="$1"
+    CNTOOLS_MODULE_ROOT="${tree}/modules/root"
+    CNTOOLS_LIB_DIR="${tree}/lib"
+    CNTOOLS_VALIDATION_BASH="$2"
+    source "${tree}/core/menu.sh"
+    cntools_menu_validate_tree
+  ' _ "${tree}" "${bash_bin}" >/dev/null 2>&1 || {
+    log_warn "CNTools menu tree failed semantic validation."
+    return 1
+  }
+}
+
+dispatcher_preflight_cntools_tree() {
+  local source_directory=""
+
+  source_directory="$(
+    dispatcher_source_directory 'scripts/common-helper-scripts/cntools'
+  )" || {
+    log_warn "The CNTools source directory is missing or unsafe."
+    return 1
+  }
+  dispatcher_validate_cntools_tree "${source_directory}" Y
+}
+
+dispatcher_preflight_cntools_launcher() {
+  dispatcher_preflight_shell_payloads \
+    'scripts/common-helper-scripts/cntools.sh'
+}
+
+dispatcher_target_state_token() {
+  local manifest_path="${1:-${DEPLOYMENT_FILE:-}}"
+  local checksum_output=""
+
+  [[ -n "${manifest_path}" ]] || return 2
+  if [[ -L "${manifest_path}" ]]; then
+    return 2
+  elif [[ -e "${manifest_path}" ]]; then
+    [[ -f "${manifest_path}" && -r "${manifest_path}" ]] || return 2
+    checksum_output="$(cksum < "${manifest_path}")" || return 2
+    [[ "${checksum_output}" =~ ^([0-9]+)[[:space:]]+([0-9]+)$ ]] || return 2
+    printf 'file:%s-%s\n' "${BASH_REMATCH[1]}" "${BASH_REMATCH[2]}"
+  else
+    printf 'absent\n'
+  fi
+}
+
+dispatcher_snapshot_revision() {
+  local source_root="${1:-${GIT_SOURCE_ROOT:-}}"
+  local revision=""
+
+  revision="$(git -C "${source_root}" rev-parse --verify 'HEAD^{commit}' 2>/dev/null)" ||
+    return 1
+  [[ "${revision}" =~ ^[0-9a-fA-F]{40}([0-9a-fA-F]{24})?$ ]] || return 1
+  printf '%s\n' "${revision}" | tr '[:upper:]' '[:lower:]'
+}
+
+dispatcher_validate_snapshot() {
+  local source_root="${1:-}"
+  local expected_dispatcher=""
+  local profile_path=""
+  local repository_root=""
+
+  command -v git >/dev/null 2>&1 ||
+    err_exit "Git is required. Install Git and re-run guild-deploy.sh."
+  [[ -n "${source_root}" && -d "${source_root}" && ! -L "${source_root}" ]] ||
+    err_exit "The prepared Guild Operators source snapshot is unavailable."
+  source_root="$(cd -- "${source_root}" && pwd -P)" ||
+    err_exit "Could not resolve the Guild Operators source snapshot."
+  repository_root="$(git -C "${source_root}" rev-parse --show-toplevel 2>/dev/null)" ||
+    err_exit "The prepared source snapshot is not a Git checkout."
+  repository_root="$(cd -- "${repository_root}" && pwd -P)" ||
+    err_exit "Could not resolve the prepared Git checkout."
+  [[ "${repository_root}" = "${source_root}" ]] ||
+    err_exit "The prepared source snapshot has an unexpected repository root."
+  git -C "${source_root}" diff --quiet --no-ext-diff -- ||
+    err_exit "The prepared source snapshot contains modified tracked files."
+  git -C "${source_root}" diff --cached --quiet --no-ext-diff -- ||
+    err_exit "The prepared source snapshot contains staged tracked changes."
+
+  GIT_SOURCE_ROOT="${source_root}"
+  GUILD_SOURCE_REVISION="$(dispatcher_snapshot_revision "${source_root}")" ||
+    err_exit "Could not resolve the source snapshot revision."
+  expected_dispatcher="$(dispatcher_source_path 'scripts/cnode-helper-scripts/guild-deploy.sh')" ||
+    err_exit "The source snapshot does not contain a safe guild-deploy.sh."
+  grep -qx 'GUILD_DEPLOY_SNAPSHOT_CAPABLE="Y"' "${expected_dispatcher}" ||
+    err_exit "The selected branch predates snapshot deployment. Run its matching historical guild-deploy.sh instead."
+  dispatcher_source_path 'LICENSE' >/dev/null ||
+    err_exit "The source snapshot does not contain a safe LICENSE file."
+  profile_path="$(dispatcher_source_path "$(dispatcher_profile_relative_path)")" ||
+    err_exit "The source snapshot does not contain the selected deployment profile."
+  bash -n "${expected_dispatcher}" ||
+    err_exit "The source snapshot guild-deploy.sh failed shell validation."
+  bash -n "${profile_path}" ||
+    err_exit "The selected deployment profile failed shell validation."
+  export GIT_SOURCE_ROOT GUILD_SOURCE_REVISION
+}
+
+dispatcher_adopt_snapshot() {
+  local source_root=""
+
+  source_root="$(cd -- "${DISPATCHER_DIR}/../.." && pwd -P)" ||
+    err_exit "Could not resolve the source snapshot used to run guild-deploy.sh."
+  dispatcher_validate_snapshot "${source_root}"
+  dispatcher_validate_prepared_dispatcher "${DISPATCHER_SCRIPT_PATH}"
+}
+
+dispatcher_clone_snapshot() {
+  local branch="${1:-}"
+  local repository_url="${2:-}"
+  local destination="${3:-}"
+
+  GIT_TERMINAL_PROMPT=0 git -c advice.detachedHead=false \
+    clone --quiet --depth 1 --single-branch --no-tags \
+    --branch "${branch}" "${repository_url}" "${destination}"
+}
+
+dispatcher_remote_ref_status() {
+  local ref_name="${1:-}"
+  local repository_url="${2:-}"
+
+  GIT_TERMINAL_PROMPT=0 git ls-remote --quiet --exit-code --refs \
+    "${repository_url}" \
+    "refs/heads/${ref_name}" \
+    "refs/tags/${ref_name}" >/dev/null 2>&1
+}
+
+dispatcher_compose_snapshot_dispatcher() {
+  local source_file="${1:-}"
+  local staged_file=""
+  local runtime_body=""
+
+  [[ -n "${GUILD_DEPLOY_USER_HEADER:-}" &&
+     -f "${source_file}" &&
+     ! -L "${source_file}" ]] ||
+    err_exit "Could not preserve the local guild-deploy.sh user header."
+  [[ "$(grep -c '^# Do NOT modify code below' "${source_file}" 2>/dev/null)" = "1" ]] ||
+    err_exit "The source snapshot guild-deploy.sh has an invalid user-variable boundary."
+  runtime_body="$(awk '/^# Do NOT modify code below/{copy=1} copy' "${source_file}")"
+  [[ -n "${runtime_body}" ]] ||
+    err_exit "Could not read the source snapshot guild-deploy.sh runtime."
+
+  staged_file="$(mktemp "$(dirname "${source_file}")/.guild-deploy.sh.prepared.XXXXXX")" ||
+    err_exit "Could not stage the source snapshot guild-deploy.sh."
+  if ! printf '%s\n%s\n' "${GUILD_DEPLOY_USER_HEADER}" "${runtime_body}" > "${staged_file}" ||
+     ! bash -n "${staged_file}" ||
+     ! chmod 0755 "${staged_file}"; then
+    rm -f -- "${staged_file}"
+    err_exit "Could not compose a validated source snapshot guild-deploy.sh."
+  fi
+  SNAPSHOT_DISPATCHER_PATH="${staged_file}"
+}
+
+dispatcher_validate_prepared_dispatcher() {
+  local prepared_file="${1:-}"
+  local source_file="${GIT_SOURCE_ROOT}/scripts/cnode-helper-scripts/guild-deploy.sh"
+  local prepared_header=""
+  local prepared_runtime=""
+  local source_runtime=""
+
+  [[ -f "${prepared_file}" && ! -L "${prepared_file}" &&
+     "$(dirname "${prepared_file}")" = "${GIT_SOURCE_ROOT}/scripts/cnode-helper-scripts" ]] ||
+    err_exit "Snapshot mode requires a prepared guild-deploy.sh inside the source checkout."
+  case "$(basename "${prepared_file}")" in
+    .guild-deploy.sh.prepared.*) ;;
+    *) err_exit "Snapshot mode received an unexpected dispatcher path." ;;
+  esac
+  prepared_header="$(dispatcher_extract_user_header "${prepared_file}")" ||
+    err_exit "The prepared guild-deploy.sh has an invalid user-variable header."
+  [[ "${prepared_header}" = "${GUILD_DEPLOY_USER_HEADER:-}" ]] ||
+    err_exit "The prepared guild-deploy.sh did not preserve the invoking user header."
+  prepared_runtime="$(awk '/^# Do NOT modify code below/{copy=1} copy' "${prepared_file}")"
+  source_runtime="$(awk '/^# Do NOT modify code below/{copy=1} copy' "${source_file}")"
+  [[ -n "${prepared_runtime}" && "${prepared_runtime}" = "${source_runtime}" ]] ||
+    err_exit "The prepared guild-deploy.sh runtime does not match the source snapshot."
+  bash -n "${prepared_file}" ||
+    err_exit "The prepared guild-deploy.sh failed shell validation."
+}
+
+dispatcher_prepare_snapshot() {
+  local repository_url=""
+  local snapshot_dispatcher=""
+  local child_status=0
+  local remote_ref_status=0
+  local -a original_args=("$@")
+
+  command -v git >/dev/null 2>&1 ||
+    err_exit "Git is required. Install Git and re-run guild-deploy.sh."
+  GUILD_SOURCE_TMP_DIR="$(
+    umask 077
+    mktemp -d "${TMPDIR:-/tmp}/guild-operators-source.XXXXXX"
+  )" || err_exit "Could not create a temporary source directory."
+  DISPATCHER_SOURCE_TMP_OWNED="Y"
+  GIT_SOURCE_ROOT="${GUILD_SOURCE_TMP_DIR}/repository"
+  GUILD_SOURCE_TMP_DIR="$(cd -- "${GUILD_SOURCE_TMP_DIR}" && pwd -P)" ||
+    err_exit "Could not resolve the temporary source directory."
+  GIT_SOURCE_ROOT="${GUILD_SOURCE_TMP_DIR}/repository"
+  chmod 0700 "${GUILD_SOURCE_TMP_DIR}" ||
+    err_exit "Could not secure the temporary source directory."
+  repository_url="https://github.com/${G_ACCOUNT}/guild-operators.git"
+
+  log_progress "Preparing Guild Operators source snapshot" "${G_ACCOUNT}/${BRANCH}"
+  if ! dispatcher_clone_snapshot "${BRANCH}" "${repository_url}" "${GIT_SOURCE_ROOT}"; then
+    if [[ "${BRANCH}" = "master" ]]; then
+      err_exit "Could not clone ${G_ACCOUNT}/guild-operators branch master."
+    fi
+    if dispatcher_remote_ref_status "${BRANCH}" "${repository_url}"; then
+      err_exit "Could not clone ${G_ACCOUNT}/guild-operators branch '${BRANCH}', although the remote ref exists."
+    else
+      remote_ref_status=$?
+    fi
+    [[ "${remote_ref_status}" -eq 2 ]] ||
+      err_exit "Could not verify ${G_ACCOUNT}/guild-operators branch '${BRANCH}' after the clone failed."
+    if [[ "${GUILD_DEPLOY_STRICT_REF:-N}" = "Y" ]]; then
+      err_exit "Guild repository ref '${BRANCH}' was not found; strict ref selection prevents fallback to master."
+    fi
+    log_warn "Branch '${BRANCH}' was not found; falling back to master."
+    [[ "${GIT_SOURCE_ROOT}" = "${GUILD_SOURCE_TMP_DIR}/repository" ]] ||
+      err_exit "Refusing to clear an unexpected source checkout path."
+    rm -rf -- "${GIT_SOURCE_ROOT}"
+    BRANCH="master"
+    URL_RAW="${REPO_RAW}/${BRANCH}"
+    export BRANCH URL_RAW
+    dispatcher_clone_snapshot "${BRANCH}" "${repository_url}" "${GIT_SOURCE_ROOT}" ||
+      err_exit "Could not clone ${G_ACCOUNT}/guild-operators branch master."
+  fi
+
+  dispatcher_validate_snapshot "${GIT_SOURCE_ROOT}"
+  snapshot_dispatcher="$(dispatcher_source_path 'scripts/cnode-helper-scripts/guild-deploy.sh')" ||
+    err_exit "Could not locate guild-deploy.sh in the prepared source snapshot."
+  # Run from memory, as with bash <(curl ...), there was no file to read the
+  # user variables from: take them from the deployment's own copy, or else
+  # from the branch.
+  if [[ -z "${GUILD_DEPLOY_USER_HEADER:-}" ]]; then
+    if [[ -f "${NODE_HOME:-}/scripts/guild-deploy.sh" && ! -L "${NODE_HOME}/scripts/guild-deploy.sh" ]]; then
+      GUILD_DEPLOY_USER_HEADER="$(dispatcher_extract_user_header "${NODE_HOME}/scripts/guild-deploy.sh")" ||
+        GUILD_DEPLOY_USER_HEADER=""
+    fi
+    if [[ -z "${GUILD_DEPLOY_USER_HEADER}" ]]; then
+      GUILD_DEPLOY_USER_HEADER="$(dispatcher_extract_user_header "${snapshot_dispatcher}")" ||
+        err_exit "The source snapshot guild-deploy.sh has an invalid user-variable header."
+    fi
+  fi
+  dispatcher_compose_snapshot_dispatcher "${snapshot_dispatcher}"
+  snapshot_dispatcher="${SNAPSHOT_DISPATCHER_PATH}"
+  dispatcher_validate_prepared_dispatcher "${snapshot_dispatcher}"
+  log_ok "Source snapshot ready" "${GUILD_SOURCE_REVISION:0:12}"
+
+  if GUILD_DEPLOY_SNAPSHOT_STAGE="ready" \
+     GUILD_DEPLOY_SOURCE_ACCOUNT="${G_ACCOUNT}" \
+     GUILD_DEPLOY_SOURCE_BRANCH="${BRANCH}" \
+     GUILD_DEPLOY_SOURCE_REVISION="${GUILD_SOURCE_REVISION}" \
+     GUILD_DEPLOY_TARGET_PATH="${GUILD_DEPLOY_TARGET_PATH:-}" \
+     GUILD_DEPLOY_TARGET_STATE_TOKEN="${GUILD_DEPLOY_TARGET_STATE_TOKEN:-}" \
+     GUILD_DEPLOY_USER_HEADER="${GUILD_DEPLOY_USER_HEADER:-}" \
+     bash "${snapshot_dispatcher}" "${original_args[@]}"; then
+    child_status=0
+  else
+    child_status=$?
+  fi
+  return "${child_status}"
+}
+
+validate_deployment_path() {
+  [[ "${1:-}" =~ ^/[A-Za-z0-9._/+@:-]+$ ]]
+}
+
+dispatcher_canonical_target_path() {
+  local target="${1:-}"
+  local canonical="/"
+  local candidate
+  local component
+  local -a components
+
+  validate_deployment_path "${target}" || return 2
+  IFS='/' read -r -a components <<< "${target}"
+  for component in "${components[@]}"; do
+    case "${component}" in
+      ""|.)
+        continue
+        ;;
+      ..)
+        if [[ "${canonical}" != "/" ]]; then
+          canonical="${canonical%/*}"
+          [[ -n "${canonical}" ]] || canonical="/"
+        fi
+        ;;
+      *)
+        candidate="${canonical%/}/${component}"
+        if [[ -L "${candidate}" && ! -e "${candidate}" ]]; then
+          return 2
+        elif [[ -d "${candidate}" ]]; then
+          canonical="$(cd -P -- "${candidate}" 2>/dev/null && pwd -P)" ||
+            return 2
+        elif [[ -e "${candidate}" ]]; then
+          return 2
+        else
+          canonical="${candidate}"
+        fi
+        ;;
+    esac
+  done
+  printf '%s' "${canonical}"
+}
+
+sanitize_node_name() {
+  local LC_ALL=C
+  printf '%s' "${1//[^A-Za-z0-9]/_}"
+}
+
+dispatcher_lock_key() {
+  local canonical_target
+  canonical_target="$(dispatcher_canonical_target_path "${1:-${NODE_HOME:-}}")" ||
+    return 2
+  printf '%s' "${canonical_target}" |
+    cksum |
+    awk '{printf "%s-%s", $1, $2}'
+}
+
+dispatcher_target_lock_is_owned() {
+  local requested_target="${1:-}"
+  local canonical_target
+  canonical_target="$(dispatcher_canonical_target_path "${requested_target}")" ||
+    return 1
+  [[ "${DISPATCHER_LOCK_CANONICAL_TARGET:-}" = "${canonical_target}" &&
+     "${DISPATCHER_LOCK_OWNER_PID:-}" = "$$" ]] || return 1
+
+  case "${DISPATCHER_LOCK_KIND:-}" in
+    flock)
+      [[ -n "${DISPATCHER_LOCK_PATH:-}" &&
+         ! -L "${DISPATCHER_LOCK_PATH}" &&
+         -f "${DISPATCHER_LOCK_PATH}" &&
+         -O "${DISPATCHER_LOCK_PATH}" ]] || return 1
+      : 2>/dev/null >&9 || return 1
+      flock -n 9 >/dev/null 2>&1 || return 1
+      ;;
+    directory)
+      [[ -n "${DISPATCHER_LOCK_PATH:-}" &&
+         -d "${DISPATCHER_LOCK_PATH}" &&
+         ! -L "${DISPATCHER_LOCK_PATH}" &&
+         -O "${DISPATCHER_LOCK_PATH}" ]] || return 1
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+}
+
+# Matches deployment_remove_stale_stages in deployment.library: a fresh lock
+# means that no process of this user is staging in the target, so stage folders
+# it still owns were left by a SIGKILL or a power loss. A CNTools stage that
+# holds the previous tree is a recovery copy and is kept.
+dispatcher_remove_stale_stages() {
+  local canonical_target="${1:-}"
+  local scripts_directory="${canonical_target}/scripts"
+  local stage_path
+
+  [[ -n "${canonical_target}" &&
+     -d "${scripts_directory}" &&
+     ! -L "${scripts_directory}" ]] || return 0
+  while IFS= read -r -d '' stage_path; do
+    [[ -O "${stage_path}" && ! -L "${stage_path}" ]] || continue
+    if [[ "${stage_path##*/}" == .cntools-install.* &&
+          ( -e "${stage_path}/previous" || -L "${stage_path}/previous" ) ]]; then
+      continue
+    fi
+    rm -rf -- "${stage_path}" 2>/dev/null || true
+  done < <(
+    find "${scripts_directory}" -mindepth 1 -maxdepth 1 -type d \
+      \( -name '.common-runtime-stage.??????' -o \
+         -name '.common-runtime-install.??????' -o \
+         -name '.cntools-install.??????' \) -print0 2>/dev/null
+  )
+  return 0
+}
+
+dispatcher_acquire_target_lock() {
+  local lock_base
+  local lock_key
+  local canonical_target
+  lock_base="/tmp/guild-operators-deployment-locks-$(id -u)"
+  canonical_target="$(dispatcher_canonical_target_path "${NODE_HOME:-}")" ||
+    err_exit "Unable to resolve a safe physical deployment target for ${NODE_HOME:-unset}."
+
+  if [[ -L "${lock_base}" ]] ||
+     { [[ -e "${lock_base}" ]] && [[ ! -d "${lock_base}" || ! -O "${lock_base}" ]]; }; then
+    err_exit "Unsafe deployment lock directory: ${lock_base}"
+  fi
+  (umask 077 && mkdir -p "${lock_base}") ||
+    err_exit "Unable to create deployment lock directory ${lock_base}."
+  chmod 0700 "${lock_base}" ||
+    err_exit "Unable to secure deployment lock directory ${lock_base}."
+
+  lock_key="$(dispatcher_lock_key "${canonical_target}")" ||
+    err_exit "Unable to derive the deployment lock key."
+  if command -v flock >/dev/null 2>&1; then
+    DISPATCHER_LOCK_PATH="${lock_base}/${lock_key}.lock"
+    if [[ -L "${DISPATCHER_LOCK_PATH}" ]] ||
+       { [[ -e "${DISPATCHER_LOCK_PATH}" ]] && [[ ! -O "${DISPATCHER_LOCK_PATH}" ]]; }; then
+      err_exit "Unsafe deployment lock file: ${DISPATCHER_LOCK_PATH}"
+    fi
+    if ! exec 9>"${DISPATCHER_LOCK_PATH}"; then
+      err_exit "Unable to open deployment lock ${DISPATCHER_LOCK_PATH}."
+    fi
+    if ! flock -n 9; then
+      exec 9>&-
+      err_exit "Another deployment or branch update is active for ${NODE_HOME}."
+    fi
+    DISPATCHER_LOCK_KIND="flock"
+  else
+    DISPATCHER_LOCK_PATH="${lock_base}/${lock_key}.lock.d"
+    if ! mkdir "${DISPATCHER_LOCK_PATH}" 2>/dev/null; then
+      err_exit "Another deployment or branch update is active for ${NODE_HOME}, or a stale lock exists at ${DISPATCHER_LOCK_PATH}."
+    fi
+    DISPATCHER_LOCK_KIND="directory"
+  fi
+  DISPATCHER_LOCK_CANONICAL_TARGET="${canonical_target}"
+  DISPATCHER_LOCK_OWNER_PID="$$"
+  GUILD_DEPLOY_LOCK_HELD_FOR="${canonical_target}"
+  export GUILD_DEPLOY_LOCK_HELD_FOR
+  dispatcher_remove_stale_stages "${canonical_target}"
+}
+
+dispatcher_release_target_lock() {
+  case "${DISPATCHER_LOCK_KIND:-}" in
+    flock)
+      flock -u 9 2>/dev/null || true
+      exec 9>&-
+      ;;
+    directory)
+      rmdir "${DISPATCHER_LOCK_PATH}" 2>/dev/null || true
+      ;;
+  esac
+  DISPATCHER_LOCK_KIND=""
+  DISPATCHER_LOCK_PATH=""
+  DISPATCHER_LOCK_CANONICAL_TARGET=""
+  DISPATCHER_LOCK_OWNER_PID=""
+  unset GUILD_DEPLOY_LOCK_HELD_FOR
+}
+
+# Profiles use the same interface as the installed deployment library. The
+# dispatcher already owns the target lock, so nested profile transactions are
+# explicitly re-entrant without opening a second lock.
+deployment_target_lock_acquire() {
+  local requested_home="${1:-${NODE_HOME:-}}"
+  local requested_canonical
+  local node_canonical
+  requested_canonical="$(dispatcher_canonical_target_path "${requested_home}")" ||
+    return 2
+  node_canonical="$(dispatcher_canonical_target_path "${NODE_HOME:-}")" ||
+    return 2
+  [[ "${requested_canonical}" = "${node_canonical}" ]] ||
+    return 2
+  if [[ "${GUILD_DEPLOY_LOCK_HELD_FOR:-}" = "${requested_canonical}" ]] &&
+     dispatcher_target_lock_is_owned "${requested_home}"; then
+    DEPLOYMENT_TARGET_LOCK_OWNED="N"
+    return 0
+  fi
+  dispatcher_acquire_target_lock
+  DEPLOYMENT_TARGET_LOCK_OWNED="Y"
+}
+
+deployment_target_lock_release() {
+  if [[ "${DEPLOYMENT_TARGET_LOCK_OWNED:-N}" = "Y" ]]; then
+    dispatcher_release_target_lock
+  fi
+  DEPLOYMENT_TARGET_LOCK_OWNED="N"
+}
+
+# Install the implementation adapter, common env, and four common libraries as
+# one generation. Profiles supply their already-validated implementation name,
+# payload fetch function, and force-overwrite choice. The function runs in a
+# subshell so its traps and lock bookkeeping cannot leak into the dispatcher.
+dispatcher_install_common_runtime_bundle() (
+  local implementation="${1:-}"
+  local fetch_function="${2:-}"
+  local force_scripts="${3:-N}"
+  local bundle_count=6
+  local stage_root=""
+  local target_lock_acquired="N"
+  local transaction_active="N"
+  local committed_count=0
+  local i rollback_index rollback_ok restore_tmp
+  local target_dir target_name relative_path archive_name archive_stamp
+  local old_header new_runtime
+  local -a targets sources downloads candidates changed
+  local -a commit_tmps backups existed
+
+  validate_implementation "${implementation}" || {
+    log_warn "Cannot install a common runtime for unknown implementation '${implementation}'."
+    return 2
+  }
+  declare -F "${fetch_function}" >/dev/null 2>&1 || {
+    log_warn "Common runtime payload fetch function '${fetch_function}' is unavailable."
+    return 2
+  }
+  case "${force_scripts}" in
+    Y|N) ;;
+    *)
+      log_warn "Invalid common runtime force-overwrite value '${force_scripts}'."
+      return 2
+      ;;
+  esac
+
+  targets=(
+    "${NODE_HOME}/scripts/lib/deployment.library"
+    "${NODE_HOME}/scripts/lib/env.library"
+    "${NODE_HOME}/scripts/lib/node-api.library"
+    "${NODE_HOME}/scripts/lib/systemd.library"
+    "${NODE_HOME}/scripts/adapters/${implementation}.adapter"
+    "${NODE_HOME}/scripts/env"
+  )
+  sources=(
+    "scripts/common-helper-scripts/lib"
+    "scripts/common-helper-scripts/lib"
+    "scripts/common-helper-scripts/lib"
+    "scripts/common-helper-scripts/lib"
+    "scripts/${implementation}-helper-scripts"
+    "scripts/common-helper-scripts"
+  )
+  downloads=()
+  candidates=()
+  changed=()
+  commit_tmps=()
+  backups=()
+  existed=()
+
+  _dispatcher_runtime_rollback() {
+    local rollback_count="$1"
+
+    rollback_ok="Y"
+    for (( rollback_index = rollback_count - 1; rollback_index >= 0; rollback_index-- )); do
+      [[ "${changed[rollback_index]:-N}" == "Y" ]] || continue
+      if [[ "${existed[rollback_index]:-N}" == "Y" ]]; then
+        target_dir="$(dirname "${targets[rollback_index]}")"
+        target_name="$(basename "${targets[rollback_index]}")"
+        restore_tmp="$(mktemp "${target_dir}/.${target_name}.restore.XXXXXX")" || {
+          rollback_ok="N"
+          continue
+        }
+        if ! cp -p -- "${backups[rollback_index]}" "${restore_tmp}" ||
+           ! mv -f -- "${restore_tmp}" "${targets[rollback_index]}"; then
+          rm -f -- "${restore_tmp}"
+          rollback_ok="N"
+          continue
+        fi
+        if ! cmp -s "${backups[rollback_index]}" "${targets[rollback_index]}"; then
+          rollback_ok="N"
+        fi
+      elif ! rm -f -- "${targets[rollback_index]}"; then
+        rollback_ok="N"
+      fi
+    done
+    [[ "${rollback_ok}" == "Y" ]]
+  }
+
+  _dispatcher_runtime_cleanup() {
+    local saved_status="${1:-$?}"
+    local cleanup_index
+
+    trap - EXIT HUP INT TERM
+    if [[ "${transaction_active}" == "Y" && ${committed_count} -gt 0 ]]; then
+      _dispatcher_runtime_rollback "${committed_count}" || true
+    fi
+    for (( cleanup_index = 0; cleanup_index < bundle_count; cleanup_index++ )); do
+      [[ -n "${commit_tmps[cleanup_index]:-}" ]] &&
+        rm -f -- "${commit_tmps[cleanup_index]}"
+    done
+    [[ -n "${stage_root}" && -d "${stage_root}" ]] &&
+      rm -rf -- "${stage_root}"
+    if [[ "${target_lock_acquired}" == "Y" ]]; then
+      deployment_target_lock_release
+    fi
+    return "${saved_status}"
+  }
+
+  trap '_dispatcher_runtime_cleanup "$?"' EXIT
+  trap 'exit 2' HUP INT TERM
+
+  deployment_target_lock_acquire "${NODE_HOME}" || return 2
+  target_lock_acquired="Y"
+  stage_root="$(mktemp -d "${NODE_HOME}/scripts/.common-runtime-install.XXXXXX")" ||
+    return 2
+
+  # A fetch or validation failure happens before any installed member changes.
+  for (( i = 0; i < bundle_count; i++ )); do
+    downloads[i]="${stage_root}/download.${i}"
+    candidates[i]="${stage_root}/candidate.${i}"
+    target_name="$(basename "${targets[i]}")"
+    relative_path="${sources[i]}/${target_name}"
+    if ! "${fetch_function}" "${relative_path}" "${downloads[i]}"; then
+      log_warn "Failed to stage common runtime member: ${target_name}"
+      return 2
+    fi
+    if [[ ! -s "${downloads[i]}" ]] ||
+       ! bash -n "${downloads[i]}" >/dev/null 2>&1; then
+      log_warn "Staged common runtime member failed validation: ${target_name}"
+      return 2
+    fi
+  done
+
+  for (( i = 0; i < bundle_count - 1; i++ )); do
+    cp -- "${downloads[i]}" "${candidates[i]}" || return 2
+  done
+
+  if [[ "${force_scripts}" != "Y" && -f "${targets[5]}" ]] &&
+     grep -q '^# Do NOT modify code below' "${targets[5]}" 2>/dev/null &&
+     grep -q '^# Do NOT modify code below' "${downloads[5]}" 2>/dev/null; then
+    old_header="$(awk '/^# Do NOT modify code below/{exit} {print}' "${targets[5]}")"
+    new_runtime="$(awk 'copy || /^# Do NOT modify code below/{copy=1; print}' "${downloads[5]}")"
+    printf '%s\n%s\n' "${old_header}" "${new_runtime}" > "${candidates[5]}" ||
+      return 2
+  else
+    cp -- "${downloads[5]}" "${candidates[5]}" || return 2
+  fi
+  if ! bash -n "${candidates[5]}" >/dev/null 2>&1; then
+    log_warn "Preserved common env header failed shell validation."
+    return 2
+  fi
+
+  for (( i = 0; i < bundle_count; i++ )); do
+    chmod 0644 "${candidates[i]}" || return 2
+    changed[i]="N"
+    if [[ ! -f "${targets[i]}" ]] ||
+       ! cmp -s "${targets[i]}" "${candidates[i]}" ||
+       [[ -z "$(find "${targets[i]}" -prune -perm 0644 -print)" ]]; then
+      changed[i]="Y"
+    fi
+  done
+
+  # Prepare same-directory replacements and rollback copies before committing.
+  for (( i = 0; i < bundle_count; i++ )); do
+    [[ "${changed[i]}" == "Y" ]] || continue
+    target_dir="$(dirname "${targets[i]}")"
+    target_name="$(basename "${targets[i]}")"
+    [[ -d "${target_dir}" ]] || return 2
+    commit_tmps[i]="$(mktemp "${target_dir}/.${target_name}.commit.XXXXXX")" ||
+      return 2
+    if ! cp -- "${candidates[i]}" "${commit_tmps[i]}" ||
+       ! chmod 0644 "${commit_tmps[i]}"; then
+      return 2
+    fi
+
+    backups[i]="${stage_root}/backup.${i}"
+    if [[ -e "${targets[i]}" ]]; then
+      existed[i]="Y"
+      cp -p -- "${targets[i]}" "${backups[i]}" || return 2
+    else
+      existed[i]="N"
+    fi
+  done
+
+  transaction_active="Y"
+  for (( i = 0; i < bundle_count; i++ )); do
+    committed_count=$((i + 1))
+    [[ "${changed[i]}" == "Y" ]] || continue
+    if ! mv -f -- "${commit_tmps[i]}" "${targets[i]}"; then
+      if _dispatcher_runtime_rollback "${committed_count}"; then
+        transaction_active="N"
+      fi
+      return 2
+    fi
+    commit_tmps[i]=""
+    if ! cmp -s "${candidates[i]}" "${targets[i]}" ||
+       [[ -z "$(find "${targets[i]}" -prune -perm 0644 -print)" ]]; then
+      if _dispatcher_runtime_rollback "${committed_count}"; then
+        transaction_active="N"
+      fi
+      return 2
+    fi
+  done
+  transaction_active="N"
+
+  archive_stamp="$(date +%s)"
+  for (( i = 0; i < bundle_count; i++ )); do
+    [[ "${changed[i]}" == "Y" && "${existed[i]:-N}" == "Y" ]] || continue
+    target_name="$(basename "${targets[i]}")"
+    if [[ ${i} -eq 5 ]]; then
+      archive_name="${target_name}_bkp${archive_stamp}"
+    else
+      archive_name="${sources[i]//\//_}_${target_name}_bkp${archive_stamp}"
+    fi
+    cp -f -- "${backups[i]}" "${NODE_HOME}/scripts/archive/${archive_name}" ||
+      log_warn "Could not archive the previous ${target_name}; the runtime bundle is installed."
+  done
+
+  return 0
+)
+
+dispatcher_cntools_copy_tree() {
+  cp -R -- "$1/." "$2/"
+}
+
+dispatcher_cntools_move_tree() {
+  mv -- "$1" "$2"
+}
+
+# Runtime data is never executed or normalized as downloaded script payload.
+dispatcher_cntools_runtime_data_safe() {
+  local directory="${1:-}" entry="" mode=""
+
+  [[ "${directory}" = /* && -d "${directory}" &&
+     ! -L "${directory}" && -O "${directory}" ]] || return 1
+  while IFS= read -r -d '' entry; do
+    [[ ! "${entry}" =~ [[:cntrl:]] && ! -L "${entry}" &&
+       -O "${entry}" && -r "${entry}" &&
+       ( ( -d "${entry}" && -x "${entry}" ) || -f "${entry}" ) ]] || return 1
+    if mode="$(stat -c '%a' -- "${entry}" 2>/dev/null)"; then :
+    elif mode="$(stat -f '%Lp' "${entry}" 2>/dev/null)"; then :
+    else return 1; fi
+    [[ "${mode}" =~ ^[0-7]{3,4}$ ]] && (( (8#${mode} & 077) == 0 )) || return 1
+  done < <(find "${directory}" -print0)
+}
+
+# Install the complete CNTools directory as a single generation. The old tree
+# is kept inside the same-filesystem staging directory until the candidate has
+# been installed and revalidated, which permits rollback on every failure.
+dispatcher_install_cntools_tree() (
+  local source_directory=""
+  local scripts_directory="${NODE_HOME:-}/scripts"
+  local target_directory="${NODE_HOME:-}/scripts/cntools"
+  local stage_root=""
+  local candidate_directory=""
+  local previous_directory=""
+  local persisted_directory=""
+  local target_lock_acquired="N"
+  local target_existed="N"
+  local previous_moved="N"
+  local candidate_moved="N"
+  local transaction_active="N"
+
+  _dispatcher_cntools_safe_remove() {
+    local remove_path="${1:-}"
+
+    if [[ -n "${stage_root}" &&
+          "${remove_path}" = "${stage_root}" &&
+          "$(dirname "${remove_path}")" = "${scripts_directory}" &&
+          "$(basename "${remove_path}")" == .cntools-install.* &&
+          -d "${remove_path}" &&
+          ! -L "${remove_path}" ]]; then
+      rm -rf -- "${remove_path}"
+    elif [[ "${remove_path}" = "${target_directory}" &&
+            -d "${remove_path}" &&
+            ! -L "${remove_path}" ]]; then
+      rm -rf -- "${remove_path}"
+    else
+      return 1
+    fi
+  }
+
+  _dispatcher_cntools_permissions_valid() {
+    local cntools_tree="${1:-}"
+    local runtime_directory=""
+
+    [[ -n "${cntools_tree}" &&
+       -d "${cntools_tree}" &&
+       ! -L "${cntools_tree}" &&
+       -z "$(find "${cntools_tree}" \
+         \( -path "${cntools_tree}/.state" -o -path "${cntools_tree}/.cache" -o \
+            -path "${cntools_tree}/.transactions" \) -prune -o \
+         -type d ! -perm 0755 -print -quit)" &&
+       -z "$(find "${cntools_tree}" \
+         \( -path "${cntools_tree}/.state" -o -path "${cntools_tree}/.cache" -o \
+            -path "${cntools_tree}/.transactions" \) -prune -o -type f \
+         ! -path "${cntools_tree}/cntools_main.sh" \
+         ! -perm 0644 -print -quit)" &&
+       -n "$(find "${cntools_tree}/cntools_main.sh" -prune \
+         -type f -perm 0755 -print)" ]] || return 1
+    for runtime_directory in "${cntools_tree}/.state" "${cntools_tree}/.cache" \
+        "${cntools_tree}/.transactions"; do
+      if [[ -e "${runtime_directory}" || -L "${runtime_directory}" ]]; then
+        dispatcher_cntools_runtime_data_safe "${runtime_directory}" || return 1
+      fi
+    done
+    return 0
+  }
+
+  _dispatcher_cntools_cleanup() {
+    local saved_status="${1:-$?}"
+    local cleanup_stage="Y"
+
+    trap - EXIT HUP INT QUIT TERM
+    if [[ "${transaction_active}" = "Y" ]]; then
+      if [[ "${candidate_moved}" = "Y" &&
+            ! -e "${candidate_directory}" &&
+            ! -L "${candidate_directory}" &&
+            ( -e "${target_directory}" || -L "${target_directory}" ) ]]; then
+        _dispatcher_cntools_safe_remove "${target_directory}" || {
+          log_warn "Could not remove an invalid CNTools candidate during rollback."
+          cleanup_stage="N"
+        }
+      fi
+      if [[ "${previous_moved}" = "Y" &&
+            -d "${previous_directory}" &&
+            ! -L "${previous_directory}" ]]; then
+        if [[ -e "${target_directory}" || -L "${target_directory}" ]]; then
+          log_warn "Could not restore the previous CNTools tree because the target is occupied; recovery copy remains at ${previous_directory}."
+          cleanup_stage="N"
+        elif ! command mv -- "${previous_directory}" "${target_directory}"; then
+          log_warn "Could not restore the previous CNTools tree from ${previous_directory}."
+          cleanup_stage="N"
+        fi
+      fi
+    fi
+    if [[ "${cleanup_stage}" = "Y" &&
+          -n "${stage_root}" && -d "${stage_root}" ]]; then
+      _dispatcher_cntools_safe_remove "${stage_root}" ||
+        log_warn "Could not remove CNTools staging directory ${stage_root}."
+    fi
+    if [[ "${target_lock_acquired}" = "Y" ]]; then
+      deployment_target_lock_release
+    fi
+    return "${saved_status}"
+  }
+
+  trap '_dispatcher_cntools_cleanup "$?"' EXIT
+  trap 'exit 2' HUP INT QUIT TERM
+
+  [[ -n "${NODE_HOME:-}" &&
+     "${NODE_HOME}" = /* &&
+     -d "${NODE_HOME}" &&
+     ! -L "${NODE_HOME}" &&
+     -d "${scripts_directory}" &&
+     ! -L "${scripts_directory}" ]] || {
+    log_warn "The CNTools target layout is missing or unsafe."
+    return 2
+  }
+  deployment_target_lock_acquire "${NODE_HOME}" || return 2
+  target_lock_acquired="Y"
+  if [[ -e "${target_directory}" || -L "${target_directory}" ]]; then
+    [[ -d "${target_directory}" &&
+       ! -L "${target_directory}" &&
+       -O "${target_directory}" ]] || {
+      log_warn "The installed CNTools target is not a safe owned directory."
+      return 2
+    }
+    target_existed="Y"
+  fi
+
+  source_directory="$(
+    dispatcher_source_directory 'scripts/common-helper-scripts/cntools'
+  )" || {
+    log_warn "The CNTools source directory is missing or unsafe."
+    return 2
+  }
+  dispatcher_validate_cntools_tree "${source_directory}" Y || return 2
+
+  stage_root="$(mktemp -d "${scripts_directory}/.cntools-install.XXXXXX")" || return 2
+  [[ "$(dirname "${stage_root}")" = "${scripts_directory}" &&
+     "$(basename "${stage_root}")" == .cntools-install.* &&
+     -d "${stage_root}" &&
+     ! -L "${stage_root}" &&
+     -O "${stage_root}" ]] || return 2
+  candidate_directory="${stage_root}/candidate"
+  previous_directory="${stage_root}/previous"
+  mkdir "${candidate_directory}" || return 2
+
+  dispatcher_cntools_copy_tree "${source_directory}" "${candidate_directory}" || {
+    log_warn "Could not stage the CNTools source tree."
+    return 2
+  }
+  dispatcher_validate_cntools_tree "${candidate_directory}" N || return 2
+  find "${candidate_directory}" -type d -exec chmod 0755 {} + || return 2
+  find "${candidate_directory}" -type f -exec chmod 0644 {} + || return 2
+  chmod 0755 "${candidate_directory}/cntools_main.sh" || return 2
+  _dispatcher_cntools_permissions_valid "${candidate_directory}" || {
+    log_warn "Could not normalize CNTools file permissions."
+    return 2
+  }
+  dispatcher_validate_cntools_tree "${candidate_directory}" N || return 2
+
+  # Copy preferences and saved packages after script permissions are normalized.
+  # The previous generation retains its own copies for every rollback path.
+  for persisted_directory in .state .transactions; do
+    if [[ "${target_existed}" = Y &&
+          ( -e "${target_directory}/${persisted_directory}" ||
+            -L "${target_directory}/${persisted_directory}" ) ]]; then
+      dispatcher_cntools_runtime_data_safe "${target_directory}/${persisted_directory}" || {
+        log_warn "CNTools persisted data is not owned and private (${persisted_directory}); the current installation was left unchanged."
+        return 2
+      }
+      [[ ! -e "${candidate_directory}/${persisted_directory}" &&
+         ! -L "${candidate_directory}/${persisted_directory}" ]] || return 2
+      (umask 077; cp -Rp -- "${target_directory}/${persisted_directory}" \
+        "${candidate_directory}/${persisted_directory}") || {
+        log_warn "Could not preserve CNTools persisted data (${persisted_directory}); the current installation was left unchanged."
+        return 2
+      }
+      dispatcher_cntools_runtime_data_safe "${candidate_directory}/${persisted_directory}" || return 2
+    fi
+  done
+
+  transaction_active="Y"
+  if [[ "${target_existed}" = "Y" ]]; then
+    previous_moved="Y"
+    dispatcher_cntools_move_tree "${target_directory}" "${previous_directory}" || {
+      log_warn "Could not stage the previous CNTools installation."
+      return 2
+    }
+  fi
+  candidate_moved="Y"
+  dispatcher_cntools_move_tree "${candidate_directory}" "${target_directory}" || {
+    log_warn "Could not install the staged CNTools tree."
+    return 2
+  }
+  dispatcher_validate_cntools_tree "${target_directory}" N || return 2
+  _dispatcher_cntools_permissions_valid "${target_directory}" || return 2
+  transaction_active="N"
+  return 0
+)
+
+# Replace the public CNTools entrypoint only after a complete modular tree is
+# installed. Existing legacy files are archived before the exact launcher is
+# moved into place, so a failed post-install check can restore the prior state.
+dispatcher_install_cntools_launcher() (
+  local scripts_directory="${NODE_HOME:-}/scripts"
+  local target_tree="${NODE_HOME:-}/scripts/cntools"
+  local target_launcher="${NODE_HOME:-}/scripts/cntools.sh"
+  local legacy_library="${NODE_HOME:-}/scripts/cntools.library"
+  local archive_directory="${NODE_HOME:-}/scripts/archive"
+  local bash_bin="${GUILD_DEPLOY_PREFLIGHT_BASH_BIN:-bash}"
+  local source_launcher=""
+  local candidate_launcher=""
+  local archive_launcher=""
+  local archive_library=""
+  local restore_tmp=""
+  local target_lock_acquired="N"
+  local target_existed="N"
+  local library_existed="N"
+  local launcher_changed="N"
+  local launcher_installed="N"
+  local library_retired="N"
+  local transaction_active="N"
+
+  _dispatcher_cntools_launcher_rollback() {
+    local rollback_ok="Y"
+
+    # Restore the library before the old launcher. If library recovery fails,
+    # keep the new launcher active rather than restoring an unusable monolith.
+    if [[ "${library_retired}" = "Y" &&
+          "${library_existed}" = "Y" ]]; then
+      if [[ -f "${legacy_library}" && ! -L "${legacy_library}" ]]; then
+        library_retired="N"
+      elif [[ -e "${legacy_library}" || -L "${legacy_library}" ]]; then
+        rollback_ok="N"
+      else
+        restore_tmp="$(mktemp "${scripts_directory}/.cntools.library.restore.XXXXXX")" ||
+          rollback_ok="N"
+        if [[ -n "${restore_tmp}" ]] &&
+           cp -p -- "${archive_library}" "${restore_tmp}" &&
+           mv -f -- "${restore_tmp}" "${legacy_library}"; then
+          restore_tmp=""
+          library_retired="N"
+        else
+          [[ -n "${restore_tmp}" ]] && rm -f -- "${restore_tmp}"
+          rollback_ok="N"
+        fi
+      fi
+    fi
+    if [[ "${launcher_installed}" = "Y" && "${rollback_ok}" = "Y" ]]; then
+      if [[ "${target_existed}" = "Y" ]]; then
+        restore_tmp="$(mktemp "${scripts_directory}/.cntools.sh.restore.XXXXXX")" ||
+          rollback_ok="N"
+        if [[ -n "${restore_tmp}" ]] &&
+           cp -p -- "${archive_launcher}" "${restore_tmp}" &&
+           mv -f -- "${restore_tmp}" "${target_launcher}"; then
+          restore_tmp=""
+        else
+          [[ -n "${restore_tmp}" ]] && rm -f -- "${restore_tmp}"
+          rollback_ok="N"
+        fi
+      elif ! rm -f -- "${target_launcher}"; then
+        rollback_ok="N"
+      fi
+    fi
+    [[ "${rollback_ok}" = "Y" ]]
+  }
+
+  _dispatcher_cntools_launcher_cleanup() {
+    local saved_status="${1:-$?}"
+
+    trap - EXIT HUP INT QUIT TERM
+    if [[ "${transaction_active}" = "Y" ]]; then
+      _dispatcher_cntools_launcher_rollback ||
+        log_warn "Could not completely restore the previous CNTools launcher state."
+    fi
+    [[ -n "${candidate_launcher}" ]] && rm -f -- "${candidate_launcher}"
+    [[ -n "${restore_tmp}" ]] && rm -f -- "${restore_tmp}"
+    if [[ "${target_lock_acquired}" = "Y" ]]; then
+      deployment_target_lock_release
+    fi
+    return "${saved_status}"
+  }
+
+  trap '_dispatcher_cntools_launcher_cleanup "$?"' EXIT
+  trap 'exit 2' HUP INT QUIT TERM
+
+  source_launcher="$(
+    dispatcher_source_path 'scripts/common-helper-scripts/cntools.sh'
+  )" || {
+    log_warn "The CNTools launcher source is missing or unsafe."
+    return 2
+  }
+  dispatcher_preflight_cntools_launcher || return 2
+  [[ -n "${NODE_HOME:-}" &&
+     "${NODE_HOME}" = /* &&
+     -d "${NODE_HOME}" &&
+     ! -L "${NODE_HOME}" &&
+     -d "${scripts_directory}" &&
+     ! -L "${scripts_directory}" ]] || {
+    log_warn "The CNTools launcher target layout is missing or unsafe."
+    return 2
+  }
+
+  deployment_target_lock_acquire "${NODE_HOME}" || return 2
+  target_lock_acquired="Y"
+  dispatcher_validate_cntools_tree "${target_tree}" N || {
+    log_warn "The installed CNTools tree is unavailable or invalid."
+    return 2
+  }
+  if [[ -e "${target_launcher}" || -L "${target_launcher}" ]]; then
+    [[ -f "${target_launcher}" &&
+       ! -L "${target_launcher}" &&
+       -s "${target_launcher}" ]] || {
+      log_warn "The installed CNTools launcher is not a safe regular file."
+      return 2
+    }
+    target_existed="Y"
+  fi
+  if [[ -e "${legacy_library}" || -L "${legacy_library}" ]]; then
+    [[ -f "${legacy_library}" &&
+       ! -L "${legacy_library}" &&
+       -s "${legacy_library}" ]] || {
+      log_warn "The installed legacy CNTools library is not a safe regular file."
+      return 2
+    }
+    library_existed="Y"
+  fi
+  if [[ -e "${archive_directory}" || -L "${archive_directory}" ]]; then
+    [[ -d "${archive_directory}" &&
+       ! -L "${archive_directory}" ]] || {
+      log_warn "The CNTools archive directory is unsafe."
+      return 2
+    }
+  else
+    mkdir -m 0755 -- "${archive_directory}" || return 2
+  fi
+
+  candidate_launcher="$(mktemp "${scripts_directory}/.cntools.sh.install.XXXXXX")" ||
+    return 2
+  cp -- "${source_launcher}" "${candidate_launcher}" || return 2
+  chmod 0755 "${candidate_launcher}" || return 2
+  "${bash_bin}" -n "${candidate_launcher}" >/dev/null 2>&1 || return 2
+
+  if [[ "${target_existed}" = "N" ]] ||
+     ! cmp -s "${candidate_launcher}" "${target_launcher}" ||
+     [[ -z "$(find "${target_launcher}" -prune -perm 0755 -print)" ]]; then
+    launcher_changed="Y"
+  fi
+  if [[ "${launcher_changed}" = "N" &&
+        "${library_existed}" = "N" ]]; then
     return 0
   fi
 
-  TEMPL_CMD=$(awk '/^# Do NOT modify/,0' "${PARENT}"/guild-deploy.sh)
-  TEMPL2_CMD=$(awk '/^# Do NOT modify/,0' "${PARENT}"/guild-deploy.sh.tmp)
-  if [[ "$(echo ${TEMPL_CMD} | sha256sum)" != "$(echo ${TEMPL2_CMD} | sha256sum)" ]]; then
-    cp "${PARENT}"/guild-deploy.sh "${PARENT}/guild-deploy.sh_bkp$(date +%s)"
-    STATIC_CMD=$(awk '/#!/{x=1}/^# Do NOT modify/{exit} x' "${PARENT}"/guild-deploy.sh)
-    printf '%s\n%s\n' "$STATIC_CMD" "$TEMPL2_CMD" > "${PARENT}"/guild-deploy.sh.tmp
-    {
-      mv -f "${PARENT}"/guild-deploy.sh.tmp "${PARENT}"/guild-deploy.sh && \
-      chmod 755 "${PARENT}"/guild-deploy.sh && \
-      log_ok "Updated guild-deploy.sh" "run the script again" && \
-      exit 0;
-    } || {
-      err_exit "Update failed. Please manually download guild-deploy.sh from GitHub."
+  if [[ "${launcher_changed}" = "Y" &&
+        "${target_existed}" = "Y" ]]; then
+    archive_launcher="$(
+      mktemp "${archive_directory}/cntools.sh_bkp$(date +%s).XXXXXX"
+    )" || return 2
+    cp -p -- "${target_launcher}" "${archive_launcher}" || return 2
+  fi
+  if [[ "${library_existed}" = "Y" ]]; then
+    archive_library="$(
+      mktemp "${archive_directory}/cntools.library_bkp$(date +%s).XXXXXX"
+    )" || return 2
+    cp -p -- "${legacy_library}" "${archive_library}" || return 2
+  fi
+
+  transaction_active="Y"
+  if [[ "${launcher_changed}" = "Y" ]]; then
+    mv -f -- "${candidate_launcher}" "${target_launcher}" || return 2
+    candidate_launcher=""
+    launcher_installed="Y"
+    "${bash_bin}" -n "${target_launcher}" >/dev/null 2>&1 || return 2
+    cmp -s "${source_launcher}" "${target_launcher}" || return 2
+    [[ -n "$(find "${target_launcher}" -prune -perm 0755 -print)" ]] ||
+      return 2
+  fi
+  if [[ "${library_existed}" = "Y" ]]; then
+    library_retired="Y"
+    rm -f -- "${legacy_library}" || return 2
+    [[ ! -e "${legacy_library}" && ! -L "${legacy_library}" ]] || return 2
+  fi
+  transaction_active="N"
+  return 0
+)
+
+detect_legacy_network() {
+  local genesis="${NODE_HOME}/files/shelley-genesis.json"
+  local magic=""
+  if [[ -s "${genesis}" ]] && command -v jq >/dev/null 2>&1; then
+    magic="$(jq -er '.networkMagic' "${genesis}" 2>/dev/null || true)"
+  fi
+  case "${magic}" in
+    764824073) printf 'mainnet' ;;
+    141) printf 'guild' ;;
+    1) printf 'preprod' ;;
+    2) printf 'preview' ;;
+    6) printf 'dijkstra' ;;
+    164) printf 'musashi' ;;
+    *) return 1 ;;
+  esac
+}
+
+detect_partial_target_network() {
+  case "${NODE_IMPLEMENTATION}" in
+    cnode)
+      detect_legacy_network
+      ;;
+    dingo)
+      if [[ -s "${NODE_HOME}/scripts/dingo.env" ]]; then
+        sed -n 's/^CARDANO_NETWORK="\([^"]*\)".*/\1/p' \
+          "${NODE_HOME}/scripts/dingo.env" | head -n 1
+      elif [[ -s "${NODE_HOME}/files/dingo.yaml" ]]; then
+        sed -n 's/^[[:space:]]*network:[[:space:]]*"\([^"]*\)".*/\1/p' \
+          "${NODE_HOME}/files/dingo.yaml" | head -n 1
+      fi
+      ;;
+    amaru)
+      if [[ -s "${NODE_HOME}/scripts/amaru.env" ]]; then
+        sed -n 's/^AMARU_NETWORK="\([^"]*\)".*/\1/p' \
+          "${NODE_HOME}/scripts/amaru.env" | head -n 1
+      fi
+      ;;
+  esac
+}
+
+partial_target_matches_implementation() {
+  local adapter="${NODE_HOME}/scripts/adapters/${NODE_IMPLEMENTATION}.adapter"
+  if [[ -f "${adapter}" ]] &&
+     grep -q "^NODE_ADAPTER_IMPLEMENTATION=\"${NODE_IMPLEMENTATION}\"$" "${adapter}"; then
+    return 0
+  fi
+
+  case "${NODE_IMPLEMENTATION}" in
+    cnode)
+      [[ -f "${NODE_HOME}/scripts/cnode.sh" || -f "${NODE_HOME}/files/config.json" ]]
+      ;;
+    dingo)
+      [[ -f "${NODE_HOME}/scripts/dingo.sh" &&
+         ( -f "${NODE_HOME}/scripts/dingo.env" || -f "${NODE_HOME}/files/dingo.yaml" ) ]]
+      ;;
+    amaru)
+      [[ -f "${NODE_HOME}/scripts/amaru.sh" && -f "${NODE_HOME}/scripts/amaru.env" ]]
+      ;;
+  esac
+}
+
+# The copy installed at <target>/scripts/guild-deploy.sh manages <target>
+# unless -p/-t, NODE_PARENT/NODE_NAME, or the legacy CNODE_PATH/CNODE_NAME
+# select another one, or the implementation requested differs from the stored
+# one. Only the bootstrap stage infers this: the snapshot child runs from the
+# temporary checkout, inherits the exported NODE_PARENT, NODE_NAME, and
+# NODE_IMPLEMENTATION, and must match GUILD_DEPLOY_TARGET_PATH.
+dispatcher_select_installed_target() {
+  local installed_home=""
+  local installed_parent=""
+  local installed_name=""
+  local manifest=""
+  local stored_schema=""
+  local stored_implementation=""
+  local requested_implementation="${NODE_IMPLEMENTATION:-${CNODE_IMPLEMENTATION:-}}"
+
+  [[ -z "${NODE_PARENT:-}${NODE_NAME:-}${CNODE_PATH:-}${CNODE_NAME:-}" ]] || return 0
+  [[ "$(basename "${DISPATCHER_SCRIPT_PATH}")" = "guild-deploy.sh" &&
+     "$(basename "${DISPATCHER_DIR}")" = "scripts" ]] || return 0
+  installed_home="$(dirname "${DISPATCHER_DIR}")"
+  installed_parent="$(dirname "${installed_home}")"
+  installed_name="$(basename "${installed_home}")"
+  manifest="${installed_home}/.deployment.json"
+  validate_deployment_path "${installed_parent}" &&
+    [[ "${installed_name}" =~ ^[A-Za-z0-9_]+$ ]] || return 0
+  [[ -f "${manifest}" && ! -L "${manifest}" ]] || return 0
+  stored_schema="$(deployment_json_get "${manifest}" schemaVersion || true)"
+  stored_implementation="$(deployment_json_get "${manifest}" implementation || true)"
+  [[ "${stored_schema}" = "1" ]] &&
+    validate_implementation "${stored_implementation}" || return 0
+  [[ -z "${requested_implementation}" ||
+     "${requested_implementation}" = "${stored_implementation}" ]] || return 0
+
+  NODE_IMPLEMENTATION="${stored_implementation}"
+  NODE_PARENT="${installed_parent}"
+  NODE_NAME="${installed_name}"
+  log_info "Using ${installed_home}, where this guild-deploy.sh is installed (pass -p/-t to choose another target)."
+}
+
+dispatcher_set_defaults() {
+  : "${LEGACY_CNODE_TARGET:=N}"
+  : "${NETWORK_PRESET:=N}"
+  [[ -z "${G_ACCOUNT:-}" ]] && G_ACCOUNT="cardano-community"
+  [[ -z "${GUILD_DEPLOY_STRICT_REF:-}" ]] && GUILD_DEPLOY_STRICT_REF="N"
+  [[ -z "${CURL_TIMEOUT:-}" ]] && CURL_TIMEOUT=60
+  [[ -z "${DOWNLOAD_TIMEOUT:-}" ]] && DOWNLOAD_TIMEOUT=600
+  [[ -z "${SUDO:-}" ]] && SUDO="Y"
+  [[ -z "${PACKAGE_MANAGER_OUTPUT:-}" ]] && PACKAGE_MANAGER_OUTPUT="compact"
+  case "${PACKAGE_MANAGER_OUTPUT}" in
+    compact|verbose) ;;
+    *) err_exit "PACKAGE_MANAGER_OUTPUT must be compact or verbose." ;;
+  esac
+  case "${GUILD_DEPLOY_STRICT_REF}" in
+    Y|N) ;;
+    *) err_exit "GUILD_DEPLOY_STRICT_REF must be Y or N." ;;
+  esac
+
+  [[ -z "${NODE_IMPLEMENTATION:-}" ]] && NODE_IMPLEMENTATION="${CNODE_IMPLEMENTATION:-cnode}"
+  validate_implementation "${NODE_IMPLEMENTATION}" || err_exit "Unknown node implementation '${NODE_IMPLEMENTATION}'. Expected cnode, dingo, or amaru."
+
+  if [[ -z "${NODE_PORT:-}" ]]; then
+    case "${NODE_IMPLEMENTATION}" in
+      cnode) NODE_PORT=6000 ;;
+      dingo) NODE_PORT=3001 ;;
+      amaru) NODE_PORT=3000 ;;
+    esac
+  fi
+  if [[ ! "${NODE_PORT}" =~ ^[0-9]+$ ]] ||
+     (( 10#${NODE_PORT} < 1 || 10#${NODE_PORT} > 65535 )); then
+    err_exit "NODE_PORT must be an integer from 1 to 65535."
+  fi
+  NODE_PORT="$((10#${NODE_PORT}))"
+  if [[ ! "${DOWNLOAD_TIMEOUT}" =~ ^[0-9]+$ ]] ||
+     (( 10#${DOWNLOAD_TIMEOUT} < 1 )); then
+    err_exit "DOWNLOAD_TIMEOUT must be a positive integer."
+  fi
+  DOWNLOAD_TIMEOUT="$((10#${DOWNLOAD_TIMEOUT}))"
+
+  if [[ -z "${CNODE_SKIP_DBSYNC_DOWNLOAD:-}" &&
+        -n "${SKIP_DBSYNC_DOWNLOAD:-}" ]]; then
+    CNODE_SKIP_DBSYNC_DOWNLOAD="${SKIP_DBSYNC_DOWNLOAD}"
+  fi
+  [[ -z "${CNODE_SKIP_DBSYNC_DOWNLOAD:-}" ]] &&
+    CNODE_SKIP_DBSYNC_DOWNLOAD="N"
+  case "${CNODE_SKIP_DBSYNC_DOWNLOAD}" in
+    Y|N) ;;
+    *) err_exit "CNODE_SKIP_DBSYNC_DOWNLOAD must be Y or N." ;;
+  esac
+  unset SKIP_DBSYNC_DOWNLOAD
+
+  if [[ -z "${GUILD_SKIP_HARDWARE_WALLET_RULES:-}" &&
+        -n "${CNODE_SKIP_HARDWARE_WALLET_RULES:-}" ]]; then
+    GUILD_SKIP_HARDWARE_WALLET_RULES="${CNODE_SKIP_HARDWARE_WALLET_RULES}"
+  fi
+  [[ -z "${GUILD_SKIP_HARDWARE_WALLET_RULES:-}" ]] &&
+    GUILD_SKIP_HARDWARE_WALLET_RULES="N"
+  case "${GUILD_SKIP_HARDWARE_WALLET_RULES}" in
+    Y|N) ;;
+    *) err_exit "GUILD_SKIP_HARDWARE_WALLET_RULES must be Y or N." ;;
+  esac
+  unset CNODE_SKIP_HARDWARE_WALLET_RULES
+
+  [[ -z "${NODE_PARENT:-}" ]] && NODE_PARENT="${CNODE_PATH:-/opt/cardano}"
+  validate_deployment_path "${NODE_PARENT}" ||
+    err_exit "The parent path must be absolute and contain only letters, digits, /, ., _, +, @, :, or -: ${NODE_PARENT}"
+  while [[ "${NODE_PARENT}" != "/" && "${NODE_PARENT}" = */ ]]; do
+    NODE_PARENT="${NODE_PARENT%/}"
+  done
+  validate_deployment_path "${HOME:-}" ||
+    err_exit "HOME must be an absolute path containing only deployment-safe characters."
+
+  if [[ -z "${NODE_NAME:-}" ]]; then
+    if [[ "${NODE_IMPLEMENTATION}" = "cnode" && -n "${CNODE_NAME:-}" ]]; then
+      NODE_NAME="${CNODE_NAME}"
+    else
+      NODE_NAME="${NODE_IMPLEMENTATION}"
+    fi
+  fi
+  NODE_NAME="$(sanitize_node_name "${NODE_NAME}")"
+  [[ "${NODE_NAME}" =~ ^[A-Za-z0-9_]+$ ]] ||
+    err_exit "The top-level folder name must resolve to ASCII letters, digits, or underscore."
+
+  NODE_HOME="${NODE_PARENT%/}/${NODE_NAME}"
+  NODE_SERVICE="$(printf '%s' "${NODE_NAME}" | tr '[:upper:]' '[:lower:]')"
+  validate_deployment_path "${NODE_HOME}" ||
+    err_exit "The computed deployment path contains unsupported characters: ${NODE_HOME}"
+  [[ "${NODE_SERVICE}" =~ ^[a-z0-9_]+$ ]] ||
+    err_exit "The computed service name is invalid: ${NODE_SERVICE}"
+  DEPLOYMENT_FILE="${NODE_HOME}/.deployment.json"
+  if [[ "${DISPATCHER_LOCK_TARGET:-N}" = "Y" ]]; then
+    dispatcher_acquire_target_lock
+  fi
+
+  local stored_implementation=""
+  local stored_network=""
+  local stored_branch=""
+  local stored_schema=""
+  local stored_status=""
+  local stored_repository=""
+  local stored_service=""
+  local stored_account=""
+  if [[ -L "${DEPLOYMENT_FILE}" ||
+        ( -e "${DEPLOYMENT_FILE}" && ! -s "${DEPLOYMENT_FILE}" ) ]]; then
+    err_exit "Deployment metadata is empty or an unsafe symbolic link: ${DEPLOYMENT_FILE}"
+  elif [[ -s "${DEPLOYMENT_FILE}" ]]; then
+    command -v jq >/dev/null 2>&1 ||
+      err_exit "jq is required to validate existing deployment metadata at ${DEPLOYMENT_FILE}."
+    if ! jq -e '
+      type == "object" and
+      .schemaVersion == 1 and
+      (.deploymentStatus == "deploying" or .deploymentStatus == "deployed") and
+      (.implementation == "cnode" or .implementation == "dingo" or .implementation == "amaru") and
+      (.network | type == "string" and length > 0) and
+      (.branch | type == "string" and length > 0) and
+      (.repository | type == "string" and test("^[A-Za-z0-9_.-]+/guild-operators$")) and
+      ((has("sourceRevision") | not) or
+        (.sourceRevision | type == "string" and test("^[0-9a-f]{40}([0-9a-f]{24})?$"))) and
+      (.serviceName | type == "string" and length > 0) and
+      (.nodeVersion | type == "string") and
+      (.targetNodeVersion | type == "string") and
+      (.metricsProvider | type == "string" and length > 0) and
+      (.capabilities | type == "object") and
+      (.capabilities | keys == ["forging", "localCli", "metrics", "n2c"]) and
+      (.capabilities.n2c | type == "boolean") and
+      (.capabilities.localCli | type == "boolean") and
+      (.capabilities.metrics | type == "boolean") and
+      (.capabilities.forging | type == "boolean") and
+      (
+        (.implementation == "cnode" and
+          .metricsProvider == "prometheus" and
+          .capabilities.n2c == true and
+          .capabilities.localCli == true and
+          .capabilities.metrics == true and
+          .capabilities.forging == true) or
+        (.implementation == "dingo" and
+          .metricsProvider == "prometheus" and
+          .capabilities.n2c == true and
+          .capabilities.localCli == true and
+          .capabilities.metrics == true and
+          .capabilities.forging == true) or
+        (.implementation == "amaru" and
+          .metricsProvider == "otel" and
+          .capabilities.n2c == false and
+          .capabilities.localCli == false and
+          .capabilities.metrics == true and
+          # false in a manifest written before Amaru block production; the
+          # next guild-deploy.sh run writes true.
+          (.capabilities.forging | type == "boolean"))
+      )
+    ' "${DEPLOYMENT_FILE}" >/dev/null 2>&1; then
+      err_exit "Deployment metadata is malformed, incomplete, or unsupported: ${DEPLOYMENT_FILE}"
+    fi
+    stored_schema="$(deployment_json_get "${DEPLOYMENT_FILE}" schemaVersion || true)"
+    stored_status="$(deployment_json_get "${DEPLOYMENT_FILE}" deploymentStatus || true)"
+    stored_implementation="$(deployment_json_get "${DEPLOYMENT_FILE}" implementation || true)"
+    stored_network="$(deployment_json_get "${DEPLOYMENT_FILE}" network || true)"
+    stored_branch="$(deployment_json_get "${DEPLOYMENT_FILE}" branch || true)"
+    stored_repository="$(deployment_json_get "${DEPLOYMENT_FILE}" repository || true)"
+    stored_service="$(deployment_json_get "${DEPLOYMENT_FILE}" serviceName || true)"
+
+    [[ "${stored_schema}" = "1" ]] ||
+      err_exit "Unsupported or invalid deployment manifest schema in ${DEPLOYMENT_FILE}."
+    case "${stored_status}" in
+      deploying|deployed) ;;
+      *) err_exit "Invalid deployment status in ${DEPLOYMENT_FILE}." ;;
+    esac
+    [[ -n "${stored_implementation}" ]] || err_exit "Invalid deployment manifest: ${DEPLOYMENT_FILE}"
+    [[ -n "${stored_network}" && -n "${stored_branch}" && -n "${stored_repository}" ]] ||
+      err_exit "Deployment manifest is missing authoritative target metadata: ${DEPLOYMENT_FILE}"
+    [[ "${stored_implementation}" = "${NODE_IMPLEMENTATION}" ]] || err_exit "Target ${NODE_HOME} belongs to '${stored_implementation}', not '${NODE_IMPLEMENTATION}'. Choose another -t value."
+    case "${stored_implementation}:${stored_network}" in
+      cnode:mainnet|cnode:guild|cnode:preprod|cnode:preview|cnode:dijkstra|cnode:musashi|dingo:mainnet|dingo:preprod|dingo:preview|amaru:mainnet|amaru:preprod|amaru:preview) ;;
+      *) err_exit "Unsupported network '${stored_network}' for '${stored_implementation}' in ${DEPLOYMENT_FILE}." ;;
+    esac
+    [[ -n "${stored_service}" && "${stored_service}" = "${NODE_SERVICE}" ]] ||
+      err_exit "Deployment manifest serviceName '${stored_service:-missing}' does not match target service '${NODE_SERVICE}'."
+
+    if [[ -n "${stored_repository}" ]]; then
+      [[ "${stored_repository}" =~ ^([A-Za-z0-9_.-]+)/guild-operators$ ]] ||
+        err_exit "Invalid repository in deployment manifest: ${stored_repository}"
+      stored_account="${BASH_REMATCH[1]}"
+      if [[ "${G_ACCOUNT_PRESET:-N}" != "Y" ]]; then
+        G_ACCOUNT="${stored_account}"
+      fi
+    fi
+
+    if [[ "${NETWORK_EXPLICIT}" != "Y" && "${NETWORK_PRESET}" != "Y" && -n "${stored_network}" ]]; then
+      NETWORK="${stored_network}"
+    elif [[ -n "${NETWORK:-}" && -n "${stored_network}" && "${NETWORK}" != "${stored_network}" ]]; then
+      err_exit "Target ${NODE_HOME} is configured for '${stored_network}', not '${NETWORK}'. Use a separate target directory."
+    fi
+
+    if [[ "${BRANCH_EXPLICIT}" != "Y" && "${BRANCH_PRESET}" != "Y" && -n "${stored_branch}" ]]; then
+      BRANCH="${stored_branch}"
+    fi
+  elif [[ -d "${NODE_HOME}" ]] && find "${NODE_HOME}" -mindepth 1 -maxdepth 1 -print -quit 2>/dev/null | grep -q .; then
+    local detected_network=""
+    if partial_target_matches_implementation; then
+      detected_network="$(detect_partial_target_network || true)"
+      if [[ "${NETWORK_EXPLICIT}" != "Y" && "${NETWORK_PRESET}" != "Y" &&
+            -z "${NETWORK:-}" && -n "${detected_network}" ]]; then
+        NETWORK="${detected_network}"
+      elif [[ -n "${NETWORK:-}" && -n "${detected_network}" &&
+              "${NETWORK}" != "${detected_network}" ]]; then
+        err_exit "Target ${NODE_HOME} is configured for '${detected_network}', not '${NETWORK}'. Use a separate target directory."
+      fi
+
+      if [[ "${NODE_IMPLEMENTATION}" = "cnode" ]]; then
+        LEGACY_CNODE_TARGET="Y"
+        if [[ "${BRANCH_EXPLICIT}" != "Y" && "${BRANCH_PRESET}" != "Y" && -s "${NODE_HOME}/scripts/.env_branch" ]]; then
+          BRANCH="$(head -n 1 "${NODE_HOME}/scripts/.env_branch")"
+        fi
+        log_info "Legacy cnode target detected; it will be migrated to .deployment.json."
+      else
+        log_info "Incomplete ${NODE_IMPLEMENTATION} deployment detected; it will be resumed."
+      fi
+    elif ! find "${NODE_HOME}" -mindepth 1 \( -type f -o -type l \) -print -quit 2>/dev/null | grep -q .; then
+      log_info "Empty deployment directory skeleton detected; deployment will resume."
+    else
+      err_exit "Refusing to deploy into non-empty unrecognized target ${NODE_HOME}."
+    fi
+  fi
+
+  if [[ -z "${NETWORK:-}" ]]; then
+    if [[ "${NODE_IMPLEMENTATION}" = "cnode" && "${LEGACY_CNODE_TARGET}" != "Y" ]]; then
+      NETWORK="mainnet"
+    elif [[ "${NODE_IMPLEMENTATION}" = "cnode" ]]; then
+      err_exit "Could not determine the network of legacy target ${NODE_HOME}; specify it with -n."
+    else
+      err_exit "The ${NODE_IMPLEMENTATION} profile requires -n preprod or -n preview."
+    fi
+  fi
+  if [[ -z "${BRANCH:-}" ]]; then
+    case "${NETWORK}" in
+      dijkstra|musashi)
+        BRANCH="${GUILD_PRERELEASE_BRANCH}"
+        log_info "${NETWORK} is a pre-release network, so it deploys from ${BRANCH}. Use -b to choose another branch."
+        ;;
+      *) BRANCH="master" ;;
+    esac
+  fi
+  validate_branch_name "${BRANCH}" || err_exit "Invalid branch name '${BRANCH}'."
+  validate_account_name "${G_ACCOUNT}" || err_exit "Invalid GitHub account '${G_ACCOUNT}'."
+
+  [[ "${SUDO}" = "Y" ]] && sudo="sudo" || sudo=""
+  if [[ "${SUDO}" = "Y" && "$(id -u)" -eq 0 ]]; then
+    err_exit "Please run as a non-root user, or set SUDO=N for a controlled container build."
+  fi
+
+  REPO_RAW="https://raw.githubusercontent.com/${G_ACCOUNT}/guild-operators"
+  URL_RAW="${REPO_RAW}/${BRANCH}"
+
+  export G_ACCOUNT GUILD_DEPLOY_STRICT_REF
+  export CURL_TIMEOUT DOWNLOAD_TIMEOUT SUDO sudo
+  export PACKAGE_MANAGER_OUTPUT
+  export GUILD_SKIP_HARDWARE_WALLET_RULES
+  export NODE_IMPLEMENTATION NODE_PARENT NODE_NAME NODE_HOME NODE_SERVICE
+  export NODE_PORT NETWORK BRANCH REPO_RAW URL_RAW S_ARGS
+  if [[ "${NODE_IMPLEMENTATION}" = "cnode" ]]; then
+    export CNODE_SKIP_DBSYNC_DOWNLOAD
+  else
+    unset CNODE_SKIP_DBSYNC_DOWNLOAD
+  fi
+
+  # Compatibility aliases used by the current cnode implementation profile.
+  CNODE_PATH="${NODE_PARENT}"
+  CNODE_NAME="${NODE_NAME}"
+  CNODE_HOME="${NODE_HOME}"
+  CNODE_VNAME="${NODE_SERVICE}"
+  export CNODE_PATH CNODE_NAME CNODE_HOME CNODE_VNAME
+}
+
+dispatcher_profile_relative_path() {
+  case "${NODE_IMPLEMENTATION}" in
+    cnode) printf 'scripts/cnode-helper-scripts/deploy-cnode.sh' ;;
+    dingo) printf 'scripts/dingo-helper-scripts/deploy-dingo.sh' ;;
+    amaru) printf 'scripts/amaru-helper-scripts/deploy-amaru.sh' ;;
+  esac
+}
+
+dispatcher_load_profile() {
+  local relative_path
+  relative_path="$(dispatcher_profile_relative_path)"
+  PROFILE_PATH="$(dispatcher_source_path "${relative_path}")" ||
+    err_exit "Could not load ${relative_path} from the prepared source snapshot."
+  log_progress "Loading ${NODE_IMPLEMENTATION} deployment profile" "${BRANCH}"
+
+  if ! bash -n "${PROFILE_PATH}"; then
+    err_exit "Deployment profile ${relative_path} failed shell validation."
+  fi
+  # shellcheck source=/dev/null
+  if ! . "${PROFILE_PATH}"; then
+    err_exit "Deployment profile ${relative_path} failed while loading."
+  fi
+
+  local function_name="deploy_${NODE_IMPLEMENTATION}_profile"
+  declare -F "${function_name}" >/dev/null ||
+    err_exit "Deployment profile ${relative_path} does not expose ${function_name}."
+  PROFILE_ENTRYPOINT="${function_name}"
+}
+
+# Binary layout
+#
+# Every binary a deployment runs lives in ${NODE_HOME}/bin. Older deployments
+# keep theirs in ~/.local/bin, shared by all deployments of the OS user. The
+# preflight below changes nothing on the target. It either stops with
+# instructions, or records which tools to copy across so the deployment keeps
+# running the versions it has now.
+
+dispatcher_layout_primary_binary() {
+  case "${1:-${NODE_IMPLEMENTATION}}" in
+    dingo) printf 'dingo' ;;
+    amaru) printf 'amaru' ;;
+    *) printf 'cardano-node' ;;
+  esac
+}
+
+# What a shell of this user runs today, ignoring any deployment it has activated.
+dispatcher_layout_effective_tool() {
+  (
+    if [[ -n "${GUILD_ACTIVE_HOME:-}" ]]; then
+      PATH=":${PATH}:"
+      PATH="${PATH//:${GUILD_ACTIVE_HOME}\/bin:/:}"
+      PATH="${PATH#:}"
+      PATH="${PATH%:}"
+    fi
+    PATH="${PATH}:${HOME}/.local/bin"
+    command -v "$1" 2>/dev/null
+  )
+}
+
+dispatcher_layout_tool_version() {
+  timeout 30 "$1" version 2>/dev/null | head -n 1 | awk '{print $2}'
+}
+
+dispatcher_layout_version_at_least() {
+  [[ -n "${2:-}" ]] && printf '%s\n%s\n' "$1" "$2" | sort -C -V
+}
+
+# A variable the operator set in this deployment's env file. That file is
+# sourced by every Guild script, so reading it this way adds no new trust.
+dispatcher_layout_env_value() {
+  local env_file="${NODE_HOME}/scripts/env"
+
+  [[ -f "${env_file}" ]] || return 0
+  (
+    # shellcheck disable=SC2034  # read by the evaluated line
+    CNODE_HOME="${NODE_HOME}"
+    eval "$(grep -E "^${1}=" "${env_file}" | tail -n 1)" 2>/dev/null
+    printf '%s' "${!1:-}"
+  )
+}
+
+# The node and CLI versions the release for this network requires.
+dispatcher_layout_cnode_minimums() {
+  local manifest="" overlay=""
+
+  manifest="$(dispatcher_source_path "files/node-implementations/cnode/release.json" 2>/dev/null)" ||
+    return 1
+  overlay="$(dispatcher_source_path "files/node-implementations/cnode/networks/${NETWORK}.json" 2>/dev/null)" ||
+    overlay=""
+  if [[ -n "${overlay}" ]]; then
+    jq -ers '(.[0] * .[1]) | [.version, .companions["cardano-cli"].version] | @tsv' \
+      "${manifest}" "${overlay}" 2>/dev/null
+  else
+    jq -er '[.version, .companions["cardano-cli"].version] | @tsv' "${manifest}" 2>/dev/null
+  fi
+}
+
+dispatcher_layout_command() {
+  local flags="$1"
+  local command="./guild-deploy.sh"
+
+  [[ "${NODE_IMPLEMENTATION}" = "cnode" ]] || command+=" -i ${NODE_IMPLEMENTATION}"
+  [[ -z "${flags}" ]] || command+=" -s ${flags}"
+  command+=" -n ${NETWORK} -t ${NODE_NAME} -p ${NODE_PARENT}"
+  [[ "${BRANCH}" = "master" ]] || command+=" -b ${BRANCH}"
+  printf '%s' "${command}"
+}
+
+# Stop before anything changes. The caller's deployment is exactly as it was.
+dispatcher_layout_stop() {
+  printf "\n%sStopped before changing anything on %s.%s\n\n" \
+    "${STYLE_RED}" "${NODE_HOME}" "${STYLE_RESET}" >&2
+  printf '%s\n' "$@" >&2
+  printf '\n' >&2
+  exit 1
+}
+
+# Stop when the target cannot hold or run binaries, or lacks the room for them.
+dispatcher_layout_check_target() {
+  local want_download="$1"
+  local probe="" needed_kb=102400 free_kb="" tool=""
+
+  [[ -w "${NODE_HOME}" ]] ||
+    dispatcher_layout_stop \
+      "${NODE_HOME} is not writable by $(id -un), so binaries cannot be installed there." \
+      "Run this as the user that owns the deployment, or fix the folder's ownership."
+
+  probe="$(mktemp -d "${NODE_HOME}/.bin-check.XXXXXX" 2>/dev/null)" ||
+    dispatcher_layout_stop \
+      "Could not create files in ${NODE_HOME}. Check that the disk is not read-only or full."
+  printf '#!/bin/sh\nexit 0\n' > "${probe}/probe" 2>/dev/null
+  chmod 0755 "${probe}/probe" 2>/dev/null
+  if ! "${probe}/probe" >/dev/null 2>&1; then
+    rm -rf -- "${probe}"
+    dispatcher_layout_stop \
+      "Programs cannot run from ${NODE_HOME}, which is probably mounted with noexec." \
+      "Remount that disk without noexec, then run this again."
+  fi
+  rm -rf -- "${probe}"
+
+  [[ "${want_download}" = "Y" ]] && needed_kb=$(( needed_kb + 716800 ))
+  for tool in "${BINARY_LAYOUT_COPY[@]}"; do
+    needed_kb=$(( needed_kb + $(du -Lk "${HOME}/.local/bin/${tool}" | awk '{print $1}') ))
+  done
+  free_kb="$(df -Pk "${NODE_HOME}" | awk 'NR==2{print $4}')"
+  if [[ "${free_kb}" =~ ^[0-9]+$ ]] && (( free_kb < needed_kb )); then
+    dispatcher_layout_stop \
+      "${NODE_HOME} needs about $(( needed_kb / 1024 )) MB free for binaries, but has $(( free_kb / 1024 )) MB." \
+      "Free up some space, then run this again."
+  fi
+}
+
+# Decide what a cnode deployment needs. Sets BINARY_LAYOUT_NOTES as well.
+dispatcher_layout_check_cnode() {
+  local want_download="$1"
+  local node_override="" cli_override=""
+  local node_binary="" cli_binary="" node_version="" cli_version=""
+  local minimums="" minimum_node="" minimum_cli=""
+  local strict="Y"
+
+  node_override="$(dispatcher_layout_env_value CNODEBIN)"
+  cli_override="$(dispatcher_layout_env_value CCLI)"
+  [[ "$(dispatcher_layout_env_value STRICT_VERSION_CHECK)" != "N" ]] || strict="N"
+
+  if [[ -n "${node_override}" ]]; then
+    node_binary="${node_override}"
+  elif [[ -x "${NODE_HOME}/bin/cardano-node" ]]; then
+    node_binary="${NODE_HOME}/bin/cardano-node"
+  else
+    node_binary="$(dispatcher_layout_effective_tool cardano-node || true)"
+  fi
+  if [[ -n "${cli_override}" ]]; then
+    cli_binary="${cli_override}"
+  elif [[ -x "${NODE_HOME}/bin/cardano-cli" ]]; then
+    cli_binary="${NODE_HOME}/bin/cardano-cli"
+  else
+    cli_binary="$(dispatcher_layout_effective_tool cardano-cli || true)"
+  fi
+
+  if [[ -z "${node_binary}" || ! -x "${node_binary}" ]]; then
+    node_binary=""
+    if [[ "${want_download}" != "Y" ]] && dispatcher_directory_has_entries "${NODE_HOME}/db"; then
+      dispatcher_layout_stop \
+        "This deployment has a chain database, but $(id -un) has no cardano-node." \
+        "If it belongs to another OS user, run this as that user." \
+        "Otherwise install the binaries:" \
+        "  $(dispatcher_layout_command "d${S_ARGS:-}")"
+    fi
+    return 0
+  fi
+
+  minimums="$(dispatcher_layout_cnode_minimums || true)"
+  [[ -n "${minimums}" && "${strict}" = "Y" ]] || return 0
+  IFS=$'\t' read -r minimum_node minimum_cli <<< "${minimums}"
+  node_version="$(dispatcher_layout_tool_version "${node_binary}")"
+  [[ -n "${cli_binary}" && -x "${cli_binary}" ]] &&
+    cli_version="$(dispatcher_layout_tool_version "${cli_binary}")"
+
+  BINARY_LAYOUT_NOTES+=("cardano-node ${node_version:-unknown}, needs at least ${minimum_node}")
+  BINARY_LAYOUT_NOTES+=("cardano-cli ${cli_version:-not found}, needs at least ${minimum_cli}")
+
+  # An override keeps winning after a download, so it cannot be fixed with -s d.
+  if [[ -n "${node_override}" ]] &&
+     ! dispatcher_layout_version_at_least "${minimum_node}" "${node_version}"; then
+    dispatcher_layout_stop \
+      "CNODEBIN in ${NODE_HOME}/scripts/env points at cardano-node ${node_version:-unknown}, but these scripts need at least ${minimum_node}." \
+      "That setting would keep running the old binary, and the node would not start after its next restart." \
+      "Upgrade that binary, or remove the CNODEBIN line so the deployment uses its own copy."
+  fi
+  if [[ -n "${cli_override}" ]] &&
+     ! dispatcher_layout_version_at_least "${minimum_cli}" "${cli_version}"; then
+    dispatcher_layout_stop \
+      "CCLI in ${NODE_HOME}/scripts/env points at cardano-cli ${cli_version:-unknown}, but these scripts need at least ${minimum_cli}." \
+      "That setting would keep running the old binary, and the node would not start after its next restart." \
+      "Upgrade that binary, or remove the CCLI line so the deployment uses its own copy."
+  fi
+  [[ -z "${node_override}" ]] ||
+    BINARY_LAYOUT_NOTES+=("CNODEBIN in scripts/env is respected. Deployments will not update that file.")
+  [[ -z "${cli_override}" ]] ||
+    BINARY_LAYOUT_NOTES+=("CCLI in scripts/env is respected. Deployments will not update that file.")
+
+  [[ "${want_download}" != "Y" ]] || return 0
+  if ! dispatcher_layout_version_at_least "${minimum_node}" "${node_version}" ||
+     ! dispatcher_layout_version_at_least "${minimum_cli}" "${cli_version}"; then
+    dispatcher_layout_stop \
+      "These scripts need cardano-node ${minimum_node} and cardano-cli ${minimum_cli}." \
+      "This deployment has cardano-node ${node_version:-unknown} and cardano-cli ${cli_version:-not found}." \
+      "Refreshing only the scripts would stop the node from starting at its next restart." \
+      "" \
+      "Install the required versions as well:" \
+      "  $(dispatcher_layout_command "d${S_ARGS:-}")" \
+      "" \
+      "The running node is not touched. The new version takes effect when you restart it," \
+      "and a major upgrade can replay the ledger for several hours, so test on a relay first."
+  fi
+}
+
+# Which of the shared tools this deployment should get its own copy of.
+dispatcher_layout_select_copies() {
+  local want_download="$1"
+  local tool="" shared="${HOME}/.local/bin"
+  local -a tools=(cardano-hw-cli gum fzf)
+
+  if [[ "${NODE_IMPLEMENTATION}" = "cnode" ]]; then
+    tools+=(cncli ogmios cardano-signer mithril-signer mithril-client)
+    # -s d installs these itself.
+    [[ "${want_download}" = "Y" ]] ||
+      tools+=(cardano-node cardano-cli cardano-submit-api bech32 cardano-address cardano-db-sync)
+  fi
+  for tool in "${tools[@]}"; do
+    [[ ! -e "${NODE_HOME}/bin/${tool}" && -x "${shared}/${tool}" && ! -d "${shared}/${tool}" ]] ||
+      continue
+    # A binary found earlier on PATH is what runs today, and still will.
+    [[ "$(dispatcher_layout_effective_tool "${tool}")" = "${shared}/${tool}" ]] || continue
+    BINARY_LAYOUT_COPY+=("${tool}")
+    if [[ "${tool}" = "cardano-hw-cli" ]]; then
+      local module=""
+      for module in HID.node HID_hidraw.node; do
+        [[ ! -f "${shared}/${module}" ]] || BINARY_LAYOUT_COPY+=("${module}")
+      done
+    fi
+  done
+}
+
+dispatcher_binary_layout_preflight() {
+  local primary="" want_download="N" layout="new"
+
+  BINARY_LAYOUT_COPY=()
+  BINARY_LAYOUT_NOTES=()
+  BINARY_LAYOUT_ACTION=""
+  primary="$(dispatcher_layout_primary_binary)"
+  [[ "${S_ARGS:-}" != *d* ]] || want_download="Y"
+
+  if [[ ! -f "${DEPLOYMENT_FILE:-}" && "${LEGACY_CNODE_TARGET:-N}" != "Y" &&
+        ! -f "${NODE_HOME}/scripts/env" ]]; then
+    BINARY_LAYOUT_ACTION="New deployment: binaries will go in ${NODE_HOME}/bin."
+    return 0
+  fi
+  if [[ -x "${NODE_HOME}/bin/${primary}" ]]; then
+    layout="current"
+  elif [[ -x "${HOME}/.local/bin/${primary}" ]] ||
+       { [[ "${NODE_IMPLEMENTATION}" = "cnode" ]] &&
+         [[ -n "$(dispatcher_layout_effective_tool "${primary}")" ]]; }; then
+    layout="shared"
+  fi
+
+  # Dingo and Amaru are not on master yet, so a fresh download replaces the old
+  # layout and its suffixed CLI names instead of a copy.
+  if [[ "${NODE_IMPLEMENTATION}" != "cnode" && "${layout}" = "shared" && "${want_download}" != "Y" ]]; then
+    dispatcher_layout_stop \
+      "This ${NODE_IMPLEMENTATION} deployment keeps its binaries in ${HOME}/.local/bin." \
+      "Install them into the deployment with:" \
+      "  $(dispatcher_layout_command "d${S_ARGS:-}")" \
+      "The new version takes effect when you restart the service."
+  fi
+  if [[ "${NODE_IMPLEMENTATION}" = "cnode" ]]; then
+    dispatcher_layout_check_cnode "${want_download}"
+  fi
+
+  case "${layout}" in
+    current)
+      BINARY_LAYOUT_ACTION="Binaries are already in ${NODE_HOME}/bin."
+      return 0
+      ;;
+    shared|new)
+      dispatcher_layout_select_copies "${want_download}"
+      ;;
+  esac
+  if [[ "${want_download}" = "Y" || ${#BINARY_LAYOUT_COPY[@]} -gt 0 ]]; then
+    dispatcher_layout_check_target "${want_download}"
+  fi
+  if [[ "${want_download}" = "Y" ]]; then
+    BINARY_LAYOUT_ACTION="Install the pinned versions into ${NODE_HOME}/bin. They take effect when the service restarts."
+  else
+    BINARY_LAYOUT_ACTION="Keep the current versions. No restart is needed."
+  fi
+  if [[ ${#BINARY_LAYOUT_COPY[@]} -gt 0 ]]; then
+    BINARY_LAYOUT_ACTION+=" Copy unchanged from ${HOME}/.local/bin: ${BINARY_LAYOUT_COPY[*]}."
+  fi
+}
+
+dispatcher_binary_layout_print() {
+  local note=""
+
+  printf "\n%sBinary layout check%s\n" "${STYLE_BOLD}" "${STYLE_RESET}"
+  printf "  Target : %s\n" "${NODE_HOME}"
+  for note in "${BINARY_LAYOUT_NOTES[@]}"; do
+    printf "  Found  : %s\n" "${note}"
+  done
+  printf "  Action : %s\n" "${BINARY_LAYOUT_ACTION}"
+}
+
+# The old CNTools left priv/wallet, pool and asset writable by the group under a
+# umask of 0002, the default for Ubuntu users. CNTools now refuses to work with
+# them, so a target coming from the old layout has this write access removed.
+# Read access is left as it is.
+dispatcher_layout_private_items() {
+  [[ "${LEGACY_CNODE_TARGET:-N}" = "Y" && -d "${NODE_HOME}/priv" ]] || return 0
+  find "${NODE_HOME}/priv" -mindepth 1 -user "$(id -un)" \
+    \( -type d -o -type f \) -perm /022 -print 2>/dev/null
+}
+
+dispatcher_layout_protect_private_folders() {
+  local item="" count=0
+
+  while IFS= read -r item; do
+    chmod go-w -- "${item}" ||
+      err_exit "Could not remove group and other write access from ${item}."
+    count=$(( count + 1 ))
+  done < <(dispatcher_layout_private_items)
+  (( count == 0 )) ||
+    log_ok "Removed group and other write access under ${NODE_HOME}/priv, which CNTools requires" "${count} items"
+}
+
+# Copy to a temporary folder first. When there is no bin folder yet, one rename
+# makes the whole set appear at once, so no script ever sees part of it.
+dispatcher_copy_shared_binaries() {
+  local stage="" tool="" source_file=""
+
+  find "${NODE_HOME}" -mindepth 1 -maxdepth 1 -type d \
+    \( -name '.bin-migrate.*' -o -name '.bin-check.*' \) -exec rm -rf {} + 2>/dev/null
+  [[ ${#BINARY_LAYOUT_COPY[@]} -gt 0 ]] || return 0
+
+  log_progress "Copying binaries into the deployment" "${NODE_HOME}/bin"
+  stage="$(mktemp -d "${NODE_HOME}/.bin-migrate.XXXXXX")" ||
+    err_exit "Could not create a temporary folder in ${NODE_HOME}."
+  for tool in "${BINARY_LAYOUT_COPY[@]}"; do
+    source_file="${HOME}/.local/bin/${tool}"
+    if ! cp -pL -- "${source_file}" "${stage}/${tool}" ||
+       ! cmp -s -- "${source_file}" "${stage}/${tool}"; then
+      rm -rf -- "${stage}"
+      err_exit "Could not copy ${source_file} to ${NODE_HOME}. Nothing was changed; run this again."
+    fi
+  done
+  for tool in cardano-node cardano-cli; do
+    [[ -f "${stage}/${tool}" ]] || continue
+    if [[ "$(dispatcher_layout_tool_version "${stage}/${tool}")" != \
+          "$(dispatcher_layout_tool_version "${HOME}/.local/bin/${tool}")" ]]; then
+      rm -rf -- "${stage}"
+      err_exit "The copy of ${tool} does not report the same version as ${HOME}/.local/bin/${tool}."
+    fi
+  done
+  chmod 0755 "${stage}" ||
+    err_exit "Could not set permissions on ${stage}."
+  if [[ ! -e "${NODE_HOME}/bin" ]]; then
+    mv -- "${stage}" "${NODE_HOME}/bin" ||
+      err_exit "Could not move the copied binaries into ${NODE_HOME}/bin."
+  else
+    for tool in "${BINARY_LAYOUT_COPY[@]}"; do
+      mv -n -- "${stage}/${tool}" "${NODE_HOME}/bin/${tool}" ||
+        err_exit "Could not move ${tool} into ${NODE_HOME}/bin."
+    done
+    rm -rf -- "${stage}"
+  fi
+  BINARY_LAYOUT_COPIED="Y"
+  log_ok "Binaries copied unchanged" "${#BINARY_LAYOUT_COPY[@]} files"
+}
+
+# Other deployments of this user that still run from ~/.local/bin.
+dispatcher_layout_shared_users() {
+  local candidate="" implementation="" primary=""
+  local -a candidates=("${NODE_PARENT}"/*)
+  local -A seen=()
+
+  while IFS= read -r candidate; do
+    candidates+=("${candidate}")
+  done < <(sed -nE 's/^export [A-Z0-9_]+_HOME="?([^"]+)"?$/\1/p' "${HOME}/.bashrc" 2>/dev/null)
+  for candidate in "${candidates[@]}"; do
+    [[ -n "${candidate}" && "${candidate}" != "${NODE_HOME}" && -z "${seen[${candidate}]:-}" ]] || continue
+    seen["${candidate}"]=1
+    [[ -O "${candidate}" && -f "${candidate}/scripts/env" ]] || continue
+    implementation="$(jq -r '.implementation // "cnode"' "${candidate}/.deployment.json" 2>/dev/null || true)"
+    primary="$(dispatcher_layout_primary_binary "${implementation:-cnode}")"
+    [[ -x "${candidate}/bin/${primary}" ]] || printf '%s\n' "${candidate}"
+  done
+}
+
+# The command that moves each item still on ~/.local/bin over. On cnode only
+# the Mithril signer names a binary path: its unit (written by -d) and
+# mithril.env's CARDANO_CLI_PATH (written by -e). Every other cnode unit starts
+# a script, so one that names ~/.local/bin was made by hand.
+dispatcher_binary_layout_unit_advice() {
+  local item="" signer="N" reinstall="N"
+  local signer_unit="${NODE_SERVICE}-mithril-signer.service"
+  local -a commands=() custom=()
+
+  for item in "$@"; do
+    case "${item}" in
+      "${NODE_HOME}/mithril/mithril.env")
+        commands+=("${NODE_HOME}/scripts/mithril-signer.sh -e   # asks the relay and metrics questions again")
+        signer="Y"
+        ;;
+      "${signer_unit}")
+        commands+=("${NODE_HOME}/scripts/mithril-signer.sh -d")
+        signer="Y"
+        ;;
+      *)
+        if [[ "${NODE_IMPLEMENTATION}" == dingo || "${NODE_IMPLEMENTATION}" == amaru ]]; then
+          [[ "${reinstall}" == "Y" ]] ||
+            commands+=("${NODE_HOME}/scripts/${NODE_IMPLEMENTATION}.sh install")
+          reinstall="Y"
+        else
+          custom+=("${item}")
+        fi
+        ;;
+    esac
+  done
+  if [[ "${signer}" == "Y" ]]; then
+    if [[ -f "${SYSTEMD_UNIT_DIR:-/etc/systemd/system}/${signer_unit}" ]]; then
+      commands+=("sudo systemctl restart ${signer_unit}")
+    else
+      commands+=("# then restart mithril-signer")
+    fi
+  fi
+  if [[ ${#commands[@]} -gt 0 ]]; then
+    printf "  To move them over, run:\n"
+    printf "    %s\n" "${commands[@]}"
+  fi
+  if [[ ${#custom[@]} -gt 0 ]]; then
+    printf "  The guild scripts didn't write %s; change the path in it to %s/bin by hand.\n" \
+      "${custom[*]}" "${NODE_HOME}"
+  fi
+}
+
+# What is left for the operator after a deployment. Nothing here changes files:
+# ~/.local/bin may be serving other deployments, custom units or hand-kept tools.
+dispatcher_binary_layout_report() {
+  local shared="${HOME}/.local/bin"
+  local tool="" unit="" other=""
+  local -a old_copies=() differs=() units=() others=()
+
+  [[ -d "${NODE_HOME}/bin" ]] || return 0
+  for tool in cardano-node cardano-cli cardano-submit-api bech32 cardano-address cardano-db-sync \
+    cncli ogmios cardano-signer mithril-signer mithril-client cardano-hw-cli HID.node HID_hidraw.node \
+    gum fzf dingo amaru otelcol-contrib; do
+    [[ -f "${shared}/${tool}" && -f "${NODE_HOME}/bin/${tool}" ]] || continue
+    old_copies+=("${tool}")
+    cmp -s -- "${shared}/${tool}" "${NODE_HOME}/bin/${tool}" || differs+=("${tool}")
+  done
+  for unit in "${SYSTEMD_UNIT_DIR:-/etc/systemd/system}/${NODE_SERVICE}"*.service; do
+    [[ -f "${unit}" ]] && grep -qF -- "${HOME}/.local/bin" "${unit}" 2>/dev/null && units+=("$(basename "${unit}")")
+  done
+  if [[ -f "${NODE_HOME}/mithril/mithril.env" ]] &&
+     grep -qF -- "${HOME}/.local/bin" "${NODE_HOME}/mithril/mithril.env" 2>/dev/null; then
+    units+=("${NODE_HOME}/mithril/mithril.env")
+  fi
+
+  if [[ "${BINARY_LAYOUT_COPIED:-N}" = "Y" ]]; then
+    printf "\n  This deployment now runs from %s/bin.\n" "${NODE_HOME}"
+    # After -s d the shared files are older than these scripts allow.
+    if [[ "${S_ARGS:-}" != *d* ]]; then
+      printf "  To undo the copy, rename that folder and the deployment returns to the shared files:\n"
+      printf "    mv %s/bin %s/bin.disabled\n" "${NODE_HOME}" "${NODE_HOME}"
+    fi
+  fi
+  if [[ ${#units[@]} -gt 0 ]]; then
+    printf "\n  These still run binaries from %s:\n" "${shared}"
+    printf "    %s\n" "${units[@]}"
+    dispatcher_binary_layout_unit_advice "${units[@]}"
+  fi
+  [[ ${#old_copies[@]} -gt 0 ]] || return 0
+  printf "\n  Old copies in %s are no longer used by this deployment:\n" "${shared}"
+  printf "    %s\n" "${old_copies[*]}"
+  if [[ ${#differs[@]} -gt 0 ]]; then
+    printf "  At a prompt they run first unless you source activate, and these now differ: %s\n" "${differs[*]}"
+  fi
+  while IFS= read -r other; do
+    others+=("${other}")
+  done < <(dispatcher_layout_shared_users)
+  if [[ ${#others[@]} -gt 0 ]]; then
+    printf "  Keep them for now. These deployments still use them:\n"
+    printf "    %s\n" "${others[@]}"
+  elif [[ ${#units[@]} -eq 0 ]]; then
+    printf "  No other deployment of this user needs them, so you can remove them:\n"
+    printf "    cd %s && rm -f %s\n" "${shared}" "${old_copies[*]}"
+  fi
+}
+
+# Commands typed by hand use this to pick a deployment's binaries.
+dispatcher_install_activate() {
+  local source_file=""
+  local target="${NODE_HOME}/scripts/activate"
+  local staged=""
+
+  source_file="$(dispatcher_source_path "scripts/common-helper-scripts/activate")" || {
+    log_warn "The source snapshot has no activate script."
+    return 0
+  }
+  staged="$(mktemp "${target}.tmp.XXXXXX")" ||
+    err_exit "Could not stage ${target}."
+  if ! cp -- "${source_file}" "${staged}" ||
+     ! chmod 0644 "${staged}" ||
+     ! mv -f -- "${staged}" "${target}"; then
+    rm -f -- "${staged}"
+    err_exit "Could not install ${target}."
+  fi
+}
+
+dispatcher_extract_user_header() {
+  local source_file="${1:-}"
+
+  [[ -f "${source_file}" ]] || return 1
+  [[ "$(grep -c '^# Do NOT modify code below' "${source_file}" 2>/dev/null)" = "1" ]] ||
+    return 1
+  awk '/^#!/{copy=1} /^# Do NOT modify code below/{exit} copy' "${source_file}"
+}
+
+dispatcher_install_self() {
+  local source_file=""
+  local target_file="${NODE_HOME}/scripts/guild-deploy.sh"
+  local archive_dir="${NODE_HOME}/scripts/archive"
+  local staged_file=""
+  local user_header=""
+  local runtime_body=""
+
+  source_file="$(dispatcher_source_path 'scripts/cnode-helper-scripts/guild-deploy.sh')" ||
+    err_exit "Could not stage guild-deploy.sh from the prepared source snapshot."
+  [[ -d "${NODE_HOME}/scripts" ]] ||
+    err_exit "Deployment profile completed without creating ${NODE_HOME}/scripts."
+  if [[ -L "${target_file}" ||
+        ( -e "${target_file}" && ! -f "${target_file}" ) ]]; then
+    err_exit "Refusing to replace unsafe dispatcher target ${target_file}."
+  fi
+
+  if [[ -f "${target_file}" ]]; then
+    user_header="$(dispatcher_extract_user_header "${target_file}")" ||
+      err_exit "Installed guild-deploy.sh has an invalid user-variable header."
+  elif [[ -n "${GUILD_DEPLOY_USER_HEADER:-}" ]]; then
+    user_header="${GUILD_DEPLOY_USER_HEADER}"
+  else
+    user_header="$(dispatcher_extract_user_header "${source_file}")" ||
+      err_exit "Source guild-deploy.sh has an invalid user-variable header."
+  fi
+  runtime_body="$(awk '/^# Do NOT modify code below/{copy=1} copy' "${source_file}")"
+  [[ -n "${user_header}" && -n "${runtime_body}" ]] ||
+    err_exit "Could not prepare the installed guild-deploy.sh."
+
+  staged_file="$(mktemp "${NODE_HOME}/scripts/.guild-deploy.sh.install.XXXXXX")" ||
+    err_exit "Could not create dispatcher installation staging file."
+  if ! printf '%s\n%s\n' "${user_header}" "${runtime_body}" > "${staged_file}" ||
+     ! bash -n "${staged_file}" ||
+     ! chmod 0755 "${staged_file}"; then
+    rm -f -- "${staged_file}"
+    err_exit "Could not validate the installed guild-deploy.sh candidate."
+  fi
+
+  if [[ -f "${target_file}" ]] &&
+     cmp -s "${target_file}" "${staged_file}" &&
+     [[ -n "$(find "${target_file}" -prune -perm 0755 -print)" ]]; then
+    rm -f -- "${staged_file}"
+    log_ok "guild-deploy.sh is current" "${target_file}"
+    return 0
+  fi
+
+  mkdir -p "${archive_dir}" || {
+    rm -f -- "${staged_file}"
+    err_exit "Could not create the dispatcher archive directory."
+  }
+  if [[ -f "${target_file}" ]]; then
+    cp -p -- "${target_file}" \
+      "${archive_dir}/guild-deploy.sh_bkp$(date +%s).$$" || {
+      rm -f -- "${staged_file}"
+      err_exit "Could not archive the installed guild-deploy.sh."
     }
   fi
-  rm -f "${PARENT}"/guild-deploy.sh.tmp
-  log_ok "guild-deploy.sh is current"
+  mv -f -- "${staged_file}" "${target_file}" || {
+    rm -f -- "${staged_file}"
+    err_exit "Could not atomically install guild-deploy.sh."
+  }
+  log_ok "guild-deploy.sh installed" "${target_file}"
 }
 
-# Initialise all variables
-common_init() {
-  dirs -c # clear dir stack
-  set_defaults
-  mkdir -p "${HOME}"/tmp "${HOME}"/git > /dev/null 2>&1
-  [[ ! -d "${HOME}"/.local/bin ]] && mkdir -p "${HOME}"/.local/bin
-  if ! grep -q '/.local/bin' "${HOME}"/.bashrc; then
-    printf '\nexport PATH="${HOME}/.local/bin:${PATH}"\n' >> "${HOME}"/.bashrc
-    ADDED_LOCAL_BIN_PATH="Y"
-  fi
-  NODE_DEPS="$(curl -sfL "${URL_RAW}"/files/node-deps.json)"
+dispatcher_capability_default() {
+  local capability="$1"
+  case "${NODE_IMPLEMENTATION}:${capability}" in
+    cnode:n2c|cnode:local_cli|cnode:metrics|cnode:forging) printf 'true' ;;
+    dingo:n2c|dingo:local_cli|dingo:metrics|dingo:forging) printf 'true' ;;
+    amaru:metrics|amaru:forging) printf 'true' ;;
+    *) printf 'false' ;;
+  esac
 }
 
-### Update file retaining existing custom configs
-updateWithCustomConfig() {
-  file=$1
-  [[ $# -ne 2 ]] && subdir="cnode-helper-scripts" || subdir=$2
-  ACTIVE_STEP="Refreshing ${file}"
-  curl -s -f -m ${CURL_TIMEOUT} -o ${file}.tmp "${URL_RAW}/scripts/${subdir}/${file}"
-  [[ ! -f ${file}.tmp ]] && err_exit "Failed to download '${file}' from GitHub"
-  if [[ -f ${file} && ${SCRIPTS_FORCE_OVERWRITE} != 'Y' ]]; then
-    if grep '^# Do NOT modify' ${file}.tmp >/dev/null 2>&1; then
-      TEMPL_CMD=$(awk '/^# Do NOT modify/,0' ${file}.tmp)
-      STATIC_CMD=$(awk '/#!/{x=1}/^# Do NOT modify/{exit} x' ${file})
-      printf '%s\n%s\n' "${STATIC_CMD}" "${TEMPL_CMD}" > ${file}.tmp
-    else
-      rm -f ${file}.tmp
-      err_exit "Problems encountered while fetching \"${file}\" from Github, could be an issue with connectivity or Github site!"
-    fi
-  fi
-  [[ ! -d ./archive ]] && mkdir archive
-  [[ -f ${file} ]] && cp -f ${file} ./archive/"${file}_bkp$(date +%s)"
-  mv -f ${file}.tmp ${file}
-  [[ "${file}" == *.sh ]] && chmod 755 ${file}
-}
-
-# Description : Add epel repository when needed
-#             : $1 = DISTRO
-#             : $2 = Epel repository VERSION_ID
-#             : $3 = pkg_opts for repo install
-add_epel_repository() {
-  if [[ "${1}" =~ Fedora ]]; then return; fi
-  log_progress "Enabling EPEL repository"
-  ! grep -q ^epel <<< "$(dnf repolist)" && $sudo dnf install ${3} https://dl.fedoraproject.org/pub/epel/epel-release-latest-"${2}".noarch.rpm > /dev/null
-  log_ok "EPEL repository ready"
-}
-
-# OS Dependencies
-os_dependencies() {
-  pkg_opts="-y"
-  log_info "Preparing OS packages for ${DISTRO}."
-  if [[ "${OS_ID}" =~ ebian ]] || [[ "${OS_ID}" =~ buntu ]] || [[ "${DISTRO}" =~ ebian ]] || [[ "${DISTRO}" =~ buntu ]]; then
-    #Debian/Ubuntu
-    pkgmgrcmd="env NEEDRESTART_MODE=a env DEBIAN_FRONTEND=noninteractive env DEBIAN_PRIORITY=critical apt-get"
-    pkg_list="python3 pkg-config systemd tmux git jq libtool bc gnupg libtool iproute2 tcptraceroute sqlite3 bsdmainutils unzip procps xxd"
-    if [[ "${LIBSODIUM_FORK}" == "Y" ]] || [[ "${WANT_BUILD_DEPS}" == "Y" ]]; then
-      pkg_list="${pkg_list} build-essential make g++ autoconf automake"
-    fi
-    if [[ "${WANT_BUILD_DEPS}" == "Y" ]]; then
-      libncurses_pkg="libncursesw5"
-      [[ -f /etc/debian_version ]] && grep -qE '(trixie|13)' /etc/debian_version && libncurses_pkg="libncursesw6"
-      [[ "${DISTRO}" =~ Ubuntu && ${VERSION_ID} -ge 26 ]] && libncurses_pkg="libncursesw6"
-      pkg_list="${pkg_list} ${libncurses_pkg} libtinfo-dev libnuma-dev libpq-dev liblmdb-dev libsnappy-dev protobuf-compiler liburing-dev libffi-dev libgmp-dev libssl-dev libsystemd-dev zlib1g-dev llvm clang"
-    fi
-    if [[ "${INSTALL_CWHCLI}" == "Y" ]]; then
-      pkg_list="${pkg_list} libusb-1.0-0-dev libudev-dev"
-    fi
-  elif [[ "${OS_ID}" =~ rhel ]] || [[ "${OS_ID}" =~ fedora ]] || [[ "${DISTRO}" =~ Fedora ]]; then
-    #CentOS/RHEL/Fedora/RockyLinux
-    pkgmgrcmd="dnf"
-    pkg_list="python3 coreutils systemd tmux git jq gnupg2 libtool iproute bc traceroute sqlite util-linux xz unzip procps-ng udev vim-common"
-    if [[ "${VERSION_ID}" =~ "8" ]] || [[ "${VERSION_ID}" =~ "9" ]]; then
-      #RHEL/CentOS/RockyLinux 8/9
-      if ${pkgmgrcmd} install -h  | grep -q "\ --allowerasing"; then pkg_opts="${pkg_opts} --allowerasing"; fi
-      if [[ "${DISTRO}" =~ Rocky ]]; then
-        #RockyLinux 8/9
-        pkg_list="${pkg_list} --enablerepo=devel,crb libusbx ncurses-compat-libs pkgconf-pkg-config"
-      elif [[ "${DISTRO}" =~ "Red Hat" ]]; then
-        pkg_list="${pkg_list} --enablerepo=codeready-builder-for-rhel-${VERSION_ID/.*/}-x86_64-rpms libusbx ncurses-compat-libs pkgconf-pkg-config"
-      fi
-    elif [[ "${DISTRO}" =~ Fedora ]]; then
-      #Fedora
-      if ${pkgmgrcmd} install -h  | grep -q "\ --allowerasing"; then pkg_opts="${pkg_opts} --allowerasing"; fi
-      pkg_list="${pkg_list} libusbx ncurses-compat-libs pkgconf-pkg-config"
-    fi
-    if [[ "${LIBSODIUM_FORK}" == "Y" ]] || [[ "${WANT_BUILD_DEPS}" == "Y" ]]; then
-      pkg_list="${pkg_list} make gcc-c++ autoconf automake"
-    fi
-    if [[ "${WANT_BUILD_DEPS}" == "Y" ]]; then
-      pkg_list="${pkg_list} ncurses-libs ncurses-devel openssl-devel systemd-devel llvm clang numactl-devel libffi-devel gmp-devel zlib-devel lmdb-devel lmdb liburing-devel snappy-devel protobuf-compiler"
-    fi
-    add_epel_repository "${DISTRO}" "${VERSION_ID}" "${pkg_opts}"
+dispatcher_metrics_provider() {
+  if [[ -n "${PROFILE_METRICS_PROVIDER:-}" ]]; then
+    printf '%s' "${PROFILE_METRICS_PROVIDER}"
   else
-    err_exit "No automated OS dependency procedure is available for ${DISTRO}."
-  fi
-  log_progress "Updating package metadata"
-  $sudo ${pkgmgrcmd} update ${pkg_opts} > /dev/null;rc=$?
-  if [[ $rc != 0 ]]; then
-    err_exit "Package metadata update failed: ${pkgmgrcmd} ${pkg_opts} update"
-  fi
-  log_ok "Package metadata updated"
-  log_progress "Installing prerequisite packages"
-  $sudo ${pkgmgrcmd} install ${pkg_opts} ${pkg_list} > /dev/null;rc=$?
-  if [[ $rc != 0 ]]; then
-    err_exit "Prerequisite package installation failed. Re-run manually to inspect: $sudo ${pkgmgrcmd} install ${pkg_opts} ${pkg_list}"
-  fi
-  log_ok "Prerequisite packages ready"
-  if [[ "${OS_ID}" =~ rhel ]] || [[ "${OS_ID}" =~ fedora ]] || [[ "${DISTRO}" =~ Fedora ]]; then
-    if [ -e /usr/lib64/libtinfo.so ] && [ -e /usr/lib64/libtinfo.so.5 ]; then
-      log_info "ncurses compatibility symlinks already present."
-    else
-      log_progress "Updating ncurses compatibility symlinks"
-      $sudo ln -s "$(find /usr/lib64/libtinfo.so* | tail -1)" /usr/lib64/libtinfo.so
-      $sudo ln -s "$(find /usr/lib64/libtinfo.so* | tail -1)" /usr/lib64/libtinfo.so.5
-      log_ok "ncurses compatibility symlinks updated"
-    fi
-  fi
-  log_ok "OS dependencies checked" "${DISTRO}"
-}
-
-# Build Dependencies for cabal builds
-build_dependencies() {
-  log_info "Preparing Haskell toolchain dependencies."
-  export BOOTSTRAP_HASKELL_NO_UPGRADE=1
-  export BOOTSTRAP_HASKELL_GHC_VERSION=9.6.7
-  export BOOTSTRAP_HASKELL_CABAL_VERSION=3.12.1.0
-  export GHCUP_SKIP_UPDATE_CHECK=1
-  if ! command -v ghcup &>/dev/null; then
-    log_progress "Installing ghcup"
-    BOOTSTRAP_HASKELL_NONINTERACTIVE=1
-    BOOTSTRAP_HASKELL_MINIMAL=1
-    BOOTSTRAP_HASKELL_ADJUST_BASHRC=1
-    unset BOOTSTRAP_HASKELL_INSTALL_HLS
-    export BOOTSTRAP_HASKELL_NONINTERACTIVE BOOTSTRAP_HASKELL_MINIMAL BOOTSTRAP_HASKELL_ADJUST_BASHRC
-    curl -s -m ${CURL_TIMEOUT} --proto '=https' --tlsv1.2 -sSf https://get-ghcup.haskell.org | bash >/dev/null 2>&1
-    log_ok "ghcup installed"
-  fi
-  [[ -f "${HOME}/.ghcup/env" ]] && source "${HOME}/.ghcup/env"
-  if ! ghc --version 2>/dev/null | grep -q ${BOOTSTRAP_HASKELL_GHC_VERSION}; then
-    log_progress "Updating ghcup metadata"
-    ghcup upgrade >/dev/null 2>&1
-    log_ok "ghcup metadata updated"
-    log_progress "Installing GHC" "v${BOOTSTRAP_HASKELL_GHC_VERSION}"
-    # BEGIN TEMPORARY GHCUP DEBUG BLOCK
-    # Keep this block noisy while investigating RockyLinux CI stalls during GHC installation.
-    # Restore the production command below when replacing this diagnostics block.
-    # ghcup install ghc ${BOOTSTRAP_HASKELL_GHC_VERSION} >/dev/null 2>&1 || err_exit "Command failed: ghcup install ghc ${BOOTSTRAP_HASKELL_GHC_VERSION}"
-    log_info "ghcup version: $(ghcup --version 2>&1 | head -n 1)"
-    ghcup tool-requirements || true
-    printf "\n"
-    df -h || true
-    free -h || true
-    env | sort | grep -E '^(BOOTSTRAP_HASKELL|GHCUP|PATH|HOME|LANG|LC_|TERM|SHELL)=' || true
-
-    ghcup_log="${HOME}/ghcup-install-ghc-${BOOTSTRAP_HASKELL_GHC_VERSION}.log"
-    ghcup --verbose install ghc "${BOOTSTRAP_HASKELL_GHC_VERSION}" > >(tee "${ghcup_log}") 2>&1 &
-    ghcup_pid=$!
-    ghcup_start=${SECONDS}
-    while kill -0 "${ghcup_pid}" 2>/dev/null; do
-      sleep 15
-      if kill -0 "${ghcup_pid}" 2>/dev/null; then
-        log_info "Still installing GHC v${BOOTSTRAP_HASKELL_GHC_VERSION} ($((SECONDS-ghcup_start))s elapsed)."
-        df -h / /root /tmp "${HOME}/.ghcup" 2>/dev/null || df -h || true
-        du -sh "${HOME}/.ghcup" "${HOME}/.ghcup/tmp" /tmp 2>/dev/null || true
-        if ps -ef --forest >/dev/null 2>&1; then
-          ps -ef --forest
-        else
-          ps -ef 2>/dev/null
-        fi | grep -E 'ghcup|ghc|make|configure|install' | grep -v grep || true
-        tail -n 30 "${ghcup_log}" || true
-      fi
-    done
-    wait "${ghcup_pid}"
-    ghcup_rc=$?
-    tail -n 200 "${ghcup_log}" || true
-    [[ ${ghcup_rc} -eq 0 ]] || err_exit "Command failed: ghcup install ghc ${BOOTSTRAP_HASKELL_GHC_VERSION}"
-    # END TEMPORARY GHCUP DEBUG BLOCK
-    ghcup set ghc ${BOOTSTRAP_HASKELL_GHC_VERSION} >/dev/null 2>&1
-    log_ok "GHC ready" "v${BOOTSTRAP_HASKELL_GHC_VERSION}"
-  fi
-  cabal_version=$(cabal --version 2>/dev/null | head -n 1 | cut -d' ' -f3)
-  if [[ -z ${cabal_version} || ! ${cabal_version} = "${BOOTSTRAP_HASKELL_CABAL_VERSION}" ]]; then
-    if [[ -n ${cabal_version} ]]; then
-      log_progress "Removing previous Cabal release"
-      ghcup rm cabal ${cabal_version} >/dev/null 2>&1
-      log_ok "Previous Cabal release removed"
-    fi
-    log_progress "Installing Cabal" "v${BOOTSTRAP_HASKELL_CABAL_VERSION}"
-    ghcup install cabal ${BOOTSTRAP_HASKELL_CABAL_VERSION} >/dev/null 2>&1 || err_exit "Command failed: ghcup install cabal ${BOOTSTRAP_HASKELL_CABAL_VERSION}"
-    log_ok "Cabal ready" "v${BOOTSTRAP_HASKELL_CABAL_VERSION}"
-  fi
-  build_libsecp
-  build_libblst
-  log_info "Toolchain ready: GHC v${BOOTSTRAP_HASKELL_GHC_VERSION}, Cabal v${BOOTSTRAP_HASKELL_CABAL_VERSION}."
-}
-
-# Build fork of libsodium
-build_libsodium() {
-  SODIUM_REF="$(jq -r '."'${CARDANO_NODE_VERSION}'".sodium' <<< ${NODE_DEPS} 2>/dev/null)"
-  if ! grep -q "/usr/local/lib:\$LD_LIBRARY_PATH" "${HOME}"/.bashrc; then
-    printf '\nexport LD_LIBRARY_PATH=/usr/local/lib:$LD_LIBRARY_PATH\n' >> "${HOME}"/.bashrc
-    export LD_LIBRARY_PATH=/usr/local/lib:$LD_LIBRARY_PATH
-    log_info "Added /usr/local/lib to LD_LIBRARY_PATH in ${HOME}/.bashrc."
-  fi
-  log_progress "Building libsodium"
-  pushd "${HOME}"/git >/dev/null || err_exit "Could not enter build directory: ${HOME}/git"
-  [[ ! -d "./libsodium" ]] && git clone https://github.com/intersectmbo/libsodium >/dev/null
-  pushd libsodium >/dev/null || err_exit "Could not enter libsodium source directory."
-  git fetch >/dev/null 2>&1
-  [[ -z "${SODIUM_REF}" || "${SODIUM_REF}" == "null" ]] && SODIUM_REF="dbb48cc"
-  git checkout "${SODIUM_REF}" &>/dev/null
-  local sodium_log="/tmp/libsodium.log"
-  : > "${sodium_log}"
-  DO_NOT_UPDATE_CONFIG_SCRIPTS=1 ./autogen.sh >> "${sodium_log}" 2>&1 || { cat "${sodium_log}"; err_exit "Could not prepare libsodium build files. See ${sodium_log} for details."; }
-  ./configure >> "${sodium_log}" 2>&1 || { cat "${sodium_log}"; err_exit "Could not configure libsodium. See ${sodium_log} for details."; }
-  make >> "${sodium_log}" 2>&1 || { cat "${sodium_log}"; err_exit "Could not complete make for libsodium. See ${sodium_log} for details."; }
-  $sudo make install >> "${sodium_log}" 2>&1 || { cat "${sodium_log}"; err_exit "Could not install libsodium. See ${sodium_log} for details."; }
-  command -v pkg-config >/dev/null 2>&1 || err_exit "libsodium installed, but pkg-config is not available to verify it."
-  export PKG_CONFIG_PATH="/usr/local/lib/pkgconfig:${PKG_CONFIG_PATH:-}"
-  pkg-config --exists libsodium || { pkg-config --list-all | grep -i sodium || true; err_exit "libsodium installed, but pkg-config metadata was not found."; }
-  local sodium_version sodium_detail
-  sodium_version="$(pkg-config --modversion libsodium 2>/dev/null || true)"
-  sodium_detail="${SODIUM_REF}"
-  [[ -n "${sodium_version}" ]] && sodium_detail="${sodium_detail}, ${sodium_version}"
-  log_ok "libsodium installed" "${sodium_detail}"
-}
-
-build_libsecp() {
-  SECP256K1_REF="$(jq -r '."'${CARDANO_NODE_VERSION}'".secp256k1' <<< ${NODE_DEPS} 2>/dev/null)"
-  log_progress "Building libsecp256k1"
-  pushd "${HOME}"/git >/dev/null || err_exit "Could not enter build directory: ${HOME}/git"
-  [[ ! -d "./secp256k1" ]] && git clone https://github.com/bitcoin-core/secp256k1 &>/dev/null
-  pushd secp256k1 >/dev/null || err_exit "Could not enter libsecp256k1 source directory."
-  git fetch >/dev/null 2>&1
-  [[ -z "${SECP256K1_REF}" || "${SECP256K1_REF}" == "null" ]] && SECP256K1_REF="ac83be33"
-  git checkout ${SECP256K1_REF} &>/dev/null
-  ./autogen.sh > autogen.log > /tmp/secp256k1.log 2>&1
-  ./configure --enable-module-schnorrsig --enable-experimental > configure.log >> /tmp/secp256k1.log 2>&1
-  make > make.log 2>&1 || err_exit "Could not complete make for libsecp256k1. See make.log for details."
-  make check >>make.log 2>&1
-  $sudo make install > install.log 2>&1
-  if ! grep -q "/usr/local/lib:\$LD_LIBRARY_PATH" "${HOME}"/.bashrc; then
-    printf '\nexport LD_LIBRARY_PATH=/usr/local/lib:$LD_LIBRARY_PATH\n' >> "${HOME}"/.bashrc
-    export LD_LIBRARY_PATH=/usr/local/lib:$LD_LIBRARY_PATH
-    log_info "Added /usr/local/lib to LD_LIBRARY_PATH in ${HOME}/.bashrc."
-  fi
-  log_ok "libsecp256k1 installed" "${SECP256K1_REF}"
-}
-
-build_libblst() {
-  BLST_REF="$(jq -r '."'${CARDANO_NODE_VERSION}'".blst' <<< ${NODE_DEPS} 2>/dev/null)"
-  if ! grep -q "/usr/local/lib:\$LD_LIBRARY_PATH" "${HOME}"/.bashrc; then
-    printf '\nexport LD_LIBRARY_PATH=/usr/local/lib:$LD_LIBRARY_PATH\n' >> "${HOME}"/.bashrc
-    export LD_LIBRARY_PATH=/usr/local/lib:$LD_LIBRARY_PATH
-    log_info "Added /usr/local/lib to LD_LIBRARY_PATH in ${HOME}/.bashrc."
-  fi
-  log_progress "Building BLST"
-  pushd "${HOME}"/git >/dev/null || err_exit "Could not enter build directory: ${HOME}/git"
-  [[ ! -d "./blst" ]] && git clone https://github.com/supranational/blst &>/dev/null
-  pushd blst >/dev/null || err_exit "Could not enter BLST source directory."
-  git fetch >/dev/null 2>&1
-  [[ -z "${BLST_REF}" || "${BLST_REF}" == "null" ]] && BLST_REF="v0.3.14"
-  git checkout ${BLST_REF} &>/dev/null
-  ./build.sh >/dev/null 2>&1
-  cat <<-EOF >libblst.pc
-		prefix=/usr/local
-		exec_prefix=\${prefix}
-		libdir=\${exec_prefix}/lib
-		includedir=\${prefix}/include
-
-		Name: libblst
-		Description: Multilingual BLS12-381 signature library
-		URL: https://github.com/supranational/blst
-		Version: 0.3.14
-		Cflags: -I\${includedir}
-		Libs: -L\${libdir} -lblst
-		EOF
-  [[ ! -d /usr/local/lib/pkgconfig ]] && $sudo mkdir -p /usr/local/lib/pkgconfig
-  $sudo cp -f libblst.pc /usr/local/lib/pkgconfig/
-  $sudo cp bindings/blst_aux.h bindings/blst.h bindings/blst.hpp  /usr/local/include/
-  $sudo cp libblst.a /usr/local/lib
-  $sudo chmod u=rw,go=r /usr/local/{lib/{libblst.a,pkgconfig/libblst.pc},include/{blst.{h,hpp},blst_aux.h}}
-  log_ok "BLST installed" "${BLST_REF}"
-}
-
-# Download cardano-node, cardano-cli, cardano-db-sync, bech32 and cardano-submit-api
-# TODO: Replace these with self-hosted ones (potentially consider snapshots.koios.rest as upload destination for CI)
-download_cnodebins() {
-  pushd "${HOME}"/tmp >/dev/null || err_exit "Could not enter temporary directory: ${HOME}/tmp"
-  log_progress "Downloading cardano-node" "${CARDANO_NODE_VERSION}"
-  rm -f cardano-node cardano-address
-  [[ -z ${ARCH##*aarch64*} ]] && node_arch="arm64" || node_arch="amd64"
-  curl -m 200 -sfL "https://github.com/intersectmbo/cardano-node/releases/download/${CARDANO_NODE_VERSION}/cardano-node-${CARDANO_NODE_VERSION}-linux-${node_arch}.tar.gz" -o cnode.tar.gz || err_exit "Could not download cardano-node release ${CARDANO_NODE_VERSION} from GitHub."
-  # Keep Mithril signer/client managed together by download_mithril; the node bundle
-  # can contain an older signer. Install cardano-cli separately at CARDANO_CLI_VERSION.
-  tar zxf cnode.tar.gz --strip-components 2 ./bin/cardano-node ./bin/cardano-submit-api ./bin/bech32 ./bin/snapshot-converter &>/dev/null
-  rm -f cnode.tar.gz
-  [[ -f cardano-node ]] || err_exit "cardano-node archive downloaded, but binary 'cardano-node' was not found after extraction."
-  [[ -f cardano-submit-api ]] || err_exit "cardano-node archive downloaded, but binary 'cardano-submit-api' was not found after extraction."
-  [[ -f bech32 ]] || err_exit "cardano-node archive downloaded, but binary 'bech32' was not found after extraction."
-  log_progress "Downloading cardano-cli" "${CARDANO_CLI_VERSION}"
-  [[ -z ${ARCH##*aarch64*} ]] && cli_arch="aarch64" || cli_arch="x86_64"
-  curl -m 200 -sfL "https://github.com/IntersectMBO/cardano-cli/releases/download/cardano-cli-${CARDANO_CLI_VERSION}/cardano-cli-${CARDANO_CLI_VERSION}-${cli_arch}-linux.tar.gz" -o ccli.tar.gz || err_exit "Could not download cardano-cli release ${CARDANO_CLI_VERSION} from GitHub."
-  tar zxf ccli.tar.gz --strip-components 0 cardano-cli-${cli_arch}-linux &>/dev/null && mv cardano-cli-${cli_arch}-linux cardano-cli
-  rm -f ccli.tar.gz
-  [[ -f cardano-cli ]] || err_exit "cardano-cli archive downloaded, but binary 'cardano-cli' was not found after extraction."
-  log_progress "Downloading cardano-address" "${CADDR_VERSION}"
-  curl -m 200 -sfL "https://share.koios.rest/api/public/dl/xFdZDfM4/bin/cardano-address-${CADDR_VERSION}-$(uname -m).tar.gz" -o caddress.tar.gz || err_exit "Could not download cardano-address from GitHub."
-  tar zxf caddress.tar.gz --transform='s#.*\/##g' --wildcards cardano-address &>/dev/null
-  rm -f caddress.tar.gz
-  [[ -f cardano-address ]] || err_exit "cardano-address archive downloaded, but binary 'cardano-address' was not found after extraction."
-  if [[ "${SKIP_DBSYNC_DOWNLOAD}" == "N" ]]; then
-    log_progress "Downloading cardano-db-sync" "${DBSYNC_VERSION}"
-    curl -m 200 -sfL "https://share.koios.rest/api/public/dl/xFdZDfM4/bin/cardano-db-sync-${DBSYNC_VERSION}-$(uname -m).tar.gz" -o cnodedbsync.tar.gz || err_exit "Could not download cardano-db-sync release ${DBSYNC_VERSION}."
-    tar zxf cnodedbsync.tar.gz --strip-components 1 ./cardano-db-sync ./cardano-db-tool &>/dev/null
-    [[ -f cardano-db-sync ]] || err_exit "cardano-db-sync archive downloaded, but binary 'cardano-db-sync' was not found after extraction."
-    rm -f cnodedbsync.tar.gz
-    mv -f -t "${HOME}"/.local/bin cardano-db-sync
-    log_ok "Deployed cardano-db-sync" "${DBSYNC_VERSION}"
-  else
-    log_info "Skipped cardano-db-sync binary download."
-  fi
-  mv -f -t "${HOME}"/.local/bin cardano-node cardano-cli cardano-submit-api bech32 cardano-address
-  chmod +x "${HOME}"/.local/bin/*
-  log_ok "Deployed cardano-node" "${CARDANO_NODE_VERSION}"
-  log_ok "Deployed cardano-cli" "${CARDANO_CLI_VERSION}"
-  log_ok "Deployed cardano-submit-api" "${CARDANO_NODE_VERSION}"
-  log_ok "Deployed bech32" "${CARDANO_NODE_VERSION}"
-  log_ok "Deployed cardano-address" "${CADDR_VERSION}"
-}
-
-# Download CNCLI
-download_cncli() {
-  [[ -z ${ARCH##*aarch64*} ]] && err_exit "The CNCLI pre-compiled binary is not available for ARM; build it manually instead."
-  log_progress "Resolving CNCLI release"
-  cncli_git_version="$(curl -s https://api.github.com/repos/cardano-community/cncli/releases/latest | jq -r '.tag_name' 2>/dev/null)"
-  [[ -n "${cncli_git_version}" && "${cncli_git_version}" != "null" ]] || err_exit "Could not resolve CNCLI release from GitHub."
-  log_progress "Downloading CNCLI" "${cncli_git_version}"
-  rm -rf /tmp/cncli-bin && mkdir /tmp/cncli-bin
-  pushd /tmp/cncli-bin >/dev/null || err_exit "Could not enter temporary CNCLI directory."
-  cncli_asset_url="$(curl -s https://api.github.com/repos/cardano-community/cncli/releases/latest | jq -r '.assets[].browser_download_url' 2>/dev/null | grep 'ubuntu22.*.linux-musl.tar.gz')"
-  [[ -n "${cncli_asset_url}" ]] || err_exit "No CNCLI Linux release asset was found for this installer."
-  if curl -sL -f -m ${CURL_TIMEOUT} -o cncli.tar.gz ${cncli_asset_url}; then
-    tar zxf cncli.tar.gz &>/dev/null
-    rm -f cncli.tar.gz
-    [[ -f cncli ]] || err_exit "CNCLI downloaded but binary (cncli) not found after extracting package!"
-    chmod +x /tmp/cncli-bin/cncli
-    mv -f /tmp/cncli-bin/cncli "${HOME}"/.local/bin/
-    rm -f "${HOME}"/.cargo/bin/cncli # Remove duplicate file in $PATH (old convention)
-    log_ok "Deployed CNCLI" "${cncli_git_version}"
-  else
-    err_exit "Download of latest release of CNCLI from GitHub failed! Please retry or install it manually."
-  fi
-}
-
-# Download pre-build cardano-hw-cli binary and it's dependencies
-download_cardanohwcli() {
-  [[ -z ${ARCH##*aarch64*} ]] && err_exit "The cardano-hw-cli pre-compiled binary is not available for ARM; build it manually instead."
-  log_progress "Resolving cardano-hw-cli release"
-  rm -rf /tmp/chwcli-bin && mkdir -p /tmp/chwcli-bin
-  pushd /tmp/chwcli-bin >/dev/null || err_exit "Could not enter temporary cardano-hw-cli directory."
-  rm -rf cardano-hw-cli*
-  vchc_release_json="$(curl -s https://api.github.com/repos/vacuumlabs/cardano-hw-cli/releases)"
-  vchc_git_version="$(jq -r '.[0].tag_name' <<< "${vchc_release_json}" 2>/dev/null)"
-  [[ -n "${vchc_git_version}" && "${vchc_git_version}" != "null" ]] || err_exit "Could not resolve cardano-hw-cli release from GitHub."
-  #vchc_asset_url="$(curl -s https://api.github.com/repos/vacuumlabs/cardano-hw-cli/releases/latest | jq -r '.assets[].browser_download_url' | grep '_linux-x64.tar.gz')"
-  vchc_asset_url="$(jq -r '.[0].assets[].browser_download_url' <<< "${vchc_release_json}" 2>/dev/null | grep '_linux-x64.tar.gz')"
-  [[ -n "${vchc_asset_url}" ]] || err_exit "No cardano-hw-cli Linux x64 release asset was found."
-  log_progress "Downloading cardano-hw-cli" "${vchc_git_version}"
-  if curl -sL -f -m ${CURL_TIMEOUT} -o cardano-hw-cli_linux-x64.tar.gz ${vchc_asset_url}; then
-    tar zxf cardano-hw-cli_linux-x64.tar.gz &>/dev/null
-    rm -f cardano-hw-cli_linux-x64.tar.gz
-    [[ -f cardano-hw-cli/cardano-hw-cli ]] || err_exit "cardano-hw-cli downloaded but binary not found after extracting package!"
-    mkdir -p "${HOME}"/.local/bin
-    rm -rf "${HOME}"/bin/cardano-hw-cli # Remove duplicate file in $PATH (old convention)
-    if [ -f "${HOME}"/.local/bin/cardano-hw-cli ]; then
-      rm -rf "${HOME}"/.local/bin/cardano-hw-cli
-    fi
-    pushd "${HOME}"/.local/bin >/dev/null || err_exit "Could not enter binary directory: ${HOME}/.local/bin"
-    mv -f /tmp/chwcli-bin/cardano-hw-cli/* ./
-    if [[ ! -f "/etc/udev/rules.d/20-hw1.rules" ]]; then
-      # Ledger udev rules
-      curl -s -f -m ${CURL_TIMEOUT} https://raw.githubusercontent.com/LedgerHQ/udev-rules/master/add_udev_rules.sh | $sudo bash >/dev/null 2>&1
-      $sudo sed -e "s@TAG+=\"uaccess\"@OWNER=\"$USER\", TAG+=\"uaccess\"@g" -i /etc/udev/rules.d/20-hw1.rules
-      log_info "Installed Ledger udev rules."
-    fi
-    if [[ ! -f "/etc/udev/rules.d/51-trezor.rules" ]]; then
-      # Trezor udev rules
-      $sudo curl -s -f -m ${CURL_TIMEOUT} https://data.trezor.io/udev/51-trezor.rules -o /etc/udev/rules.d/51-trezor.rules
-      $sudo sed -e "s@TAG+=\"uaccess\"@OWNER=\"$USER\", TAG+=\"uaccess\"@g" -i /etc/udev/rules.d/51-trezor.rules
-      log_info "Installed Trezor udev rules."
-    fi
-    # Trigger rules update
-    $sudo udevadm control --reload-rules >/dev/null 2>&1
-    $sudo udevadm trigger >/dev/null 2>&1
-    log_ok "Deployed cardano-hw-cli" "${vchc_git_version}"
-  else
-    err_exit "Download of latest release of cardano-hw-cli from GitHub failed! Please retry or manually install it."
-  fi
-}
-
-# Download pre-built ogmios binary
-download_ogmios() {
-  local OGMIOSPATH=""
-  log_progress "Resolving Ogmios release"
-  rm -rf /tmp/ogmios && mkdir /tmp/ogmios
-  pushd /tmp/ogmios >/dev/null || err_exit "Could not enter temporary Ogmios directory."
-  ogmios_release_json="$(curl -s https://api.github.com/repos/CardanoSolutions/ogmios/releases)"
-  ogmios_git_version="$(jq -r '.[0].tag_name' <<< "${ogmios_release_json}" 2>/dev/null)"
-  [[ -n "${ogmios_git_version}" && "${ogmios_git_version}" != "null" ]] || err_exit "Could not resolve Ogmios release from GitHub."
-  ogmios_release_file="x86_64-linux.zip"
-  [[ ${ARCH} == *aarch64* ]] && ogmios_release_file="aarch64-linux.zip"
-  ogmios_asset_url="$(jq -r '.[].assets[].browser_download_url' <<< "${ogmios_release_json}" 2>/dev/null | grep ${ogmios_release_file} | head -1)"
-  [[ -n "${ogmios_asset_url}" ]] || err_exit "No Ogmios Linux release asset was found."
-  log_progress "Downloading Ogmios" "${ogmios_git_version}"
-  if curl -sL -f -m ${CURL_TIMEOUT} -o ogmios.zip ${ogmios_asset_url}; then
-    unzip ogmios.zip &>/dev/null
-    rm -f ogmios.zip
-    [[ -f bin/ogmios ]] && OGMIOSPATH=bin/ogmios
-    [[ -f ogmios ]] && OGMIOSPATH=ogmios
-    [[ -n ${OGMIOSPATH} ]] || err_exit "ogmios downloaded but binary not found after extracting package!"
-    chmod +x /tmp/ogmios/${OGMIOSPATH}
-    mv -f /tmp/ogmios/${OGMIOSPATH} "${HOME}"/.local/bin/
-    rm -f "${HOME}"/.cabal/bin/ogmios # Remove duplicate from $PATH
-    log_ok "Deployed Ogmios" "${ogmios_git_version}"
-  else
-    err_exit "Download of latest release of ogmios archive from GitHub failed! Please retry or manually install it."
-  fi
-}
-
-# Download pre-built cardano-signer binary
-download_cardanosigner() {
-  [[ -z ${ARCH##*aarch64*} ]] && err_exit "The cardano-signer pre-compiled binary is not available for ARM; build it manually instead."
-  log_progress "Resolving Cardano Signer release"
-  csigner_git_version="$(curl -s https://api.github.com/repos/gitmachtl/cardano-signer/releases/latest | jq -r '.tag_name' 2>/dev/null)"
-  [[ -n "${csigner_git_version}" && "${csigner_git_version}" != "null" ]] || err_exit "Could not resolve Cardano Signer release from GitHub."
-  rm -rf /tmp/csigner && mkdir /tmp/csigner
-  pushd /tmp/csigner >/dev/null || err_exit "Could not enter temporary Cardano Signer directory."
-  csigner_asset_url="$(curl -s https://api.github.com/repos/gitmachtl/cardano-signer/releases/latest | jq -r '.assets[].browser_download_url' 2>/dev/null)"
-  [[ -n "${csigner_asset_url}" ]] || err_exit "No Cardano Signer release assets were found."
-  csigner_release_url=""
-  while IFS= read -r release; do
-    if [[ -z ${ARCH##*x86_64*} && ${release} = *linux-x64.tar.gz ]]; then # Linux x64
-      csigner_release_url=${release}; break
-    fi
-  done <<< "${csigner_asset_url}"
-  if [[ -n ${csigner_release_url} ]]; then
-    log_progress "Downloading Cardano Signer" "${csigner_git_version}"
-    if curl -sL -f -m ${CURL_TIMEOUT} -o csigner.tar.gz ${csigner_release_url}; then
-      tar zxf csigner.tar.gz &>/dev/null
-      rm -f csigner.tar.gz
-      [[ -f cardano-signer ]] || err_exit "Cardano Signer downloaded but binary(cardano-signer) not found after extracting package!"
-      chmod +x /tmp/csigner/cardano-signer
-      mv -f /tmp/csigner/cardano-signer "${HOME}"/.local/bin/
-      rm -f "${HOME}"/.cabal/bin/cardano-signer # Remove duplicate from $PATH
-      log_ok "Deployed Cardano Signer" "${csigner_git_version}"
-    else
-      err_exit "Download of latest release of Cardano Signer archive from GitHub failed! Please retry or install it manually."
-    fi
-  else
-    err_exit "Unsupported system, no cardano-signer release found matching system architecture."
-  fi
-}
-
-# Download and execute openBlockPerf installer
-download_blockperf() {
-  local installer_dir blockperf_installer blockperf_installer_url branch_installer_url
-  local -a blockperf_common_args=(--yes --api-key-mode relay --node-unit-name "${CNODE_NAME}" --network "${NETWORK}")
-  local before_hash after_hash blockperf_mode="install" rc attempt=1 max_attempts=3
-
-  log_info "Preparing openBlockPerf installer."
-
-  # Use cntools scripts path when available; fallback to ~/tmp for non-cntools environments.
-  if [[ -n "${CNODE_HOME}" && -d "${CNODE_HOME}/scripts" ]]; then
-    installer_dir="${CNODE_HOME}/scripts"
-  else
-    installer_dir="${HOME}/tmp"
-    mkdir -p "${installer_dir}" || err_exit "Failed to create installer directory: ${installer_dir}"
-  fi
-  blockperf_installer="${installer_dir}/blockperf-install.sh"
-  blockperf_installer_url="https://raw.githubusercontent.com/cardano-foundation/openblockperf/main/blockperf-install.sh"
-
-  # If guild-deploy branch exists in openblockperf repo, use installer from that branch.
-  if [[ -n "${BRANCH}" ]]; then
-    branch_installer_url="https://raw.githubusercontent.com/cardano-foundation/openblockperf/${BRANCH}/blockperf-install.sh"
-    if curl -s -f -m ${CURL_TIMEOUT} -I "${branch_installer_url}" >/dev/null 2>&1; then
-      blockperf_installer_url="${branch_installer_url}"
-    fi
-  fi
-
-  pushd "${installer_dir}" >/dev/null || err_exit "Could not enter openBlockPerf installer directory: ${installer_dir}"
-
-  if [[ ! -f "${blockperf_installer}" ]]; then
-    log_progress "Downloading openBlockPerf installer" "${blockperf_installer_url}"
-    curl -fsSL -m ${CURL_TIMEOUT} "${blockperf_installer_url}" -o "${blockperf_installer}" || err_exit "Download of openBlockPerf installer failed! Please retry or install it manually."
-  else
-    blockperf_mode="update"
-    log_info "Using existing openBlockPerf installer at ${blockperf_installer}."
-  fi
-
-  chmod +x "${blockperf_installer}" || err_exit "Failed setting executable bit on openBlockPerf installer."
-
-  while (( attempt <= max_attempts )); do
-    before_hash="$(sha256sum "${blockperf_installer}" 2>/dev/null | awk '{print $1}')"
-    log_progress "Running openBlockPerf installer" "${blockperf_mode}"
-    [[ -t 1 ]] && printf "\n"
-    if [[ "${blockperf_mode}" == "update" ]]; then
-      $sudo "${blockperf_installer}" --update "${blockperf_common_args[@]}"
-    else
-      $sudo "${blockperf_installer}" "${blockperf_common_args[@]}"
-    fi
-    rc=$?
-    after_hash="$(sha256sum "${blockperf_installer}" 2>/dev/null | awk '{print $1}')"
-
-    if [[ ${rc} -eq 0 ]]; then
-      log_ok "Deployed openBlockPerf" "${blockperf_mode}"
-      return 0
-    fi
-
-    # If the installer self-updated, run it again with --update.
-    if [[ -n "${before_hash}" && -n "${after_hash}" && "${before_hash}" != "${after_hash}" ]]; then
-      log_info "openBlockPerf installer self-updated; running the updated installer."
-      blockperf_mode="update"
-      ((attempt++))
-      continue
-    fi
-
-    err_exit "openBlockPerf installer failed with exit code ${rc}."
-  done
-
-  err_exit "openBlockPerf installer kept updating itself but did not complete after ${max_attempts} attempts."
-}
-
-# Download pre-built mithril-signer binary
-download_mithril() {
-    [[ -z ${ARCH##*aarch64*} ]] && mthrl_arch="arm64" || mthrl_arch="x64"
-    pushd "${HOME}"/tmp >/dev/null || err_exit "Could not enter temporary directory: ${HOME}/tmp"
-    log_progress "Resolving Mithril release"
-    mithril_release="$(curl -sL https://api.github.com/repos/IntersectMBO/mithril/releases/latest | jq -r '.tag_name' 2>/dev/null)"
-    [[ -n "${mithril_release}" && "${mithril_release}" != "null" ]] || err_exit "Could not resolve Mithril release from GitHub."
-    log_progress "Downloading Mithril signer/client" "${mithril_release}"
-    rm -f mithril-signer mithril-client
-    curl -m 200 -sfL https://github.com/IntersectMBO/mithril/releases/download/${mithril_release}/mithril-${mithril_release}-linux-${mthrl_arch}.tar.gz -o mithril.tar.gz || err_exit "Could not download Mithril release ${mithril_release} from GitHub."
-    tar zxf mithril.tar.gz mithril-signer mithril-client &>/dev/null
-    rm -f mithril.tar.gz
-    [[ -f mithril-signer ]] || err_exit "Mithril archive downloaded, but binary 'mithril-signer' was not found after extraction."
-    [[ -f mithril-client ]] || err_exit "Mithril archive downloaded, but binary 'mithril-client' was not found after extraction."
-    mv -t "${HOME}"/.local/bin mithril-signer mithril-client
-    chmod +x "${HOME}"/.local/bin/*
-    log_ok "Deployed mithril-signer" "${mithril_release}"
-    log_ok "Deployed mithril-client" "${mithril_release}"
-}
-
-# Create folder structure and set up permissions/ownerships
-setup_folder() {
-  log_progress "Creating folder structure" "${CNODE_HOME}"
-
-  if grep -q "export ${CNODE_VNAME}_HOME=" "${HOME}"/.bashrc; then
-    log_info "${CNODE_VNAME}_HOME already present in ${HOME}/.bashrc."
-  else
-    printf '\nexport %s_HOME=%s\n' "${CNODE_VNAME}" "${CNODE_HOME}" >> "${HOME}"/.bashrc
-    log_info "Added ${CNODE_VNAME}_HOME=${CNODE_HOME} to ${HOME}/.bashrc."
-  fi
-
-  $sudo mkdir -p "${CNODE_HOME}"/files "${CNODE_HOME}"/db "${CNODE_HOME}"/guild-db "${CNODE_HOME}"/logs "${CNODE_HOME}"/scripts "${CNODE_HOME}"/scripts/archive "${CNODE_HOME}"/sockets "${CNODE_HOME}"/priv "${MITHRIL_HOME}"/data-stores
-  $sudo chown -R "$U_ID":"$G_ID" "${CNODE_HOME}" 2>/dev/null
-  log_ok "Folder structure ready" "${CNODE_HOME}"
-
-}
-
-# Download and update scripts for cnode
-populate_cnode() {
-  [[ ! -d "${CNODE_HOME}"/files ]] && setup_folder
-  log_progress "Downloading network configuration" "${NETWORK}"
-  pushd "${CNODE_HOME}"/files >/dev/null || err_exit "Could not enter files directory: ${CNODE_HOME}/files"
-  echo "${BRANCH}" > "${CNODE_HOME}"/scripts/.env_branch
-
-  local err_msg="Could not download network configuration file:"
-  # Download node config, genesis and topology from template
-  #NWCONFURL="https://raw.githubusercontent.com/input-output-hk/cardano-playground/main/static/book.play.dev.cardano.org/environments"
-  NWCONFURL="${URL_RAW}/files/configs/${NETWORK}/"
-  #CHKPTURL="https://book.play.dev.cardano.org/environments/${NETWORK}/checkpoints.json"
-  if [[ ${NETWORK} =~ ^(mainnet|preprod|preview|guild)$ ]]; then
-    curl -sL -f -m ${CURL_TIMEOUT} -o alonzo-genesis.json.tmp "${NWCONFURL}/alonzo-genesis.json" || err_exit "${err_msg} alonzo-genesis.json"
-    curl -sL -f -m ${CURL_TIMEOUT} -o byron-genesis.json.tmp "${NWCONFURL}/byron-genesis.json" || err_exit "${err_msg} byron-genesis.json"
-    curl -sL -f -m ${CURL_TIMEOUT} -o conway-genesis.json.tmp "${NWCONFURL}/conway-genesis.json" || err_exit "${err_msg} conway-genesis.json"
-    curl -sL -f -m ${CURL_TIMEOUT} -o shelley-genesis.json.tmp "${NWCONFURL}/shelley-genesis.json" || err_exit "${err_msg} shelley-genesis.json"
-    curl -sL -f -m ${CURL_TIMEOUT} -o topology.json.tmp "${NWCONFURL}/topology.json" || err_exit "${err_msg} topology.json"
-    curl -sL -f -m ${CURL_TIMEOUT} -o config.json.tmp "${NWCONFURL}/config.json" || err_exit "${err_msg} config.json"
-    curl -sL -f -m ${CURL_TIMEOUT} -o dbsync.json.tmp "${NWCONFURL}/db-sync-config.json" || err_exit "${err_msg} dbsync-sync-config.json"
-    curl -sL -f -m ${CURL_TIMEOUT} -o submitapi.json "${NWCONFURL}/submitapi.json" || err_exit "${err_msg} submitapi.json"
-    #curl -sL -m ${CURL_TIMEOUT} -o checkpoints.json "${CHKPTURL}" || err_exit "${err_msg} checkpoints.json"
-  else
-    err_exit "Unknown network specified! Kindly re-check the network name, valid options are: mainnet, guild, preprod, or preview."
-  fi
-  log_ok "Network configuration downloaded" "${NETWORK}"
-  sed -e "s@/opt/cardano/cnode@${CNODE_HOME}@g" -i ./*.json.tmp
-  sed -e "s@\"TraceOptionNodeName\": \"cnode\"@\"TraceOptionNodeName\": \"${CNODE_NAME}\"@" -i ./config.json.tmp
-  if [[ ${FORCE_OVERWRITE} = 'Y' ]]; then
-    [[ -f topology.json ]] && cp -f topology.json "topology.json_bkp$(date +%s)"
-    [[ -f config.json ]] && cp -f config.json "config.json_bkp$(date +%s)"
-    [[ -f dbsync.json ]] && cp -f dbsync.json "dbsync.json_bkp$(date +%s)"
-    log_info "Backed up existing topology/config/dbsync files before overwrite."
-  fi
-  log_progress "Applying network configuration" "${NETWORK}"
-  if [[ ${FORCE_OVERWRITE} = 'Y' || ! -f byron-genesis.json || ! -f shelley-genesis.json || ! -f alonzo-genesis.json || ! -f topology.json || ! -f config.json || ! -f dbsync.json ]]; then
-    mv -f byron-genesis.json.tmp byron-genesis.json
-    mv -f shelley-genesis.json.tmp shelley-genesis.json
-    mv -f alonzo-genesis.json.tmp alonzo-genesis.json
-    mv -f conway-genesis.json.tmp conway-genesis.json
-    mv -f topology.json.tmp topology.json
-    mv -f config.json.tmp config.json
-    mv -f dbsync.json.tmp dbsync.json
-  else
-    rm -f byron-genesis.json.tmp
-    rm -f shelley-genesis.json.tmp
-    rm -f alonzo-genesis.json.tmp
-    rm -f conway-genesis.json.tmp
-    rm -f topology.json.tmp
-    rm -f config.json.tmp
-    rm -f dbsync.json.tmp
-  fi
-  log_ok "Network configuration ready" "${NETWORK}"
-
-  pushd "${CNODE_HOME}"/scripts >/dev/null || err_exit "Could not enter scripts directory: ${CNODE_HOME}/scripts"
-
-  [[ ${SCRIPTS_FORCE_OVERWRITE} = 'Y' ]] && log_warn "Script force overwrite enabled; review user variables in refreshed scripts and configs."
-
-  log_progress "Refreshing helper scripts" "${BRANCH}"
-  #updateWithCustomConfig "blockPerf.sh"
-  updateWithCustomConfig "cabal-build-all.sh"
-  updateWithCustomConfig "cncli.sh"
-  updateWithCustomConfig "cnode.sh"
-  updateWithCustomConfig "cntools.sh"
-  updateWithCustomConfig "cntools.library"
-  updateWithCustomConfig "dbsync.sh"
-  updateWithCustomConfig "deploy-as-systemd.sh"
-  updateWithCustomConfig "env"
-  updateWithCustomConfig "gLiveView.sh"
-  #updateWithCustomConfig "logMonitor.sh"
-  updateWithCustomConfig "ogmios.sh"
-  updateWithCustomConfig "submitapi.sh"
-  updateWithCustomConfig "setup_mon.sh"
-  updateWithCustomConfig "setup-grest.sh" "grest-helper-scripts"
-  updateWithCustomConfig "mithril-client.sh"
-  updateWithCustomConfig "mithril-relay.sh"
-  updateWithCustomConfig "mithril-signer.sh"
-  updateWithCustomConfig "mithril.library"
-
-  find "${CNODE_HOME}/scripts" -name '*.sh' -exec chmod 755 {} \; 2>/dev/null
-  chmod 750 "${CNODE_HOME}"/priv 2>/dev/null
-  log_ok "Helper scripts refreshed" "${BRANCH}"
-}
-
-# Parse arguments supplied to script
-parse_args() {
-  POPULATE_CNODE="Y"
-  if [[ -n "${S_ARGS}" ]]; then
-    [[ "${S_ARGS}" =~ "p" ]] && INSTALL_OS_DEPS="Y"
-    [[ "${S_ARGS}" =~ "b" ]] && INSTALL_OS_DEPS="Y" && WANT_BUILD_DEPS="Y"
-    [[ "${S_ARGS}" =~ "l" ]] && INSTALL_OS_DEPS="Y" && LIBSODIUM_FORK="Y"
-    [[ "${S_ARGS}" =~ "m" ]] && INSTALL_MITHRIL="Y"
-    [[ "${S_ARGS}" =~ "f" ]] && FORCE_OVERWRITE="Y" && POPULATE_CNODE="Y"
-    [[ "${S_ARGS}" =~ "s" ]] && SCRIPTS_FORCE_OVERWRITE="Y" && POPULATE_CNODE="Y"
-    [[ "${S_ARGS}" =~ "d" ]] && INSTALL_CNODEBINS="Y"
-    [[ "${S_ARGS}" =~ "c" ]] && INSTALL_CNCLI="Y"
-    [[ "${S_ARGS}" =~ "o" ]] && INSTALL_OGMIOS="Y"
-    [[ "${S_ARGS}" =~ "w" ]] && INSTALL_OS_DEPS="Y" && INSTALL_CWHCLI="Y"
-    [[ "${S_ARGS}" =~ "x" ]] && INSTALL_CARDANO_SIGNER="Y"
-    [[ "${S_ARGS}" =~ "r" ]] && INSTALL_BLOCKPERF="Y"
-  else
-    NO_SELECTIVE_FLAGS="Y"
-  fi
-  common_init
-  if [[ ! -d "${CNODE_HOME}"/files ]]; then
-    # Guess this is a fresh machine and set minimal params
-    INSTALL_OS_DEPS="Y"
-    FRESH_TARGET="Y"
-  fi
-}
-
-# Main Flow for calling different functions
-main_flow() {
-  [[ "${NO_SELECTIVE_FLAGS}" == "Y" ]] && log_info "No selective install flags supplied; refreshing scripts and configuration only."
-  [[ "${ADDED_LOCAL_BIN_PATH}" == "Y" ]] && log_info "Added ${HOME}/.local/bin to PATH in ${HOME}/.bashrc."
-  [[ "${FRESH_TARGET}" == "Y" ]] && log_info "Fresh target detected; OS dependency check enabled."
-  [[ "${UPDATE_CHECK}" == "Y" ]] && run_step "Deployment script update check" "default" update_check
-  [[ "${INSTALL_OS_DEPS}" == "Y" ]] && run_step "OS dependencies" "auto/-s p/b/l/w" os_dependencies
-  [[ "${WANT_BUILD_DEPS}" == "Y" ]] && run_step "Haskell build toolchain" "-s b" build_dependencies
-  [[ "${LIBSODIUM_FORK}" == "Y" ]] && run_step "libsodium" "-s l" build_libsodium
-  [[ "${INSTALL_MITHRIL}" == "Y" ]] && run_step "Mithril binaries" "-s m" download_mithril
-  [[ "${POPULATE_CNODE}" == "Y" ]] && run_step "Scripts and configuration" "default/-s f/s" populate_cnode
-  [[ "${INSTALL_CNODEBINS}" == "Y" ]] && run_step "Cardano node binaries" "-s d" download_cnodebins
-  [[ "${INSTALL_CNCLI}" == "Y" ]] && run_step "CNCLI" "-s c" download_cncli
-  [[ "${INSTALL_OGMIOS}" == "Y" ]] && run_step "Ogmios" "-s o" download_ogmios
-  [[ "${INSTALL_CWHCLI}" == "Y" ]] && run_step "Cardano hardware CLI" "-s w" download_cardanohwcli
-  [[ "${INSTALL_CARDANO_SIGNER}" == "Y" ]] && run_step "Cardano Signer" "-s x" download_cardanosigner
-  [[ "${INSTALL_BLOCKPERF}" == "Y" ]] && run_step "openBlockPerf" "-s r" download_blockperf
-}
-
-while getopts :n:p:t:s:b:u opt; do
-  case ${opt} in
-    n ) NETWORK=${OPTARG} ;;
-    p ) CNODE_PATH=${OPTARG} ;;
-    t ) CNODE_NAME=${OPTARG//[^[:alnum:]]/_} ;;
-    b ) BRANCH=${OPTARG} ;;
-    u ) UPDATE_CHECK='N' ;;
-    s ) S_ARGS="${OPTARG}" ;;
-    \? ) usage ;;
+    case "${NODE_IMPLEMENTATION}" in
+      cnode|dingo) printf 'prometheus' ;;
+      amaru) printf 'otel' ;;
     esac
-done
-shift $((OPTIND -1))
+  fi
+}
 
-ACTIVE_STEP="Initialize deployment"
-parse_args
-log_header
-main_flow
+dispatcher_detect_node_version() {
+  local binary=""
+  local binary_path=""
+  case "${NODE_IMPLEMENTATION}" in
+    cnode) binary="cardano-node" ;;
+    dingo) binary="dingo" ;;
+    amaru) binary="amaru" ;;
+  esac
+  if [[ -x "${NODE_HOME}/bin/${binary}" ]]; then
+    binary_path="${NODE_HOME}/bin/${binary}"
+  elif [[ -x "${HOME}/.local/bin/${binary}" ]]; then
+    binary_path="${HOME}/.local/bin/${binary}"
+  elif command -v "${binary}" >/dev/null 2>&1; then
+    binary_path="$(command -v "${binary}")"
+  else
+    return 0
+  fi
 
-pushd -0 >/dev/null || err_exit "Could not restore original working directory."; dirs -c
-log_section "Deployment finished"
-log_ok "All requested steps completed"
-printf "\n"
+  if [[ "${NODE_IMPLEMENTATION}" = "amaru" ]]; then
+    "${binary_path}" --version 2>/dev/null | head -n 1 | tr -d '\r' || true
+  else
+    "${binary_path}" version 2>/dev/null | head -n 1 | tr -d '\r' || true
+  fi
+}
+
+dispatcher_json_escape() {
+  local value="${1:-}"
+  value="${value//\\/\\\\}"
+  value="${value//\"/\\\"}"
+  value="${value//$'\b'/\\b}"
+  value="${value//$'\f'/\\f}"
+  value="${value//$'\n'/\\n}"
+  value="${value//$'\r'/\\r}"
+  value="${value//$'\t'/\\t}"
+  printf '%s' "${value}"
+}
+
+dispatcher_validate_capability() {
+  case "$1" in
+    true|false) return 0 ;;
+    *) err_exit "Deployment profile supplied an invalid capability value '$1'." ;;
+  esac
+}
+
+dispatcher_write_manifest() {
+  local deployment_status="${1:-deployed}"
+  local announce="${2:-Y}"
+  [[ -d "${NODE_HOME}" ]] || err_exit "Deployment profile completed without creating ${NODE_HOME}."
+  case "${deployment_status}" in
+    deploying|deployed) ;;
+    *) err_exit "Invalid deployment status '${deployment_status}'." ;;
+  esac
+
+  local node_version
+  local manifest_tmp
+  local cap_n2c
+  local cap_local_cli
+  local cap_metrics
+  local cap_forging
+  local metrics_provider
+  local target_node_version
+  local pending_file pending_separator=''
+  local -a pending_files=()
+  node_version="$(dispatcher_detect_node_version)"
+  target_node_version="${PROFILE_TARGET_NODE_VERSION:-}"
+  manifest_tmp="$(mktemp "${NODE_HOME}/.deployment.json.tmp.XXXXXX")" ||
+    err_exit "Unable to create a temporary deployment manifest in ${NODE_HOME}."
+  cap_n2c="${PROFILE_CAP_N2C:-$(dispatcher_capability_default n2c)}"
+  cap_local_cli="${PROFILE_CAP_LOCAL_CLI:-$(dispatcher_capability_default local_cli)}"
+  cap_metrics="${PROFILE_CAP_METRICS:-$(dispatcher_capability_default metrics)}"
+  cap_forging="${PROFILE_CAP_FORGING:-$(dispatcher_capability_default forging)}"
+  metrics_provider="$(dispatcher_metrics_provider)"
+  dispatcher_validate_capability "${cap_n2c}"
+  dispatcher_validate_capability "${cap_local_cli}"
+  dispatcher_validate_capability "${cap_metrics}"
+  dispatcher_validate_capability "${cap_forging}"
+
+  if ! {
+    printf '{\n'
+    printf '  "schemaVersion": 1,\n'
+    printf '  "deploymentStatus": "%s",\n' "$(dispatcher_json_escape "${deployment_status}")"
+    printf '  "implementation": "%s",\n' "$(dispatcher_json_escape "${NODE_IMPLEMENTATION}")"
+    printf '  "network": "%s",\n' "$(dispatcher_json_escape "${NETWORK}")"
+    printf '  "branch": "%s",\n' "$(dispatcher_json_escape "${BRANCH}")"
+    printf '  "repository": "%s/guild-operators",\n' "$(dispatcher_json_escape "${G_ACCOUNT}")"
+    if [[ -n "${GUILD_SOURCE_REVISION:-}" ]]; then
+      printf '  "sourceRevision": "%s",\n' "$(dispatcher_json_escape "${GUILD_SOURCE_REVISION}")"
+    fi
+    printf '  "serviceName": "%s",\n' "$(dispatcher_json_escape "${NODE_SERVICE}")"
+    printf '  "nodeVersion": "%s",\n' "$(dispatcher_json_escape "${node_version}")"
+    printf '  "targetNodeVersion": "%s",\n' "$(dispatcher_json_escape "${target_node_version}")"
+    printf '  "metricsProvider": "%s",\n' "$(dispatcher_json_escape "${metrics_provider}")"
+    # Kept configuration files this release would change. The refresh left them
+    # as they were; guild-deploy.sh -s u updates them. gLiveView shows this.
+    read -r -a pending_files <<< "${PROFILE_PENDING_CONFIG_FILES:-}"
+    if (( ${#pending_files[@]} > 0 )); then
+      printf '  "pendingConfigUpdate": {\n'
+      printf '    "reason": "%s",\n' "$(dispatcher_json_escape "${PROFILE_PENDING_CONFIG_REASON:-}")"
+      printf '    "files": ['
+      for pending_file in "${pending_files[@]}"; do
+        printf '%s"%s"' "${pending_separator}" "$(dispatcher_json_escape "${pending_file}")"
+        pending_separator=', '
+      done
+      printf ']\n'
+      printf '  },\n'
+    fi
+    printf '  "capabilities": {\n'
+    printf '    "n2c": %s,\n' "${cap_n2c}"
+    printf '    "localCli": %s,\n' "${cap_local_cli}"
+    printf '    "metrics": %s,\n' "${cap_metrics}"
+    printf '    "forging": %s\n' "${cap_forging}"
+    printf '  }\n'
+    printf '}\n'
+  } > "${manifest_tmp}"; then
+    rm -f -- "${manifest_tmp}"
+    err_exit "Unable to write the temporary deployment manifest."
+  fi
+
+  if command -v jq >/dev/null 2>&1; then
+    if ! jq -e . "${manifest_tmp}" >/dev/null 2>&1; then
+      rm -f -- "${manifest_tmp}"
+      err_exit "Generated deployment manifest is invalid."
+    fi
+  fi
+  if ! chmod 644 "${manifest_tmp}"; then
+    rm -f -- "${manifest_tmp}"
+    err_exit "Unable to set deployment manifest permissions."
+  fi
+
+  if [[ "${deployment_status}" = "deployed" && -f "${NODE_HOME}/scripts/.env_branch" ]]; then
+    if ! mkdir -p "${NODE_HOME}/scripts/archive"; then
+      rm -f -- "${manifest_tmp}"
+      err_exit "Unable to create the legacy branch archive directory."
+    fi
+    if ! mv -f -- "${NODE_HOME}/scripts/.env_branch" \
+      "${NODE_HOME}/scripts/archive/.env_branch_migrated_$(date +%s).$$"; then
+      rm -f -- "${manifest_tmp}"
+      err_exit "Unable to archive the legacy scripts/.env_branch file."
+    fi
+  fi
+  if ! mv -f -- "${manifest_tmp}" "${DEPLOYMENT_FILE}"; then
+    rm -f -- "${manifest_tmp}"
+    err_exit "Unable to atomically replace ${DEPLOYMENT_FILE}."
+  fi
+  if [[ "${deployment_status}" = "deployed" && "${announce}" = "Y" ]]; then
+    log_ok "Deployment metadata updated" "${DEPLOYMENT_FILE}"
+  fi
+}
+
+# An existing deployment is best refreshed with its own copy of
+# guild-deploy.sh: it knows the deployment's target and keeps its user
+# variables, and it updates itself on every run. Any other copy still works.
+dispatcher_note_installed_copy() {
+  local installed="${NODE_HOME}/scripts/guild-deploy.sh"
+  [[ -f "${installed}" ]] || return 0
+  [[ ! -f "${DISPATCHER_SCRIPT_PATH}" || ! "${DISPATCHER_SCRIPT_PATH}" -ef "${installed}" ]] || return 0
+  log_info "This deployment has its own guild-deploy.sh: ${installed}. Use it for later refreshes; it knows the deployment's target and keeps its settings."
+}
+
+# The kept files this release would change, repeated at the end because the
+# profile's own warning scrolls away in a long run.
+dispatcher_pending_config_report() {
+  local -a pending_files=()
+  read -r -a pending_files <<< "${PROFILE_PENDING_CONFIG_FILES:-}"
+  (( ${#pending_files[@]} > 0 )) || return 0
+  printf "\n  %s! Kept as they were, although this release changes them:%s %s\n" \
+    "${STYLE_YELLOW}" "${STYLE_RESET}" "${pending_files[*]}"
+  [[ -z "${PROFILE_PENDING_CONFIG_REASON:-}" ]] || printf "    %s\n" "${PROFILE_PENDING_CONFIG_REASON}"
+  printf "    Update them in place, keeping a backup:\n      %s/scripts/guild-deploy.sh -s u\n" "${NODE_HOME}"
+}
+
+dispatcher_mark_in_progress() {
+  dispatcher_write_manifest deploying
+}
+
+# The node and its helpers need only the scripts and configuration. Profiles
+# call this once those are in place, so a later failure in another component,
+# such as a binary or tool download, cannot keep the node from starting.
+dispatcher_mark_payload_ready() {
+  dispatcher_write_manifest deployed N
+}
+
+cleanup_dispatcher() {
+  if [[ "${DISPATCHER_SOURCE_TMP_OWNED:-N}" = "Y" &&
+        -n "${GUILD_SOURCE_TMP_DIR:-}" &&
+        "${GIT_SOURCE_ROOT:-}" = "${GUILD_SOURCE_TMP_DIR}/repository" &&
+        "$(basename "${GUILD_SOURCE_TMP_DIR}")" = guild-operators-source.* &&
+        -d "${GUILD_SOURCE_TMP_DIR}" &&
+        ! -L "${GUILD_SOURCE_TMP_DIR}" ]]; then
+    rm -rf -- "${GUILD_SOURCE_TMP_DIR}"
+  fi
+  dispatcher_release_target_lock
+}
+
+guild_deploy_main() {
+  local snapshot_stage="${GUILD_DEPLOY_SNAPSHOT_STAGE:-bootstrap}"
+  local resolved_source_account="${GUILD_DEPLOY_SOURCE_ACCOUNT:-}"
+  local resolved_source_branch="${GUILD_DEPLOY_SOURCE_BRANCH:-}"
+  local expected_source_revision="${GUILD_DEPLOY_SOURCE_REVISION:-}"
+  local expected_target_path="${GUILD_DEPLOY_TARGET_PATH:-}"
+  local expected_target_state="${GUILD_DEPLOY_TARGET_STATE_TOKEN:-}"
+  local current_target_state=""
+  local inherited_user_header="${GUILD_DEPLOY_USER_HEADER:-}"
+  local -a original_args=("$@")
+
+  # Never trust source or cleanup paths inherited from the caller's environment.
+  unset GUILD_DEPLOY_SNAPSHOT_STAGE GUILD_DEPLOY_SOURCE_ACCOUNT
+  unset GUILD_DEPLOY_SOURCE_BRANCH GUILD_DEPLOY_SOURCE_REVISION
+  unset GUILD_DEPLOY_TARGET_PATH
+  unset GUILD_DEPLOY_TARGET_STATE_TOKEN
+  unset GUILD_DEPLOY_USER_HEADER
+  GIT_SOURCE_ROOT=""
+  GUILD_SOURCE_REVISION=""
+  GUILD_SOURCE_TMP_DIR=""
+  DISPATCHER_SOURCE_TMP_OWNED="N"
+  unset GUILD_DEPLOY_LOCK_HELD_FOR
+  unset DISPATCHER_LOCK_KIND DISPATCHER_LOCK_PATH
+  unset DISPATCHER_LOCK_CANONICAL_TARGET DISPATCHER_LOCK_OWNER_PID
+  unset PROFILE_PATH PROFILE_ENTRYPOINT PROFILE_TARGET_NODE_VERSION
+  unset PROFILE_METRICS_PROVIDER PROFILE_CAP_N2C PROFILE_CAP_LOCAL_CLI
+  unset PROFILE_CAP_METRICS PROFILE_CAP_FORGING
+  trap cleanup_dispatcher EXIT
+
+  NODE_IMPLEMENTATION_EXPLICIT="N"
+  NETWORK_EXPLICIT="N"
+  NETWORK_PRESET="N"
+  NODE_NAME_EXPLICIT="N"
+  BRANCH_EXPLICIT="N"
+  BRANCH_PRESET="N"
+  G_ACCOUNT_PRESET="N"
+  LEGACY_CNODE_TARGET="N"
+  DISPATCHER_LOCK_TARGET="N"
+  DEPLOY_CHECK_ONLY="N"
+  BINARY_LAYOUT_COPIED="N"
+  S_ARGS="${S_ARGS:-}"
+  [[ -n "${BRANCH:-}" ]] && BRANCH_PRESET="Y"
+  [[ -n "${NETWORK:-}" ]] && NETWORK_PRESET="Y"
+  [[ -n "${G_ACCOUNT:-}" ]] && G_ACCOUNT_PRESET="Y"
+  OPTIND=1
+
+  while getopts ":g:i:n:p:t:s:b:hCu" opt; do
+    case "${opt}" in
+      g)
+        G_ACCOUNT="${OPTARG}"
+        G_ACCOUNT_PRESET="Y"
+        ;;
+      i)
+        NODE_IMPLEMENTATION="${OPTARG}"
+        NODE_IMPLEMENTATION_EXPLICIT="Y"
+        ;;
+      n)
+        NETWORK="${OPTARG}"
+        NETWORK_EXPLICIT="Y"
+        ;;
+      p) NODE_PARENT="${OPTARG}" ;;
+      t)
+        NODE_NAME="${OPTARG}"
+        NODE_NAME_EXPLICIT="Y"
+        ;;
+      s) S_ARGS="${OPTARG}" ;;
+      b)
+        BRANCH="${OPTARG}"
+        BRANCH_EXPLICIT="Y"
+        ;;
+      h)
+        dispatcher_usage
+        return 0
+        ;;
+      C) DEPLOY_CHECK_ONLY="Y" ;;
+      u)
+        [[ "${snapshot_stage}" != "bootstrap" ]] ||
+          log_info "-u is no longer needed and is ignored."
+        ;;
+      :)
+        err_exit "Option -${OPTARG} requires an argument."
+        ;;
+      \?)
+        dispatcher_usage >&2
+        err_exit "Unknown option -${OPTARG}."
+        ;;
+    esac
+  done
+  shift $((OPTIND - 1))
+  [[ $# -eq 0 ]] || err_exit "Unexpected positional arguments: $*"
+
+  case "${snapshot_stage}" in
+    bootstrap)
+      # Run from memory, as with bash <(curl ...), the script is not a file;
+      # the snapshot step then finds the user variables itself.
+      if [[ -f "${DISPATCHER_SCRIPT_PATH}" ]]; then
+        GUILD_DEPLOY_USER_HEADER="$(dispatcher_extract_user_header "${DISPATCHER_SCRIPT_PATH}")" ||
+          err_exit "The running guild-deploy.sh has an invalid user-variable header."
+      else
+        GUILD_DEPLOY_USER_HEADER=""
+      fi
+      dispatcher_select_installed_target
+      DISPATCHER_LOCK_TARGET="Y"
+      ;;
+    ready)
+      validate_account_name "${resolved_source_account}" ||
+        err_exit "The prepared source snapshot has an invalid repository account."
+      validate_branch_name "${resolved_source_branch}" ||
+        err_exit "The prepared source snapshot has an invalid branch."
+      [[ "${expected_source_revision}" =~ ^[0-9a-f]{40}([0-9a-f]{24})?$ ]] ||
+        err_exit "The prepared source snapshot has an invalid expected revision."
+      G_ACCOUNT="${resolved_source_account}"
+      BRANCH="${resolved_source_branch}"
+      G_ACCOUNT_PRESET="Y"
+      BRANCH_PRESET="Y"
+      GUILD_DEPLOY_USER_HEADER="${inherited_user_header}"
+      [[ -n "${expected_target_path}" &&
+         "${expected_target_path}" = /* &&
+         "${expected_target_path}" != *$'\n'* &&
+         "${expected_target_path}" != *$'\r'* ]] ||
+        err_exit "The prepared source snapshot has an invalid target path."
+      [[ "${expected_target_state}" = "absent" ||
+         "${expected_target_state}" =~ ^file:[0-9]+-[0-9]+$ ]] ||
+        err_exit "The prepared source snapshot has invalid target-state metadata."
+      DISPATCHER_LOCK_TARGET="Y"
+      ;;
+    *)
+      err_exit "Invalid internal Guild source snapshot stage."
+      ;;
+  esac
+
+  dispatcher_set_defaults
+  if [[ "${snapshot_stage}" = "bootstrap" ]]; then
+    dispatcher_note_installed_copy
+    GUILD_DEPLOY_TARGET_PATH="${DISPATCHER_LOCK_CANONICAL_TARGET}"
+    GUILD_DEPLOY_TARGET_STATE_TOKEN="$(dispatcher_target_state_token "${DEPLOYMENT_FILE}")" ||
+      err_exit "Could not record the deployment state before preparing the source snapshot."
+    export GUILD_DEPLOY_TARGET_PATH GUILD_DEPLOY_TARGET_STATE_TOKEN
+    dispatcher_release_target_lock
+    dispatcher_prepare_snapshot "${original_args[@]}"
+    return $?
+  fi
+  [[ "${DISPATCHER_LOCK_CANONICAL_TARGET}" = "${expected_target_path}" ]] ||
+    err_exit "The deployment target path changed while its source snapshot was prepared. Re-run guild-deploy.sh."
+  current_target_state="$(dispatcher_target_state_token "${DEPLOYMENT_FILE}")" ||
+    err_exit "Could not verify the deployment state after preparing the source snapshot."
+  [[ "${current_target_state}" = "${expected_target_state}" ]] ||
+    err_exit "The deployment target changed while its source snapshot was prepared. Re-run guild-deploy.sh."
+  dispatcher_adopt_snapshot
+  [[ "${GUILD_SOURCE_REVISION}" = "${expected_source_revision}" ]] ||
+    err_exit "The prepared source snapshot revision changed before deployment."
+
+  # Nothing on the target has changed up to this point.
+  dispatcher_binary_layout_preflight
+  if [[ "${DEPLOY_CHECK_ONLY}" = "Y" ]]; then
+    if [[ -n "$(dispatcher_layout_private_items)" ]]; then
+      BINARY_LAYOUT_ACTION+=" Remove group and other write access under ${NODE_HOME}/priv, which CNTools requires."
+    fi
+    if [[ "${NODE_IMPLEMENTATION}" = "cnode" && -e "${NODE_HOME}/scripts/topologyUpdater.sh" ]]; then
+      BINARY_LAYOUT_ACTION+=" Archive the retired topologyUpdater.sh and remove its systemd units, if installed."
+    fi
+    dispatcher_binary_layout_print
+    printf "\n  Check only: nothing was changed.\n\n"
+    return 0
+  fi
+  dispatcher_copy_shared_binaries
+  dispatcher_layout_protect_private_folders
+
+  printf "\n%sGuild Operators deployment%s\n" "${STYLE_BOLD}" "${STYLE_RESET}"
+  printf "  Implementation : %s\n" "${NODE_IMPLEMENTATION}"
+  printf "  Target         : %s\n" "${NODE_HOME}"
+  printf "  Network        : %s\n" "${NETWORK:-not selected}"
+  printf "  Branch         : %s\n" "${BRANCH}"
+  printf "  Source         : %s\n" "${GUILD_SOURCE_REVISION:0:12}"
+  printf "  Flags          : %s\n" "${S_ARGS:-script/config refresh}"
+
+  PROFILE_MANAGED="Y"
+  export PROFILE_MANAGED
+  dispatcher_load_profile
+  "${PROFILE_ENTRYPOINT}" ||
+    err_exit "${NODE_IMPLEMENTATION} deployment profile failed."
+  dispatcher_install_self
+  dispatcher_install_activate
+  dispatcher_write_manifest deployed
+
+  printf "\n%sDeployment finished%s\n" "${STYLE_GREEN}${STYLE_BOLD}" "${STYLE_RESET}"
+  dispatcher_pending_config_report
+  dispatcher_binary_layout_report
+  printf "\n  To refresh this deployment later, run its own copy:\n    %s/scripts/guild-deploy.sh\n" "${NODE_HOME}"
+  printf "\n  To use this deployment's binaries in a shell:\n    source %s/scripts/activate\n" "${NODE_HOME}"
+}
+
+if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
+  guild_deploy_main "$@"
+fi

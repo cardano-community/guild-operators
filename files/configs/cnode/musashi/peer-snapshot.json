@@ -1,0 +1,40 @@
+{
+  "NetworkMagic": 164,
+  "NodeToClientVersion": 23,
+  "Point": {
+    "blockPointHash": "c08965d32722e7f3f6bb385c7ade534561ab085dfa48581d83b46b5663e59628",
+    "blockPointSlot": 174225
+  },
+  "bigLedgerPools": [
+    {
+      "accumulatedStake": 0.3548468014605265,
+      "relativeStake": 0.3548468014605265,
+      "relays": [
+        {
+          "address": "leios-node.play.dev.cardano.org",
+          "port": 3001
+        }
+      ]
+    },
+    {
+      "accumulatedStake": 0.6774891552785142,
+      "relativeStake": 0.32264235381798767,
+      "relays": [
+        {
+          "address": "leios-node.play.dev.cardano.org",
+          "port": 3001
+        }
+      ]
+    },
+    {
+      "accumulatedStake": 1,
+      "relativeStake": 0.32251084472148583,
+      "relays": [
+        {
+          "address": "leios-node.play.dev.cardano.org",
+          "port": 3001
+        }
+      ]
+    }
+  ]
+}

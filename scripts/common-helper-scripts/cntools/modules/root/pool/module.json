@@ -1,0 +1,6 @@
+{
+  "kind": "menu",
+  "label": "Pool",
+  "description": "Create and manage stake pools",
+  "order": 30
+}

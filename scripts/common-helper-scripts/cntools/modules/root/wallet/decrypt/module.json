@@ -1,0 +1,20 @@
+{
+  "kind": "action",
+  "label": "Decrypt",
+  "description": "Decrypt protected wallet signing keys",
+  "order": 80,
+  "modes": [
+    "local",
+    "light",
+    "offline"
+  ],
+  "libs": [
+    "bech32.sh",
+    "wallet.sh",
+    "wallet-material.sh",
+    "wallet-key.sh",
+    "key-crypto.sh",
+    "wallet-protection.sh",
+    "wallet-protection-ui.sh"
+  ]
+}

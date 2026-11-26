@@ -1,0 +1,27 @@
+{
+  "kind": "action",
+  "label": "Show",
+  "description": "Show stake pool details",
+  "order": 70,
+  "modes": [
+    "local",
+    "light",
+    "offline"
+  ],
+  "libs": [
+    "number.sh",
+    "filesystem.sh",
+    "bech32.sh",
+    "presentation.sh",
+    "wallet.sh",
+    "wallet-query-transport.sh",
+    "transaction.sh",
+    "pool-id.sh",
+    "table.sh",
+    "pool.sh",
+    "pool-inspect.sh",
+    "pool-ui.sh",
+    "pool-health.sh",
+    "public-metadata.sh"
+  ]
+}

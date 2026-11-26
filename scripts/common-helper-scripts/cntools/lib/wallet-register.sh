@@ -1,0 +1,991 @@
+#!/usr/bin/env bash
+# Shared stake-certificate construction: registration, de-registration, delegation.
+# Loaded after the wallet, query, and shared transaction libraries.
+# shellcheck disable=SC2034
+
+CNTOOLS_WALLET_REGISTER_MAX_INPUTS="${CNTOOLS_UTXO_MAX_COUNT:-5000}"
+CNTOOLS_WALLET_REGISTER_ERROR=""
+CNTOOLS_WALLET_REGISTER_BACKEND=""
+CNTOOLS_WALLET_REGISTER_SOURCE=""
+CNTOOLS_WALLET_REGISTER_WALLET=""
+CNTOOLS_WALLET_REGISTER_WALLET_TYPE=""
+CNTOOLS_WALLET_REGISTER_DIRECTORY=""
+CNTOOLS_WALLET_REGISTER_BASE_ADDRESS=""
+CNTOOLS_WALLET_REGISTER_PAYMENT_ADDRESS=""
+CNTOOLS_WALLET_REGISTER_REWARD_ADDRESS=""
+CNTOOLS_WALLET_REGISTER_PAYMENT_VKEY=""
+CNTOOLS_WALLET_REGISTER_STAKE_VKEY=""
+CNTOOLS_WALLET_REGISTER_PAYMENT_SOURCE=""
+CNTOOLS_WALLET_REGISTER_STAKE_SOURCE=""
+CNTOOLS_WALLET_REGISTER_PAYMENT_CREDENTIAL=""
+CNTOOLS_WALLET_REGISTER_STAKE_CREDENTIAL=""
+CNTOOLS_WALLET_REGISTER_PROTOCOL_FILE=""
+CNTOOLS_WALLET_REGISTER_CERTIFICATE_FILE=""
+CNTOOLS_WALLET_REGISTER_DEPOSIT=""
+CNTOOLS_WALLET_REGISTER_LOVELACE="0"
+CNTOOLS_WALLET_REGISTER_AVAILABLE_LOVELACE="0"
+CNTOOLS_WALLET_REGISTER_AVAILABLE_INPUT_COUNT=0
+CNTOOLS_WALLET_REGISTER_ASSET_COUNT=0
+CNTOOLS_WALLET_REGISTER_INITIAL_FEE="0"
+CNTOOLS_WALLET_REGISTER_FEE=0
+CNTOOLS_WALLET_REGISTER_LIFETIME=1800
+CNTOOLS_WALLET_REGISTER_EXPIRY=""
+CNTOOLS_WALLET_REGISTER_POLICY_JSON="{}"
+CNTOOLS_WALLET_REGISTER_CAN_SIGN="N"
+CNTOOLS_WALLET_REGISTER_OPERATION="register"
+CNTOOLS_WALLET_REGISTER_TITLE="Register"
+CNTOOLS_WALLET_REGISTER_PATH="/ Wallet / Register"
+CNTOOLS_WALLET_REGISTER_NOUN="registration"
+CNTOOLS_WALLET_REGISTER_CERTIFICATE_COMMAND="registration-certificate"
+CNTOOLS_WALLET_REGISTER_INTENT="Wallet stake registration"
+CNTOOLS_WALLET_REGISTER_SUMMARY_ACTION="stake-address-registration"
+CNTOOLS_WALLET_REGISTER_DEPOSIT_EFFECT="charged"
+CNTOOLS_WALLET_REGISTER_DEPOSIT_LABEL="Stake deposit"
+CNTOOLS_WALLET_REGISTER_FILE_SUFFIX="stake-registration"
+declare -ag CNTOOLS_WALLET_REGISTER_INPUTS=()
+declare -ag CNTOOLS_WALLET_REGISTER_ASSET_IDS=()
+declare -Ag CNTOOLS_WALLET_REGISTER_ASSETS=()
+
+cntools_wallet_register_operation_set() {
+  case "${1:-}" in
+    gov-vote) cntools_gov_vote_operation_set; return $? ;;
+    drep-register|drep-update|drep-retire)
+      cntools_drep_lifecycle_operation_set "$1"
+      return $?
+      ;;
+    vote-delegate)
+      CNTOOLS_VOTE_REGISTER=N CNTOOLS_VOTE_REGISTRATION_CONFIRMED=N
+      CNTOOLS_WALLET_REGISTER_OPERATION=vote-delegate
+      CNTOOLS_WALLET_REGISTER_TITLE=Delegate
+      CNTOOLS_WALLET_REGISTER_PATH='/ Vote / On-chain Governance / Delegate'
+      CNTOOLS_WALLET_REGISTER_NOUN='voting delegation'
+      CNTOOLS_WALLET_REGISTER_CERTIFICATE_COMMAND=vote-delegation-certificate
+      CNTOOLS_WALLET_REGISTER_INTENT='Governance voting delegation'
+      CNTOOLS_WALLET_REGISTER_SUMMARY_ACTION=voting-delegation
+      CNTOOLS_WALLET_REGISTER_DEPOSIT_EFFECT=charged
+      CNTOOLS_WALLET_REGISTER_DEPOSIT_LABEL='Stake deposit'
+      CNTOOLS_WALLET_REGISTER_FILE_SUFFIX=voting-delegation
+      ;;
+    delegate)
+      CNTOOLS_WALLET_REGISTER_OPERATION=delegate
+      CNTOOLS_WALLET_REGISTER_TITLE=Delegate
+      CNTOOLS_WALLET_REGISTER_PATH='/ Funds / Delegate'
+      CNTOOLS_WALLET_REGISTER_NOUN=delegation
+      CNTOOLS_WALLET_REGISTER_CERTIFICATE_COMMAND=stake-delegation-certificate
+      CNTOOLS_WALLET_REGISTER_INTENT='Stake pool delegation'
+      CNTOOLS_WALLET_REGISTER_SUMMARY_ACTION=stake-pool-delegation
+      CNTOOLS_WALLET_REGISTER_DEPOSIT_EFFECT=charged
+      CNTOOLS_WALLET_REGISTER_DEPOSIT_LABEL='Stake deposit'
+      CNTOOLS_WALLET_REGISTER_FILE_SUFFIX=stake-delegation
+      ;;
+    register)
+      CNTOOLS_WALLET_REGISTER_OPERATION="register"
+      CNTOOLS_WALLET_REGISTER_TITLE="Register"
+      CNTOOLS_WALLET_REGISTER_PATH="/ Wallet / Register"
+      CNTOOLS_WALLET_REGISTER_NOUN="registration"
+      CNTOOLS_WALLET_REGISTER_CERTIFICATE_COMMAND="registration-certificate"
+      CNTOOLS_WALLET_REGISTER_INTENT="Wallet stake registration"
+      CNTOOLS_WALLET_REGISTER_SUMMARY_ACTION="stake-address-registration"
+      CNTOOLS_WALLET_REGISTER_DEPOSIT_EFFECT="charged"
+      CNTOOLS_WALLET_REGISTER_DEPOSIT_LABEL="Stake deposit"
+      CNTOOLS_WALLET_REGISTER_FILE_SUFFIX="stake-registration"
+      ;;
+    deregister)
+      CNTOOLS_WALLET_REGISTER_OPERATION="deregister"
+      CNTOOLS_WALLET_REGISTER_TITLE="Unregister"
+      CNTOOLS_WALLET_REGISTER_PATH="/ Wallet / Unregister"
+      CNTOOLS_WALLET_REGISTER_NOUN="de-registration"
+      CNTOOLS_WALLET_REGISTER_CERTIFICATE_COMMAND="deregistration-certificate"
+      CNTOOLS_WALLET_REGISTER_INTENT="Wallet stake de-registration"
+      CNTOOLS_WALLET_REGISTER_SUMMARY_ACTION="stake-address-deregistration"
+      CNTOOLS_WALLET_REGISTER_DEPOSIT_EFFECT="refunded"
+      CNTOOLS_WALLET_REGISTER_DEPOSIT_LABEL="Stake deposit refund"
+      CNTOOLS_WALLET_REGISTER_FILE_SUFFIX="stake-deregistration"
+      ;;
+    *) return 2 ;;
+  esac
+}
+
+cntools_wallet_register_log() {
+  cntools_log "${1:-INFO}" "${2:-}" || true
+}
+
+cntools_wallet_register_set_error() {
+  CNTOOLS_WALLET_REGISTER_ERROR="${1:-Wallet stake operation failed.}"
+  cntools_wallet_register_log ERROR "${CNTOOLS_WALLET_REGISTER_ERROR}"
+}
+
+cntools_wallet_register_reset_chain_state() {
+  CNTOOLS_WALLET_REGISTER_ERROR=""
+  CNTOOLS_WALLET_REGISTER_BACKEND=""
+  CNTOOLS_WALLET_REGISTER_SOURCE=""
+  CNTOOLS_WALLET_REGISTER_PROTOCOL_FILE=""
+  CNTOOLS_WALLET_REGISTER_CERTIFICATE_FILE=""
+  CNTOOLS_WALLET_REGISTER_DEPOSIT=""
+  CNTOOLS_WALLET_REGISTER_LOVELACE="0"
+  CNTOOLS_WALLET_REGISTER_AVAILABLE_LOVELACE="0"
+  CNTOOLS_WALLET_REGISTER_AVAILABLE_INPUT_COUNT=0
+  CNTOOLS_WALLET_REGISTER_ASSET_COUNT=0
+  CNTOOLS_WALLET_REGISTER_INITIAL_FEE="0"
+  CNTOOLS_WALLET_REGISTER_FEE=0
+  CNTOOLS_WALLET_REGISTER_POLICY_JSON="{}"
+  CNTOOLS_WALLET_REGISTER_INPUTS=()
+  CNTOOLS_WALLET_REGISTER_ASSET_IDS=()
+  CNTOOLS_WALLET_REGISTER_ASSETS=()
+  CNTOOLS_FUNDING_REFERENCE_SKIPPED=0
+  cntools_utxo_reset
+  cntools_coin_reset
+  cntools_change_reset
+  cntools_wallet_query_reset
+}
+
+cntools_wallet_register_uint_normalize_into() {
+  local _cntools_output_name="${1:-}"
+  local _cntools_value="${2:-}"
+
+  [[ "${_cntools_output_name}" =~ ^[A-Za-z_][A-Za-z0-9_]*$ &&
+     "${_cntools_value}" =~ ^[0-9]+$ &&
+     ${#_cntools_value} -le 80 ]] || return 2
+  local -n _cntools_output_ref="${_cntools_output_name}"
+  while [[ ${#_cntools_value} -gt 1 && "${_cntools_value:0:1}" == "0" ]]; do
+    _cntools_value="${_cntools_value:1}"
+  done
+  _cntools_output_ref="${_cntools_value}"
+}
+
+
+
+cntools_wallet_register_sort_assets() {
+  local sorted=""
+  local -a asset_ids=()
+
+  (( ${#CNTOOLS_WALLET_REGISTER_ASSET_IDS[@]} > 1 )) || return 0
+  sorted="$(
+    printf '%s\n' "${CNTOOLS_WALLET_REGISTER_ASSET_IDS[@]}" | LC_ALL=C sort
+  )" || return 1
+  mapfile -t asset_ids <<< "${sorted}"
+  (( ${#asset_ids[@]} == ${#CNTOOLS_WALLET_REGISTER_ASSET_IDS[@]} )) ||
+    return 1
+  CNTOOLS_WALLET_REGISTER_ASSET_IDS=("${asset_ids[@]}")
+}
+
+cntools_wallet_register_assets_count() {
+  [[ "${CNTOOLS_WALLET_REGISTER_LOVELACE}" =~ ^[0-9]+$ ]] || return 1
+  cntools_wallet_register_sort_assets || return 1
+  CNTOOLS_WALLET_REGISTER_ASSET_COUNT="${#CNTOOLS_WALLET_REGISTER_ASSET_IDS[@]}"
+}
+
+cntools_wallet_register_inventory_use_indices() {
+  local index=""
+
+  CNTOOLS_WALLET_REGISTER_LOVELACE="0"
+  CNTOOLS_WALLET_REGISTER_INPUTS=()
+  CNTOOLS_WALLET_REGISTER_ASSET_IDS=()
+  CNTOOLS_WALLET_REGISTER_ASSETS=()
+  for index in "$@"; do
+    [[ "${index}" =~ ^[0-9]+$ &&
+       -n "${CNTOOLS_UTXO_REFS[index]+x}" ]] || return 2
+    CNTOOLS_WALLET_REGISTER_INPUTS+=("${CNTOOLS_UTXO_REFS[index]}")
+    cntools_utxo_value_add_index "${index}" \
+      CNTOOLS_WALLET_REGISTER_LOVELACE \
+      CNTOOLS_WALLET_REGISTER_ASSET_IDS \
+      CNTOOLS_WALLET_REGISTER_ASSETS || return 1
+  done
+  cntools_wallet_register_assets_count
+}
+
+# Stake and governance builds price no reference scripts, so every loader
+# leaves those UTxOs untouched (the review names them).
+cntools_wallet_register_inventory_use_all() {
+  local -a indices=()
+
+  cntools_funding_exclude_reference_scripts || {
+    cntools_wallet_register_set_error "${CNTOOLS_TRANSACTION_ERROR:-Reference-script UTxOs could not be set aside safely.}"
+    return 1
+  }
+  indices=("${!CNTOOLS_UTXO_REFS[@]}")
+  cntools_wallet_register_inventory_use_indices "${indices[@]}" || return 1
+  CNTOOLS_WALLET_REGISTER_AVAILABLE_LOVELACE="${CNTOOLS_WALLET_REGISTER_LOVELACE}"
+  CNTOOLS_WALLET_REGISTER_AVAILABLE_INPUT_COUNT="${#CNTOOLS_UTXO_REFS[@]}"
+}
+
+cntools_wallet_register_prepare_wallet() {
+  local field="" source_name="" status=0
+  if [[ "${CNTOOLS_WALLET_REGISTER_OPERATION}" == drep-* || "${CNTOOLS_WALLET_REGISTER_OPERATION}" == gov-vote ]]; then
+    cntools_drep_lifecycle_prepare_wallet "$@"
+    return $?
+  fi
+  cntools_stake_prepare_wallet "$@" || status=$?
+  CNTOOLS_WALLET_REGISTER_ERROR="${CNTOOLS_TRANSACTION_ERROR:-}"
+  (( status == 0 )) || return "${status}"
+  for field in WALLET WALLET_TYPE DIRECTORY BASE_ADDRESS PAYMENT_ADDRESS REWARD_ADDRESS \
+    PAYMENT_VKEY STAKE_VKEY PAYMENT_SOURCE STAKE_SOURCE PAYMENT_CREDENTIAL STAKE_CREDENTIAL CAN_SIGN; do
+    source_name="CNTOOLS_STAKE_${field}"
+    printf -v "CNTOOLS_WALLET_REGISTER_${field}" '%s' "${!source_name}"
+  done
+}
+
+cntools_wallet_register_protocol_validate() {
+  local protocol_file="${1:-}"
+
+  if ! cntools_transaction_file_safe "${protocol_file}" 4194304 ||
+     ! jq -e 'type == "object"' "${protocol_file}" >/dev/null 2>&1 ||
+     ! cntools_wallet_query_json_uint_field \
+       CNTOOLS_WALLET_REGISTER_DEPOSIT "${protocol_file}" \
+       stakeAddressDeposit; then
+    cntools_wallet_register_set_error \
+      "The protocol parameters are invalid or do not contain an exact stake-address deposit."
+    return 1
+  fi
+  CNTOOLS_WALLET_REGISTER_PROTOCOL_FILE="${protocol_file}"
+}
+
+cntools_wallet_register_protocol_local() {
+  local protocol_file=""
+  local error_file=""
+  local status=0
+  local -a network_arguments=()
+
+  cntools_transaction_network_arguments_into \
+    network_arguments "${CNTOOLS_NETWORK}" || return 1
+  cntools_transaction_temp_file protocol_file register-protocol || return 1
+  cntools_transaction_temp_file error_file register-protocol-error || return 1
+  if cntools_transaction_run_cli "${protocol_file}" "${error_file}" -- \
+      "${CNTOOLS_CLI}" latest query protocol-parameters \
+      "${network_arguments[@]}" \
+      --socket-path "${CNTOOLS_SOCKET}" --output-json; then
+    status=0
+  else
+    status=$?
+  fi
+  if (( status != 0 )); then
+    cntools_transaction_log_cli_failure \
+      "Local protocol-parameter query failed" "${status}" \
+      "${error_file}" "${protocol_file}"
+    CNTOOLS_WALLET_REGISTER_ERROR="${CNTOOLS_TRANSACTION_ERROR}"
+    return 1
+  fi
+  cntools_wallet_register_protocol_validate "${protocol_file}"
+}
+
+cntools_wallet_register_http_get() {
+  local endpoint="${1:-}"
+  local output_file="${2:-}"
+  local auth_header_file=""
+  local status=0
+  local -a arguments=(
+    --connect-timeout 3
+    --max-filesize 4194304
+    --header "accept: application/json"
+  )
+
+  if [[ -n "${CNTOOLS_KOIOS_TOKEN:-}" ]]; then
+    cntools_http_secret_file_create auth_header_file || return 1
+    arguments+=(--header "@${auth_header_file}")
+  fi
+  if cntools_api_request GET "${endpoint}" "${output_file}" \
+      "${arguments[@]}"; then
+    status=0
+  else
+    status=$?
+  fi
+  [[ -z "${auth_header_file}" ]] ||
+    cntools_http_secret_file_remove "${auth_header_file}" || true
+  return "${status}"
+}
+
+cntools_wallet_register_protocol_koios() {
+  local protocol_file=""
+
+  cntools_transaction_temp_file protocol_file register-protocol || return 1
+  if ! cntools_wallet_register_http_get \
+      "${CNTOOLS_KOIOS_API%/}/cli_protocol_params" "${protocol_file}"; then
+    cntools_wallet_register_set_error \
+      "Koios could not return current protocol parameters."
+    return 1
+  fi
+  cntools_wallet_register_protocol_validate "${protocol_file}"
+}
+
+cntools_wallet_register_parse_local_utxos() {
+  local response_file="${1:-}"
+
+  if ! cntools_utxo_load_local "${response_file}" \
+      "${CNTOOLS_WALLET_REGISTER_BASE_ADDRESS}" \
+      "${CNTOOLS_WALLET_REGISTER_PAYMENT_ADDRESS}"; then
+    cntools_wallet_register_set_error \
+      "${CNTOOLS_UTXO_ERROR:-The local node returned an invalid UTxO value.}"
+    return 1
+  fi
+  (( ${#CNTOOLS_UTXO_REFS[@]} <= CNTOOLS_WALLET_REGISTER_MAX_INPUTS )) || {
+    cntools_wallet_register_set_error \
+      "The wallet holds more than $(cntools_number_format "${CNTOOLS_WALLET_REGISTER_MAX_INPUTS}") UTxOs. Combine them first with Funds → Collect UTxOs."
+    return 1
+  }
+  cntools_wallet_register_inventory_use_all
+}
+
+cntools_wallet_register_utxos_local() {
+  local response_file=""
+  local error_file=""
+  local status=0
+  local -a network_arguments=()
+  local -a command=()
+
+  cntools_transaction_network_arguments_into \
+    network_arguments "${CNTOOLS_NETWORK}" || return 1
+  cntools_transaction_temp_file response_file register-utxos || return 1
+  cntools_transaction_temp_file error_file register-utxos-error || return 1
+  command=("${CNTOOLS_CLI}" latest query utxo
+    --address "${CNTOOLS_WALLET_REGISTER_BASE_ADDRESS}")
+  if [[ "${CNTOOLS_WALLET_REGISTER_PAYMENT_ADDRESS}" != \
+        "${CNTOOLS_WALLET_REGISTER_BASE_ADDRESS}" ]]; then
+    command+=(--address "${CNTOOLS_WALLET_REGISTER_PAYMENT_ADDRESS}")
+  fi
+  command+=("${network_arguments[@]}" --socket-path "${CNTOOLS_SOCKET}"
+    --output-json)
+  if cntools_transaction_run_cli \
+      "${response_file}" "${error_file}" -- "${command[@]}"; then
+    status=0
+  else
+    status=$?
+  fi
+  if (( status != 0 )); then
+    cntools_transaction_log_cli_failure \
+      "Local wallet UTxO query failed" "${status}" \
+      "${error_file}" "${response_file}"
+    CNTOOLS_WALLET_REGISTER_ERROR="${CNTOOLS_TRANSACTION_ERROR}"
+    return 1
+  fi
+  cntools_wallet_register_parse_local_utxos "${response_file}"
+}
+
+cntools_wallet_register_parse_koios_utxos() {
+  local response_file="${1:-}"
+
+  if ! cntools_utxo_load_koios "${response_file}" \
+      "${CNTOOLS_WALLET_REGISTER_BASE_ADDRESS}" \
+      "${CNTOOLS_WALLET_REGISTER_PAYMENT_ADDRESS}"; then
+    cntools_wallet_register_set_error \
+      "${CNTOOLS_UTXO_ERROR:-Koios returned an invalid UTxO value.}"
+    return 1
+  fi
+  (( ${#CNTOOLS_UTXO_REFS[@]} <= CNTOOLS_WALLET_REGISTER_MAX_INPUTS )) || {
+    cntools_wallet_register_set_error \
+      "The wallet holds more than $(cntools_number_format "${CNTOOLS_WALLET_REGISTER_MAX_INPUTS}") UTxOs. Combine them first with Funds → Collect UTxOs."
+    return 1
+  }
+  cntools_wallet_register_inventory_use_all
+}
+
+cntools_wallet_register_utxos_koios() {
+  local response_file=""
+
+  cntools_transaction_temp_file response_file register-utxos || return 1
+  # Extended rows carry asset_list: the balancer needs every input's full
+  # value to return native assets as change. Paged past 1,000 UTxOs.
+  if ! cntools_funding_koios_utxos "${response_file}" \
+      "${CNTOOLS_WALLET_REGISTER_BASE_ADDRESS}" "${CNTOOLS_WALLET_REGISTER_PAYMENT_ADDRESS}"; then
+    cntools_wallet_register_set_error \
+      "Koios could not return the wallet's UTxOs."
+    return 1
+  fi
+  cntools_wallet_register_parse_koios_utxos "${response_file}"
+}
+
+cntools_wallet_register_chain_state_validate() {
+  local rewards=""
+
+  case "${CNTOOLS_WALLET_REGISTER_OPERATION}" in
+    vote-delegate)
+      cntools_vote_chain_state_validate || return $?
+      ;;
+    delegate)
+      cntools_delegate_chain_state_validate || return $?
+      ;;
+    register)
+      [[ "${CNTOOLS_WALLET_REGISTERED}" != "yes" ]] || return 4
+      ;;
+    deregister)
+      [[ "${CNTOOLS_WALLET_REGISTERED}" == "yes" ]] || return 7
+      cntools_wallet_register_uint_normalize_into \
+        rewards "${CNTOOLS_WALLET_REWARD_LOVELACE:-}" || {
+          cntools_wallet_register_set_error \
+            "The reward balance returned by the chain-data backend is invalid."
+          return 1
+      }
+      [[ "${rewards}" == "0" ]] || return 8
+      cntools_wallet_register_uint_normalize_into \
+        CNTOOLS_WALLET_STAKE_DEPOSIT \
+        "${CNTOOLS_WALLET_STAKE_DEPOSIT:-}" || {
+          cntools_wallet_register_set_error \
+            "The registered stake deposit could not be determined exactly."
+          return 1
+        }
+      ;;
+    *)
+      cntools_wallet_register_set_error \
+        "The requested stake operation is not supported."
+      return 1
+      ;;
+  esac
+}
+
+# A short balance is reported by input selection, with the full amount.
+cntools_wallet_register_funding_validate() {
+  (( ${#CNTOOLS_WALLET_REGISTER_INPUTS[@]} > 0 )) || return 5
+}
+
+cntools_wallet_register_select_inputs() {
+  local required=""
+  local full=""
+  local change_min=""
+  local expanded=""
+  local status=0
+  local attempt=0
+  local selected_refs=""
+
+  if [[ $# -gt 0 ]]; then
+    cntools_uint_normalize_into CNTOOLS_WALLET_REGISTER_INITIAL_FEE "$1" || return 2
+  else
+    cntools_coin_initial_fee_into CNTOOLS_WALLET_REGISTER_INITIAL_FEE \
+      "${CNTOOLS_WALLET_REGISTER_PROTOCOL_FILE}" || {
+      cntools_wallet_register_set_error \
+        "The protocol parameters could not provide a valid transaction-fee lower bound."
+      return 1
+      }
+  fi
+  cntools_coin_required_for_stake_into required \
+    "${CNTOOLS_WALLET_REGISTER_OPERATION}" \
+    "${CNTOOLS_WALLET_REGISTER_DEPOSIT}" \
+    "${CNTOOLS_WALLET_REGISTER_INITIAL_FEE}" || return 1
+
+  for (( attempt = 1; attempt <= 4; attempt++ )); do
+    if ! cntools_coin_select_lovelace \
+        "${required}" "${CNTOOLS_TX_SELECTION_STRATEGY}"; then
+      # The first attempt does not count the change output yet: name the
+      # whole need, so topping up by the amount shown is enough.
+      if (( attempt == 1 )) && [[ "${CNTOOLS_COIN_SHORT}" == Y ]] &&
+         cntools_change_plain_min_into change_min \
+           "${CNTOOLS_WALLET_REGISTER_PROTOCOL_FILE}" "${CNTOOLS_WALLET_REGISTER_BASE_ADDRESS}" &&
+         cntools_uint_add_into full "${required}" "${change_min}"; then
+        cntools_coin_fail_short "${full}" || true
+      fi
+      cntools_wallet_register_set_error \
+        "${CNTOOLS_COIN_ERROR:-Coin selection could not fund this transaction.}"
+      return 9
+    fi
+    if cntools_change_plan_stake \
+        "${CNTOOLS_WALLET_REGISTER_OPERATION}" \
+        "${CNTOOLS_WALLET_REGISTER_DEPOSIT}" \
+        "${CNTOOLS_WALLET_REGISTER_INITIAL_FEE}" \
+        "${CNTOOLS_WALLET_REGISTER_PROTOCOL_FILE}" \
+        "${CNTOOLS_WALLET_REGISTER_BASE_ADDRESS}"; then
+      status=0
+    else
+      status=$?
+    fi
+    if (( status == 0 )); then
+      break
+    elif (( status != 3 )); then
+      cntools_wallet_register_set_error \
+        "${CNTOOLS_CHANGE_ERROR:-Transaction change could not be planned safely.}"
+      return 1
+    fi
+    cntools_uint_add_into expanded \
+      "${CNTOOLS_COIN_SELECTED_LOVELACE}" \
+      "${CNTOOLS_CHANGE_REQUIRED_EXTRA}" || return 1
+    [[ "${expanded}" != "${required}" ]] || break
+    required="${expanded}"
+  done
+  if (( status != 0 )); then
+    cntools_wallet_register_set_error \
+      "${CNTOOLS_CHANGE_ERROR:-The wallet does not contain enough ADA for valid change outputs.}"
+    return 9
+  fi
+
+  cntools_wallet_register_inventory_use_indices \
+    "${CNTOOLS_COIN_SELECTED_INDICES[@]}" || return 1
+  CNTOOLS_WALLET_REGISTER_POLICY_JSON="$(cntools_change_policy_json)" ||
+    return 1
+  selected_refs="$(IFS=,; printf '%s' "${CNTOOLS_WALLET_REGISTER_INPUTS[*]}")"
+  cntools_wallet_register_log TRANSACTION \
+    "stake ${CNTOOLS_WALLET_REGISTER_NOUN} policy selection=${CNTOOLS_TX_SELECTION_STRATEGY} token_fragmentation=${CNTOOLS_TX_TOKEN_FRAGMENTATION} max_assets=${CNTOOLS_TX_TOKEN_MAX_ASSETS} utxo_management=${CNTOOLS_TX_UTXO_MANAGEMENT} target=${CNTOOLS_TX_UTXO_TARGET_COUNT} percentages=${CNTOOLS_TX_UTXO_PERCENTAGES} collateral=${CNTOOLS_TX_COLLATERAL_MANAGEMENT}"
+  cntools_wallet_register_log TRANSACTION \
+    "stake ${CNTOOLS_WALLET_REGISTER_NOUN} selection inputs=${#CNTOOLS_WALLET_REGISTER_INPUTS[@]}/${CNTOOLS_WALLET_REGISTER_AVAILABLE_INPUT_COUNT} lovelace=${CNTOOLS_WALLET_REGISTER_LOVELACE}/${CNTOOLS_WALLET_REGISTER_AVAILABLE_LOVELACE} assets=${CNTOOLS_WALLET_REGISTER_ASSET_COUNT} refs=${selected_refs}"
+  cntools_wallet_register_log TRANSACTION \
+    "stake ${CNTOOLS_WALLET_REGISTER_NOUN} change outputs=${#CNTOOLS_CHANGE_OUTPUTS[@]} token_result=${CNTOOLS_CHANGE_TOKEN_STATUS} utxo_result=${CNTOOLS_CHANGE_UTXO_STATUS} collateral_result=${CNTOOLS_CHANGE_COLLATERAL_STATUS}"
+}
+
+cntools_wallet_register_collect_local() {
+  cntools_wallet_query_network_arguments || return 1
+  if ! cntools_wallet_query_local_stake \
+      "${CNTOOLS_WALLET_REGISTER_REWARD_ADDRESS}"; then
+    [[ -n "${CNTOOLS_WALLET_REGISTER_ERROR}" ]] ||
+      cntools_wallet_register_set_error \
+        "The local node could not return the stake credential state."
+    return 1
+  fi
+  cntools_wallet_register_chain_state_validate || return $?
+  cntools_wallet_register_protocol_local || return 1
+  if [[ "${CNTOOLS_WALLET_REGISTER_OPERATION}" == "deregister" ]]; then
+    CNTOOLS_WALLET_REGISTER_DEPOSIT="${CNTOOLS_WALLET_STAKE_DEPOSIT}"
+  elif [[ "${CNTOOLS_WALLET_REGISTER_OPERATION}" == vote-delegate && "${CNTOOLS_VOTE_REGISTER}" == N ]]; then
+    CNTOOLS_WALLET_REGISTER_DEPOSIT=0
+  elif [[ "${CNTOOLS_WALLET_REGISTER_OPERATION}" == delegate && "${CNTOOLS_DELEGATE_REGISTER}" == N ]]; then
+    CNTOOLS_WALLET_REGISTER_DEPOSIT=0
+  fi
+  cntools_wallet_register_utxos_local || return 1
+  cntools_wallet_register_funding_validate || return $?
+  cntools_wallet_register_select_inputs || return $?
+  CNTOOLS_WALLET_REGISTER_BACKEND="local"
+  CNTOOLS_WALLET_REGISTER_SOURCE="Local node · ${CNTOOLS_IMPLEMENTATION_NAME:-${CNTOOLS_BACKEND:-node}}"
+}
+
+cntools_wallet_register_collect_koios() {
+  if [[ "${CNTOOLS_KOIOS_ENABLED:-N}" != "Y" ||
+        ! "${CNTOOLS_KOIOS_API:-}" =~ ^https://[^[:space:]]+$ ]]; then
+    cntools_wallet_register_set_error \
+      "Koios is not configured with a valid HTTPS endpoint."
+    return 1
+  fi
+  if ! cntools_wallet_query_koios_stake \
+      "${CNTOOLS_WALLET_REGISTER_REWARD_ADDRESS}"; then
+    [[ -n "${CNTOOLS_WALLET_REGISTER_ERROR}" ]] ||
+      cntools_wallet_register_set_error \
+        "Koios could not return the stake credential state."
+    return 1
+  fi
+  cntools_wallet_register_chain_state_validate || return $?
+  cntools_wallet_register_protocol_koios || return 1
+  if [[ "${CNTOOLS_WALLET_REGISTER_OPERATION}" == "deregister" ]]; then
+    CNTOOLS_WALLET_REGISTER_DEPOSIT="${CNTOOLS_WALLET_STAKE_DEPOSIT}"
+  elif [[ "${CNTOOLS_WALLET_REGISTER_OPERATION}" == vote-delegate && "${CNTOOLS_VOTE_REGISTER}" == N ]]; then
+    CNTOOLS_WALLET_REGISTER_DEPOSIT=0
+  elif [[ "${CNTOOLS_WALLET_REGISTER_OPERATION}" == delegate && "${CNTOOLS_DELEGATE_REGISTER}" == N ]]; then
+    CNTOOLS_WALLET_REGISTER_DEPOSIT=0
+  fi
+  cntools_wallet_register_utxos_koios || return 1
+  cntools_wallet_register_funding_validate || return $?
+  cntools_wallet_register_select_inputs || return $?
+  CNTOOLS_WALLET_REGISTER_BACKEND="koios"
+  CNTOOLS_WALLET_REGISTER_SOURCE="Koios API · ${CNTOOLS_KOIOS_API}"
+}
+
+cntools_wallet_register_collect() {
+  local status=1
+
+  if [[ "${CNTOOLS_WALLET_REGISTER_OPERATION}" == gov-vote ]]; then cntools_gov_vote_collect; return $?; fi
+
+  if [[ "${CNTOOLS_WALLET_REGISTER_OPERATION}" == drep-* ]]; then
+    cntools_drep_lifecycle_collect
+    return $?
+  fi
+
+  cntools_wallet_register_reset_chain_state
+  if cntools_transaction_local_backend_ready; then
+    if cntools_wallet_register_collect_local; then
+      return 0
+    else
+      status=$?
+    fi
+    case "${status}" in
+      4|5|6|7|8|9) return "${status}" ;;
+    esac
+    if [[ "${CNTOOLS_KOIOS_ENABLED:-N}" == "Y" ]]; then
+      cntools_wallet_register_log WARN \
+        "Local stake ${CNTOOLS_WALLET_REGISTER_NOUN} data failed; retrying from Koios"
+      cntools_wallet_register_reset_chain_state
+      if cntools_wallet_register_collect_koios; then
+        return 0
+      else
+        return $?
+      fi
+    fi
+    return "${status}"
+  fi
+  if [[ "${CNTOOLS_KOIOS_ENABLED:-N}" == "Y" ]]; then
+    cntools_wallet_register_collect_koios
+    return $?
+  fi
+  cntools_wallet_register_set_error \
+    "No chain-data backend is available. Start the local node or enable Koios."
+  return 1
+}
+
+cntools_wallet_register_certificate_create() {
+  local certificate_file=""
+  local output_file=""
+  local error_file=""
+  local status=0
+  local -a stake_arguments=()
+
+  if [[ "${CNTOOLS_WALLET_REGISTER_OPERATION}" == gov-vote ]]; then cntools_gov_vote_file_create; return $?; fi
+
+  if [[ "${CNTOOLS_WALLET_REGISTER_OPERATION}" == drep-* ]]; then
+    cntools_drep_lifecycle_certificate_create
+    return $?
+  fi
+
+  if [[ "${CNTOOLS_WALLET_REGISTER_OPERATION}" == delegate ]]; then
+    cntools_delegate_certificate_create
+    return $?
+  elif [[ "${CNTOOLS_WALLET_REGISTER_OPERATION}" == vote-delegate ]]; then
+    cntools_vote_certificate_create
+    return $?
+  fi
+
+  case "${CNTOOLS_WALLET_REGISTER_CERTIFICATE_COMMAND}" in
+    registration-certificate|deregistration-certificate) ;;
+    *)
+      cntools_wallet_register_set_error \
+        "The stake certificate operation is invalid."
+      return 1
+      ;;
+  esac
+
+  cntools_transaction_temp_file certificate_file register-certificate ||
+    return 1
+  cntools_transaction_temp_file output_file register-certificate-output ||
+    return 1
+  cntools_transaction_temp_file error_file register-certificate-error ||
+    return 1
+  if [[ "${CNTOOLS_WALLET_REGISTER_WALLET_TYPE}" == MultiSig ]]; then
+    cntools_stake_credential_arguments_into stake_arguments || return 1
+  else stake_arguments=(--stake-verification-key-file "${CNTOOLS_WALLET_REGISTER_STAKE_VKEY}"); fi
+  if cntools_transaction_run_cli "${output_file}" "${error_file}" -- \
+      "${CNTOOLS_CLI}" "${CNTOOLS_TRANSACTION_ERA:-latest}" stake-address \
+      "${CNTOOLS_WALLET_REGISTER_CERTIFICATE_COMMAND}" \
+      "${stake_arguments[@]}" \
+      --key-reg-deposit-amt "${CNTOOLS_WALLET_REGISTER_DEPOSIT}" \
+      --out-file "${certificate_file}"; then
+    status=0
+  else
+    status=$?
+  fi
+  if (( status != 0 )); then
+    cntools_transaction_log_cli_failure \
+      "Stake ${CNTOOLS_WALLET_REGISTER_NOUN} certificate creation failed" \
+      "${status}" \
+      "${error_file}" "${output_file}"
+    CNTOOLS_WALLET_REGISTER_ERROR="${CNTOOLS_TRANSACTION_ERROR}"
+    return 1
+  fi
+  jq -e '
+    type == "object" and
+    (.type | type == "string" and length > 0 and length <= 120) and
+    (.description | type == "string" and length <= 240) and
+    (.cborHex | type == "string" and length > 0 and length <= 131072 and
+      test("^([0-9a-fA-F]{2})+$"))
+  ' "${certificate_file}" >/dev/null 2>&1 || {
+    cntools_wallet_register_set_error \
+      "Cardano CLI produced an invalid stake ${CNTOOLS_WALLET_REGISTER_NOUN} certificate."
+    return 1
+  }
+  CNTOOLS_WALLET_REGISTER_CERTIFICATE_FILE="${certificate_file}"
+}
+
+cntools_wallet_register_plan_create() {
+  local payment_group=""
+  local stake_group=""
+  local intent_description=""
+  local summary=""
+  local selected_inputs="[]"
+  local planned_outputs="[]"
+  local index=0
+
+  if [[ "${CNTOOLS_WALLET_REGISTER_OPERATION}" == pool-* ]]; then cntools_pool_registration_plan_create; return $?; fi
+
+  if [[ "${CNTOOLS_WALLET_REGISTER_OPERATION}" == gov-vote ]]; then cntools_gov_vote_plan_create; return $?; fi
+
+  if [[ "${CNTOOLS_WALLET_REGISTER_OPERATION}" == drep-* ]]; then
+    cntools_drep_lifecycle_plan_create
+    return $?
+  fi
+
+  [[ "${CNTOOLS_WALLET_REGISTER_BACKEND}" =~ ^(local|koios)$ ]] || return 2
+  if [[ "${CNTOOLS_WALLET_REGISTER_OPERATION}" == "register" ]]; then
+    intent_description="Register ${CNTOOLS_WALLET_REGISTER_WALLET}'s stake credential and return all change to its base address."
+  elif [[ "${CNTOOLS_WALLET_REGISTER_OPERATION}" == "deregister" ]]; then
+    intent_description="De-register ${CNTOOLS_WALLET_REGISTER_WALLET}'s stake credential, refund its stake deposit, and return all change to its base address."
+  elif [[ "${CNTOOLS_WALLET_REGISTER_OPERATION}" == delegate ]]; then
+    intent_description="Delegate ${CNTOOLS_WALLET_REGISTER_WALLET}'s stake to ${CNTOOLS_DELEGATE_POOL_ID}; voting delegation is unchanged."
+  elif [[ "${CNTOOLS_WALLET_REGISTER_OPERATION}" == vote-delegate ]]; then
+    intent_description="Delegate ${CNTOOLS_WALLET_REGISTER_WALLET}'s voting power to ${CNTOOLS_VOTE_TARGET}; pool delegation is unchanged."
+    [[ "${CNTOOLS_VOTE_REGISTER}" != Y ]] || intent_description+=' Includes approved first stake registration and its deposit.'
+  else
+    return 2
+  fi
+  cntools_transaction_plan_reset \
+    "${CNTOOLS_WALLET_REGISTER_INTENT}" \
+    "${intent_description}" \
+    exact || return 1
+  cntools_transaction_plan_set_validity "" "${CNTOOLS_WALLET_REGISTER_EXPIRY}" || return 1
+  if [[ "${CNTOOLS_WALLET_REGISTER_WALLET_TYPE}" == MultiSig ]]; then
+    cntools_multisig_stake_plan CNTOOLS_WALLET_REGISTER_EXPIRY "${CNTOOLS_MULTISIG_STAKE_SLOT}" certificate || return 1
+  else
+    if [[ "${CNTOOLS_WALLET_REGISTER_WALLET_TYPE}" == "Hardware" ]]; then
+      payment_group="wallet-stake"
+      stake_group="wallet-stake"
+    fi
+    cntools_transaction_plan_add_signer \
+      "${CNTOOLS_WALLET_REGISTER_WALLET} payment key" spending \
+      "${CNTOOLS_WALLET_REGISTER_PAYMENT_VKEY}" \
+      "${CNTOOLS_WALLET_REGISTER_PAYMENT_SOURCE}" \
+      "${CNTOOLS_WALLET_REGISTER_PAYMENT_CREDENTIAL}" \
+      "${payment_group}" || return 1
+    cntools_transaction_plan_add_signer \
+      "${CNTOOLS_WALLET_REGISTER_WALLET} stake key" certificate \
+      "${CNTOOLS_WALLET_REGISTER_STAKE_VKEY}" \
+      "${CNTOOLS_WALLET_REGISTER_STAKE_SOURCE}" \
+      "${CNTOOLS_WALLET_REGISTER_STAKE_CREDENTIAL}" \
+      "${stake_group}" || return 1
+    if [[ "${CNTOOLS_WALLET_REGISTER_WALLET_TYPE}" == "Hardware" ]]; then
+      cntools_transaction_plan_add_change_key \
+        "${CNTOOLS_WALLET_REGISTER_WALLET} base-address payment key" \
+        "${CNTOOLS_WALLET_REGISTER_PAYMENT_VKEY}" \
+        "${CNTOOLS_WALLET_REGISTER_PAYMENT_SOURCE}" \
+        wallet-stake || return 1
+    fi
+  fi
+  if (( ${#CNTOOLS_WALLET_REGISTER_INPUTS[@]} > 0 )); then
+    selected_inputs="$(printf '%s\n' "${CNTOOLS_WALLET_REGISTER_INPUTS[@]}" |
+      jq -Rsc 'split("\n") | map(select(length > 0))')" || return 1
+  fi
+  for index in "${!CNTOOLS_CHANGE_OUTPUTS[@]}"; do
+    planned_outputs="$(jq -c \
+      --arg type "${CNTOOLS_CHANGE_OUTPUT_TYPES[index]}" \
+      --arg lovelace "${CNTOOLS_CHANGE_OUTPUT_LOVELACE[index]}" \
+      --arg assetCount "${CNTOOLS_CHANGE_OUTPUT_ASSET_COUNTS[index]}" \
+      '. + [{type: $type, lovelace: $lovelace,
+             nativeAssetCount: $assetCount}]' <<< "${planned_outputs}")" ||
+      return 1
+  done
+  summary="$(jq -cn \
+    --arg wallet "${CNTOOLS_WALLET_REGISTER_WALLET}" \
+    --arg type "${CNTOOLS_WALLET_REGISTER_WALLET_TYPE}" \
+    --arg stakeAddress "${CNTOOLS_WALLET_REGISTER_REWARD_ADDRESS}" \
+    --arg changeAddress "${CNTOOLS_WALLET_REGISTER_BASE_ADDRESS}" \
+    --arg baseAddress "${CNTOOLS_WALLET_REGISTER_BASE_ADDRESS}" \
+    --arg paymentAddress "${CNTOOLS_WALLET_REGISTER_PAYMENT_ADDRESS}" \
+    --arg depositLovelace "${CNTOOLS_WALLET_REGISTER_DEPOSIT}" \
+    --arg inputLovelace "${CNTOOLS_WALLET_REGISTER_LOVELACE}" \
+    --arg inputCount "${#CNTOOLS_WALLET_REGISTER_INPUTS[@]}" \
+    --arg availableLovelace "${CNTOOLS_WALLET_REGISTER_AVAILABLE_LOVELACE}" \
+    --arg availableInputCount "${CNTOOLS_WALLET_REGISTER_AVAILABLE_INPUT_COUNT}" \
+    --arg initialFeeLovelace "${CNTOOLS_WALLET_REGISTER_INITIAL_FEE}" \
+    --arg nativeAssetCount "${CNTOOLS_WALLET_REGISTER_ASSET_COUNT}" \
+    --arg dataSource "${CNTOOLS_WALLET_REGISTER_SOURCE}" \
+    --arg action "${CNTOOLS_WALLET_REGISTER_SUMMARY_ACTION}" \
+    --arg depositEffect "${CNTOOLS_WALLET_REGISTER_DEPOSIT_EFFECT}" \
+    --argjson selectedInputs "${selected_inputs}" \
+    --argjson transactionPolicy "${CNTOOLS_WALLET_REGISTER_POLICY_JSON}" \
+    --argjson plannedOutputs "${planned_outputs}" '
+      {
+        action: $action,
+        wallet: $wallet,
+        walletType: $type,
+        stakeAddress: $stakeAddress,
+        changeAddress: $changeAddress,
+        fundingAddresses: [$baseAddress, $paymentAddress] | unique,
+        depositLovelace: $depositLovelace,
+        depositEffect: $depositEffect,
+        inputLovelace: $inputLovelace,
+        inputCount: $inputCount,
+        selectedInputs: $selectedInputs,
+        availableLovelace: $availableLovelace,
+        availableInputCount: $availableInputCount,
+        nativeAssetCount: $nativeAssetCount,
+        initialFeeLovelace: $initialFeeLovelace,
+        transactionPolicy: $transactionPolicy,
+        plannedChangeOutputs: $plannedOutputs,
+        dataSource: $dataSource
+      }
+    ')" || return 1
+  if [[ "${CNTOOLS_WALLET_REGISTER_OPERATION}" == delegate ]]; then
+    summary="$(jq -c --arg pool "${CNTOOLS_DELEGATE_POOL_ID}" \
+      --arg poolHex "${CNTOOLS_DELEGATE_POOL_HEX}" --arg current "${CNTOOLS_DELEGATE_CURRENT_POOL}" \
+      --arg registration "${CNTOOLS_DELEGATE_REGISTER}" \
+      '. + {poolId:$pool, poolHex:$poolHex, previousPool:$current, registersStake:($registration == "Y")}' <<< "${summary}")" || return 1
+  elif [[ "${CNTOOLS_WALLET_REGISTER_OPERATION}" == vote-delegate ]]; then
+    summary="$(jq -c --arg target "${CNTOOLS_VOTE_TARGET}" --arg kind "${CNTOOLS_VOTE_KIND}" \
+      --arg previous "${CNTOOLS_VOTE_CURRENT}" '. + {drepId:$target, drepType:$kind, previousDrep:$previous}' <<< "${summary}")" || return 1
+  fi
+  cntools_transaction_plan_set_summary "${summary}"
+}
+
+
+# Like withdrawals, balance explicitly: pinned build-estimate double-counts
+# registration deposits and can omit input ADA when only change is returned.
+cntools_wallet_register_selected_inputs_safe() {
+  local index=0
+  for index in "${CNTOOLS_COIN_SELECTED_INDICES[@]}"; do
+    [[ "${CNTOOLS_UTXO_HAS_REFERENCE_SCRIPT[index]}" == N ]] || {
+      cntools_wallet_register_set_error 'A selected input contains a reference script. Use ordinary UTxOs.'; return 1;
+    }
+  done
+}
+
+cntools_wallet_register_prepare_balanced_body() {
+  local body='' input='' output='' accounted='' value='' available=''
+  local output_count=0 status=0
+  local -a arguments=()
+  status=0
+  cntools_change_plan_stake "${CNTOOLS_WALLET_REGISTER_OPERATION}" "${CNTOOLS_WALLET_REGISTER_DEPOSIT}" "${CNTOOLS_WALLET_REGISTER_FEE}" \
+    "${CNTOOLS_WALLET_REGISTER_PROTOCOL_FILE}" "${CNTOOLS_WALLET_REGISTER_BASE_ADDRESS}" || status=$?
+  if (( status == 3 )); then
+    cntools_wallet_register_select_inputs "${CNTOOLS_WALLET_REGISTER_FEE}" || return 1
+  elif (( status != 0 )); then
+      cntools_wallet_register_set_error "${CNTOOLS_CHANGE_ERROR:-Insufficient ADA for stake transaction change.}"; return 1;
+  fi
+  cntools_wallet_register_selected_inputs_safe || return 1
+  CNTOOLS_WALLET_REGISTER_POLICY_JSON="$(cntools_change_policy_json)" || return 1
+  cntools_wallet_register_plan_create || return 1
+  arguments=()
+  for input in "${CNTOOLS_WALLET_REGISTER_INPUTS[@]}"; do
+    arguments+=(--tx-in "${input}")
+    [[ "${CNTOOLS_WALLET_REGISTER_WALLET_TYPE}" != MultiSig ]] || arguments+=(--tx-in-script-file "${CNTOOLS_MULTISIG_SPEND_SCRIPT}")
+  done
+  # Charges belong on the output side; refunds belong on the input side.
+  # Refund the recorded stake/DRep deposit, not today's protocol deposit.
+  available="${CNTOOLS_WALLET_REGISTER_LOVELACE}"
+  accounted="${CNTOOLS_WALLET_REGISTER_FEE}"
+  if [[ "${CNTOOLS_WALLET_REGISTER_DEPOSIT_EFFECT}" == refunded ]]; then
+    cntools_uint_add_into available "${available}" "${CNTOOLS_WALLET_REGISTER_DEPOSIT}" || return 1
+  else
+    cntools_uint_add_into accounted "${accounted}" "${CNTOOLS_WALLET_REGISTER_DEPOSIT}" || return 1
+  fi
+  for output in "${CNTOOLS_CHANGE_OUTPUTS[@]}" "${CNTOOLS_WALLET_REGISTER_BASE_ADDRESS}+${CNTOOLS_CHANGE_RESIDUAL_LOVELACE}"; do
+    cntools_transaction_validate_change_output "${output}" "${CNTOOLS_WALLET_REGISTER_PROTOCOL_FILE}" || return 1
+    value="${output#*+}"; value="${value%% *}"
+    cntools_uint_add_into accounted "${accounted}" "${value}" || return 1
+    arguments+=(--tx-out "${output}")
+  done
+  [[ "${accounted}" == "${available}" ]] || {
+    cntools_wallet_register_set_error 'Stake transaction outputs, deposit and fee do not conserve the selected ADA.'; return 1;
+  }
+  output_count=$(( ${#CNTOOLS_CHANGE_OUTPUTS[@]} + 1 ))
+  if [[ "${CNTOOLS_WALLET_REGISTER_OPERATION}" == gov-vote ]]; then
+    arguments+=(--vote-file "${CNTOOLS_WALLET_REGISTER_CERTIFICATE_FILE}")
+    [[ "${CNTOOLS_DREP_LIFECYCLE_KIND:-key}" != script ]] || arguments+=(--vote-script-file "${CNTOOLS_MULTISIG_DREP_SCRIPT}")
+  else
+    arguments+=(--certificate-file "${CNTOOLS_WALLET_REGISTER_CERTIFICATE_FILE}")
+    if [[ "${CNTOOLS_WALLET_REGISTER_OPERATION}" == drep-* ]]; then
+      [[ "${CNTOOLS_DREP_LIFECYCLE_KIND:-key}" != script ]] || arguments+=(--certificate-script-file "${CNTOOLS_MULTISIG_DREP_SCRIPT}")
+    elif [[ "${CNTOOLS_WALLET_REGISTER_WALLET_TYPE}" == MultiSig ]]; then
+      arguments+=(--certificate-script-file "${CNTOOLS_MULTISIG_STAKE_SCRIPT}")
+    fi
+    if [[ "${CNTOOLS_WALLET_REGISTER_OPERATION}" == pool-* ]]; then
+      for output in "${CNTOOLS_POOL_EXTRA_CERTIFICATES[@]}"; do arguments+=(--certificate-file "${output}"); done
+    fi
+  fi
+  arguments+=(--fee "${CNTOOLS_WALLET_REGISTER_FEE}")
+  cntools_transaction_temp_file body stake-body || return 1
+  cntools_transaction_temp_remove "${body}" || return 1
+  cntools_transaction_build_body build-raw "${body}" -- "${arguments[@]}" || return 1
+  CNTOOLS_TRANSACTION_TEMP_FILES+=("${body}")
+  CNTOOLS_TRANSACTION_BALANCE_INPUT_COUNT="${#CNTOOLS_WALLET_REGISTER_INPUTS[@]}"
+  CNTOOLS_TRANSACTION_BALANCE_OUTPUT_COUNT="${output_count}"
+  printf -v "$1" '%s' "${body}"
+}
+
+cntools_wallet_register_validate_balanced_body() {
+  if [[ "${CNTOOLS_WALLET_REGISTER_OPERATION}" == pool-* ]]; then
+    cntools_pool_registration_validate_body "$1" || return 1
+  elif [[ "${CNTOOLS_WALLET_REGISTER_OPERATION}" == gov-vote ]]; then
+    cntools_gov_vote_validate_body "$1" || return 1
+  elif [[ "${CNTOOLS_WALLET_REGISTER_OPERATION}" == drep-* ]]; then
+    cntools_drep_lifecycle_validate_body "$1" || return 1
+  elif [[ "${CNTOOLS_WALLET_REGISTER_OPERATION}" == delegate ]]; then
+    cntools_delegate_validate_body "$1" || return 1
+  elif [[ "${CNTOOLS_WALLET_REGISTER_OPERATION}" == vote-delegate ]]; then
+    cntools_vote_validate_body "$1" || return 1
+  else
+    cntools_wallet_register_validate_body "$1" || return 1
+  fi
+}
+
+cntools_wallet_register_build_balanced_into() {
+  case "${CNTOOLS_WALLET_REGISTER_OPERATION}" in register|deregister|delegate|vote-delegate|drep-register|drep-update|drep-retire|gov-vote|pool-register|pool-modify|pool-retire) ;; *) return 2 ;; esac
+  CNTOOLS_WALLET_REGISTER_FEE=0
+  cntools_wallet_register_selected_inputs_safe || return 1
+  cntools_transaction_balance_into "$1" CNTOOLS_WALLET_REGISTER_FEE "${CNTOOLS_WALLET_REGISTER_PROTOCOL_FILE}" \
+    cntools_wallet_register_prepare_balanced_body "cntools_wallet_register_validate_balanced_body" || return 1
+}
+# Validate the authoritative certificate and change destination, including after
+# hardware normalization. Intent metadata alone is not sufficient.
+cntools_wallet_register_validate_body() {
+  local view="" kind="" deposit_field=""
+  local credential_kind=keyHash
+  [[ "${CNTOOLS_WALLET_REGISTER_WALLET_TYPE}" != MultiSig ]] || credential_kind=scriptHash
+  case "${CNTOOLS_WALLET_REGISTER_OPERATION}" in
+    register) kind='Stake address registration'; deposit_field=deposit ;;
+    deregister) kind='Stake address deregistration'; deposit_field=refund ;;
+    *) return 2 ;;
+  esac
+  cntools_transaction_view_into view "$1" || return 1
+  jq -e --arg kind "${kind}" --arg stake "${CNTOOLS_WALLET_REGISTER_STAKE_CREDENTIAL}" \
+    --arg address "${CNTOOLS_WALLET_REGISTER_BASE_ADDRESS}" \
+    --arg deposit "${CNTOOLS_WALLET_REGISTER_DEPOSIT}" \
+    --arg depositField "${deposit_field}" \
+    --arg credentialKind "${credential_kind}" \
+    --arg fee "${CNTOOLS_WALLET_REGISTER_FEE} Lovelace" '
+      (.certificates | type == "array" and length == 1) and
+      (.certificates[0] | keys == [$kind]) and
+      (.certificates[0][$kind] |
+        .["stake credential"] == {($credentialKind):$stake} and
+        (.[$depositField] | tostring) == $deposit) and
+      .fee == $fee and
+      (.withdrawals == null or .withdrawals == []) and .mint == null and .metadata == null and
+      (.outputs | length > 0 and all(.[]; .address == $address))
+    ' <<< "${view}" >/dev/null || {
+      cntools_wallet_register_set_error "The built transaction does not match the reviewed stake ${CNTOOLS_WALLET_REGISTER_NOUN}."; return 1;
+    }
+}
+
+cntools_wallet_register_build_package_into() {
+  local _cntools_output_name="${1:-}"
+  local output_index=0
+  local current_slot=""
+  local planned_asset_count=0
+
+  [[ "${_cntools_output_name}" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || return 2
+  local -n _cntools_output_ref="${_cntools_output_name}"
+  _cntools_output_ref=""
+  cntools_transaction_require_cli || {
+    CNTOOLS_WALLET_REGISTER_ERROR="${CNTOOLS_TRANSACTION_ERROR}"
+    return 1
+  }
+  for output_index in "${!CNTOOLS_CHANGE_OUTPUTS[@]}"; do
+    planned_asset_count=$((planned_asset_count +
+      CNTOOLS_CHANGE_OUTPUT_ASSET_COUNTS[output_index]))
+  done
+  if (( planned_asset_count != CNTOOLS_WALLET_REGISTER_ASSET_COUNT )); then
+    cntools_wallet_register_set_error \
+      "The applied change plan does not preserve every selected native asset."
+    return 1
+  fi
+  CNTOOLS_WALLET_REGISTER_EXPIRY=""
+  if [[ "${CNTOOLS_WALLET_REGISTER_LIFETIME}" != 0 ]]; then
+    cntools_funding_tip_into current_slot "${CNTOOLS_WALLET_REGISTER_BACKEND}" || {
+      cntools_wallet_register_set_error 'Could not get the current chain slot for transaction expiry.'
+      return 1
+    }
+  fi
+  cntools_transaction_expiry_into CNTOOLS_WALLET_REGISTER_EXPIRY "${current_slot}" "${CNTOOLS_WALLET_REGISTER_LIFETIME}" || return 1
+  if [[ "${CNTOOLS_WALLET_REGISTER_WALLET_TYPE}" == MultiSig ||
+    ( "${CNTOOLS_WALLET_REGISTER_OPERATION}" == drep-* || "${CNTOOLS_WALLET_REGISTER_OPERATION}" == gov-vote ) && "${CNTOOLS_DREP_LIFECYCLE_KIND:-key}" == script ]]; then
+    if [[ -z "${current_slot}" ]]; then
+      cntools_funding_tip_into current_slot "${CNTOOLS_WALLET_REGISTER_BACKEND}" || {
+        cntools_wallet_register_set_error 'Could not get the current chain slot to check multisig time locks.'; return 1;
+      }
+    fi
+    CNTOOLS_MULTISIG_STAKE_SLOT="${current_slot}"
+  fi
+  cntools_wallet_register_certificate_create || return 1
+  cntools_wallet_register_build_balanced_into "${_cntools_output_name}" || {
+    [[ -n "${CNTOOLS_WALLET_REGISTER_ERROR}" ]] ||
+      cntools_wallet_register_set_error "${CNTOOLS_TRANSACTION_ERROR:-The stake transaction could not be balanced safely.}"
+    return 1
+  }
+}

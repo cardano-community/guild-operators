@@ -1,61 +1,211 @@
-### OS Requirements
+### OS requirements
 
-- `docker-ce` installed - [Get Docker](https://docs.docker.com/get-docker/).
+- `docker-ce` installed — [Get Docker](https://docs.docker.com/get-docker/).
 
-=== "Private mode"
+The implementation and network are selected when the image is built. `NETWORK`
+may be omitted when running a container; if supplied, it must match the image.
+It is no longer supported as a way to switch one image between networks.
 
-    #### Use Cases
-    
-    - Pool Management
-    - Wallet Management
-    - Node testing
-    
-      ```bash
-      docker run --init -dit
-      --name <YourCName>
-      --security-opt=no-new-privileges
-      -e NETWORK=mainnet
-      -v <your_custom_path>:/opt/cardano/cnode/priv
-      -v <your_custom_db_path>:/opt/cardano/cnode/db
-      cardanocommunity/cardano-node
-      ```
+The Dingo and Amaru commands below use the local example tags from the
+[build guide](build.md). The GitHub workflow instead publishes testing images
+as `ghcr.io/<owner>/dingo-node` or `ghcr.io/<owner>/amaru-node`, with the
+network included in each non-mainnet tag.
 
-=== "Public mode"
+### cnode
 
-    #### Use Cases:
-    
-    - Node Relay
-    
-      ```bash
-      docker run --init -dit
-      --name <YourCName>
-      --security-opt=no-new-privileges
-      -e NETWORK=mainnet
-      -p 6000:6000
-      -v <your_custom_path>:/opt/cardano/cnode/priv
-      -v <your_custom_db_path>:/opt/cardano/cnode/db
-      cardanocommunity/cardano-node
-      ```
+The default image remains a cnode mainnet image. To run without publishing the
+node port:
 
-    - Node Relay with custom permanent cfg by passing the env variable CONFIG 
-      (Mapping your configuration folder as below will allow you to retain configurations if you update or delete your container)
+```bash
+docker run --init --detach --interactive --tty \
+  --name <container-name> \
+  --security-opt=no-new-privileges \
+  --volume <private-path>:/opt/cardano/cnode/priv \
+  --volume <database-path>:/opt/cardano/cnode/db \
+  cardanocommunity/cardano-node
+```
 
-      ```bash
-      docker run --init -dit
-      --name <YourCName>
-      --security-opt=no-new-privileges
-      -e NETWORK=mainnet
-      -e CONFIG=/opt/cardano/cnode/priv/<your own configuration files>.yml
-      -p 6000:6000
-      -v <your_custom_path>:/opt/cardano/cnode/priv
-      -v <your_custom_db_path>:/opt/cardano/cnode/db
-      cardanocommunity/cardano-node
-      ```
+Relay mode:
 
+```bash
+docker run --init --detach --interactive --tty \
+  --name <container-name> \
+  --security-opt=no-new-privileges \
+  --publish 6000:6000 \
+  --volume <private-path>:/opt/cardano/cnode/priv \
+  --volume <database-path>:/opt/cardano/cnode/db \
+  cardanocommunity/cardano-node
+```
 
-!!! info "Note"
-    1) `--entrypoint=bash` # This option won't start the node's container but only the OS running (the node software wont actually start, you'll need to manually execute entrypoint.sh ), ready to get in (trough the command ``` docker exec -it < container name or hash >  /bin/bash ```) and play/explore around with it in command line mode.
-    2) all guild tools env variable can be used to start a new container using custom values by using the "-e" option.
-    3) CPU and RAM and Shared Memory allocation option for the container can be used when you start the container (i.e. --shm-size or --memory or --cpus [official docker resource docs](https://docs.docker.com/config/containers/resource_constraints/))
-    4) `--env MITHRIL_DOWNLOAD=Y` # This option will allow Mithril client to download the latest Mithril snapshot of the blockchain when the container starts and does not have a copy of the blockchain yet. This is useful when you want to start a new node from scratch and don't want to wait for the node to sync from the network. This option is not currently available for the guild network.
-    5) `--env ENTRYPOINT_PROCESS=mithril-signer.sh` # This option will allow the container to start the Mithril signer process instead of the node process. This is useful when you want to run a Mithril signer node and have the container setup the configuration files based on the NETWORK environment varaible.
+Mounting `priv` only makes an existing operational-key directory available to
+the container; it does not configure or register a block-producing pool.
+
+For an image built with another cnode network, passing the same network is
+allowed but optional:
+
+```text
+--env NETWORK=preprod
+```
+
+Passing a different value fails before the node starts.
+
+### Dingo
+
+Dingo images are experimental testnet nodes. With no operational key set they
+run as relays. Persist the database and expose the configured relay port:
+
+```bash
+docker run --init --detach --interactive --tty \
+  --name dingo-preprod \
+  --stop-timeout 60 \
+  --security-opt=no-new-privileges \
+  --publish 3001:3001 \
+  --volume dingo-preprod-db:/opt/cardano/dingo/db \
+  guild-operators/dingo:preprod
+```
+
+Importing a Mithril snapshot before the first run is optional:
+
+```bash
+docker run --rm --init \
+  --security-opt=no-new-privileges \
+  --volume dingo-preprod-db:/opt/cardano/dingo/db \
+  guild-operators/dingo:preprod bootstrap
+```
+
+To test block production, mount only an existing testnet pool's operational
+hot-key directory and select the matching folder name:
+
+```bash
+docker run --init --detach --interactive --tty \
+  --name dingo-preprod-producer \
+  --stop-timeout 60 \
+  --security-opt=no-new-privileges \
+  --env POOL_NAME=my-pool \
+  --publish 3001:3001 \
+  --volume dingo-preprod-db:/opt/cardano/dingo/db \
+  --volume <online-pool-path>:/opt/cardano/dingo/priv/pool/my-pool:ro \
+  guild-operators/dingo:preprod
+```
+
+The mounted directory must contain `hot.skey`, `vrf.skey`, and `op.cert`.
+The two signing keys must be owned by the container's `guild` user and have no
+group or other permissions. Keep all cold keys and the operational-certificate
+counter offline. A partial set fails startup; the bootstrap command always
+suppresses block production.
+
+The Dingo image installs gLiveView, the CNTools 14 interface skeleton, and the
+isolated `cardano-cli` companion. It does not install Mithril helper
+scripts, db-sync, Ogmios, or the remaining cnode-only suite. Its healthcheck
+verifies deployment identity, Dingo process liveness, and the native Prometheus
+endpoint on loopback port 12798; it does not determine whether chain sync is
+current.
+
+Open the dashboard in the running container with:
+
+```bash
+docker exec -it dingo-preprod \
+  /opt/cardano/dingo/scripts/gLiveView.sh
+```
+
+Open the CNTools interface with:
+
+```bash
+docker exec -it dingo-preprod \
+  /opt/cardano/dingo/scripts/cntools.sh
+```
+
+Dingo binds its Prometheus listener to loopback inside the container, so
+publishing TCP 12798 alone does not expose it. For a remote Prometheus server,
+pass `--env DINGO_METRICS_BIND_ADDR=0.0.0.0` together with
+`--env DINGO_METRICS_AUTH_TOKEN=<token>`, publish the port, and restrict who can
+reach it. gLiveView and the healthcheck send the token automatically. The
+`/healthz` and `/readyz` probe listener is disabled in the Guild profile.
+
+`--stop-timeout 60` gives Dingo time to finish its 30-second graceful shutdown;
+Docker's default of 10 seconds can interrupt it.
+
+### Amaru
+
+Amaru images are experimental relays. Amaru must be bootstrapped before it can
+run. Persist the state parent while bootstrapping:
+
+```bash
+docker run --rm --init \
+  --security-opt=no-new-privileges \
+  --volume amaru-preprod-state:/var/lib/amaru \
+  guild-operators/amaru:preprod bootstrap
+```
+
+Then start the relay with the same volumes:
+
+```bash
+docker run --init --detach --interactive --tty \
+  --name amaru-preprod \
+  --stop-timeout 90 \
+  --security-opt=no-new-privileges \
+  --publish 3000:3000 \
+  --volume amaru-preprod-state:/var/lib/amaru \
+  guild-operators/amaru:preprod
+```
+
+The container sets `AMARU_STATE_ROOT=/var/lib/amaru`, causing Amaru to create
+`chain/` and `ledger/` below the mounted parent, so one volume holds both
+databases. Amaru can take up to about a minute to shut down cleanly, which is
+why the relay uses `--stop-timeout 90`.
+
+For the default `amaru.sh run` entrypoint, the container starts and supervises
+two processes: Amaru and `amaru.sh metrics` running the local OpenTelemetry
+Collector with the minimal Amaru reference-bridge profile. Signals are
+forwarded to both, and the remaining process is stopped if either exits.
+SIGHUP is ignored because Amaru has nothing to reload and would otherwise exit
+without a clean shutdown. Amaru's built-in terminal dashboard is switched off
+with `AMARU_TUI_OFF=true` so container logs stay readable; use gLiveView
+instead. The healthcheck verifies the deployment identity, both processes, and
+the loopback Prometheus endpoint on port 8889; it does not determine whether
+chain sync is current.
+
+The Amaru image installs gLiveView and the CNTools 14 interface skeleton, but
+does not install Mithril helper scripts, db-sync, or Ogmios. Open the dashboard
+with:
+
+```bash
+docker exec -it amaru-preprod \
+  /opt/cardano/amaru/scripts/gLiveView.sh
+```
+
+Open CNTools with:
+
+```bash
+docker exec -it amaru-preprod \
+  /opt/cardano/amaru/scripts/cntools.sh
+```
+
+The CNTools operational actions are placeholders in this release for every
+node implementation.
+
+The OTLP/gRPC receiver on 4317 and Prometheus exporter on 8889 bind inside the
+container to loopback and do not need host port publishing.
+
+### Entrypoint options
+
+- `--entrypoint=bash` bypasses the Guild entrypoint; combine it with `-it` for
+  an interactive shell.
+- `ENTRYPOINT_PROCESS` selects an installed script. The default is `cnode.sh`,
+  `dingo.sh`, or `amaru.sh`, matching the image implementation. Additional
+  helper entrypoints are cnode-only except for the common `gLiveView.sh` and
+  `cntools.sh` launchers.
+  Amaru node/collector supervision applies only to the default `amaru.sh run`
+  path.
+- `UPDATE_CHECK=Y` refreshes compatible scripts and configuration from the
+  branch stored in `.deployment.json` without changing implementation or
+  network.
+- cnode retains `ENABLE_BACKUP`, `ENABLE_RESTORE`, and its supported cnode
+  helper entrypoints. The stock image contains Mithril wrapper scripts but not
+  the Mithril binaries, so `MITHRIL_DOWNLOAD` requires a derived image that
+  also installs the cnode `m` selection. These settings do not apply to Dingo
+  or Amaru.
+- CPU, memory, and shared-memory limits can be supplied with Docker's standard
+  resource flags.
+
+See [Build](build.md) for selecting an implementation and network.

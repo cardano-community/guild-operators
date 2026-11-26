@@ -1,0 +1,6 @@
+{
+  "kind": "menu",
+  "label": "Wallet",
+  "description": "Create and manage payment, stake, and hardware wallets",
+  "order": 10
+}

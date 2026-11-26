@@ -1,0 +1,30 @@
+{
+  "kind": "action",
+  "label": "Sign",
+  "description": "Review and sign a CNTools transaction package",
+  "order": 10,
+  "modes": [
+    "local",
+    "light",
+    "offline"
+  ],
+  "libs": [
+    "number.sh",
+    "bech32.sh",
+    "drep-id.sh",
+    "address-credential.sh",
+    "filesystem.sh",
+    "presentation.sh",
+    "table.sh",
+    "asset.sh",
+    "transaction-detail-ui.sh",
+    "transaction.sh",
+    "transaction-sign.sh",
+    "json.sh",
+    "transaction-ui.sh",
+    "transaction-picker.sh",
+    "transaction-review.sh",
+    "transaction-sources.sh",
+    "transaction-files.sh"
+  ]
+}

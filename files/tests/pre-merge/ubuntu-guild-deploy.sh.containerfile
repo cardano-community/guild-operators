@@ -8,7 +8,7 @@ ENV \
   DEBIAN_FRONTEND=noninteractive \
   LANG=C.UTF-8 \
   USER=root \
-  PATH=$CNODE_HOME/scripts:/root/.local/bin:/root/.ghcup/bin:$PATH \
+  PATH=$CNODE_HOME/bin:$CNODE_HOME/scripts:/root/.local/bin:/root/.ghcup/bin:$PATH \
   G_ACCOUNT=$G_ACCOUNT \
   BRANCH=$BRANCH \
   COMMIT=$COMMIT
@@ -24,5 +24,4 @@ RUN set -x && apt-get -y update && apt-get -y --no-install-recommends install cu
     chmod 0755 guild-deploy.sh &&\
     export SUDO='N' &&\
     export G_ACCOUNT="${G_ACCOUNT}" &&\
-    export UPDATE_CHECK='N' &&\
     ./guild-deploy.sh -b "${BRANCH}" -s pblcowx

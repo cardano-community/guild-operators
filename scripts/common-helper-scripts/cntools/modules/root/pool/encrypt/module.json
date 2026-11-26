@@ -1,0 +1,38 @@
+{
+  "kind": "action",
+  "label": "Encrypt",
+  "description": "Encrypt stake pool keys",
+  "order": 100,
+  "modes": [
+    "local",
+    "light",
+    "offline"
+  ],
+  "libs": [
+    "number.sh",
+    "filesystem.sh",
+    "bech32.sh",
+    "presentation.sh",
+    "wallet.sh",
+    "wallet-key.sh",
+    "wallet-query-transport.sh",
+    "wallet-query-local.sh",
+    "asset-metadata.sh",
+    "wallet-query-koios.sh",
+    "asset-view.sh",
+    "wallet-query.sh",
+    "transaction.sh",
+    "pool-id.sh",
+    "table.sh",
+    "pool.sh",
+    "pool-files.sh",
+    "pool-key.sh",
+    "drep-id.sh",
+    "calidus-id.sh",
+    "pool-calidus.sh",
+    "key-crypto.sh",
+    "pool-lock.sh",
+    "pool-protection.sh",
+    "pool-manage-ui.sh"
+  ]
+}

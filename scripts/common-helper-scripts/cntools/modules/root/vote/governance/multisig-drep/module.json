@@ -1,0 +1,42 @@
+{
+  "kind": "action",
+  "label": "MultiSig DRep",
+  "description": "Create a multisignature DRep identity",
+  "order": 70,
+  "modes": [
+    "local",
+    "light",
+    "offline"
+  ],
+  "libs": [
+    "number.sh",
+    "filesystem.sh",
+    "bech32.sh",
+    "presentation.sh",
+    "wallet.sh",
+    "wallet-material.sh",
+    "wallet-key.sh",
+    "wallet-create.sh",
+    "wallet-mnemonic.sh",
+    "key-crypto.sh",
+    "wallet-protection.sh",
+    "wallet-query-transport.sh",
+    "wallet-query-local.sh",
+    "asset-metadata.sh",
+    "wallet-query-koios.sh",
+    "asset-view.sh",
+    "wallet-query.sh",
+    "transaction.sh",
+    "json.sh",
+    "transaction-ui.sh",
+    "drep-id.sh",
+    "drep-query.sh",
+    "drep-key.sh",
+    "drep-script.sh",
+    "multisig-wallet.sh",
+    "governance-wallet-ui.sh",
+    "drep-script-ui.sh",
+    "table.sh",
+    "wallet-selection.sh"
+  ]
+}

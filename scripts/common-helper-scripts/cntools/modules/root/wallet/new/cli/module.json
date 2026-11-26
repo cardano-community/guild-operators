@@ -1,0 +1,21 @@
+{
+  "kind": "action",
+  "label": "CLI",
+  "description": "Create a standard payment-and-stake wallet",
+  "order": 20,
+  "modes": [
+    "local",
+    "light",
+    "offline"
+  ],
+  "libs": [
+    "bech32.sh",
+    "wallet.sh",
+    "wallet-material.sh",
+    "wallet-key.sh",
+    "wallet-address.sh",
+    "wallet-id.sh",
+    "wallet-create.sh",
+    "wallet-create-ui.sh"
+  ]
+}

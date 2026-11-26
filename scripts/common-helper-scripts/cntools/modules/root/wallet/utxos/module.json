@@ -1,0 +1,36 @@
+{
+  "kind": "action",
+  "label": "View UTxOs",
+  "description": "Browse unspent outputs through Koios or a local node",
+  "order": 110,
+  "modes": [
+    "local",
+    "light"
+  ],
+  "libs": [
+    "number.sh",
+    "bech32.sh",
+    "drep-id.sh",
+    "address-credential.sh",
+    "presentation.sh",
+    "wallet.sh",
+    "wallet-material.sh",
+    "wallet-key.sh",
+    "wallet-address.sh",
+    "wallet-id.sh",
+    "asset.sh",
+    "asset-cache.sh",
+    "wallet-query-transport.sh",
+    "wallet-query-local.sh",
+    "asset-metadata.sh",
+    "wallet-query-koios.sh",
+    "asset-view.sh",
+    "wallet-query.sh",
+    "table.sh",
+    "wallet-history.sh",
+    "transaction-detail-ui.sh",
+    "utxo.sh",
+    "wallet-utxo-local.sh",
+    "wallet-history-ui.sh"
+  ]
+}

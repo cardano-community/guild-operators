@@ -1,0 +1,22 @@
+name: Network binaries
+
+# The binaries the pre-release networks pin, on both supported architectures.
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - files/node-implementations/cnode/networks/**
+      - files/tests/network-binaries.sh
+
+jobs:
+  check:
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [ubuntu-24.04, ubuntu-24.04-arm]
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - run: bash files/tests/network-binaries.sh

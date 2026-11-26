@@ -1,0 +1,10 @@
+{
+  "kind": "action",
+  "label": "Install Update",
+  "description": "Install an update or refresh the current deployment snapshot",
+  "order": 30,
+  "modes": ["local", "light"],
+  "libs": [
+    "update.sh"
+  ]
+}

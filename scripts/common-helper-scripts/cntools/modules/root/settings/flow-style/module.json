@@ -1,0 +1,11 @@
+{
+  "kind": "action",
+  "label": "Flow Style",
+  "description": "Choose Quick defaults or Detailed questions for guided actions",
+  "order": 5,
+  "modes": [
+    "local",
+    "light",
+    "offline"
+  ]
+}

@@ -1,0 +1,501 @@
+#!/usr/bin/env bash
+# Guild Operators launcher for an experimental Dingo node.
+set -euo pipefail
+
+DINGO_SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
+DINGO_ENV_FILE="${DINGO_ENV_FILE:-${DINGO_SCRIPT_DIR}/dingo.env}"
+command_name="${1:-run}"
+[[ $# -gt 0 ]] && shift
+
+GUILD_NODE_HOME="$(cd -- "${DINGO_SCRIPT_DIR}/.." && pwd -P)"
+_launcher_node_home="${GUILD_NODE_HOME}"
+_launcher_default_service="$(basename "${GUILD_NODE_HOME}" | tr '[:upper:]' '[:lower:]')"
+GUILD_NODE_SERVICE="${_launcher_default_service}"
+GUILD_NODE_IMPLEMENTATION="dingo"
+_manifest_file="${GUILD_NODE_HOME}/.deployment.json"
+
+dingo_manifest_value() {
+  local key="$1"
+  jq -er --arg key "${key}" '.[$key] // empty' "${_manifest_file}" 2>/dev/null
+}
+
+# Pool settings are shared with CNTools and every other Guild script, so the
+# launcher takes them from scripts/env, resolved the same way cnode.sh does.
+# The env is loaded in a child process so its defaults, aliases and PATH
+# changes stay out of this launcher.
+dingo_load_pool_settings() {
+  local common_env="${DINGO_SCRIPT_DIR}/env"
+  local output="" i
+  local -a variables=(
+    POOL_FOLDER POOL_NAME
+    POOL_HOTKEY_SK_FILENAME POOL_VRF_SK_FILENAME POOL_OPCERT_FILENAME
+  )
+  local -a values=()
+
+  if [[ ! -r "${common_env}" ]]; then
+    printf 'ERROR: common env file is missing: %s\n' "${common_env}" >&2
+    printf 'Re-run guild-deploy.sh for this deployment to restore it.\n' >&2
+    return 1
+  fi
+  # shellcheck disable=SC2016  # expanded by the child shell
+  if ! output="$(
+    "${BASH}" -c '
+      set +eu
+      . "$1" definitions >/dev/null || exit 1
+      shift
+      for var in "$@"; do printf "%s\n" "${!var}"; done
+      printf "end\n"
+    ' dingo-common-env "${common_env}" "${variables[@]}"
+  )"; then
+    printf 'ERROR: failed to load the pool settings from %s\n' "${common_env}" >&2
+    return 1
+  fi
+  mapfile -t values <<< "${output}"
+  if (( ${#values[@]} != ${#variables[@]} + 1 )) ||
+     [[ "${values[${#variables[@]}]}" != "end" ]]; then
+    printf 'ERROR: unexpected pool settings from %s\n' "${common_env}" >&2
+    return 1
+  fi
+  for i in "${!variables[@]}"; do
+    printf -v "${variables[i]}" '%s' "${values[i]}"
+  done
+}
+
+_manifest_implementation=""
+_manifest_service=""
+_manifest_network=""
+_manifest_required="Y"
+case "${command_name}" in
+  -h|--help|help) _manifest_required="N" ;;
+esac
+
+if [[ "${_manifest_required}" == "Y" && ! -f "${_manifest_file}" ]]; then
+  printf 'ERROR: a finalized deployment manifest is required: %s\n' \
+    "${_manifest_file}" >&2
+  exit 1
+fi
+
+if [[ "${_manifest_required}" == "Y" ]]; then
+  command -v jq >/dev/null 2>&1 || {
+    printf 'ERROR: jq is required to validate %s\n' "${_manifest_file}" >&2
+    exit 1
+  }
+  if ! jq -e '
+    type == "object" and
+    .schemaVersion == 1 and
+    .deploymentStatus == "deployed" and
+    .implementation == "dingo" and
+    (.network == "mainnet" or .network == "preprod" or .network == "preview") and
+    (.branch | type == "string" and length > 0) and
+    (.repository | type == "string" and test("^[A-Za-z0-9_.-]+/guild-operators$")) and
+    (.serviceName | type == "string" and length > 0) and
+    (.nodeVersion | type == "string") and
+    (.targetNodeVersion | type == "string") and
+    .metricsProvider == "prometheus" and
+    (.capabilities | type == "object") and
+    (.capabilities | keys == ["forging", "localCli", "metrics", "n2c"]) and
+    (.capabilities.n2c == true) and
+    (.capabilities.localCli == true) and
+    (.capabilities.metrics == true) and
+    (.capabilities.forging == true)
+  ' "${_manifest_file}" >/dev/null 2>&1; then
+    printf 'ERROR: deployment manifest is malformed, incomplete, unsupported, or not finalized: %s\n' \
+      "${_manifest_file}" >&2
+    exit 1
+  fi
+  _manifest_implementation="$(dingo_manifest_value implementation)"
+  _manifest_service="$(dingo_manifest_value serviceName)"
+  _manifest_network="$(dingo_manifest_value network)"
+  if [[ "${_manifest_service}" != "${_launcher_default_service}" ]]; then
+    printf 'ERROR: deployment manifest serviceName %s does not match launcher target %s\n' \
+      "${_manifest_service}" "${_launcher_default_service}" >&2
+    exit 1
+  fi
+fi
+[[ -n "${_manifest_implementation}" ]] && GUILD_NODE_IMPLEMENTATION="${_manifest_implementation}"
+[[ -n "${_manifest_service}" ]] && GUILD_NODE_SERVICE="${_manifest_service}"
+[[ -n "${_manifest_network}" ]] && CARDANO_NETWORK="${_manifest_network}"
+
+if [[ -r "${DINGO_ENV_FILE}" ]]; then
+  set -a
+  # shellcheck source=/dev/null
+  . "${DINGO_ENV_FILE}"
+  set +a
+else
+  case "${command_name}" in
+    remove|status|start|stop|restart|logs|-h|--help|help) ;;
+    *)
+      printf 'ERROR: Dingo environment file is missing: %s\n' "${DINGO_ENV_FILE}" >&2
+      exit 1
+      ;;
+  esac
+fi
+
+_env_node_home="${GUILD_NODE_HOME:-}"
+_env_node_home_resolved="${_env_node_home}"
+if [[ -n "${_env_node_home}" && -d "${_env_node_home}" ]]; then
+  _env_node_home_resolved="$(cd -- "${_env_node_home}" && pwd -P)"
+fi
+_env_node_service="${GUILD_NODE_SERVICE:-}"
+_env_node_implementation="${GUILD_NODE_IMPLEMENTATION:-}"
+_env_node_network="${CARDANO_NETWORK:-}"
+
+# The launcher location and deployment manifest own service identity. The
+# implementation environment may configure runtime details, but it cannot
+# redirect lifecycle commands to another deployment or unit.
+GUILD_NODE_HOME="${_launcher_node_home}"
+GUILD_NODE_SERVICE="${_manifest_service:-${_env_node_service:-${_launcher_default_service}}}"
+GUILD_NODE_IMPLEMENTATION="${_manifest_implementation:-${_env_node_implementation:-dingo}}"
+CARDANO_NETWORK="${_manifest_network:-${_env_node_network:-}}"
+
+case "${command_name}" in
+  run|bootstrap|-d|install|reload|version)
+    if [[ -n "${_env_node_home_resolved}" &&
+          "${_env_node_home_resolved}" != "${GUILD_NODE_HOME}" ]] ||
+       [[ -n "${_manifest_service}" && -n "${_env_node_service}" &&
+          "${_env_node_service}" != "${_manifest_service}" ]] ||
+       [[ -n "${_manifest_implementation}" && -n "${_env_node_implementation}" &&
+          "${_env_node_implementation}" != "${_manifest_implementation}" ]] ||
+       [[ -n "${_manifest_network}" && -n "${_env_node_network}" &&
+          "${_env_node_network}" != "${_manifest_network}" ]]; then
+      printf 'ERROR: Dingo environment identity conflicts with .deployment.json; re-run guild-deploy.sh with -s f\n' >&2
+      exit 1
+    fi
+    ;;
+esac
+
+DINGO_SYSTEMD_LIBRARY="${DINGO_SCRIPT_DIR}/lib/systemd.library"
+if [[ ! -r "${DINGO_SYSTEMD_LIBRARY}" ]]; then
+  printf 'ERROR: common systemd library is missing\n' >&2
+  exit 1
+fi
+# shellcheck source=/dev/null
+. "${DINGO_SYSTEMD_LIBRARY}"
+
+: "${DINGO_BIN:=${GUILD_NODE_HOME}/bin/dingo}"
+: "${DINGO_CONFIG:=${GUILD_NODE_HOME}/files/dingo.yaml}"
+case "${command_name}" in
+  run|-d|install|reload) dingo_load_pool_settings || exit 1 ;;
+esac
+
+export DINGO_STORAGE_MODE=core
+export DINGO_RUN_MODE=serve
+DINGO_RUNTIME_ROLE="relay"
+
+dingo_usage() {
+  cat <<EOF
+Usage: $(basename "$0") [command]
+
+Commands:
+  run                 Run in the foreground (default)
+  bootstrap           Import a certified Mithril snapshot
+  -d, install         Install and enable (but do not start) the systemd service
+  remove              Stop, disable, and remove the systemd service
+  status              Show systemd service status
+  start|stop|restart  Control the installed systemd service
+  reload              Reload rotated KES/VRF/op.cert files in a running producer
+  logs                Follow service logs
+  version             Print the installed Dingo version
+  -h, --help          Show this help
+
+Dingo support, including block production, is experimental. This launcher
+accepts mainnet, preprod and preview. The pool folder is POOL_FOLDER/POOL_NAME
+from scripts/env, the same file CNTools reads. On preprod and preview, a
+complete operational hot-key set in the pool folder enables block production;
+otherwise Dingo runs as a relay. On mainnet Dingo runs only as a relay, and the
+launcher refuses to start while any operational hot key is present in the pool
+folder.
+EOF
+}
+
+dingo_require_identity() {
+  if [[ "${GUILD_NODE_IMPLEMENTATION:-}" != "dingo" ]]; then
+    printf 'ERROR: environment selects %s, expected dingo\n' "${GUILD_NODE_IMPLEMENTATION:-unset}" >&2
+    return 1
+  fi
+  if [[ ! "${GUILD_NODE_SERVICE}" =~ ^[A-Za-z0-9_.@-]+$ ]]; then
+    printf 'ERROR: invalid Dingo service name: %s\n' "${GUILD_NODE_SERVICE}" >&2
+    return 1
+  fi
+  if [[ ! "${GUILD_NODE_HOME}" =~ ^/[A-Za-z0-9._/+@:-]+$ ]]; then
+    printf 'ERROR: deployment path contains characters unsafe for generated configuration\n' >&2
+    return 1
+  fi
+}
+
+dingo_require_environment() {
+  dingo_require_identity || return 1
+  case "${CARDANO_NETWORK:-}" in
+    mainnet|preprod|preview) ;;
+    *)
+      printf 'ERROR: this experimental profile supports only mainnet, preprod or preview, got %s\n' "${CARDANO_NETWORK:-unset}" >&2
+      return 1
+      ;;
+  esac
+  if [[ ! "${DINGO_BIN}" =~ ^/[A-Za-z0-9._/+@:-]+$ ||
+        ! "${DINGO_CONFIG}" =~ ^/[A-Za-z0-9._/+@:-]+$ ]]; then
+    printf 'ERROR: deployment paths contain characters unsafe for generated configuration\n' >&2
+    return 1
+  fi
+}
+
+dingo_require_supported_profile() {
+  dingo_require_environment || return 1
+  if [[ ! -x "${DINGO_BIN}" ]]; then
+    printf 'ERROR: Dingo binary is missing or not executable: %s\n' "${DINGO_BIN}" >&2
+    return 1
+  fi
+  if [[ ! -r "${DINGO_CONFIG}" ]]; then
+    printf 'ERROR: Dingo config is missing: %s\n' "${DINGO_CONFIG}" >&2
+    return 1
+  fi
+  if ! grep -Eq '^[[:space:]]*blockProducer:[[:space:]]*false([[:space:]]|$)' "${DINGO_CONFIG}"; then
+    printf 'ERROR: the Guild Dingo base config must keep blockProducer false; dingo.sh enables it from the pool folder\n' >&2
+    return 1
+  fi
+}
+
+dingo_secret_file_is_private() {
+  local file="$1"
+  local permissions owner
+  permissions="$(
+    stat -Lc '%a' "${file}" 2>/dev/null ||
+      stat -f '%Lp' "${file}" 2>/dev/null
+  )" || return 1
+  owner="$(
+    stat -Lc '%u' "${file}" 2>/dev/null ||
+      stat -f '%u' "${file}" 2>/dev/null
+  )" || return 1
+  [[ "${permissions}" =~ ^[0-7]{3,4}$ ]] || return 1
+  [[ "${owner}" == "$(id -u)" ]] || return 1
+  (( (8#${permissions} & 077) == 0 ))
+}
+
+dingo_configure_runtime_role() {
+  local mode="${1:-run}"
+  local pool_dir kes_file vrf_file opcert_file
+  local present=0
+  local file
+  local -a missing=()
+
+  # Dingo also reads the unprefixed names when a CARDANO_* variable is unset,
+  # and refuses to start when a KES key file and a KES agent are both set.
+  export CARDANO_BLOCK_PRODUCER=false
+  unset CARDANO_SHELLEY_KES_KEY CARDANO_SHELLEY_VRF_KEY
+  unset CARDANO_SHELLEY_OPERATIONAL_CERTIFICATE
+  unset CARDANO_SHELLEY_KES_AGENT_SOCKET CARDANO_SHELLEY_KES_AGENT_MODE
+  unset CARDANO_SHELLEY_KES_AGENT_SIGN_TIMEOUT
+  unset BLOCK_PRODUCER SHELLEY_KES_KEY SHELLEY_VRF_KEY
+  unset SHELLEY_OPERATIONAL_CERTIFICATE SHELLEY_KES_AGENT_SOCKET
+  unset SHELLEY_KES_AGENT_MODE SHELLEY_KES_AGENT_SIGN_TIMEOUT
+  DINGO_RUNTIME_ROLE="relay"
+
+  # Snapshot import never forges and should not require online hot keys.
+  [[ "${mode}" == "bootstrap" ]] && return 0
+
+  pool_dir="${POOL_FOLDER}/${POOL_NAME}"
+  if [[ ! "${pool_dir}" =~ ^/[A-Za-z0-9._/+@:-]+$ ]]; then
+    printf 'ERROR: the pool folder (POOL_FOLDER/POOL_NAME) must be an absolute deployment-safe path: %s\n' \
+      "${pool_dir}" >&2
+    return 1
+  fi
+  kes_file="${pool_dir}/${POOL_HOTKEY_SK_FILENAME}"
+  vrf_file="${pool_dir}/${POOL_VRF_SK_FILENAME}"
+  opcert_file="${pool_dir}/${POOL_OPCERT_FILENAME}"
+
+  for file in "${kes_file}" "${vrf_file}" "${opcert_file}"; do
+    [[ -e "${file}" ]] && ((present += 1))
+  done
+  (( present == 0 )) && return 0
+
+  # Upstream does not support Dingo block production on mainnet yet, so a
+  # mainnet deployment stays a relay. Refusing beats silently ignoring keys.
+  if [[ "${CARDANO_NETWORK:-}" == "mainnet" ]]; then
+    printf 'ERROR: Dingo block production is limited to preprod and preview; this mainnet deployment runs only as a relay.\n' >&2
+    printf 'Move the operational hot keys out of %s, or point POOL_NAME in scripts/env elsewhere, to run it as a relay.\n' \
+      "${pool_dir}" >&2
+    return 1
+  fi
+
+  for file in "${kes_file}" "${vrf_file}" "${opcert_file}"; do
+    [[ -f "${file}" && -r "${file}" ]] || missing+=("${file}")
+  done
+  if (( ${#missing[@]} > 0 )); then
+    printf 'ERROR: the pool folder contains an incomplete Dingo block-producer credential set. Missing or unreadable:\n' >&2
+    printf '  %s\n' "${missing[@]}" >&2
+    return 1
+  fi
+
+  if ! dingo_secret_file_is_private "${kes_file}"; then
+    printf 'ERROR: KES signing key must be owned by uid %s with no group/other permissions: %s\n' \
+      "$(id -u)" "${kes_file}" >&2
+    return 1
+  fi
+  if ! dingo_secret_file_is_private "${vrf_file}"; then
+    printf 'ERROR: VRF signing key must be owned by uid %s with no group/other permissions: %s\n' \
+      "$(id -u)" "${vrf_file}" >&2
+    return 1
+  fi
+
+  export CARDANO_BLOCK_PRODUCER=true
+  export CARDANO_SHELLEY_KES_KEY="${kes_file}"
+  export CARDANO_SHELLEY_VRF_KEY="${vrf_file}"
+  export CARDANO_SHELLEY_OPERATIONAL_CERTIFICATE="${opcert_file}"
+  DINGO_RUNTIME_ROLE="producer"
+}
+
+dingo_install_service() {
+  command -v "${SYSTEMCTL_BIN}" >/dev/null 2>&1 || {
+    printf 'ERROR: systemd is required to install the service\n' >&2
+    return 1
+  }
+
+  local service_user service_group unit_name unit_content
+  service_user="$(id -un)"
+  service_group="$(id -gn)"
+  unit_name="${GUILD_NODE_SERVICE}.service"
+  unit_content="$(cat <<EOF
+[Unit]
+Description=Guild Operators Dingo experimental node (${CARDANO_NETWORK})
+Documentation=https://github.com/blinklabs-io/dingo
+Wants=network-online.target time-sync.target
+After=network-online.target time-sync.target
+ConditionPathExists=${DINGO_BIN}
+
+[Service]
+Type=simple
+User=${service_user}
+Group=${service_group}
+WorkingDirectory=${GUILD_NODE_HOME}
+ExecStart=${DINGO_SCRIPT_DIR}/dingo.sh run
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=60
+LimitNOFILE=65536
+UMask=0027
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ReadWritePaths=${GUILD_NODE_HOME}
+RestrictSUIDSGID=true
+LockPersonality=true
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+
+[Install]
+WantedBy=multi-user.target
+EOF
+)"
+
+  systemd_install_unit "${unit_name}" "${unit_content}" "${DINGO_SCRIPT_DIR}/dingo.sh" || return 1
+  systemd_daemon_reload || return 1
+  systemd_enable_units "${unit_name}" || return 1
+  printf 'Installed %s for Dingo %s mode.\n' "${unit_name}" "${DINGO_RUNTIME_ROLE}"
+}
+
+dingo_reload_credentials() {
+  command -v "${SYSTEMCTL_BIN}" >/dev/null 2>&1 || {
+    printf 'ERROR: systemd is required to reload the service\n' >&2
+    return 1
+  }
+
+  local unit_name main_pid environ_file
+  unit_name="${GUILD_NODE_SERVICE}.service"
+  main_pid="$(
+    "${SYSTEMCTL_BIN}" show --property MainPID --value "${unit_name}" 2>/dev/null || true
+  )"
+  if [[ ! "${main_pid}" =~ ^[1-9][0-9]*$ ]]; then
+    printf 'ERROR: %s is not running\n' "${unit_name}" >&2
+    return 1
+  fi
+
+  # Only a process started as a block producer installs Dingo's SIGHUP
+  # credential-reload handler. A relay keeps Go's default action and exits.
+  environ_file="${DINGO_PROCFS_ROOT:-/proc}/${main_pid}/environ"
+  if [[ ! -r "${environ_file}" ]]; then
+    printf 'ERROR: cannot inspect the running Dingo process; run reload as the service user\n' >&2
+    return 1
+  fi
+  if ! tr '\0' '\n' < "${environ_file}" |
+       grep -Fxq 'CARDANO_BLOCK_PRODUCER=true'; then
+    printf 'ERROR: %s runs as a relay; use restart to change its role\n' "${unit_name}" >&2
+    return 1
+  fi
+  if [[ "${DINGO_RUNTIME_ROLE}" != "producer" ]]; then
+    printf 'ERROR: the pool folder no longer holds a complete credential set; refusing to reload\n' >&2
+    return 1
+  fi
+
+  # Signal the PID directly: systemctl kill --kill-whom= needs systemd 252+,
+  # and older releases spell the option --kill-who=.
+  if ! kill -HUP "${main_pid}" 2>/dev/null &&
+     ! systemd_as_root kill -HUP "${main_pid}"; then
+    printf 'ERROR: could not send SIGHUP to %s (PID %s)\n' "${unit_name}" "${main_pid}" >&2
+    return 1
+  fi
+  printf 'Asked %s (PID %s) to reload its KES key, VRF key and operational certificate.\n' \
+    "${unit_name}" "${main_pid}"
+  printf 'Dingo keeps the current credentials if the new set fails validation; check the logs.\n'
+}
+
+dingo_remove_service() {
+  command -v "${SYSTEMCTL_BIN}" >/dev/null 2>&1 || {
+    printf 'ERROR: systemd is required to remove the service\n' >&2
+    return 1
+  }
+  systemd_remove_units --owner-token "${DINGO_SCRIPT_DIR}/dingo.sh" \
+    "${GUILD_NODE_SERVICE}.service" || return 1
+  printf 'Removed %s.service; node data was left intact in %s.\n' "${GUILD_NODE_SERVICE}" "${GUILD_NODE_HOME}"
+}
+
+case "${command_name}" in
+  run)
+    dingo_require_supported_profile
+    dingo_configure_runtime_role run
+    cd -- "${GUILD_NODE_HOME}"
+    exec "${DINGO_BIN}" --config "${DINGO_CONFIG}" serve "$@"
+    ;;
+  bootstrap)
+    dingo_require_supported_profile
+    dingo_configure_runtime_role bootstrap
+    cd -- "${GUILD_NODE_HOME}"
+    exec "${DINGO_BIN}" --config "${DINGO_CONFIG}" sync --mithril "$@"
+    ;;
+  -d|install)
+    dingo_require_supported_profile
+    dingo_configure_runtime_role run
+    dingo_install_service
+    ;;
+  remove)
+    dingo_require_identity
+    dingo_remove_service
+    ;;
+  status)
+    dingo_require_identity
+    systemd_status_units "${GUILD_NODE_SERVICE}.service"
+    ;;
+  start|stop|restart)
+    dingo_require_identity
+    systemd_control "${command_name}" "${GUILD_NODE_SERVICE}.service"
+    ;;
+  reload)
+    dingo_require_supported_profile
+    dingo_configure_runtime_role run
+    dingo_reload_credentials
+    ;;
+  logs)
+    dingo_require_identity
+    systemd_as_root journalctl -fu "${GUILD_NODE_SERVICE}.service"
+    ;;
+  version)
+    dingo_require_supported_profile
+    exec "${DINGO_BIN}" version
+    ;;
+  -h|--help|help)
+    dingo_usage
+    ;;
+  *)
+    printf 'ERROR: unknown command: %s\n\n' "${command_name}" >&2
+    dingo_usage >&2
+    exit 2
+    ;;
+esac

@@ -1,0 +1,23 @@
+{
+  "kind": "action",
+  "label": "Mnemonic",
+  "description": "Create a wallet from a new recovery phrase",
+  "order": 10,
+  "modes": [
+    "local",
+    "light",
+    "offline"
+  ],
+  "libs": [
+    "bech32.sh",
+    "wallet.sh",
+    "wallet-material.sh",
+    "wallet-key.sh",
+    "wallet-address.sh",
+    "wallet-id.sh",
+    "wallet-create.sh",
+    "wallet-create-ui.sh",
+    "wallet-mnemonic.sh",
+    "wallet-mnemonic-ui.sh"
+  ]
+}

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# shellcheck disable=SC2086,SC2046,SC1078,SC2059,SC2143
+# shellcheck disable=SC2086,SC2046,SC1078,SC2034,SC2059,SC2143
 # shellcheck source=/dev/null
 
 ##########################################
@@ -16,7 +16,7 @@
 # Do NOT modify code below           #
 ######################################
 
-SGVERSION=v1.4.2
+SGVERSION=v1.5.0-wip
 
 ######## Functions ########
   usage() {
@@ -46,26 +46,43 @@ SGVERSION=v1.4.2
     # Check if env file is missing in current folder, note that some env functions may not be present until env is sourced successfully
     [[ ! -f ./env ]] && printf "Common env file missing, please ensure latest guild-deploy.sh was run and this script is being run from ${CNODE_HOME}/scripts folder! \n" && exit 1
     . ./env offline # Just to source checkUpdate, will be re-sourced later
+    if [[ -n "${GUILD_BRANCH_OVERRIDE:-}" ]]; then
+      if ! declare -F deployment_set_branch >/dev/null 2>&1 ||
+         ! deployment_set_branch "${GUILD_BRANCH_OVERRIDE}"; then
+        printf "ERROR: Failed to persist branch '%s' in .deployment.json\n" "${GUILD_BRANCH_OVERRIDE}" >&2
+        exit 1
+      fi
+      BRANCH="${GUILD_BRANCH_OVERRIDE}"
+      URL_RAW="https://raw.githubusercontent.com/${G_ACCOUNT}/guild-operators/${BRANCH}"
+    fi
     
     # Update check
     if [[ ${SKIP_UPDATE} != Y ]]; then
 
       printf "Checking for script updates...\n"
 
-      # Check availability of checkUpdate function
-      if [[ ! $(command -v checkUpdate) ]]; then
-        printf "Could not find checkUpdate function in env, make sure you're using official guild docos for installation!\n"
-        exit 1
+      if ! declare -F checkCommonRuntimeUpdates >/dev/null 2>&1; then
+        printf "WARNING: Common runtime bundle updater is unavailable; skipping updates.\n"
+        printf "Re-run guild-deploy.sh before updating setup-grest.sh.\n"
+      else
+        BUNDLE_UPDATED=N
+        if checkCommonRuntimeUpdates N; then
+          common_update_status=0
+        else
+          common_update_status=$?
+        fi
+        case "${common_update_status}" in
+          0) ;;
+          1) BUNDLE_UPDATED=Y ;;
+          2) printf "ERROR: Failed to update the common runtime bundle\n"; exit 1 ;;
+        esac
+
+        checkUpdate setup-grest.sh "${BUNDLE_UPDATED}" N N grest-helper-scripts
+        case $? in
+          1) echo; $0 "$@"; exit 0 ;; # re-launch script with same args
+          2) exit 1 ;;
+        esac
       fi
-
-      checkUpdate env N N N
-      [[ $? -eq 2 ]] && printf "ERROR: Failed to check updates from github against specified branch\n" && exit 1
-
-      checkUpdate setup-grest.sh Y N N grest-helper-scripts
-      case $? in
-        1) echo; $0 "$@"; exit 0 ;; # re-launch script with same args
-        2) exit 1 ;;
-      esac
     fi
 
     . "${PARENT}"/env offline &>/dev/null
@@ -197,16 +214,26 @@ SGVERSION=v1.4.2
     [[ -z "${CRON_DIR}" ]] && CRON_DIR="/etc/cron.d"
     [[ -z "${PGDATABASE}" ]] && PGDATABASE="cexplorer"
     [[ -z "${HAPROXY_CFG}" ]] && HAPROXY_CFG="${CNODE_HOME}/files/haproxy.cfg"
+    # A pre-release network runs a db-sync with tables the released SQL doesn't read,
+    # so it follows the koios-artifacts branch built for it.
+    case ${NWMAGIC} in
+      6) SGVERSION="dijkstra" ;;
+    esac
     [[ -z "${DB_SCRIPTS_URL}" ]] && DB_SCRIPTS_URL="https://raw.githubusercontent.com/${G_ACCOUNT}/koios-artifacts/${SGVERSION}/files/grest/rpc/db-scripts"
     DOCS_URL="https://cardano-community.github.io/guild-operators"
     [[ -z "${PGPASSFILE}" ]] && export PGPASSFILE="${CNODE_HOME}"/priv/.pgpass
+    # Fail over only to a public Koios instance on the same network. Others, such
+    # as dijkstra, have none, so they get an error instead of another network's data.
     case ${NWMAGIC} in
       764824073)  KOIOS_SRV="api.koios.rest" ;;
       1) KOIOS_SRV="preprod.koios.rest" ;;
       2) KOIOS_SRV="preview.koios.rest" ;;
-      *) KOIOS_SRV="guild.koios.rest" ;;
+      141) KOIOS_SRV="guild.koios.rest" ;;
+      *) KOIOS_SRV="" ;;
     esac
-    API_DOCS_URL="https://${KOIOS_SRV}"
+    # The API definition is the same on every network.
+    KOIOS_SPEC_SRV="${KOIOS_SRV:-api.koios.rest}"
+    API_DOCS_URL="https://${KOIOS_SPEC_SRV}"
   }
 
   parse_args() {
@@ -241,11 +268,11 @@ SGVERSION=v1.4.2
 
   common_update() {
     # Create skeleton whitelist URL file if one does not already exist using most common option
-    curl -sfkL "https://${KOIOS_SRV}/koiosapi.yaml" -o "${CNODE_HOME}"/files/koiosapi.yaml 2>/dev/null
+    curl -sfkL "https://${KOIOS_SPEC_SRV}/koiosapi.yaml" -o "${CNODE_HOME}"/files/koiosapi.yaml 2>/dev/null
     grep "^  /" "${CNODE_HOME}"/files/koiosapi.yaml | grep -v -e submittx -e "#RPC" | sed -e 's#^  /#/#' | cut -d: -f1 | sort > "${CNODE_HOME}"/files/grestrpcs 2>/dev/null
     echo "/control_table" >> "${CNODE_HOME}"/files/grestrpcs 2>/dev/null
     checkUpdate grest-poll.sh Y N N grest-helper-scripts >/dev/null
-    sed -i "s|^#API_STRUCT_DEFINITION=\"https://api.koios.rest/koiosapi.yaml\"|API_STRUCT_DEFINITION=\"https://${KOIOS_SRV}/koiosapi.yaml\"|g" grest-poll.sh
+    sed -i "s|^#API_STRUCT_DEFINITION=\"https://api.koios.rest/koiosapi.yaml\"|API_STRUCT_DEFINITION=\"https://${KOIOS_SPEC_SRV}/koiosapi.yaml\"|g" grest-poll.sh
     checkUpdate checkstatus.sh Y N N grest-helper-scripts >/dev/null
     checkUpdate getmetrics.sh Y N N grest-helper-scripts >/dev/null
   }
@@ -284,6 +311,18 @@ SGVERSION=v1.4.2
     ALGENESIS="$(jq -c . <"${ALONZO_GENESIS_JSON}")"
 
     insert_genesis_table_data "${ALGENESIS}" "${SHGENESIS[@]}"
+    update_genesis_json conwaygenesis "${CONWAY_GENESIS_JSON:-}"
+    update_genesis_json dijkstragenesis "${DIJKSTRA_GENESIS_JSON:-}"
+  }
+
+  # Description : Store a genesis file in its grest.genesis column, if the deployed koios-artifacts version has
+  #             : that column and the node configuration names the file. $1 = column, $2 = genesis file.
+  update_genesis_json() {
+    local column=$1 file=$2
+    [[ -n ${file} && ${file} != "null" && -f ${file} ]] || return 0
+    [[ $(psql "${PGDATABASE}" -qtAX -c "SELECT 1 FROM information_schema.columns WHERE table_schema = 'grest' AND table_name = 'genesis' AND column_name = '${column}'") == 1 ]] || return 0
+    psql "${PGDATABASE}" -q -v ON_ERROR_STOP=1 -v genesis="$(jq -c . <"${file}")" <<<"UPDATE grest.genesis SET ${column} = :'genesis';" >/dev/null ||
+      printf "  WARN: Could not store %s from %s\n" "${column}" "${file}"
   }
 
   deploy_postgrest() {
@@ -399,6 +438,14 @@ SGVERSION=v1.4.2
     sudo chown authenticator:${USER} "${CNODE_HOME}"/priv/grest.conf
     # Create HAProxy config template
     [[ -f "${HAPROXY_CFG}" ]] && cp "${HAPROXY_CFG}" "${HAPROXY_CFG}"_bkp$(date +%s)
+    local failover_server failover_host
+    if [[ -n "${KOIOS_SRV}" ]]; then
+      failover_server="server koios-ssl ${KOIOS_SRV}:443 ssl verify none"
+      failover_host="http-request set-header X-HAProxy-Hostname \"${KOIOS_SRV}\""
+    else
+      failover_server="# No public Koios instance runs on this network, so there is nothing to fail over to."
+      failover_host=""
+    fi
 
     bash -c "cat <<-EOF > ${HAPROXY_CFG}
 			global
@@ -456,8 +503,8 @@ SGVERSION=v1.4.2
 			  server local 127.0.0.1:8050 check inter 20000 fall 1 rise 2
 			
 			backend grest_failover
-			  server koios-ssl ${KOIOS_SRV}:443 ssl verify none
-			  http-request set-header X-HAProxy-Hostname \"${KOIOS_SRV}\"
+			  ${failover_server}
+			  ${failover_host}
 			  http-response set-header X-Failover true
 			
 			backend ogmios
@@ -577,7 +624,7 @@ SGVERSION=v1.4.2
     if [[ -z ${PGPASSFILE} || ! -f "${PGPASSFILE}" ]]; then
       err_exit "PGPASSFILE env variable not set or pointing to a non-existing file: ${PGPASSFILE}\n ${DOCS_URL}/Build/dbsync"
     fi
-    if [[ "$(psql -qtAX -d ${PGDATABASE} -c "SELECT protocol_major FROM public.param_proposal WHERE protocol_major > 4 ORDER BY protocol_major DESC LIMIT 1" 2>/dev/null)" == "" ]]; then
+    if [[ "$(psql -qtAX -d ${PGDATABASE} -c "SELECT 1 FROM public.epoch_param WHERE protocol_major > 4 LIMIT 1" 2>/dev/null)" == "" ]]; then
       return 1
     fi
 
@@ -666,7 +713,7 @@ SGVERSION=v1.4.2
     u) SKIP_UPDATE='Y' ;;
     r) RESET_GREST='Y' && DB_QRY_UPDATES='Y' ;;
     q) DB_QRY_UPDATES='Y' ;;
-    b) echo "${OPTARG}" > ./.env_branch ;;
+    b) GUILD_BRANCH_OVERRIDE="${OPTARG}" ;;
     \?) usage ;;
     esac
   done
@@ -681,7 +728,10 @@ SGVERSION=v1.4.2
   if [[ "${INSTALL_PG_CARDANO}" == "Y" ]]; then deploy_pgcardano_ext; fi
   if [[ "${OVERWRITE_CONFIG}" == "Y" ]]; then deploy_configs; fi
   if [[ "${OVERWRITE_SYSTEMD}" == "Y" ]]; then deploy_systemd; fi
-  if [[ "${RESET_GREST}" == "Y" ]]; then remove_all_grest_cron_jobs; reset_grest; deploy_pgcardano_ext; fi
+  if [[ "${RESET_GREST}" == "Y" ]]; then
+    check_db_status || err_exit "Please wait for Cardano DBSync to populate PostgreSQL DB at least until Alonzo fork, and then re-run this setup script with the -r flag."
+    remove_all_grest_cron_jobs; reset_grest; deploy_pgcardano_ext
+  fi
   if [[ "${DB_QRY_UPDATES}" == "Y" ]]; then remove_all_grest_cron_jobs; setup_db_basics; deploy_query_updates; update_grest_version; fi
   pushd -0 >/dev/null || err_exit
   dirs -c

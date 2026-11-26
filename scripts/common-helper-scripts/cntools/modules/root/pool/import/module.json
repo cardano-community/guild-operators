@@ -1,0 +1,33 @@
+{
+  "kind": "action",
+  "label": "Import",
+  "description": "Import an existing stake pool",
+  "order": 20,
+  "modes": [
+    "local",
+    "light",
+    "offline"
+  ],
+  "libs": [
+    "number.sh",
+    "filesystem.sh",
+    "bech32.sh",
+    "presentation.sh",
+    "wallet.sh",
+    "wallet-query-transport.sh",
+    "wallet-query-local.sh",
+    "asset-metadata.sh",
+    "wallet-query-koios.sh",
+    "asset-view.sh",
+    "wallet-query.sh",
+    "transaction.sh",
+    "pool-id.sh",
+    "table.sh",
+    "pool.sh",
+    "pool-files.sh",
+    "pool-key.sh",
+    "wallet-hardware.sh",
+    "pool-create.sh",
+    "pool-manage-ui.sh"
+  ]
+}

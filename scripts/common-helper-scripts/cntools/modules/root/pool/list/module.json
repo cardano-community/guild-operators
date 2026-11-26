@@ -1,0 +1,26 @@
+{
+  "kind": "action",
+  "label": "List",
+  "description": "List available stake pools",
+  "order": 60,
+  "modes": [
+    "local",
+    "light",
+    "offline"
+  ],
+  "libs": [
+    "number.sh",
+    "filesystem.sh",
+    "bech32.sh",
+    "presentation.sh",
+    "wallet.sh",
+    "wallet-query-transport.sh",
+    "transaction.sh",
+    "pool-id.sh",
+    "table.sh",
+    "pool.sh",
+    "pool-inspect.sh",
+    "pool-ui.sh",
+    "pool-health.sh"
+  ]
+}

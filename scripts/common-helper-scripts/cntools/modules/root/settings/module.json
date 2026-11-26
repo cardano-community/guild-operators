@@ -1,0 +1,6 @@
+{
+  "kind": "menu",
+  "label": "Settings",
+  "description": "Configure transaction defaults and the CNTools interface",
+  "order": 75
+}

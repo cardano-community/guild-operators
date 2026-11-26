@@ -1,0 +1,158 @@
+#!/usr/bin/env bash
+# One-day, network/API-scoped cache of public Koios asset details.
+# Never used for spendable balances, coin selection, or Handle destinations.
+# shellcheck disable=SC2034
+
+cntools_asset_response_valid() {
+  local response_file="$1" requested="$2"
+  jq -e --argjson requested "${requested}" '
+    def uint:
+      type == "string" and length <= 80 and test("^[0-9]+$");
+    def optional_text:
+      type == "null" or type == "string";
+    def optional_object:
+      type == "null" or type == "object";
+    def identity:
+      ((.policy_id | ascii_downcase) + "." +
+        ((.asset_name // "") | ascii_downcase));
+    type == "array" and
+    length == ($requested | length) and
+    all(.[];
+      (.policy_id | type == "string" and
+        test("^[0-9a-fA-F]{56}$")) and
+      ((.asset_name == null) or
+        (.asset_name | type == "string" and
+          test("^([0-9a-fA-F]{2}){0,32}$"))) and
+      (identity as $id | ($requested | index($id)) != null) and
+      (.asset_name_ascii | optional_text) and
+      (.fingerprint | type == "string" and
+        test("^asset1[023456789acdefghjklmnpqrstuvwxyz]{38}$")) and
+      (.total_supply | uint) and
+      (.registry_metadata | optional_object) and
+      (.metadata_20 | optional_object) and
+      (.metadata_721 | optional_object) and
+      (.cip68_metadata | optional_object)) and
+    ([.[] | identity] | unique | length) == length
+  ' "${response_file}" >/dev/null 2>&1
+}
+
+cntools_asset_cache_directory() {
+  local base="${CNTOOLS_ROOT:-}" directory=""
+  [[ "${CNTOOLS_ASSET_CACHE_ENABLED:-Y}" == Y && "${base}" == /* &&
+     "${base}" != / && -d "${base}" && ! -L "${base}" && -O "${base}" ]] || return 1
+  cntools_filesystem_path_components_safe "${base}" || return 1
+  for directory in "${base}/.cache" "${base}/.cache/asset-cache"; do
+    if [[ ! -e "${directory}" && ! -L "${directory}" ]]; then
+      (umask 077; mkdir -- "${directory}") 2>/dev/null || return 1
+    fi
+    [[ -d "${directory}" && ! -L "${directory}" && -O "${directory}" &&
+       -w "${directory}" ]] || return 1
+    cntools_theme_private_path "${directory}" || return 1
+  done
+  printf '%s' "${directory}"
+}
+
+cntools_asset_cache_read() {
+  local file="$1" identity="$2" now="$3" size="" data="" requested=""
+  [[ -f "${file}" && ! -L "${file}" && -O "${file}" ]] || return 1
+  cntools_theme_private_path "${file}" || return 1
+  size="$(wc -c < "${file}")" || return 1
+  (( size > 0 && size <= 2097152 )) || return 1
+  data="$(jq -ce --arg api "${CNTOOLS_KOIOS_API%/}" --argjson now "${now}" '
+    select(.schema == 1 and .api == $api and
+      (.fetchedAt | type == "number" and floor == .) and
+      .fetchedAt <= $now and ($now - .fetchedAt) < 86400)
+    | [.data]
+  ' "${file}" 2>/dev/null)" || return 1
+  requested="$(jq -cn --arg id "${identity}" '[$id]')" || return 1
+  cntools_asset_response_valid /dev/stdin "${requested}" <<< "${data}" || return 1
+  printf '%s' "${data}"
+}
+
+# The record goes to jq on stdin: a base64 registry logo can exceed the
+# 128 KiB limit of a single command-line argument.
+cntools_asset_cache_write() {
+  local directory="$1" identity="$2" now="$3" data="$4" stage="" target=""
+  target="${directory}/${CNTOOLS_NETWORK}-${identity}.json"
+  [[ ! -L "${target}" && ( ! -e "${target}" || -f "${target}" ) ]] || return 1
+  stage="$(umask 077; mktemp "${directory}/.asset.XXXXXX")" || return 1
+  if printf '%s\n' "${data}" | jq -c --arg api "${CNTOOLS_KOIOS_API%/}" --argjson time "${now}" \
+      '{schema:1, api:$api, fetchedAt:$time, data:.}' > "${stage}" &&
+     mv -f -- "${stage}" "${target}"; then return 0; fi
+  rm -f -- "${stage}"
+  return 1
+}
+
+# A mint or burn changes the total supply: drop that asset's cached details.
+cntools_asset_cache_forget() {
+  local identity="${1:-}" directory="" file=""
+  [[ "${identity}" =~ ^[0-9a-f]{56}\.([0-9a-f]{2}){0,32}$ &&
+     "${CNTOOLS_NETWORK:-}" =~ ^(mainnet|preprod|preview|guild)$ ]] || return 0
+  directory="$(cntools_asset_cache_directory)" || return 0
+  file="${directory}/${CNTOOLS_NETWORK}-${identity}.json"
+  [[ -f "${file}" && ! -L "${file}" && -O "${file}" ]] || return 0
+  rm -f -- "${file}" || return 1
+  cntools_log CACHE "Dropped cached asset details after a supply change asset=${identity}" || true
+}
+
+# Keep bulk requests: only cache misses go to the existing logged HTTP helper.
+# Every response, cached or fresh, passes the same strict identity/schema check.
+# Cached and fresh records are joined by jq -s on stdin, never passed as
+# --argjson arguments (a base64 logo can exceed the 128 KiB argument limit).
+cntools_asset_details_fetch() {
+  local destination="$1" directory="" identity="" cached="" combined=''
+  local payload="" requested="" fresh="" record="" now=""
+  local -a missing=() cached_records=()
+  shift
+  [[ "${CNTOOLS_NETWORK:-}" =~ ^(mainnet|preprod|preview|guild)$ ]] || return 1
+  printf -v now '%(%s)T' -1
+  directory="$(cntools_asset_cache_directory)" || directory=""
+  for identity in "$@"; do
+    [[ "${identity}" =~ ^[0-9a-f]{56}\.([0-9a-f]{2}){0,32}$ ]] || return 2
+    if [[ -n "${directory}" ]] && cached="$(cntools_asset_cache_read \
+        "${directory}/${CNTOOLS_NETWORK}-${identity}.json" "${identity}" "${now}")"; then
+      cached_records+=("${cached}")
+    else missing+=("${identity}"); fi
+  done
+  if (( ${#cached_records[@]} > 0 )); then
+    cntools_wallet_log CACHE "Koios asset details cache hits=${#cached_records[@]} max_age=86400s"
+  fi
+  if (( ${#missing[@]} > 0 )); then
+    cntools_wallet_query_koios_asset_payload payload "${missing[@]}" || return 1
+    requested="$(jq -c '[._asset_list[] | (.[0]+"."+.[1])]' <<< "${payload}")" || return 1
+    cntools_wallet_query_http \
+      "${CNTOOLS_KOIOS_API%/}/asset_info${CNTOOLS_WALLET_KOIOS_ASSET_SELECT}" \
+      "${payload}" "${destination}" || return 1
+    cntools_asset_response_valid "${destination}" "${requested}" || {
+      cntools_wallet_log ERROR 'Koios asset_info returned invalid JSON; not caching the response'
+      return 1
+    }
+    fresh="$(< "${destination}")"
+    if [[ -n "${directory}" ]]; then
+      for identity in "${missing[@]}"; do
+        record="$(jq -c --arg id "${identity}" '.[] | select(
+          ((.policy_id+"."+(.asset_name // "")) | ascii_downcase) == $id)' "${destination}")" || return 1
+        cntools_asset_cache_write "${directory}" "${identity}" "${now}" "${record}" ||
+          cntools_wallet_log WARN "Could not cache asset=${identity}; using live metadata"
+      done
+    fi
+  fi
+  combined="$({
+    (( ${#cached_records[@]} == 0 )) || printf '%s\n' "${cached_records[@]}"
+    [[ -z "${fresh}" ]] || printf '%s\n' "${fresh}"
+  } | jq -cs 'add // []')" || return 1
+  printf '%s\n' "${combined}" > "${destination}"
+}
+
+cntools_asset_cache_clear() {
+  local directory="" file="" name="" count=0
+  directory="$(cntools_asset_cache_directory)" || return 1
+  for file in "${directory}/"*.json; do
+    name="${file##*/}"
+    [[ "${name}" =~ ^(mainnet|preprod|preview|guild)-[0-9a-f]{56}\.([0-9a-f]{2}){0,32}\.json$ ]] || continue
+    [[ -f "${file}" && ! -L "${file}" && -O "${file}" ]] || continue
+    rm -f -- "${file}" || return 1
+    count=$((count+1))
+  done
+  cntools_log CACHE "Cleared asset metadata cache entries=${count}" || true
+}

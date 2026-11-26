@@ -1,0 +1,935 @@
+#!/usr/bin/env bash
+# Adapter metadata for common Guild Operators helpers.
+# shellcheck disable=SC2034
+
+NODE_ADAPTER_API_VERSION=1
+NODE_ADAPTER_IMPLEMENTATION="dingo"
+NODE_IMPLEMENTATION_DISPLAY_NAME="Dingo"
+# Logo shown by gLiveView beside the node info: the dingo's head from
+# https://github.com/blinklabs-io/dingo/tree/main/.github/assets in quadrant blocks, in the logo's own colours,
+# darker for THEME=light.
+NODE_IMPLEMENTATION_LOGO=("▙▖  ▗▟" "█▀██▀█" "▝▀██▀▘")
+NODE_IMPLEMENTATION_LOGO_RGB=("190;124;65" "255;182;120" "255;182;120")
+NODE_IMPLEMENTATION_LOGO_RGB_LIGHT=("144;84;26" "190;124;65" "190;124;65")
+NODE_CAPABILITIES="process process_pid metrics native_prometheus n2c local_query local_submit forge kes"
+
+# Read a top-level scalar from the deployed Dingo YAML without a YAML parser.
+dingo_adapter_config_scalar() {
+  local key="${1:?config key required}"
+  local config="${2:-}"
+  [[ "${key}" =~ ^[A-Za-z]+$ && -f "${config}" && -r "${config}" ]] || return 1
+  sed -n "s/^${key}:[[:space:]]*\"\{0,1\}\([^\"#[:space:]]*\).*/\1/p" \
+    "${config}" | head -n 1
+}
+
+# Read one KEY="value" assignment from dingo.env without sourcing it.
+dingo_adapter_env_value() {
+  local key="${1:?environment key required}"
+  local env_file="${2:-}"
+  [[ "${key}" =~ ^[A-Z_]+$ && -f "${env_file}" && -r "${env_file}" ]] || return 1
+  sed -n "s/^${key}=\"\([^\"]*\)\"[[:space:]]*$/\1/p" "${env_file}" | tail -n 1
+}
+
+# Apply listener settings from the deployed configuration once per process.
+# Explicit environment or env-file overrides still take precedence.
+dingo_adapter_load_deployment_config() {
+  local value
+  [[ -z "${DINGO_ADAPTER_CONFIG_LOADED:-}" ]] || return 0
+  DINGO_ADAPTER_CONFIG_LOADED=Y
+  value="$(dingo_adapter_config_scalar relayPort "${NODE_CONFIG}" 2>/dev/null || true)"
+  [[ "${value}" =~ ^[0-9]+$ ]] && : "${NODE_PORT:=${value}}"
+  value="$(dingo_adapter_config_scalar metricsPort "${NODE_CONFIG}" 2>/dev/null || true)"
+  [[ "${value}" =~ ^[0-9]+$ ]] &&
+    : "${NODE_METRICS_PORT:=${CARDANO_METRICS_PORT:-${PROM_PORT:-${value}}}}"
+  value="$(dingo_adapter_config_scalar metricsBindAddr "${NODE_CONFIG}" 2>/dev/null || true)"
+  case "${value}" in
+    ''|0.0.0.0|::|'[::]') ;;
+    *[!A-Za-z0-9.:-]*) ;;
+    *:*) : "${NODE_METRICS_HOST:=${PROM_HOST:-[${value}]}}" ;;
+    *) : "${NODE_METRICS_HOST:=${PROM_HOST:-${value}}}" ;;
+  esac
+  DINGO_ADAPTER_METRICS_TOKEN="${DINGO_METRICS_AUTH_TOKEN:-}"
+  if [[ -z "${DINGO_ADAPTER_METRICS_TOKEN}" ]]; then
+    DINGO_ADAPTER_METRICS_TOKEN="$(
+      dingo_adapter_env_value DINGO_METRICS_AUTH_TOKEN \
+        "${NODE_HOME}/scripts/dingo.env" 2>/dev/null || true
+    )"
+  fi
+  # RFC 6750 token characters only; anything else would break curl quoting.
+  [[ "${DINGO_ADAPTER_METRICS_TOKEN}" =~ ^[A-Za-z0-9._~+/=-]+$ ]] ||
+    DINGO_ADAPTER_METRICS_TOKEN=""
+}
+
+node_adapter_defaults() {
+  : "${NODE_IMPLEMENTATION:=dingo}"
+  : "${NODE_HOME:=${GUILD_NODE_HOME:-/opt/cardano/dingo}}"
+  : "${CNODE_HOME:=${NODE_HOME}}"
+  : "${NODE_SERVICE:=${GUILD_NODE_SERVICE:-dingo}}"
+  : "${NODE_BINARY:=${DINGO_BIN:-${NODE_HOME}/bin/dingo}}"
+  : "${CCLI:=${NODE_HOME}/bin/cardano-cli}"
+  : "${NODE_NETWORK:=${CARDANO_NETWORK:-${NETWORK:-preview}}}"
+  : "${NODE_CONFIG:=${DINGO_CONFIG:-${NODE_HOME}/files/dingo.yaml}}"
+  dingo_adapter_load_deployment_config
+  : "${NODE_PORT:=3001}"
+  : "${CNODE_PORT:=${NODE_PORT}}"
+  : "${CONFIG:=${NODE_CONFIG}}"
+  : "${NODE_SOCKET:=${CARDANO_SOCKET_PATH:-${NODE_HOME}/sockets/dingo.socket}}"
+  : "${SOCKET:=${NODE_SOCKET}}"
+  CARDANO_NODE_SOCKET_PATH="${NODE_SOCKET}"
+  : "${NODE_METRICS_HOST:=${PROM_HOST:-127.0.0.1}}"
+  : "${NODE_METRICS_PORT:=${CARDANO_METRICS_PORT:-${PROM_PORT:-12798}}}"
+  : "${NODE_METRICS_PATH:=/metrics}"
+  : "${PROM_HOST:=${NODE_METRICS_HOST}}"
+  : "${PROM_PORT:=${NODE_METRICS_PORT}}"
+  NODE_CAN_FORGE="Y"
+  NODE_HAS_N2C="Y"
+  NODE_HAS_LOCAL_QUERY="Y"
+  NODE_HAS_LOCAL_SUBMIT="Y"
+  NODE_HAS_HTTP_SUBMIT="N"
+  NODE_METRICS_URL="${DINGO_PROMETHEUS_URL:-http://${NODE_METRICS_HOST}:${NODE_METRICS_PORT}${NODE_METRICS_PATH}}"
+}
+
+dingo_adapter_minimum_cli_version() {
+  local manifest="${NODE_HOME}/files/dingo-release.json"
+
+  command -v jq >/dev/null 2>&1 || {
+    printf 'jq is required to validate Dingo cardano-cli release metadata.\n' >&2
+    return 1
+  }
+  [[ -f "${manifest}" && ! -L "${manifest}" && -s "${manifest}" ]] || {
+    printf 'Dingo release metadata is missing or unsafe: %s\n' "${manifest}" >&2
+    return 1
+  }
+  jq -er '
+    select(
+      .schemaVersion == 1 and
+      .implementation == "dingo" and
+      (.companions["cardano-cli"].version |
+        type == "string" and length > 0)
+    ) |
+    .companions["cardano-cli"].version
+  ' "${manifest}"
+}
+
+dingo_adapter_resolve_cardano_cli() {
+  local minimum_version cli_version
+
+  node_adapter_defaults
+  if [[ "${CCLI}" != */* ]]; then
+    CCLI="$(command -v "${CCLI}" 2>/dev/null || true)"
+  fi
+  [[ -n "${CCLI}" && -x "${CCLI}" && ! -d "${CCLI}" ]] || {
+    printf 'Dingo cardano-cli is not executable: %s\n' \
+      "${CCLI:-unset}; install it with guild-deploy.sh -i dingo -s d or set CCLI in env" >&2
+    return 1
+  }
+  minimum_version="$(dingo_adapter_minimum_cli_version)" || return 1
+  cli_version="$("${CCLI}" version 2>/dev/null | head -n 1 | awk '{print $2}')"
+  [[ -n "${cli_version}" ]] || {
+    printf 'Could not determine Dingo cardano-cli version from %s.\n' "${CCLI}" >&2
+    return 1
+  }
+  if ! versionCheckNode "${minimum_version}" "${cli_version}"; then
+    printf 'Dingo helpers require cardano-cli %s or newer (%s found at %s).\n' \
+      "${minimum_version}" "${cli_version}" "${CCLI}" >&2
+    return 1
+  fi
+  NODE_TX_TOOL="${CCLI}"
+}
+
+node_adapter_init() {
+  local profile="${1:-full}"
+
+  node_adapter_defaults
+  case "${profile}" in
+    definitions|basic) return 0 ;;
+    monitor)
+      command -v curl >/dev/null 2>&1 || {
+        printf 'curl is required to collect Dingo metrics.\n' >&2
+        return 1
+      }
+      if declare -F common_configure_known_network >/dev/null 2>&1; then
+        common_configure_known_network "${NODE_NETWORK}" || return 1
+      fi
+      return 0
+      ;;
+    offline|light|local|full)
+      if declare -F common_configure_known_network >/dev/null 2>&1; then
+        common_configure_known_network "${NODE_NETWORK}" || return 1
+      fi
+      dingo_adapter_resolve_cardano_cli || return 1
+      export CARDANO_NODE_SOCKET_PATH
+      SOCKET="${CARDANO_NODE_SOCKET_PATH}"
+      if [[ "${profile}" == "local" || "${profile}" == "full" ]]; then
+        node_require local_query || return $?
+        node_require local_submit || return $?
+        if [[ ! -S "${CARDANO_NODE_SOCKET_PATH}" ]]; then
+          printf 'Dingo expects node-to-client socket %s, but it does not exist.\n' \
+            "${CARDANO_NODE_SOCKET_PATH}" >&2
+          return 2
+        fi
+      fi
+      return 0
+      ;;
+    *) return "${NODE_ADAPTER_UNSUPPORTED:-3}" ;;
+  esac
+}
+
+node_adapter_validate() {
+  node_adapter_defaults
+  [[ "${NODE_IMPLEMENTATION}" == "dingo" ]] || return 1
+  [[ "${NODE_NETWORK}" =~ ^(mainnet|preprod|preview)$ ]] || return 1
+  [[ -x "${NODE_BINARY}" ]]
+}
+
+node_adapter_installed_version() {
+  local version_output version revision
+  node_adapter_defaults
+  [[ -x "${NODE_BINARY}" ]] || return 1
+  version_output="$("${NODE_BINARY}" version)" || return 1
+  version="${version_output%%[[:space:]]*}"
+  revision="?"
+  if [[ "${version_output}" =~ commit[[:space:]]+([0-9a-fA-F]+) ]]; then
+    revision="${BASH_REMATCH[1]:0:8}"
+  fi
+  printf '%s\t%s\n' "${version:-?}" "${revision}"
+}
+
+node_adapter_version() {
+  node_adapter_installed_version
+}
+
+node_adapter_is_live() {
+  node_adapter_defaults
+  if command -v systemctl >/dev/null 2>&1; then
+    systemctl is-active --quiet "${NODE_SERVICE}.service" && return 0
+  fi
+  pgrep -x dingo >/dev/null 2>&1
+}
+
+node_adapter_process_pid() {
+  node_adapter_defaults
+  local pid=""
+  if command -v systemctl >/dev/null 2>&1; then
+    pid="$(systemctl show --property MainPID --value "${NODE_SERVICE}.service" 2>/dev/null || true)"
+  fi
+  if [[ "${pid}" =~ ^[1-9][0-9]*$ ]]; then
+    printf '%s\n' "${pid}"
+    return 0
+  fi
+  pgrep -xo dingo
+}
+
+node_adapter_refresh_process() {
+  NODE_PID="$(node_adapter_process_pid 2>/dev/null || true)"
+  CNODE_PID="${NODE_PID}"
+  [[ "${NODE_PID}" =~ ^[1-9][0-9]*$ ]]
+}
+
+node_adapter_metrics_url() {
+  node_adapter_defaults
+  printf '%s\n' "${NODE_METRICS_URL}"
+}
+
+# The optional Bearer token goes to curl on stdin so it never appears in argv.
+dingo_adapter_fetch_metrics() {
+  local metrics_url="${1:?metrics URL required}"
+  if [[ -n "${DINGO_ADAPTER_METRICS_TOKEN:-}" ]]; then
+    printf 'header = "Authorization: Bearer %s"\n' "${DINGO_ADAPTER_METRICS_TOKEN}" |
+      curl --fail --silent --show-error \
+        --max-time "${PROM_TIMEOUT:-3}" \
+        --config - "${metrics_url}"
+  else
+    curl --fail --silent --show-error \
+      --max-time "${PROM_TIMEOUT:-3}" \
+      "${metrics_url}"
+  fi
+}
+
+
+dingo_collect_optional_info_metric() {
+  local source_name="${1:?source metric required}"
+  local normalized_name="${2:?normalized metric required}"
+  local metric_label="${3:?metric label required}"
+  local metric_unit="${4-}"
+  local value
+  if prometheus_first_metric_value value "${source_name}" &&
+     node_metric_value_is_numeric "${value}"; then
+    node_metric_set_info \
+      "${normalized_name}" "${value}" "${metric_label}" "${metric_unit}"
+  else
+    node_metric_unset_info "${normalized_name}"
+  fi
+}
+
+dingo_set_info() {
+  local variable="${1:?variable name required}"
+  local value="${2:-}"
+  local label="${3:?metric label required}"
+  local unit="${4:-}"
+  if [[ -n "${value}" ]]; then
+    node_metric_set_info "${variable}" "${value}" "${label}" "${unit}"
+  else
+    node_metric_unset_info "${variable}"
+  fi
+}
+
+# Sum every sample of one metric whose labels include each label=value filter.
+# The common index keeps only the first sample per name, which is not enough
+# for Dingo's labelled families.
+dingo_metric_select() {
+  local metrics="${1:-}"
+  local requested="${2:-}"
+  local filter filters=""
+  [[ -n "${requested}" ]] || return 1
+  shift 2
+  for filter in "$@"; do
+    [[ "${filter}" =~ ^[a-zA-Z_][a-zA-Z0-9_]*=[^\",\;]*$ ]] || return 1
+    filters+="${filter%%=*}=\"${filter#*=}\";"
+  done
+  awk -v requested="${requested}" -v filters="${filters}" '
+    BEGIN { wanted_count = split(filters, wanted, ";") }
+    /^[[:space:]]*#/ || NF < 2 { next }
+    {
+      if (!match($0, /^[a-zA-Z_:][a-zA-Z0-9_:]*/)) {
+        next
+      }
+      name = substr($0, 1, RLENGTH)
+      rest = substr($0, RLENGTH + 1)
+      if (name != requested) {
+        next
+      }
+      labels = ","
+      if (substr(rest, 1, 1) == "{") {
+        closing = index(rest, "}")
+        labels = "," substr(rest, 2, closing - 2) ","
+        rest = substr(rest, closing + 1)
+      }
+      for (item = 1; item <= wanted_count; item++) {
+        if (wanted[item] != "" && index(labels, "," wanted[item] ",") == 0) {
+          next
+        }
+      }
+      split(rest, parts, " ")
+      if (parts[1] !~ /^[+-]?([0-9]+([.][0-9]*)?|[.][0-9]+)$/) {
+        next
+      }
+      total += parts[1]
+      found = 1
+    }
+    END {
+      if (!found) {
+        exit 1
+      }
+      if (total == int(total)) {
+        printf "%.0f\n", total
+      } else {
+        text = sprintf("%.4f", total)
+        sub(/0+$/, "", text)
+        sub(/[.]$/, "", text)
+        print text
+      }
+    }
+  ' <<< "${metrics}"
+}
+
+# Print one label of the first sample of a metric whose value is 1, such as
+# the active phase of a one-hot gauge family.
+dingo_metric_active_label() {
+  local metrics="${1:-}"
+  local requested="${2:-}"
+  local label="${3:-}"
+  [[ -n "${requested}" && "${label}" =~ ^[a-zA-Z_][a-zA-Z0-9_]*$ ]] || return 1
+  awk -v requested="${requested}" -v label="${label}" '
+    /^[[:space:]]*#/ || NF < 2 { next }
+    {
+      if (!match($0, /^[a-zA-Z_:][a-zA-Z0-9_:]*\{[^}]*\}/)) {
+        next
+      }
+      series = substr($0, 1, RLENGTH)
+      rest = substr($0, RLENGTH + 1)
+      name = series
+      sub(/\{.*/, "", name)
+      split(rest, parts, " ")
+      if (name != requested || parts[1] + 0 != 1) {
+        next
+      }
+      if (match(series, "[{,]" label "=\"[^\"]*\"")) {
+        value = substr(series, RSTART + length(label) + 3, RLENGTH - length(label) - 4)
+        print value
+        found = 1
+        exit
+      }
+    }
+    END { exit !found }
+  ' <<< "${metrics}"
+}
+
+# Average of a Prometheus histogram or summary since process start.
+dingo_histogram_mean() {
+  local metrics="${1:-}"
+  local requested="${2:-}"
+  local sum count
+  sum="$(dingo_metric_select "${metrics}" "${requested}_sum")" || return 1
+  count="$(dingo_metric_select "${metrics}" "${requested}_count")" || return 1
+  LC_NUMERIC=C awk -v sum="${sum}" -v count="${count}" '
+    BEGIN {
+      if (count <= 0) {
+        exit 1
+      }
+      printf "%.2f\n", sum / count
+    }
+  '
+}
+
+dingo_set_optional_custom_metric() {
+  local variable="${1:?variable name required}"
+  local value="${2:-}"
+  local label="${3:?metric label required}"
+  local unit="${4:-}"
+  if node_metric_value_is_numeric "${value}"; then
+    node_metric_set_custom "${variable}" "${value}" "${label}" "${unit}"
+  else
+    node_metric_unset_custom "${variable}"
+  fi
+}
+
+dingo_set_cache_hit_ratio() {
+  local variable="${1:?variable name required}"
+  local hit_metric="${2:?hit metric required}"
+  local miss_metric="${3:?miss metric required}"
+  local label="${4:?metric label required}"
+  local hits misses ratio
+
+  if ! prometheus_first_metric_value hits "${hit_metric}" ||
+     ! prometheus_first_metric_value misses "${miss_metric}" ||
+     ! node_metric_value_is_numeric "${hits}" ||
+     ! node_metric_value_is_numeric "${misses}"; then
+    node_metric_unset_custom "${variable}"
+    return 0
+  fi
+  ratio="$(
+    LC_NUMERIC=C awk -v hits="${hits}" -v misses="${misses}" '
+      BEGIN {
+        total = hits + misses
+        if (total <= 0) {
+          print "n/a"
+        } else {
+          printf "%.1f", hits * 100 / total
+        }
+      }
+    '
+  )"
+  node_metric_set_custom \
+    "${variable}" "${ratio}" "${label}" \
+    "$([[ "${ratio}" == "n/a" ]] || printf '%%')"
+}
+
+# Error counters are shown only while they are nonzero.
+dingo_set_nonzero_custom_metric() {
+  local variable="${1:?variable name required}"
+  local value="${2:-}"
+  local label="${3:?metric label required}"
+  if node_metric_value_is_numeric "${value}" &&
+     awk -v value="${value}" 'BEGIN { exit !(value > 0) }'; then
+    node_metric_set_custom "${variable}" "${value}" "${label}"
+  else
+    node_metric_unset_custom "${variable}"
+  fi
+}
+
+dingo_set_nonzero_error_counter() {
+  local source_name="${1:?source metric required}"
+  local variable="${2:?variable name required}"
+  local label="${3:?metric label required}"
+  local value=""
+  prometheus_first_metric_value value "${source_name}" || value=""
+  dingo_set_nonzero_custom_metric "${variable}" "${value}" "${label}"
+}
+
+dingo_normalize_propagation_ratios() {
+  local metric value
+  for metric in blocks_w1s blocks_w3s blocks_w5s; do
+    node_metric_has "${metric}" || continue
+    value="${!metric}"
+    if node_metric_value_is_numeric "${value}"; then
+      value="$(
+        LC_NUMERIC=C awk -v percent="${value}" \
+          'BEGIN { printf "%.8f", percent / 100 }'
+      )"
+      node_metric_set "${metric}" "${value}"
+    else
+      node_metric_unset "${metric}"
+    fi
+  done
+}
+
+# Dingo's outbound peer-temperature gauges also count peers that connected to
+# us. Report only outbound-governed peers in the "Out" fields.
+dingo_adapter_outbound_peer_states() {
+  local metrics="${1:-}"
+  local state field total inbound
+  for state in cold warm hot; do
+    field="peer_selection_${state}"
+    node_metric_has "${field}" || continue
+    total="${!field}"
+    inbound="$(
+      dingo_metric_select "${metrics}" \
+        dingo_metrics_peerSelection_peers_by_source source=inbound "state=${state}" \
+        2>/dev/null || true
+    )"
+    [[ "${total}" =~ ^[0-9]+$ && "${inbound}" =~ ^[0-9]+$ ]] || continue
+    (( total > inbound )) && total=$(( total - inbound )) || total=0
+    node_metric_set "${field}" "${total}"
+  done
+}
+
+# Mithril bootstrap or node-managed restore progress. The bootstrap process
+# serves only the dingo_mithril_sync_* family on the same metrics endpoint.
+dingo_adapter_sync_state() {
+  local metrics="${1:-}"
+  local phase="" text="" progress="" rate="" value stage
+
+  node_metric_unset sync_phase
+  node_metric_unset sync_progress
+  node_metric_unset sync_rate
+  if [[ -n "${PROMETHEUS_SAMPLE_VALUE[dingo_mithril_sync_phase_active]+present}" ]]; then
+    value="$(dingo_metric_select "${metrics}" dingo_mithril_sync_completed 2>/dev/null || true)"
+    if [[ "${value}" == "1" ]]; then
+      phase="complete"
+    else
+      phase="$(
+        dingo_metric_active_label "${metrics}" dingo_mithril_sync_phase_active phase \
+          2>/dev/null || true
+      )"
+    fi
+    case "${phase}" in
+      bootstrap)
+        text="Mithril download"
+        progress="$(dingo_metric_select "${metrics}" dingo_mithril_sync_download_percent 2>/dev/null || true)"
+        value="$(dingo_metric_select "${metrics}" dingo_mithril_sync_download_bytes_per_second 2>/dev/null || true)"
+        if node_metric_value_is_numeric "${value}" &&
+           awk -v value="${value}" 'BEGIN { exit !(value > 0) }'; then
+          rate="$(LC_NUMERIC=C awk -v value="${value}" 'BEGIN { printf "%.1f MiB/s", value / 1048576 }')"
+        fi
+        ;;
+      immutable_copy)
+        text="Mithril blocks"
+        progress="$(dingo_metric_select "${metrics}" dingo_mithril_sync_immutable_copy_percent 2>/dev/null || true)"
+        value="$(dingo_metric_select "${metrics}" dingo_mithril_sync_immutable_blocks_per_second 2>/dev/null || true)"
+        if node_metric_value_is_numeric "${value}" &&
+           awk -v value="${value}" 'BEGIN { exit !(value > 0) }'; then
+          rate="$(LC_NUMERIC=C awk -v value="${value}" 'BEGIN { printf "%.0f blk/s", value }')"
+        fi
+        ;;
+      ledger_import)
+        # Show the largest stage that is still importing.
+        stage="$(
+          awk '
+            /^dingo_mithril_sync_ledger_import_(percent|total)\{/ {
+              if (!match($0, /stage="[^"]*"/)) {
+                next
+              }
+              name = substr($0, RSTART + 7, RLENGTH - 8)
+              split($0, parts, "} ")
+              split(parts[2], sample, " ")
+              if ($0 ~ /^dingo_mithril_sync_ledger_import_percent/) {
+                percent[name] = sample[1]
+                last = name
+              } else {
+                total[name] = sample[1]
+              }
+            }
+            END {
+              for (name in percent) {
+                if (percent[name] + 0 < 100 &&
+                    (best == "" || total[name] + 0 > total[best] + 0)) {
+                  best = name
+                }
+              }
+              if (best == "") {
+                best = last
+              }
+              if (best != "") {
+                print best
+              }
+            }
+          ' <<< "${metrics}"
+        )"
+        text="Ledger import"
+        if [[ "${stage}" =~ ^[A-Za-z0-9_-]+$ ]]; then
+          text="Ledger ${stage}"
+          progress="$(
+            dingo_metric_select "${metrics}" \
+              dingo_mithril_sync_ledger_import_percent "stage=${stage}" 2>/dev/null || true
+          )"
+        fi
+        ;;
+      gap_blocks)
+        text="Gap blocks"
+        value="$(dingo_metric_select "${metrics}" dingo_mithril_sync_gap_blocks 2>/dev/null || true)"
+        node_metric_value_is_numeric "${value}" && rate="${value} blocks"
+        ;;
+      backfill)
+        text="Backfill"
+        progress="$(dingo_metric_select "${metrics}" dingo_mithril_sync_backfill_percent 2>/dev/null || true)"
+        value="$(dingo_metric_select "${metrics}" dingo_mithril_sync_backfill_blocks_per_second 2>/dev/null || true)"
+        if node_metric_value_is_numeric "${value}" &&
+           awk -v value="${value}" 'BEGIN { exit !(value > 0) }'; then
+          rate="$(LC_NUMERIC=C awk -v value="${value}" 'BEGIN { printf "%.0f blk/s", value }')"
+        fi
+        ;;
+      post_ledger_state|index_rebuild)
+        text="Finalising bootstrap"
+        ;;
+      complete)
+        text="Bootstrap complete"
+        progress="100"
+        ;;
+      *)
+        text="Mithril bootstrap"
+        ;;
+    esac
+  else
+    value="$(dingo_metric_select "${metrics}" dingo_mithril_snapshot_restore_state 2>/dev/null || true)"
+    if [[ "${value}" == "1" ]]; then
+      text="Mithril restore"
+    else
+      value="$(dingo_metric_select "${metrics}" dingo_mithril_window_chunks 2>/dev/null || true)"
+      if node_metric_value_is_numeric "${value}" &&
+         awk -v value="${value}" 'BEGIN { exit !(value > 0) }'; then
+        text="Mithril catch-up"
+      fi
+    fi
+  fi
+
+  [[ -n "${text}" ]] || return 0
+  node_metric_set sync_phase "${text}"
+  if node_metric_value_is_numeric "${progress}"; then
+    LC_NUMERIC=C printf -v progress '%.1f' "${progress}"
+    node_metric_set sync_progress "${progress}"
+  fi
+  [[ -z "${rate}" ]] || node_metric_set sync_rate "${rate}"
+}
+
+# Conditions that need operator attention, most severe first.
+dingo_adapter_alerts() {
+  local metrics="${1:-}"
+  local value
+  local -a alerts=()
+
+  value="$(dingo_metric_select "${metrics}" dingo_ledger_pipeline_halted 2>/dev/null || true)"
+  [[ "${value}" == "1" ]] && alerts+=("Ledger halted")
+  value="$(dingo_metric_select "${metrics}" dingo_equivocation_total self_key=true 2>/dev/null || true)"
+  [[ "${value}" =~ ^[1-9][0-9]*$ ]] && alerts+=("Own pool equivocation")
+  if node_metric_has forging_enabled && [[ "${forging_enabled:-}" == "1" ]]; then
+    value="$(dingo_metric_select "${metrics}" dingo_forge_credentials_valid 2>/dev/null || true)"
+    [[ "${value}" == "0" ]] && alerts+=("Forging keys invalid")
+  fi
+  value="$(dingo_metric_select "${metrics}" dingo_ledger_pipeline_stuck 2>/dev/null || true)"
+  [[ "${value}" == "1" ]] && alerts+=("Ledger stuck")
+  value="$(dingo_metric_select "${metrics}" dingo_ledger_skipped_stake_reward_rounds_total 2>/dev/null || true)"
+  [[ "${value}" =~ ^[1-9][0-9]*$ ]] && alerts+=("Reward rounds skipped")
+  value="$(dingo_metric_select "${metrics}" dingo_mithril_snapshot_restore_state 2>/dev/null || true)"
+  case "${value}" in
+    2) alerts+=("Mithril restore stuck") ;;
+    3) alerts+=("Mithril restore waiting") ;;
+  esac
+  value="$(dingo_metric_select "${metrics}" dingo_mithril_sync_errors_total 2>/dev/null || true)"
+  [[ "${value}" =~ ^[1-9][0-9]*$ ]] && alerts+=("Mithril sync errors")
+
+  if (( ${#alerts[@]} > 0 )); then
+    local joined
+    printf -v joined '%s, ' "${alerts[@]}"
+    node_metric_set node_alert "${joined%, }"
+  else
+    node_metric_unset node_alert
+  fi
+}
+
+dingo_adapter_producer_metrics() {
+  local metrics="${1:-}"
+  local value
+
+  for value in leader_lost leader_sched_slots leader_sched_epoch \
+    forge_keys_valid opcert_counter_disk opcert_counter_chain; do
+    node_metric_unset "${value}"
+  done
+  # Dingo has no missed-leadership-check counter; its missed leader slots
+  # metric means leader slots that did not end in an adopted block.
+  node_metric_unset missed_slots
+  if ! node_metric_has forging_enabled || [[ "${forging_enabled:-}" != "1" ]]; then
+    return 0
+  fi
+  value="$(dingo_metric_select "${metrics}" dingo_forge_missed_leader_slots_total 2>/dev/null || true)"
+  node_metric_value_is_numeric "${value}" && node_metric_set leader_lost "${value}"
+  value="$(dingo_metric_select "${metrics}" dingo_metrics_leader_last_evaluated_epoch_int 2>/dev/null || true)"
+  if [[ "${value}" =~ ^[0-9]+$ ]]; then
+    node_metric_set leader_sched_epoch "${value}"
+    value="$(dingo_metric_select "${metrics}" dingo_metrics_leader_last_epoch_slots_won_int 2>/dev/null || true)"
+    if [[ "${value}" =~ ^[0-9]+$ ]]; then
+      node_metric_set leader_sched_slots "${value}"
+    else
+      node_metric_unset leader_sched_epoch
+    fi
+  fi
+  value="$(dingo_metric_select "${metrics}" dingo_forge_credentials_valid 2>/dev/null || true)"
+  [[ "${value}" == "0" || "${value}" == "1" ]] && node_metric_set forge_keys_valid "${value}"
+  # The on-chain counter is NaN until the pool's first block.
+  value="$(dingo_metric_select "${metrics}" dingo_forge_opcert_counter_loaded 2>/dev/null || true)"
+  [[ "${value}" =~ ^[0-9]+$ ]] && node_metric_set opcert_counter_disk "${value}"
+  value="$(dingo_metric_select "${metrics}" dingo_forge_opcert_counter_onchain 2>/dev/null || true)"
+  [[ "${value}" =~ ^[0-9]+$ ]] && node_metric_set opcert_counter_chain "${value}"
+  return 0
+}
+
+dingo_adapter_custom_metrics() {
+  local metrics="${1:-}"
+  local value capacity forging=N
+
+  node_metric_has forging_enabled && [[ "${forging_enabled:-}" == "1" ]] && forging=Y
+
+  value=""
+  prometheus_first_metric_value value go_goroutines || value=""
+  dingo_set_optional_custom_metric dingo_goroutines "${value}" "Goroutines"
+  value="$(dingo_metric_select "${metrics}" go_gc_duration_seconds_count 2>/dev/null || true)"
+  dingo_set_optional_custom_metric dingo_gc_cycles "${value}" "GC cycles"
+  value="$(dingo_metric_select "${metrics}" dingo_database_size_bytes 2>/dev/null || true)"
+  dingo_set_optional_custom_metric dingo_database_bytes "${value}" "DB size" "B"
+  dingo_set_cache_hit_ratio \
+    dingo_utxo_cache_hits \
+    dingo_cbor_cache_utxo_hot_hits_total \
+    dingo_cbor_cache_utxo_hot_misses_total \
+    "UTxO hits"
+  dingo_set_cache_hit_ratio \
+    dingo_block_cache_hits \
+    dingo_cbor_cache_block_lru_hits_total \
+    dingo_cbor_cache_block_lru_misses_total \
+    "Block hits"
+  value=""
+  capacity="$(dingo_metric_select "${metrics}" dingo_mempool_capacity_bytes 2>/dev/null || true)"
+  if node_metric_has mempool_bytes &&
+     [[ "${capacity}" =~ ^[1-9][0-9]*$ ]]; then
+    value="$(
+      LC_NUMERIC=C awk -v used="${mempool_bytes:-}" -v capacity="${capacity}" \
+        'BEGIN { printf "%.1f", used * 100 / capacity }'
+    )"
+  fi
+  dingo_set_optional_custom_metric dingo_mempool_fill "${value}" "Mempool" "%"
+  value="$(dingo_histogram_mean "${metrics}" dingo_ledger_block_adoption_delay_seconds 2>/dev/null || true)"
+  dingo_set_optional_custom_metric dingo_adopt_delay "${value}" "Adopt avg" "s"
+  # The peers that connected to Dingo, by Dingo's own state of them: warm once
+  # connected, hot once it fetches from them. They are not the inbound
+  # governor's In warm and In hot, the peers that hold the node warm or hot,
+  # which Dingo does not export.
+  value=""
+  prometheus_first_metric_value value dingo_metrics_peerSelection_InboundWarmHeld || value=""
+  dingo_set_optional_custom_metric dingo_inbound_warm "${value}" "Inb warm"
+  value=""
+  prometheus_first_metric_value value dingo_metrics_peerSelection_InboundHotHeld || value=""
+  dingo_set_optional_custom_metric dingo_inbound_hot "${value}" "Inb hot"
+
+  if [[ "${forging}" == "Y" ]]; then
+    value=""
+    prometheus_first_metric_value value dingo_metrics_slotBattlesTotal_int || value=""
+    dingo_set_optional_custom_metric dingo_slot_battles "${value}" "Slot batls"
+    value=""
+    prometheus_first_metric_value value dingo_forge_sync_skip_total || value=""
+    dingo_set_optional_custom_metric dingo_forge_sync_skips "${value}" "Sync skips"
+    value="$(dingo_metric_select "${metrics}" dingo_forge_stale_tip_skip_total 2>/dev/null || true)"
+    dingo_set_optional_custom_metric dingo_forge_tip_skips "${value}" "Tip skips"
+    value="$(dingo_histogram_mean "${metrics}" dingo_metrics_blockForgingLatency_seconds 2>/dev/null || true)"
+    dingo_set_optional_custom_metric dingo_forge_latency "${value}" "Forge avg" "s"
+  else
+    node_metric_unset_custom dingo_slot_battles
+    node_metric_unset_custom dingo_forge_sync_skips
+    node_metric_unset_custom dingo_forge_tip_skips
+    node_metric_unset_custom dingo_forge_latency
+  fi
+
+  dingo_set_nonzero_error_counter \
+    dingo_forge_validation_failed_total \
+    dingo_forge_validation_failures "Valid fail"
+  dingo_set_nonzero_error_counter \
+    dingo_forge_slot_clock_errors_total \
+    dingo_slot_clock_errors "Slot clock"
+  dingo_set_nonzero_error_counter \
+    dingo_metrics_peerSelection_hot_set_deficit \
+    dingo_hot_deficit "Hot short"
+  dingo_set_nonzero_error_counter \
+    dingo_ledger_pipeline_no_progress_restarts \
+    dingo_pipe_restarts "Pipe rstrt"
+  dingo_set_nonzero_error_counter \
+    dingo_metrics_stake_snapshot_capture_failure_total \
+    dingo_snapshot_fails "Snap fail"
+  dingo_set_nonzero_error_counter \
+    dingo_governance_proposal_decode_failures_total \
+    dingo_governance_decode_errors "Gov decode"
+  dingo_set_nonzero_error_counter \
+    dingo_chainsync_unrecoverable_rollback_total \
+    dingo_rollback_errors "Rollback"
+  dingo_set_nonzero_error_counter \
+    dingo_ledger_attip_recovery_nonconverging_total \
+    dingo_attip_errors "At-tip err"
+  dingo_set_nonzero_error_counter \
+    dingo_ledger_replay_recovery_nonconverging_total \
+    dingo_replay_errors "Replay err"
+  value="$(dingo_metric_select "${metrics}" dingo_mithril_fallbacks_total 2>/dev/null || true)"
+  dingo_set_nonzero_custom_metric dingo_mithril_fallbacks "${value}" "Mithril fb"
+}
+
+dingo_adapter_info_metrics() {
+  local metrics="${1:-}"
+  local value epoch pools stake
+
+  dingo_collect_optional_info_metric \
+    "dingo_epoch_length_slots" "dingo_epoch_length_slots" \
+    "Epoch length" "slots"
+  dingo_collect_optional_info_metric \
+    "dingo_shelley_start_time" "dingo_shelley_start_time" \
+    "Shelley start" "unix s"
+  dingo_collect_optional_info_metric \
+    "go_sched_gomaxprocs_threads" "dingo_gomaxprocs" "Go procs"
+  dingo_collect_optional_info_metric \
+    "dingo_forge_slots_per_kes_period" "dingo_slots_per_kes" \
+    "KES period length" "slots"
+  value=""
+  if [[ -n "${PROMETHEUS_SAMPLE_VALUE[dingo_metrics_mempool_info]+present}" ]]; then
+    value="$(prometheus_metric_label dingo_metrics_mempool_info implementation 2>/dev/null || true)"
+  fi
+  dingo_set_info dingo_mempool_impl "${value}" "Mempool"
+  value="$(dingo_metric_select "${metrics}" dingo_mempool_capacity_bytes 2>/dev/null || true)"
+  if [[ "${value}" =~ ^[0-9]+$ ]]; then
+    value="$(LC_NUMERIC=C awk -v bytes="${value}" 'BEGIN { printf "%.1f", bytes / 1048576 }')"
+  else
+    value=""
+  fi
+  dingo_set_info dingo_mempool_capacity "${value}" "Mempool capacity" "MiB"
+  value=""
+  epoch="$(dingo_metric_select "${metrics}" dingo_metrics_stake_snapshot_last_successful_epoch_int 2>/dev/null || true)"
+  pools="$(dingo_metric_select "${metrics}" dingo_metrics_stake_snapshot_pool_count_int 2>/dev/null || true)"
+  stake="$(dingo_metric_select "${metrics}" dingo_metrics_stake_snapshot_total_active_stake_lovelace 2>/dev/null || true)"
+  if [[ "${epoch}" =~ ^[0-9]+$ && "${pools}" =~ ^[0-9]+$ && "${stake}" =~ ^[0-9]+$ ]]; then
+    value="$(
+      LC_NUMERIC=C awk -v epoch="${epoch}" -v pools="${pools}" -v stake="${stake}" \
+        'BEGIN { printf "epoch %s, %s pools, %.1fM ADA active", epoch, pools, stake / 1e12 }'
+    )"
+  fi
+  dingo_set_info dingo_stake_snapshot "${value}" "Stake snapshot"
+}
+
+node_adapter_collect_metrics() {
+  local node_metrics normalized_metrics metrics_url
+  local build_version build_revision build_go_version
+  local start_time now uptime_value process_elapsed value
+
+  node_adapter_defaults
+  metrics_url="$(node_adapter_metrics_url)" || return 1
+  node_metrics="$(dingo_adapter_fetch_metrics "${metrics_url}" 2>/dev/null)" ||
+    return 1
+  [[ -n "${node_metrics}" ]] || return 1
+  normalized_metrics="$(
+    printf '%s\n' "${node_metrics}" | prometheus_normalize_metrics
+  )"
+
+  # Dingo deliberately exports the cardano_node_metrics_* family.
+  # The common parser is label-aware because Dingo adds network="<name>" to
+  # node/component samples.
+  common_parse_cardano_metrics "${normalized_metrics}" || return 1
+  # Dingo exports these CDF gauges as 0-100 percentages. The normalized
+  # contract used by cnode and gLiveView is a 0-1 ratio.
+  dingo_normalize_propagation_ratios
+  dingo_adapter_outbound_peer_states "${normalized_metrics}"
+
+  # Go has no minor/major collections; Dingo reports forced collections as
+  # "major", so the total cycle count is shown as a Dingo metric instead.
+  node_metric_unset gc_minor
+  node_metric_unset gc_major
+
+  if [[ -n "${PROMETHEUS_SAMPLE_VALUE[dingo_build_info]+present}" ]]; then
+    if build_version="$(prometheus_metric_label dingo_build_info version)"; then
+      # The upstream label is "<version> (commit <hash>)"; gLiveView keeps
+      # version and revision in separate normalized fields.
+      node_metric_set running_node_version "${build_version%%[[:space:]]*}"
+    else
+      node_metric_unset running_node_version
+    fi
+    if build_revision="$(prometheus_metric_label dingo_build_info commit)"; then
+      node_metric_set running_node_rev "${build_revision:0:8}"
+    else
+      node_metric_unset running_node_rev
+    fi
+    if build_go_version="$(prometheus_metric_label dingo_build_info goversion)"; then
+      node_metric_set_info \
+        dingo_go_version "${build_go_version}" "Go runtime"
+    else
+      node_metric_unset_info dingo_go_version
+    fi
+  else
+    node_metric_unset running_node_version
+    node_metric_unset running_node_rev
+    node_metric_unset_info dingo_go_version
+  fi
+
+  if prometheus_first_metric_value value dingo_tip_gap_slots &&
+     node_metric_value_is_numeric "${value}"; then
+    node_metric_set tip_gap "${value}"
+  else
+    node_metric_unset tip_gap
+  fi
+
+  if prometheus_first_metric_value value process_open_fds &&
+     node_metric_value_is_numeric "${value}"; then
+    node_metric_set open_files "${value}"
+  else
+    node_metric_unset open_files
+  fi
+  if prometheus_first_metric_value value process_max_fds &&
+     node_metric_value_is_numeric "${value}"; then
+    node_metric_set max_files "${value}"
+  else
+    node_metric_unset max_files
+  fi
+
+  dingo_adapter_sync_state "${normalized_metrics}"
+  # A bootstrap process exports no build information; show the installed
+  # binary instead of an unknown version while it runs.
+  if node_metric_has sync_phase && ! node_metric_has running_node_version; then
+    if [[ -z "${DINGO_ADAPTER_INSTALLED_VERSION:-}" ]]; then
+      DINGO_ADAPTER_INSTALLED_VERSION="$(node_adapter_installed_version 2>/dev/null || true)"
+    fi
+    if [[ -n "${DINGO_ADAPTER_INSTALLED_VERSION}" ]]; then
+      node_metric_set running_node_version "${DINGO_ADAPTER_INSTALLED_VERSION%%$'\t'*}"
+      node_metric_set running_node_rev "${DINGO_ADAPTER_INSTALLED_VERSION#*$'\t'}"
+    fi
+  fi
+  dingo_adapter_alerts "${normalized_metrics}"
+  dingo_adapter_producer_metrics "${normalized_metrics}"
+  dingo_adapter_custom_metrics "${normalized_metrics}"
+  dingo_adapter_info_metrics "${normalized_metrics}"
+
+  now="$(date -u +%s)"
+  start_time=""
+  prometheus_first_metric_value start_time \
+    cardano_node_metrics_nodeStartTime_int \
+    process_start_time_seconds || true
+  start_time="${start_time%%.*}"
+  if [[ "${start_time}" =~ ^[0-9]+$ && "${start_time}" -le "${now}" ]]; then
+    node_metric_set uptimes "$(( now - start_time ))"
+  else
+    node_adapter_refresh_process >/dev/null 2>&1 || true
+    process_elapsed=""
+    if [[ "${NODE_PID:-}" =~ ^[1-9][0-9]*$ ]]; then
+      process_elapsed="$(
+        ps -p "${NODE_PID}" -o etimes= 2>/dev/null |
+          awk 'NF { print $1; exit }'
+      )"
+    fi
+    if [[ "${process_elapsed}" =~ ^[0-9]+$ ]]; then
+      uptime_value="${process_elapsed}"
+      node_metric_set uptimes "${uptime_value}"
+    else
+      node_metric_unset uptimes
+    fi
+  fi
+}

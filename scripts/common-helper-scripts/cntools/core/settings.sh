@@ -1,0 +1,545 @@
+#!/usr/bin/env bash
+# Persistent CNTools application settings. Functions only.
+# Transaction actions consume these values but never modify them.
+# shellcheck disable=SC2034
+
+CNTOOLS_SETTINGS_SCHEMA_VERSION=1
+CNTOOLS_SETTINGS_STATE_DIR=""
+CNTOOLS_SETTINGS_FILE=""
+CNTOOLS_SETTINGS_STAGE_FILE=""
+# Empty until the user picks Quick or Detailed; kept apart from the
+# transaction defaults so restoring those never resets it.
+CNTOOLS_FLOW_STYLE=""
+# How menus answer typing (Settings → Navigation): hotkeys, hotkeys-enter or
+# filter. Empty means hotkeys; core/fzf.sh reads it.
+CNTOOLS_MENU_NAVIGATION=""
+# How ADA and token amounts are shown (Settings → Decimals): trim or full.
+# Empty means trim; lib/number.sh reads it.
+CNTOOLS_AMOUNT_PRECISION=""
+
+cntools_settings_defaults() {
+  CNTOOLS_SEND_CHOOSE_CHANGE=N
+  CNTOOLS_TX_DEFAULT_TTL=1800
+  CNTOOLS_TX_SELECTION_STRATEGY="balanced"
+  CNTOOLS_TX_TOKEN_FRAGMENTATION="N"
+  CNTOOLS_TX_TOKEN_MAX_ASSETS=20
+  CNTOOLS_TX_UTXO_MANAGEMENT="N"
+  CNTOOLS_TX_UTXO_TARGET_COUNT=4
+  CNTOOLS_TX_UTXO_PERCENTAGES="10,20,30"
+  CNTOOLS_TX_UTXO_MAX_NEW_OUTPUTS=3
+  CNTOOLS_TX_UTXO_MIN_LOVELACE="2000000"
+  CNTOOLS_TX_COLLATERAL_MANAGEMENT="Y"
+  CNTOOLS_TX_COLLATERAL_TARGET_COUNT=1
+  CNTOOLS_TX_COLLATERAL_LOVELACE="5000000"
+}
+
+cntools_settings_log() {
+  if declare -F cntools_log >/dev/null 2>&1; then
+    cntools_log "${1:-INFO}" "${2:-}" || true
+  fi
+}
+
+cntools_settings_state_paths() {
+  local root="${CNTOOLS_ROOT:-}"
+
+  CNTOOLS_SETTINGS_STATE_DIR=""
+  CNTOOLS_SETTINGS_FILE=""
+  [[ -n "${root}" && "${root}" = /* && "${root}" != "/" &&
+     -d "${root}" && ! -L "${root}" && -O "${root}" &&
+     -w "${root}" ]] || return 1
+  cntools_filesystem_path_components_safe "${root}" || return 1
+  CNTOOLS_SETTINGS_STATE_DIR="${root}/.state"
+  CNTOOLS_SETTINGS_FILE="${CNTOOLS_SETTINGS_STATE_DIR}/transaction-settings.json"
+}
+
+cntools_settings_state_directory_safe() {
+  [[ -n "${CNTOOLS_SETTINGS_STATE_DIR:-}" &&
+     "${CNTOOLS_SETTINGS_STATE_DIR}" == "${CNTOOLS_ROOT}/.state" &&
+     -d "${CNTOOLS_SETTINGS_STATE_DIR}" &&
+     ! -L "${CNTOOLS_SETTINGS_STATE_DIR}" &&
+     -O "${CNTOOLS_SETTINGS_STATE_DIR}" ]] || return 1
+  cntools_theme_private_path "${CNTOOLS_SETTINGS_STATE_DIR}"
+}
+
+cntools_settings_state_directory_ready() {
+  local previous_umask=""
+
+  [[ -n "${CNTOOLS_SETTINGS_STATE_DIR:-}" &&
+     "${CNTOOLS_SETTINGS_STATE_DIR}" == "${CNTOOLS_ROOT}/.state" ]] ||
+    return 1
+  if [[ ! -e "${CNTOOLS_SETTINGS_STATE_DIR}" &&
+        ! -L "${CNTOOLS_SETTINGS_STATE_DIR}" ]]; then
+    previous_umask="$(umask)"
+    umask 077
+    if mkdir -- "${CNTOOLS_SETTINGS_STATE_DIR}"; then
+      umask "${previous_umask}"
+    else
+      umask "${previous_umask}"
+      return 1
+    fi
+  fi
+  [[ -d "${CNTOOLS_SETTINGS_STATE_DIR}" &&
+     ! -L "${CNTOOLS_SETTINGS_STATE_DIR}" &&
+     -O "${CNTOOLS_SETTINGS_STATE_DIR}" ]] || return 1
+  chmod 0700 "${CNTOOLS_SETTINGS_STATE_DIR}" || return 1
+  cntools_settings_state_directory_safe || return 1
+  [[ -w "${CNTOOLS_SETTINGS_STATE_DIR}" ]]
+}
+
+cntools_settings_file_valid() {
+  local file="${1:-}"
+  local size=""
+
+  cntools_settings_state_directory_safe || return 1
+  [[ -n "${file}" && "${file}" == "${CNTOOLS_SETTINGS_FILE}" &&
+     -f "${file}" && ! -L "${file}" && -O "${file}" ]] || return 1
+  cntools_theme_private_path "${file}" || return 1
+  size="$(wc -c < "${file}" 2>/dev/null)" || return 1
+  size="${size//[[:space:]]/}"
+  [[ "${size}" =~ ^[0-9]+$ && ${size} -gt 0 && ${size} -le 16384 ]] ||
+    return 1
+  jq -e --argjson schema "${CNTOOLS_SETTINGS_SCHEMA_VERSION}" '
+    def uint_string:
+      type == "string" and length > 0 and length <= 20 and
+      test("^(0|[1-9][0-9]*)$");
+    type == "object" and
+    (keys - ["coinSelection", "interaction", "schemaVersion", "tokenFragmentation", "utxoManagement"] | length == 0) and
+    (if has("interaction") then (.interaction | type == "object" and
+      (keys - ["amountPrecision", "chooseSendChange", "defaultTtlSeconds", "flowStyle", "navigation"] | length == 0) and
+      has("chooseSendChange") and has("defaultTtlSeconds") and
+      ((has("flowStyle") | not) or .flowStyle == "quick" or .flowStyle == "detailed") and
+      ((has("navigation") | not) or .navigation == "hotkeys" or
+        .navigation == "hotkeys-enter" or .navigation == "filter") and
+      ((has("amountPrecision") | not) or .amountPrecision == "trim" or .amountPrecision == "full") and
+      (.chooseSendChange | type == "boolean") and
+      (.defaultTtlSeconds | type == "number" and floor == . and . >= 0 and . <= 31536000)) else true end) and
+    .schemaVersion == $schema and
+    (.coinSelection | type == "object" and keys == ["strategy"] and
+      (.strategy == "balanced" or .strategy == "fewest-inputs")) and
+    (.tokenFragmentation | type == "object" and
+      keys == ["enabled", "maxAssetsPerOutput"] and
+      (.enabled | type == "boolean") and
+      (.maxAssetsPerOutput | type == "number" and floor == . and
+        . >= 1 and . <= 100)) and
+    (.utxoManagement | type == "object" and
+      keys == ["collateral", "enabled", "maxNewOutputs", "minimumLovelace", "percentages", "targetCount"] and
+      (.enabled | type == "boolean") and
+      (.targetCount | type == "number" and floor == . and . >= 1 and . <= 12) and
+      (.maxNewOutputs | type == "number" and floor == . and . >= 1 and . <= 6) and
+      (.maxNewOutputs <= (.percentages | length)) and
+      (.minimumLovelace | uint_string) and
+      (.percentages | type == "array" and length >= 1 and length <= 6 and
+        all(.[]; type == "number" and floor == . and . >= 1 and . <= 75) and
+        . == sort and length == (unique | length) and add <= 75) and
+      (.collateral | type == "object" and
+        keys == ["enabled", "lovelace", "targetCount"] and
+        (.enabled | type == "boolean") and
+        (.targetCount | type == "number" and floor == . and . >= 0 and . <= 2) and
+        (.lovelace | uint_string)))
+  ' "${file}" >/dev/null 2>&1
+}
+
+cntools_settings_apply_file() {
+  local file="${1:-}"
+  local record=""
+  local flow_style=""
+  local navigation=""
+  local precision=""
+  local sentinel=""
+
+  cntools_settings_file_valid "${file}" || return 1
+  record="$(jq -er '
+    [
+      .coinSelection.strategy,
+      (if .tokenFragmentation.enabled then "Y" else "N" end),
+      (.tokenFragmentation.maxAssetsPerOutput | tostring),
+      (if .utxoManagement.enabled then "Y" else "N" end),
+      (.utxoManagement.targetCount | tostring),
+      (.utxoManagement.percentages | map(tostring) | join(",")),
+      (.utxoManagement.maxNewOutputs | tostring),
+      .utxoManagement.minimumLovelace,
+      (if .utxoManagement.collateral.enabled then "Y" else "N" end),
+      (.utxoManagement.collateral.targetCount | tostring),
+      .utxoManagement.collateral.lovelace,
+      (if .interaction.chooseSendChange == true then "Y" else "N" end),
+      ((.interaction.defaultTtlSeconds // 1800) | tostring),
+      (.interaction.flowStyle // "unset"),
+      (.interaction.navigation // "unset"),
+      (.interaction.amountPrecision // "unset"),
+      "."
+    ] | join("\u001f")
+  ' "${file}")" || return 1
+  IFS=$'\037' read -r \
+    CNTOOLS_TX_SELECTION_STRATEGY \
+    CNTOOLS_TX_TOKEN_FRAGMENTATION \
+    CNTOOLS_TX_TOKEN_MAX_ASSETS \
+    CNTOOLS_TX_UTXO_MANAGEMENT \
+    CNTOOLS_TX_UTXO_TARGET_COUNT \
+    CNTOOLS_TX_UTXO_PERCENTAGES \
+    CNTOOLS_TX_UTXO_MAX_NEW_OUTPUTS \
+    CNTOOLS_TX_UTXO_MIN_LOVELACE \
+    CNTOOLS_TX_COLLATERAL_MANAGEMENT \
+    CNTOOLS_TX_COLLATERAL_TARGET_COUNT \
+    CNTOOLS_TX_COLLATERAL_LOVELACE \
+    CNTOOLS_SEND_CHOOSE_CHANGE \
+    CNTOOLS_TX_DEFAULT_TTL \
+    flow_style \
+    navigation \
+    precision \
+    sentinel <<< "${record}"
+  [[ "${sentinel}" == "." ]] || return 1
+  [[ "${flow_style}" == unset ]] || CNTOOLS_FLOW_STYLE="${flow_style}"
+  [[ "${navigation}" == unset ]] || CNTOOLS_MENU_NAVIGATION="${navigation}"
+  [[ "${precision}" == unset ]] || CNTOOLS_AMOUNT_PRECISION="${precision}"
+  # One new output per percentage. Older saves could keep a stale lower count.
+  if [[ -n "${CNTOOLS_TX_UTXO_PERCENTAGES}" ]]; then
+    local -a percentages=()
+    IFS=, read -r -a percentages <<< "${CNTOOLS_TX_UTXO_PERCENTAGES}"
+    CNTOOLS_TX_UTXO_MAX_NEW_OUTPUTS="${#percentages[@]}"
+  fi
+  cntools_settings_snapshot
+}
+
+# What this session last loaded or saved. A save merges only the fields this
+# session changed onto the file, so another CNTools session's changes stay.
+cntools_settings_snapshot() {
+  CNTOOLS_SETTINGS_LOADED_JSON="$(cntools_settings_json | jq -cS . 2>/dev/null)" || CNTOOLS_SETTINGS_LOADED_JSON=''
+}
+
+cntools_settings_values_valid() {
+  local value=""
+  local previous=0
+  local sum=0
+  local -a percentages=()
+  [[ "${CNTOOLS_SEND_CHOOSE_CHANGE:-N}" =~ ^[YN]$ &&
+     "${CNTOOLS_TX_DEFAULT_TTL:-1800}" =~ ^(0|[1-9][0-9]{0,7})$ &&
+     "${CNTOOLS_FLOW_STYLE:-}" =~ ^(quick|detailed)?$ &&
+     "${CNTOOLS_MENU_NAVIGATION:-}" =~ ^(hotkeys|hotkeys-enter|filter)?$ &&
+     "${CNTOOLS_AMOUNT_PRECISION:-}" =~ ^(trim|full)?$ ]] ||
+    return 1
+  (( ${CNTOOLS_TX_DEFAULT_TTL:-1800} <= 31536000 )) || return 1
+
+  case "${CNTOOLS_TX_SELECTION_STRATEGY:-}" in
+    balanced|fewest-inputs) ;;
+    *) return 1 ;;
+  esac
+  [[ "${CNTOOLS_TX_TOKEN_FRAGMENTATION:-}" =~ ^[YN]$ &&
+     "${CNTOOLS_TX_UTXO_MANAGEMENT:-}" =~ ^[YN]$ &&
+     "${CNTOOLS_TX_COLLATERAL_MANAGEMENT:-}" =~ ^[YN]$ &&
+     "${CNTOOLS_TX_TOKEN_MAX_ASSETS:-}" =~ ^[0-9]{1,3}$ &&
+     "${CNTOOLS_TX_UTXO_TARGET_COUNT:-}" =~ ^[0-9]{1,2}$ &&
+     "${CNTOOLS_TX_UTXO_MAX_NEW_OUTPUTS:-}" =~ ^[0-9]$ &&
+     "${CNTOOLS_TX_UTXO_MIN_LOVELACE:-}" =~ ^(0|[1-9][0-9]{0,19})$ &&
+     "${CNTOOLS_TX_COLLATERAL_TARGET_COUNT:-}" =~ ^[0-9]$ &&
+     "${CNTOOLS_TX_COLLATERAL_LOVELACE:-}" =~ ^(0|[1-9][0-9]{0,19})$ ]] ||
+    return 1
+  (( 10#${CNTOOLS_TX_TOKEN_MAX_ASSETS} >= 1 &&
+     10#${CNTOOLS_TX_TOKEN_MAX_ASSETS} <= 100 &&
+     10#${CNTOOLS_TX_UTXO_TARGET_COUNT} >= 1 &&
+     10#${CNTOOLS_TX_UTXO_TARGET_COUNT} <= 12 &&
+     10#${CNTOOLS_TX_UTXO_MAX_NEW_OUTPUTS} >= 1 &&
+     10#${CNTOOLS_TX_UTXO_MAX_NEW_OUTPUTS} <= 6 &&
+     10#${CNTOOLS_TX_COLLATERAL_TARGET_COUNT} <= 2 )) || return 1
+  [[ "${CNTOOLS_TX_UTXO_PERCENTAGES:-}" =~ ^[0-9]{1,2}(,[0-9]{1,2})*$ ]] ||
+    return 1
+  IFS=',' read -r -a percentages <<< "${CNTOOLS_TX_UTXO_PERCENTAGES}"
+  (( ${#percentages[@]} >= 1 && ${#percentages[@]} <= 6 &&
+     CNTOOLS_TX_UTXO_MAX_NEW_OUTPUTS <= ${#percentages[@]} )) || return 1
+  for value in "${percentages[@]}"; do
+    (( 10#${value} >= 1 && 10#${value} <= 75 &&
+       10#${value} > previous )) || return 1
+    previous=$((10#${value}))
+    sum=$((sum + previous))
+  done
+  (( sum <= 75 ))
+}
+
+cntools_settings_json() {
+  local token_enabled=false
+  local utxo_enabled=false
+  local collateral_enabled=false
+  local percentages_json=""
+
+  cntools_settings_values_valid || return 1
+  [[ "${CNTOOLS_TX_TOKEN_FRAGMENTATION}" != "Y" ]] || token_enabled=true
+  [[ "${CNTOOLS_TX_UTXO_MANAGEMENT}" != "Y" ]] || utxo_enabled=true
+  [[ "${CNTOOLS_TX_COLLATERAL_MANAGEMENT}" != "Y" ]] ||
+    collateral_enabled=true
+  percentages_json="$(jq -cn --arg csv "${CNTOOLS_TX_UTXO_PERCENTAGES}" '
+    $csv | split(",") | map(tonumber)
+  ')" || return 1
+  jq -cn \
+    --argjson schemaVersion "${CNTOOLS_SETTINGS_SCHEMA_VERSION}" \
+    --arg strategy "${CNTOOLS_TX_SELECTION_STRATEGY}" \
+    --argjson tokenEnabled "${token_enabled}" \
+    --argjson maxAssets "${CNTOOLS_TX_TOKEN_MAX_ASSETS}" \
+    --argjson utxoEnabled "${utxo_enabled}" \
+    --argjson targetCount "${CNTOOLS_TX_UTXO_TARGET_COUNT}" \
+    --argjson percentages "${percentages_json}" \
+    --argjson maxNewOutputs "${CNTOOLS_TX_UTXO_MAX_NEW_OUTPUTS}" \
+    --arg minimumLovelace "${CNTOOLS_TX_UTXO_MIN_LOVELACE}" \
+    --argjson collateralEnabled "${collateral_enabled}" \
+    --argjson collateralTarget "${CNTOOLS_TX_COLLATERAL_TARGET_COUNT}" \
+    --arg collateralLovelace "${CNTOOLS_TX_COLLATERAL_LOVELACE}" \
+    --arg chooseChange "${CNTOOLS_SEND_CHOOSE_CHANGE:-N}" \
+    --argjson ttl "${CNTOOLS_TX_DEFAULT_TTL:-1800}" \
+    --arg flowStyle "${CNTOOLS_FLOW_STYLE:-}" \
+    --arg navigation "${CNTOOLS_MENU_NAVIGATION:-}" \
+    --arg precision "${CNTOOLS_AMOUNT_PRECISION:-}" '
+      {
+        schemaVersion: $schemaVersion,
+        interaction: ({chooseSendChange: ($chooseChange == "Y"), defaultTtlSeconds: $ttl} +
+          (if $flowStyle == "" then {} else {flowStyle: $flowStyle} end) +
+          (if $navigation == "" then {} else {navigation: $navigation} end) +
+          (if $precision == "" then {} else {amountPrecision: $precision} end)),
+        coinSelection: {strategy: $strategy},
+        tokenFragmentation: {
+          enabled: $tokenEnabled,
+          maxAssetsPerOutput: $maxAssets
+        },
+        utxoManagement: {
+          enabled: $utxoEnabled,
+          targetCount: $targetCount,
+          percentages: $percentages,
+          maxNewOutputs: $maxNewOutputs,
+          minimumLovelace: $minimumLovelace,
+          collateral: {
+            enabled: $collateralEnabled,
+            targetCount: $collateralTarget,
+            lovelace: $collateralLovelace
+          }
+        }
+      }
+    '
+}
+
+cntools_settings_cleanup() {
+  local stage="${CNTOOLS_SETTINGS_STAGE_FILE:-}"
+
+  if [[ -n "${stage}" &&
+        "${stage}" == "${CNTOOLS_SETTINGS_STATE_DIR:-/invalid}/.transaction-settings."* &&
+        -f "${stage}" && ! -L "${stage}" && -O "${stage}" ]]; then
+    rm -f -- "${stage}" 2>/dev/null || true
+  fi
+  CNTOOLS_SETTINGS_STAGE_FILE=""
+}
+
+cntools_settings_save() {
+  local content="" disk=""
+
+  if [[ "${CNTOOLS_SETTINGS_SAVE_BLOCKED:-N}" == Y ]]; then
+    cntools_settings_log WARN "Settings not saved: the unreadable settings file could not be moved aside"
+    return 1
+  fi
+  cntools_settings_state_directory_ready || return 1
+  content="$(cntools_settings_json)" || return 1
+  if [[ -n "${CNTOOLS_SETTINGS_LOADED_JSON:-}" && -f "${CNTOOLS_SETTINGS_FILE}" && ! -L "${CNTOOLS_SETTINGS_FILE}" ]] &&
+     cntools_settings_file_valid "${CNTOOLS_SETTINGS_FILE}" &&
+     disk="$(jq -cS . "${CNTOOLS_SETTINGS_FILE}" 2>/dev/null)" && [[ "${disk}" != "${CNTOOLS_SETTINGS_LOADED_JSON}" ]]; then
+    # Another session saved since this one loaded: apply only our changes.
+    content="$(jq -S --argjson base "${CNTOOLS_SETTINGS_LOADED_JSON}" --argjson mine "${content}" '
+      . as $disk |
+      [$mine | paths | select(all(.[]; type == "string")) | . as $path
+        | select(($mine | getpath($path) | type) != "object")
+        | select(($base | getpath($path)) != ($mine | getpath($path)))] as $changed |
+      reduce $changed[] as $p ($disk; setpath($p; $mine | getpath($p)))
+    ' <<< "${disk}")" || return 1
+    cntools_settings_log SETTINGS "merged with settings saved by another session"
+  fi
+  cntools_settings_cleanup
+  CNTOOLS_SETTINGS_STAGE_FILE="$(mktemp \
+    "${CNTOOLS_SETTINGS_STATE_DIR}/.transaction-settings.XXXXXX")" || return 1
+  if ! chmod 0600 "${CNTOOLS_SETTINGS_STAGE_FILE}" ||
+     ! printf '%s\n' "${content}" > "${CNTOOLS_SETTINGS_STAGE_FILE}" ||
+     ! mv -f -- "${CNTOOLS_SETTINGS_STAGE_FILE}" "${CNTOOLS_SETTINGS_FILE}";
+  then
+    cntools_settings_cleanup
+    return 1
+  fi
+  CNTOOLS_SETTINGS_STAGE_FILE=""
+  cntools_settings_apply_file "${CNTOOLS_SETTINGS_FILE}" || return 1
+  cntools_settings_log SETTINGS \
+    "saved selection=${CNTOOLS_TX_SELECTION_STRATEGY} token_fragmentation=${CNTOOLS_TX_TOKEN_FRAGMENTATION} max_assets=${CNTOOLS_TX_TOKEN_MAX_ASSETS} utxo_management=${CNTOOLS_TX_UTXO_MANAGEMENT} target=${CNTOOLS_TX_UTXO_TARGET_COUNT} percentages=${CNTOOLS_TX_UTXO_PERCENTAGES} collateral=${CNTOOLS_TX_COLLATERAL_MANAGEMENT}"
+}
+
+cntools_settings_init() {
+  cntools_settings_defaults
+  if ! cntools_settings_state_paths; then
+    cntools_settings_log WARN \
+      "Transaction settings persistence is unavailable; using safe defaults"
+    return 0
+  fi
+  if [[ ! -e "${CNTOOLS_SETTINGS_FILE}" &&
+        ! -L "${CNTOOLS_SETTINGS_FILE}" ]]; then
+    cntools_settings_snapshot
+    cntools_settings_log SETTINGS "using default transaction settings"
+    return 0
+  fi
+  if ! cntools_settings_apply_file "${CNTOOLS_SETTINGS_FILE}"; then
+    cntools_settings_defaults
+    cntools_settings_snapshot
+    cntools_settings_set_aside
+    return 0
+  fi
+  cntools_settings_log SETTINGS \
+    "loaded selection=${CNTOOLS_TX_SELECTION_STRATEGY} token_fragmentation=${CNTOOLS_TX_TOKEN_FRAGMENTATION} utxo_management=${CNTOOLS_TX_UTXO_MANAGEMENT}"
+}
+
+# An unreadable settings file (hand edit, newer version) is moved aside rather
+# than overwritten by the next save, and the main menu says so once.
+cntools_settings_set_aside() {
+  local aside="" stamp=""
+  stamp="$(date +%Y%m%d-%H%M%S 2>/dev/null)" || stamp=old
+  aside="${CNTOOLS_SETTINGS_FILE}.invalid-${stamp}"
+  CNTOOLS_GUM_STARTUP_STATUS_LEVEL=warn
+  if [[ -f "${CNTOOLS_SETTINGS_FILE}" && ! -L "${CNTOOLS_SETTINGS_FILE}" && ! -e "${aside}" ]] &&
+     mv -n -- "${CNTOOLS_SETTINGS_FILE}" "${aside}" 2>/dev/null && [[ ! -e "${CNTOOLS_SETTINGS_FILE}" ]]; then
+    cntools_settings_log WARN "Saved transaction settings are unsafe or invalid; moved to ${aside}; using safe defaults"
+    CNTOOLS_GUM_STARTUP_STATUS_MESSAGE="Saved settings could not be read and were moved to ${aside}. Using defaults; review Settings."
+  else
+    CNTOOLS_SETTINGS_SAVE_BLOCKED=Y
+    cntools_settings_log WARN "Saved transaction settings are unsafe or invalid and could not be moved aside; using safe defaults without saving"
+    CNTOOLS_GUM_STARTUP_STATUS_MESSAGE="Saved settings could not be read; using defaults for this session. Fix or remove ${CNTOOLS_SETTINGS_FILE}."
+  fi
+}
+
+cntools_settings_reload() {
+  local previous_strategy="${CNTOOLS_TX_SELECTION_STRATEGY:-balanced}"
+
+  if [[ -e "${CNTOOLS_SETTINGS_FILE:-}" ||
+        -L "${CNTOOLS_SETTINGS_FILE:-}" ]]; then
+    if ! cntools_settings_apply_file "${CNTOOLS_SETTINGS_FILE}"; then
+      cntools_settings_log WARN \
+        "Saved transaction settings became unsafe or invalid; retaining ${previous_strategy}"
+      return 1
+    fi
+  else
+    cntools_settings_defaults
+  fi
+  cntools_settings_log SETTINGS \
+    "activated selection=${CNTOOLS_TX_SELECTION_STRATEGY} token_fragmentation=${CNTOOLS_TX_TOKEN_FRAGMENTATION} utxo_management=${CNTOOLS_TX_UTXO_MANAGEMENT}"
+}
+
+# Quick uses sensible defaults instead of asking; Detailed asks every
+# question. Safety confirmations (self-sends, deletions, key material) stay
+# in both styles.
+cntools_flow_quick() {
+  [[ "${CNTOOLS_FLOW_STYLE:-}" == quick ]]
+}
+
+cntools_flow_style_name() {
+  case "${1:-${CNTOOLS_FLOW_STYLE:-}}" in
+    quick) printf 'Quick' ;;
+    detailed) printf 'Detailed' ;;
+    *) printf 'Not chosen' ;;
+  esac
+}
+
+cntools_flow_style_choose_into() {
+  local _cntools_output_name="${1:-}"
+  local selected=""
+  local quick_label="Quick · sensible defaults, fewer questions"
+  local detailed_label="Detailed · ask every question"
+
+  [[ "${_cntools_output_name}" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || return 2
+  local -n _cntools_output_ref="${_cntools_output_name}"
+  case "${CNTOOLS_FLOW_STYLE:-}" in
+    quick) quick_label+=" · current" ;;
+    detailed) detailed_label+=" · current" ;;
+  esac
+  cntools_ui_render_status info $'Quick uses defaults you can still change in each review (workflow,\nexpiry, scope …) and skips "do it now?" confirmations. Detailed asks\nevery question. Warnings and safety checks appear in both.' || return 1
+  cntools_ui_choose selected 'Flow style' "${quick_label}" "${detailed_label}" Cancel || return $?
+  case "${selected}" in
+    "${quick_label}") _cntools_output_ref=quick ;;
+    "${detailed_label}") _cntools_output_ref=detailed ;;
+    Cancel) return 1 ;;
+    *) return 2 ;;
+  esac
+}
+
+cntools_flow_style_save() {
+  local style="${1:-}" previous="${CNTOOLS_FLOW_STYLE:-}"
+
+  [[ "${style}" == quick || "${style}" == detailed ]] || return 2
+  CNTOOLS_FLOW_STYLE="${style}"
+  if ! cntools_settings_save; then
+    cntools_settings_log WARN "Flow style could not be saved; using ${style} for this session"
+    return 1
+  fi
+  cntools_settings_log SETTINGS "flow_style=${style} previous=${previous:-unset}"
+}
+
+# Asked once, on the first interactive start without a saved choice.
+cntools_flow_style_first_run() {
+  local style="" status=0
+
+  [[ -z "${CNTOOLS_FLOW_STYLE:-}" && "${CNTOOLS_UI_INTERACTIVE:-N}" == Y ]] || return 0
+  cntools_ui_action_begin "Flow Style" "/ Settings / Flow Style" || return 0
+  cntools_flow_style_choose_into style || status=$?
+  if (( status != 0 )); then
+    # Unset behaves as Detailed and is never saved, so the next start asks again.
+    cntools_settings_log CHOICE "flow style question skipped; detailed until chosen"
+    return 0
+  fi
+  # Shown on the main menu's status line instead of an extra Enter here. A
+  # settings warning from startup comes first and keeps its level.
+  local earlier="${CNTOOLS_GUM_STARTUP_STATUS_MESSAGE:-}"
+  if cntools_flow_style_save "${style}"; then
+    [[ -n "${earlier}" ]] || CNTOOLS_GUM_STARTUP_STATUS_LEVEL=success
+    CNTOOLS_GUM_STARTUP_STATUS_MESSAGE="${earlier:+${earlier} }Flow style saved: $(cntools_flow_style_name "${style}"). Change it in Settings → Flow Style."
+  else
+    CNTOOLS_GUM_STARTUP_STATUS_LEVEL=warn
+    CNTOOLS_GUM_STARTUP_STATUS_MESSAGE="${earlier:+${earlier} }Using $(cntools_flow_style_name "${style}") for this session; it could not be saved. See ${CNTOOLS_LOG}."
+  fi
+}
+
+cntools_navigation_name() {
+  case "${1:-${CNTOOLS_MENU_NAVIGATION:-}}" in
+    hotkeys|"") printf 'Hotkeys' ;;
+    hotkeys-enter) printf 'Hotkeys with Enter' ;;
+    filter) printf 'Filter' ;;
+    *) return 2 ;;
+  esac
+}
+
+cntools_navigation_save() {
+  local navigation="${1:-}" previous="${CNTOOLS_MENU_NAVIGATION:-}"
+
+  [[ "${navigation}" =~ ^(hotkeys|hotkeys-enter|filter)$ ]] || return 2
+  CNTOOLS_MENU_NAVIGATION="${navigation}"
+  if ! cntools_settings_save; then
+    cntools_settings_log WARN "Navigation could not be saved; using ${navigation} for this session"
+    return 1
+  fi
+  cntools_settings_log SETTINGS "navigation=${navigation} previous=${previous:-unset}"
+}
+
+cntools_amount_precision_name() {
+  case "${1:-${CNTOOLS_AMOUNT_PRECISION:-}}" in
+    trim|"") printf 'Trimmed' ;;
+    full) printf 'Full precision' ;;
+    *) return 2 ;;
+  esac
+}
+
+cntools_amount_precision_save() {
+  local precision="${1:-}" previous="${CNTOOLS_AMOUNT_PRECISION:-}"
+
+  [[ "${precision}" == trim || "${precision}" == full ]] || return 2
+  CNTOOLS_AMOUNT_PRECISION="${precision}"
+  if ! cntools_settings_save; then
+    cntools_settings_log WARN "Amount precision could not be saved; using ${precision} for this session"
+    return 1
+  fi
+  cntools_settings_log SETTINGS "amount_precision=${precision} previous=${previous:-unset}"
+}
+
+cntools_settings_strategy_name() {
+  case "${1:-${CNTOOLS_TX_SELECTION_STRATEGY:-balanced}}" in
+    balanced) printf 'Balanced' ;;
+    fewest-inputs) printf 'Fewest inputs' ;;
+    *) return 2 ;;
+  esac
+}
+
+cntools_settings_defaults

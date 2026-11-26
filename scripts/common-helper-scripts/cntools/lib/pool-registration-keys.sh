@@ -1,0 +1,208 @@
+#!/usr/bin/env bash
+# Verified public stake identities; missing/encrypted signing keys stay offline.
+# shellcheck disable=SC2034
+cntools_pool_stake_record_into() {
+  local output="$1" file="$2" source="$3" label="$4" public='' key_id='' hash='' address='' response='' errors='' status=0 kind=''
+  local -a network=()
+  cntools_wallet_key_validate "${file}" stake any || {
+    cntools_wallet_register_set_error 'Choose a valid stake verification key, not a payment key or script.'; return 1;
+  }
+  cntools_transaction_snapshot_into public "${file}" 65536 pool-owner-public || return 1
+  cntools_transaction_key_id_from_verification_file_into key_id "${public}" &&
+    cntools_transaction_credential_from_key_id_into hash "${key_id}" || return 1
+  if [[ -n "${source}" ]]; then
+    cntools_transaction_source_kind_into kind "${source}" || source=''
+  fi
+  cntools_transaction_network_arguments_into network "${CNTOOLS_NETWORK}" || return 1
+  cntools_transaction_temp_file response pool-stake-address; cntools_transaction_temp_file errors pool-stake-errors
+  cntools_transaction_run_cli "${response}" "${errors}" -- "${CNTOOLS_CLI}" latest stake-address build \
+    --stake-verification-key-file "${public}" "${network[@]}" || status=$?
+  if ((status != 0)); then cntools_transaction_log_cli_failure 'Pool stake address derivation failed' "${status}" "${errors}" "${response}"; return 1; fi
+  address="$(< "${response}")"
+  cntools_wallet_bech32_valid "${address}" "$(cntools_wallet_address_hrp reward)" reward || return 1
+  printf -v "${output}" '%s' "$(jq -cn --arg key_label "${label}" --arg vkey "${public}" --arg source "${source}" --arg hash "${hash}" \
+    --arg address "${address}" '{label:$key_label,vkey:$vkey,source:$source,hash:$hash,address:$address}')"
+}
+
+cntools_pool_wallet_stake_record_into() {
+  local output="$1" index="$2" directory="${CNTOOLS_WALLET_PATHS[$2]}" source='' kind='' wallet_record='' base=''
+  cntools_wallet_directory_safe "${directory}" && cntools_wallet_prepare_selected_material "${directory}" || return 1
+  [[ "$(cntools_wallet_type "${directory}")" != MultiSig ]] || return 1
+  source="${directory}/${CNTOOLS_WALLET_STAKE_SKEY_FILENAME}"
+  [[ ! -f "${directory}/${CNTOOLS_WALLET_HW_STAKE_SKEY_FILENAME}" ]] || source="${directory}/${CNTOOLS_WALLET_HW_STAKE_SKEY_FILENAME}"
+  cntools_transaction_source_kind_into kind "${source}" || source=''
+  cntools_pool_stake_record_into wallet_record "${directory}/${CNTOOLS_WALLET_STAKE_VKEY_FILENAME}" "${source}" "${CNTOOLS_WALLET_NAMES[index]}" || return 1
+  if cntools_pool_public_file_safe "${directory}/${CNTOOLS_WALLET_BASE_ADDR_FILENAME}" 1024; then
+    base="$(< "${directory}/${CNTOOLS_WALLET_BASE_ADDR_FILENAME}")"
+    cntools_wallet_bech32_valid "${base}" "$(cntools_wallet_address_hrp base)" base || base=''
+  fi
+  # The wallet folder lets the owner picker skip wallets already added.
+  printf -v "${output}" '%s' "$(jq -c --arg base "${base}" --arg folder "${directory}" '.+{baseAddress:$base,walletDirectory:$folder}' <<< "${wallet_record}")"
+}
+
+# A wallet's stake record, derived once per action: matching chain owners,
+# the reward account and saved settings needs every wallet's stake address,
+# one CLI call each.
+declare -Ag CNTOOLS_POOL_WALLET_STAKE_CACHE=()
+cntools_pool_wallet_stake_record_cached_into() {
+  local pwc_output="$1" pwc_index="$2" pwc_record=''
+  if [[ -z "${CNTOOLS_POOL_WALLET_STAKE_CACHE[${pwc_index}]+x}" ]]; then
+    cntools_pool_wallet_stake_record_into pwc_record "${pwc_index}" || pwc_record=''
+    CNTOOLS_POOL_WALLET_STAKE_CACHE["${pwc_index}"]="${pwc_record}"
+  fi
+  pwc_record="${CNTOOLS_POOL_WALLET_STAKE_CACHE[${pwc_index}]}"
+  [[ -n "${pwc_record}" ]] || return 1
+  printf -v "${pwc_output}" '%s' "${pwc_record}"
+}
+
+cntools_pool_owner_add() {
+  local record="$1" hash=''
+  hash="$(jq -er .hash <<< "${record}")" || return 1
+  CNTOOLS_POOL_REG_OWNERS="$(jq -c --argjson record "${record}" 'if any(.[]; .hash == $record.hash)
+    then map(if .hash == $record.hash then $record else . end) else .+[$record] end' <<< "${CNTOOLS_POOL_REG_OWNERS}")"
+}
+
+# Chain settings the next registration replaces, in wizard form. Local pending
+# parameters take precedence, so changing one field never undoes a submitted
+# update that waits for the next epoch.
+cntools_pool_registration_chain_settings() {
+  local settings=''
+  if [[ "$(jq -c '.pending // {}' <<< "${CNTOOLS_POOL_REG_STATE}")" != '{}' ]]; then
+    settings="$(jq -c '.pending | {pledgeLovelace:(.spsPledge|tostring),costLovelace:(.spsCost|tostring),margin:(.spsMargin|tostring),
+      reward:.spsAccountId.keyHash,owners:.spsOwners,relays:.spsRelays,metadata:(.spsMetadata // null)}' <<< "${CNTOOLS_POOL_REG_STATE}")" || return 1
+  else
+    settings="$(jq -c '.current' <<< "${CNTOOLS_POOL_REG_STATE}")" || return 1
+  fi
+  jq -c '.relays |= map(if has("single host name") then .["single host name"] | {type:"dns",dns:.dnsName,port:.port}
+    elif has("multi host name") then .["multi host name"] | {type:"srv",dns:.dnsName}
+    else .["single host address"] | {type:"ip",ipv4:(.IPv4 // ""),ipv6:(.IPv6 // ""),port:.port} end)' <<< "${settings}"
+}
+
+# The wizard's settings in the same form, for old → new review rows.
+cntools_pool_registration_current_settings() {
+  jq -cn --arg pledge "${CNTOOLS_POOL_REG_PLEDGE}" --arg cost "${CNTOOLS_POOL_REG_COST}" --arg margin "${CNTOOLS_POOL_REG_MARGIN}" \
+    --arg reward "${CNTOOLS_POOL_REG_REWARD_HASH}" --argjson owners "$(jq -c 'map(.hash)' <<< "${CNTOOLS_POOL_REG_OWNERS}")" \
+    --argjson relays "${CNTOOLS_POOL_REG_RELAYS}" --argjson metadata "${CNTOOLS_POOL_REG_METADATA}" \
+    '{pledgeLovelace:$pledge,costLovelace:$cost,margin:$margin,reward:$reward,owners:$owners,relays:$relays,metadata:$metadata}'
+}
+
+# Comparable form: exact margin units, sorted owners, canonical relays.
+cntools_pool_registration_settings_canonical() {
+  local settings="$1" canonical_relays=''
+  canonical_relays="$(jq -c '.relays // []' <<< "${settings}")" || return 1
+  cntools_pool_relays_normalize_into canonical_relays "${canonical_relays}" || true
+  jq -cS --argjson relays "${canonical_relays}" '{pledge:(.pledgeLovelace|tostring),cost:(.costLovelace|tostring),
+    margin:(.margin|tostring|if contains("/") then split("/") | (.[0]|tonumber) * (100000000 / (.[1]|tonumber)) else tonumber * 100000000 end | round),
+    reward,owners:((.owners // [])|sort),relays:$relays,metadata}' <<< "${settings}"
+}
+
+# Modify compares the review against what the chain applies next.
+CNTOOLS_POOL_REG_BASELINE=''
+cntools_pool_registration_baseline_set() {
+  local settings=''
+  CNTOOLS_POOL_REG_BASELINE=''
+  [[ "${CNTOOLS_WALLET_REGISTER_OPERATION}" == pool-modify && "$(jq -r .registered <<< "${CNTOOLS_POOL_REG_STATE}")" == true ]] || return 0
+  settings="$(cntools_pool_registration_chain_settings)" &&
+    CNTOOLS_POOL_REG_BASELINE="$(cntools_pool_registration_settings_canonical "${settings}")" || CNTOOLS_POOL_REG_BASELINE=''
+}
+
+# Changed settings as review labels ("Pledge, Margin"); empty for a no-op.
+cntools_pool_registration_changes_into() {
+  # Locals avoid "changes": callers pass that name to be assigned by printf -v.
+  local prc_output="$1" prc_current='' prc_list=''
+  [[ -n "${CNTOOLS_POOL_REG_BASELINE}" ]] || { printf -v "${prc_output}" '%s' ''; return 0; }
+  prc_current="$(cntools_pool_registration_settings_canonical "$(cntools_pool_registration_current_settings)")" || return 1
+  prc_list="$(jq -rn --argjson old "${CNTOOLS_POOL_REG_BASELINE}" --argjson new "${prc_current}" '
+    [["pledge","Pledge"],["cost","Fixed cost"],["margin","Margin"],["reward","Reward account"],["owners","Owners"],
+     ["relays","Relays"],["metadata","Metadata"]] | map(select($old[.[0]] != $new[.[0]]) | .[1]) | join(", ")')" || return 1
+  printf -v "${prc_output}" '%s' "${prc_list}"
+}
+
+# Labels of the chain's owners and reward account when the action started,
+# so removed or replaced ones read as wallet names, not bare hashes.
+CNTOOLS_POOL_REG_INITIAL_LABELS='{}'
+cntools_pool_registration_defaults() {
+  local current='{}' hash='' record='' index=0 owner=''
+  CNTOOLS_POOL_REG_INITIAL_LABELS='{}'
+  CNTOOLS_POOL_REG_PLEDGE=50000000000; CNTOOLS_POOL_REG_COST="${CNTOOLS_POOL_REG_MIN_COST}"; CNTOOLS_POOL_REG_MARGIN=7500000/100000000
+  CNTOOLS_POOL_REG_METADATA_URL=''
+  CNTOOLS_POOL_REG_METADATA=null; CNTOOLS_POOL_REG_RELAYS='[]'; CNTOOLS_POOL_REG_OWNERS='[]'
+  CNTOOLS_POOL_REG_REWARD_VKEY=''; CNTOOLS_POOL_REG_REWARD_HASH=''; CNTOOLS_POOL_REG_REWARD_ADDRESS=''; CNTOOLS_POOL_REG_REWARD_LABEL=''; CNTOOLS_POOL_REG_REWARD_SOURCE=''
+  cntools_pool_registration_baseline_set
+  [[ "$(jq -r .registered <<< "${CNTOOLS_POOL_REG_STATE}")" == true ]] || return 0
+  current="$(cntools_pool_registration_chain_settings)" || return 1
+  CNTOOLS_POOL_REG_PLEDGE="$(jq -r .pledgeLovelace <<< "${current}")"; CNTOOLS_POOL_REG_COST="$(jq -r .costLovelace <<< "${current}")"
+  CNTOOLS_POOL_REG_MARGIN="$(jq -r .margin <<< "${current}")"; CNTOOLS_POOL_REG_METADATA="$(jq -c .metadata <<< "${current}")"
+  CNTOOLS_POOL_REG_RELAYS="$(jq -c .relays <<< "${current}")"
+  CNTOOLS_POOL_REG_REWARD_HASH="$(jq -r .reward <<< "${current}")"
+  while IFS= read -r hash; do
+    owner="$(jq -cn --arg hash "${hash}" '{label:$hash,hash:$hash,vkey:"",source:"",address:""}')"
+    for index in "${!CNTOOLS_WALLET_NAMES[@]}"; do
+      # Look only at wallets with a stake public key or a derivable stake key.
+      [[ -f "${CNTOOLS_WALLET_PATHS[index]}/${CNTOOLS_WALLET_STAKE_VKEY_FILENAME}" ||
+         -f "${CNTOOLS_WALLET_PATHS[index]}/${CNTOOLS_WALLET_STAKE_SKEY_FILENAME}" ]] || continue
+      if cntools_pool_wallet_stake_record_cached_into record "${index}" && [[ "$(jq -r .hash <<< "${record}")" == "${hash}" ]]; then owner="${record}"; break; fi
+    done
+    cntools_pool_owner_add "${owner}" || return 1
+  done < <(jq -r '.owners[]' <<< "${current}")
+  for index in "${!CNTOOLS_WALLET_NAMES[@]}"; do
+    [[ -f "${CNTOOLS_WALLET_PATHS[index]}/${CNTOOLS_WALLET_STAKE_VKEY_FILENAME}" ]] || continue
+    if cntools_pool_wallet_stake_record_cached_into record "${index}" && [[ "$(jq -r .hash <<< "${record}")" == "${CNTOOLS_POOL_REG_REWARD_HASH}" ]]; then
+      cntools_pool_reward_record_use "${record}"; break
+    fi
+  done
+  CNTOOLS_POOL_REG_INITIAL_LABELS="$(jq -c --arg hash "${CNTOOLS_POOL_REG_REWARD_HASH}" --arg reward_label "${CNTOOLS_POOL_REG_REWARD_LABEL}" \
+    'map({key:.hash,value:.label}) | from_entries + (if $reward_label == "" then {} else {($hash):$reward_label} end)' <<< "${CNTOOLS_POOL_REG_OWNERS}")" ||
+    CNTOOLS_POOL_REG_INITIAL_LABELS='{}'
+}
+
+cntools_pool_reward_record_use() {
+  CNTOOLS_POOL_REG_REWARD_VKEY="$(jq -r .vkey <<< "$1")"
+  CNTOOLS_POOL_REG_REWARD_HASH="$(jq -r .hash <<< "$1")"
+  CNTOOLS_POOL_REG_REWARD_ADDRESS="$(jq -r .address <<< "$1")"
+  CNTOOLS_POOL_REG_REWARD_LABEL="$(jq -r .label <<< "$1")"
+  CNTOOLS_POOL_REG_REWARD_SOURCE="$(jq -r '.source // empty' <<< "$1")"
+}
+
+# Also sets the review's reason for an unsigned-only workflow when a key that
+# is missing here is only present encrypted (Pool or Wallet → Decrypt).
+cntools_pool_registration_can_sign_into() {
+  local -n pcs_result="$1"
+  local source='' record='' directory=''
+  pcs_result=N
+  CNTOOLS_TRANSACTION_UI_UNSIGNED_REASON=''
+  if [[ -n "${CNTOOLS_WALLET_REGISTER_PAYMENT_SOURCE}" && -n "${CNTOOLS_POOL_REG_COLD_SOURCE}" ]]; then
+    pcs_result=Y
+    if [[ "${CNTOOLS_WALLET_REGISTER_OPERATION}" != pool-retire ]]; then
+      while IFS= read -r record; do
+        source="$(jq -r .source <<< "${record}")"; [[ -n "${source}" ]] || { pcs_result=N; break; }
+      done < <(jq -cn --argjson owners "${CNTOOLS_POOL_REG_OWNERS}" --argjson extra "${CNTOOLS_POOL_EXTRA_RECORDS:-[]}" '$owners+$extra | unique_by(.hash) | .[]')
+    fi
+  fi
+  [[ "${pcs_result}" == N ]] || return 0
+  if [[ -z "${CNTOOLS_POOL_REG_COLD_SOURCE}" ]] && cntools_pool_registration_cold_encrypted; then
+    cntools_transaction_ui_encrypted_reason_set 'Pool → Decrypt' "${CNTOOLS_POOL_DIRECTORIES[CNTOOLS_POOL_REG_INDEX]}/$(cntools_pool_registration_cold_name)" || true
+  elif [[ -z "${CNTOOLS_WALLET_REGISTER_PAYMENT_SOURCE}" && -n "${CNTOOLS_WALLET_REGISTER_DIRECTORY:-}" ]]; then
+    cntools_transaction_ui_encrypted_reason_set 'Wallet → Decrypt' "${CNTOOLS_WALLET_REGISTER_DIRECTORY}/${CNTOOLS_WALLET_PAY_SKEY_FILENAME}" || true
+  fi
+  [[ -z "${CNTOOLS_TRANSACTION_UI_UNSIGNED_REASON}" && "${CNTOOLS_WALLET_REGISTER_OPERATION}" != pool-retire ]] || return 0
+  # An owner or reward stake key that exists only encrypted in its wallet.
+  while IFS= read -r directory; do
+    [[ -n "${directory}" ]] || continue
+    ! cntools_transaction_ui_encrypted_reason_set 'Wallet → Decrypt' "${directory}/${CNTOOLS_WALLET_STAKE_SKEY_FILENAME}" || return 0
+  done < <(jq -rn --argjson owners "${CNTOOLS_POOL_REG_OWNERS}" --argjson extra "${CNTOOLS_POOL_EXTRA_RECORDS:-[]}" \
+    '$owners+$extra | unique_by(.hash) | .[] | select((.source // "") == "") | .walletDirectory // empty')
+  return 0
+}
+
+cntools_pool_registration_cold_name() {
+  local pcn_name=''
+  cntools_pool_file_name_into pcn_name cold-skey && printf '%s' "${pcn_name}"
+}
+
+# True when the pool's cold signing key is present here only encrypted.
+cntools_pool_registration_cold_encrypted() {
+  local pce_file=''
+  pce_file="${CNTOOLS_POOL_DIRECTORIES[CNTOOLS_POOL_REG_INDEX]}/$(cntools_pool_registration_cold_name)" || return 1
+  [[ -f "${pce_file}.gpg" && ! -L "${pce_file}.gpg" && ! -e "${pce_file}" ]]
+}

@@ -1,0 +1,2073 @@
+#!/usr/bin/env bash
+# shellcheck disable=SC2016,SC2030,SC2031,SC2034,SC2329
+set -euo pipefail
+
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd -P)"
+
+# These tests cover the rolling path Dingo and Amaru normally use. While one of
+# them is pinned, test a copy that follows the newest release again. The pinned
+# path itself is covered by files/tests/node-release-pin.sh.
+for implementation in dingo amaru; do
+  if [[ "$(jq -r '.version' "${REPO_ROOT}/files/node-implementations/${implementation}/release.json")" != "latest" ]]; then
+    rolling_copy="$(mktemp -d "${TMPDIR:-/tmp}/guild-rolling-copy.XXXXXX")"
+    cp -R "${REPO_ROOT}/." "${rolling_copy}/"
+    for pinned in dingo amaru; do
+      manifest="${rolling_copy}/files/node-implementations/${pinned}/release.json"
+      jq '.version = "latest" | del(.artifacts)' "${manifest}" > "${manifest}.next"
+      mv -f "${manifest}.next" "${manifest}"
+    done
+    status=0
+    bash "${rolling_copy}/files/tests/alternate-deployments.sh" || status=$?
+    rm -rf -- "${rolling_copy}"
+    exit "${status}"
+  fi
+done
+
+fail() {
+  printf 'FAIL: %s\n' "$1" >&2
+  exit 1
+}
+
+assert_file() {
+  [[ -f "$1" ]] || fail "expected file: $1"
+}
+
+assert_not_exists() {
+  [[ ! -e "$1" ]] || fail "unexpected path: $1"
+}
+
+write_fake_executable() {
+  local destination="$1"
+  local version_output="$2"
+  mkdir -p "$(dirname "${destination}")"
+  printf '%s\n' \
+    '#!/usr/bin/env bash' \
+    'case "${1:-}" in' \
+    "  version|--version) printf '%s\\n' '${version_output}' ;;" \
+    'esac' \
+    > "${destination}"
+  chmod 0755 "${destination}"
+}
+
+write_fake_systemctl() {
+  local destination="$1"
+  mkdir -p "$(dirname "${destination}")"
+  printf '%s\n' \
+    '#!/usr/bin/env bash' \
+    'printf "%s\n" "$*" >> "${SYSTEMCTL_LOG:?}"' \
+    > "${destination}"
+  chmod 0755 "${destination}"
+}
+
+assert_rendered_yaml() {
+  local config_file="$1"
+  local expected_port="$2"
+  ruby -ryaml -e '
+    document = YAML.safe_load(File.read(ARGV.fetch(0)), permitted_classes: [], aliases: false)
+    expected_port = Integer(ARGV.fetch(1), 10)
+    abort "relayPort is not a rendered integer" unless document.fetch("relayPort") == expected_port
+    abort "base config must leave runtime role selection to dingo.sh" unless document.fetch("blockProducer") == false
+  ' "${config_file}" "${expected_port}"
+}
+
+assert_otelcol_yaml() {
+  local config_file="$1"
+  ruby -ryaml -e '
+    document = YAML.safe_load(File.read(ARGV.fetch(0)), permitted_classes: [], aliases: false)
+    receiver = document.fetch("receivers").fetch("otlp").fetch("protocols")
+    abort "only the current OTLP/gRPC receiver may be configured" unless
+      receiver.keys == ["grpc"]
+    abort "OTLP gRPC must be loopback-only" unless
+      receiver.fetch("grpc").fetch("endpoint") == "127.0.0.1:4317"
+
+    exporters = document.fetch("exporters")
+    abort "nop exporter is missing" unless exporters.key?("nop")
+    prometheus = exporters.fetch("prometheus")
+    abort "Prometheus bridge must be loopback-only" unless
+      prometheus.fetch("endpoint") == "127.0.0.1:8889"
+    abort "metric suffixes must remain disabled" unless
+      prometheus.fetch("translation_strategy") == "UnderscoreEscapingWithoutSuffixes"
+    abort "scope labels must remain disabled" unless
+      prometheus.fetch("without_scope_info") == true
+    abort "stale metric expiry must match Amaru upstream" unless
+      prometheus.fetch("metric_expiration") == "5s"
+
+    processors = document.fetch("processors")
+    abort "upstream batch processor is missing" unless processors.key?("batch")
+    abort "resource-label processor is missing" unless
+      processors.key?("resource/drop_prometheus_labels")
+
+    pipelines = document.fetch("service").fetch("pipelines")
+    abort "unexpected telemetry pipelines" unless
+      pipelines.keys.sort == %w[logs metrics traces]
+    %w[logs traces].each do |name|
+      pipeline = pipelines.fetch(name)
+      abort "#{name} pipeline must receive OTLP" unless pipeline.fetch("receivers") == ["otlp"]
+      abort "#{name} pipeline must batch telemetry" unless pipeline.fetch("processors") == ["batch"]
+      abort "#{name} pipeline must discard with nop" unless pipeline.fetch("exporters") == ["nop"]
+    end
+    metrics = pipelines.fetch("metrics")
+    abort "metrics pipeline must receive OTLP" unless metrics.fetch("receivers") == ["otlp"]
+    abort "metrics pipeline must drop unstable resource labels" unless
+      metrics.fetch("processors") == ["resource/drop_prometheus_labels", "batch"]
+    abort "metrics pipeline must export Prometheus" unless
+      metrics.fetch("exporters") == ["prometheus"]
+  ' "${config_file}"
+}
+
+assert_openssl3_deployment_contract() (
+  local implementation="$1"
+  local profile=""
+  local validator=""
+  local gate_function=""
+  local error_variable=""
+  local resolved_variable=""
+  local test_root=""
+  local original_path="${PATH}"
+
+  case "${implementation}" in
+    cnode)
+      profile="${REPO_ROOT}/scripts/cnode-helper-scripts/deploy-cnode.sh"
+      validator="cnode_deploy_validate_openssl3"
+      gate_function="cnode_deploy_main_flow"
+      error_variable="CNODE_DEPLOY_OPENSSL_ERROR"
+      resolved_variable="CNODE_DEPLOY_OPENSSL_BIN"
+      ;;
+    dingo)
+      profile="${REPO_ROOT}/scripts/dingo-helper-scripts/deploy-dingo.sh"
+      validator="dingo_deploy_validate_openssl3"
+      gate_function="dingo_deploy_require_commands"
+      error_variable="DINGO_DEPLOY_OPENSSL_ERROR"
+      resolved_variable="DINGO_DEPLOY_OPENSSL_BIN"
+      ;;
+    amaru)
+      profile="${REPO_ROOT}/scripts/amaru-helper-scripts/deploy-amaru.sh"
+      validator="amaru_deploy_validate_openssl3"
+      gate_function="amaru_deploy_require_commands"
+      error_variable="AMARU_DEPLOY_OPENSSL_ERROR"
+      resolved_variable="AMARU_DEPLOY_OPENSSL_BIN"
+      ;;
+    *) fail "unknown OpenSSL deployment profile: ${implementation}" ;;
+  esac
+
+  test_root="$(mktemp -d "${TMPDIR:-/tmp}/guild-${implementation}-openssl.XXXXXX")"
+  trap 'rm -rf -- "${test_root}"' EXIT
+  # shellcheck source=/dev/null
+  . "${profile}"
+  declare -f "${gate_function}" | grep -Fq "${validator}" ||
+    fail "${implementation} does not invoke its OpenSSL 3 deployment gate"
+  if [[ "${implementation}" == "cnode" ]]; then
+    declare -f os_dependencies | grep -Fq \
+      'pkg_list="${pkg_list} openssl3"' ||
+      fail "cnode does not install the EPEL OpenSSL 3 compatibility package on EL8"
+  fi
+
+  write_fake_executable \
+    "${test_root}/bin/openssl" "OpenSSL 1.1.1w  11 Sep 2023"
+  write_fake_executable \
+    "${test_root}/bin/openssl3" "OpenSSL 1.1.1w  11 Sep 2023"
+  PATH="${test_root}/bin:${original_path}"
+  hash -r
+  if "${validator}"; then
+    fail "${implementation} accepted OpenSSL 1.1.1 as a transaction prerequisite"
+  fi
+  [[ "${!error_variable}" == *"OpenSSL 1.1.1w"* &&
+     "${!error_variable}" == *"Install OpenSSL 3"* ]] ||
+    fail "${implementation} did not provide an actionable old-OpenSSL diagnostic"
+
+  write_fake_executable \
+    "${test_root}/bin/openssl3" "OpenSSL 3.0.0 7 sep 2021"
+  hash -r
+  "${validator}" ||
+    fail "${implementation} rejected the OpenSSL 3 compatibility executable"
+  [[ "${!resolved_variable}" == "${test_root}/bin/openssl3" ]] ||
+    fail "${implementation} did not retain the resolved openssl3 path"
+  [[ -z "${!error_variable}" ]] ||
+    fail "${implementation} retained a stale OpenSSL prerequisite error"
+
+  write_fake_executable \
+    "${test_root}/bin/openssl" "OpenSSL 3.1.0 14 Mar 2023"
+  hash -r
+  "${validator}" ||
+    fail "${implementation} rejected the primary OpenSSL 3 executable"
+  [[ "${!resolved_variable}" == "${test_root}/bin/openssl" ]] ||
+    fail "${implementation} did not prefer the compatible openssl executable"
+)
+
+run_alternate_profile_test() (
+  local implementation="$1"
+  local network="$2"
+  local default_port="$3"
+  local expected_version
+  local cntools_version
+  local expected_network_name
+  local expected_epoch_length
+  local conflicting_network
+  local test_root
+  local profile
+  local deploy_function
+  local install_payloads_function
+  local runtime_bundle_function="dispatcher_install_common_runtime_bundle"
+  local runtime_fetch_function
+  local release_validator
+  local binary_resolver_function
+  local next_steps_function
+  local validate_function
+  local parse_function
+  local launcher
+  local config_env
+  local service_name
+  local fake_systemctl
+  local systemctl_log
+  local unit_dir
+  local unit_file
+  local metrics_unit_file
+  local release_path
+  local release_checksum
+  local source_release_manifest
+  local validation_manifest
+  local resolved_node_home
+  local valid_deployment_manifest
+  local manifest_corruption
+  local runtime_before
+  local runtime_after
+  local runtime_failure_path
+  local runtime_mutation
+  local runtime_mv_fail_target
+  local runtime_mv_fail_sentinel
+  local runtime_env_tmp
+  local captured_state_path
+  local -a runtime_targets
+
+  test_root="$(mktemp -d "${TMPDIR:-/tmp}/guild-${implementation}-profile.XXXXXX")"
+  trap 'rm -rf -- "${test_root}"' EXIT
+
+  HOME="${test_root}/home"
+  NODE_IMPLEMENTATION="${implementation}"
+  NODE_PARENT="${test_root}/opt/cardano"
+  NODE_NAME="${implementation}-test"
+  NODE_HOME="${NODE_PARENT}/${NODE_NAME}"
+  NODE_SERVICE="${implementation}-test"
+  NETWORK="${network}"
+  # A supported network other than the deployed one.
+  conflicting_network="mainnet"
+  [[ "${network}" == "mainnet" ]] && conflicting_network="preprod"
+  BRANCH="master"
+  GIT_SOURCE_ROOT="${REPO_ROOT}"
+  S_ARGS=""
+  UPDATE_CHECK="N"
+  SUDO="N"
+  sudo=""
+  unset NODE_PORT
+  export HOME NODE_IMPLEMENTATION NODE_PARENT NODE_NAME NODE_HOME NODE_SERVICE
+  export NETWORK BRANCH GIT_SOURCE_ROOT S_ARGS UPDATE_CHECK SUDO sudo
+
+  if (( BASH_VERSINFO[0] < 4 ||
+        (BASH_VERSINFO[0] == 4 && BASH_VERSINFO[1] < 4) )); then
+    # This host cannot execute the new framework validator. Focused framework
+    # tests exercise it on Bash 4.4+, while this suite covers profile wiring.
+    GUILD_DEPLOY_PREFLIGHT_BASH_BIN="true"
+    export GUILD_DEPLOY_PREFLIGHT_BASH_BIN
+  fi
+
+  uname() {
+    case "${1:-}" in
+      -s) printf 'Linux\n' ;;
+      -m) printf 'x86_64\n' ;;
+      *) command uname "$@" ;;
+    esac
+  }
+
+  curl() {
+    fail "profile attempted network access: $*"
+  }
+
+  case "${implementation}" in
+    dingo)
+      if (( BASH_VERSINFO[0] < 4 ||
+            (BASH_VERSINFO[0] == 4 && BASH_VERSINFO[1] < 4) )); then
+        DINGO_DEPLOY_BASH_BIN="true"
+      fi
+      profile="${REPO_ROOT}/scripts/dingo-helper-scripts/deploy-dingo.sh"
+      deploy_function="deploy_dingo_profile"
+      install_payloads_function="dingo_deploy_install_payloads"
+      runtime_fetch_function="dingo_deploy_fetch"
+      release_validator="dingo_deploy_validate_release_metadata"
+      binary_resolver_function="dingo_deploy_resolve_binary"
+      next_steps_function="dingo_deploy_show_next_steps"
+      validate_function="dingo_deploy_validate_context"
+      parse_function="dingo_deploy_parse_flags"
+      ;;
+    amaru)
+      profile="${REPO_ROOT}/scripts/amaru-helper-scripts/deploy-amaru.sh"
+      deploy_function="deploy_amaru_profile"
+      install_payloads_function="amaru_deploy_install_payloads"
+      runtime_fetch_function="amaru_deploy_fetch"
+      release_validator="amaru_deploy_validate_release_metadata"
+      binary_resolver_function="amaru_deploy_resolve_binary"
+      next_steps_function="amaru_deploy_show_next_steps"
+      validate_function="amaru_deploy_validate_context"
+      parse_function="amaru_deploy_parse_flags"
+      ;;
+    *)
+      fail "unknown test implementation: ${implementation}"
+      ;;
+  esac
+
+  # Alternate profiles receive their snapshot and transaction helpers from the
+  # dispatcher that loads them from one prepared checkout in production.
+  # shellcheck source=/dev/null
+  . "${REPO_ROOT}/scripts/cnode-helper-scripts/guild-deploy.sh"
+  # Strict Git-tracked validation is covered with a committed fixture in the
+  # focused CNTools deployment test. Profile tests run from a possibly dirty
+  # development tree, so keep their scope on profile integration.
+  eval "$(declare -f dispatcher_validate_cntools_tree |
+    sed '1s/dispatcher_validate_cntools_tree/dispatcher_validate_cntools_tree_original/')"
+  dispatcher_validate_cntools_tree() {
+    dispatcher_validate_cntools_tree_original "$1" N
+  }
+  # Profiles normally delegate fatal errors to the dispatcher's exiting
+  # handler. Tests need a return value so expected validation failures can be
+  # asserted without terminating this isolated profile case.
+  err_exit() {
+    printf 'ERROR: %s\n' "$1" >&2
+    return 1
+  }
+  dispatcher_mark_in_progress() {
+    return 0
+  }
+  dispatcher_mark_payload_ready() {
+    [[ -f "${NODE_HOME}/scripts/${implementation}.sh" ]] ||
+      fail "${implementation} marked its payload ready before installing it"
+    PAYLOAD_READY_MARKED="Y"
+  }
+  # shellcheck source=/dev/null
+  . "${profile}"
+
+  source_release_manifest="${REPO_ROOT}/files/node-implementations/${implementation}/release.json"
+  validation_manifest="${test_root}/${implementation}-release-validation.json"
+  expected_version="$(jq -er '.version' "${source_release_manifest}")"
+  "${release_validator}" "${source_release_manifest}" ||
+    fail "${implementation} rejected its compact release manifest"
+
+  assert_release_manifest_rejected() {
+    local context="$1"
+    local jq_filter="$2"
+    jq "${jq_filter}" "${source_release_manifest}" > "${validation_manifest}"
+    if "${release_validator}" "${validation_manifest}" >/dev/null 2>&1; then
+      fail "${implementation} accepted release metadata with ${context}"
+    fi
+  }
+
+  assert_release_manifest_rejected \
+    "an unsupported schema" '.schemaVersion = 2'
+  assert_release_manifest_rejected \
+    "the wrong implementation" '.implementation = "wrong-node"'
+  assert_release_manifest_rejected \
+    "a missing version" 'del(.version)'
+  assert_release_manifest_rejected \
+    "an unsafe version" '.version = "../wrong-version"'
+  assert_release_manifest_rejected \
+    "one rolling architecture missing" 'del(.assets["linux-aarch64"])'
+  assert_release_manifest_rejected \
+    "an unexpected rolling-release field" '.unexpected = true'
+  assert_release_manifest_rejected \
+    "an unapproved GitHub repository" '.github = "example/wrong-node"'
+  assert_release_manifest_rejected \
+    "an empty rolling asset selector" '.assets["linux-x86_64"] = ""'
+  assert_release_manifest_rejected \
+    "whitespace in a rolling asset selector" \
+    '.assets["linux-x86_64"] += "\n"'
+  assert_release_manifest_rejected \
+    "a non-string rolling asset selector" \
+    '.assets["linux-x86_64"] = {"pattern": "archive"}'
+  assert_release_manifest_rejected \
+    "a missing cardano-cli companion" 'del(.companions)'
+  assert_release_manifest_rejected \
+    "an unsafe cardano-cli version" \
+    '.companions["cardano-cli"].version = "../wrong-version"'
+  assert_release_manifest_rejected \
+    "one cardano-cli architecture missing" \
+    'del(.companions["cardano-cli"].artifacts["linux-aarch64"])'
+  assert_release_manifest_rejected \
+    "unexpected cardano-cli metadata" \
+    '.companions["cardano-cli"].artifacts["linux-x86_64"].filename = "cardano-cli"'
+  assert_release_manifest_rejected \
+    "an insecure cardano-cli URL" \
+    '.companions["cardano-cli"].artifacts["linux-x86_64"].url = "http://example.invalid/cardano-cli.tar.gz"'
+  assert_release_manifest_rejected \
+    "an invalid cardano-cli checksum" \
+    '.companions["cardano-cli"].artifacts["linux-x86_64"].sha256 = "not-a-sha256"'
+  if [[ "${implementation}" == "amaru" ]]; then
+    assert_release_manifest_rejected \
+      "a missing OpenTelemetry Collector companion" 'del(.otelcol)'
+    assert_release_manifest_rejected \
+      "an unsafe OpenTelemetry Collector version" \
+      '.otelcol.version = "../wrong-version"'
+    assert_release_manifest_rejected \
+      "one OpenTelemetry Collector architecture missing" \
+      'del(.otelcol.artifacts["linux-aarch64"])'
+    assert_release_manifest_rejected \
+      "unexpected OpenTelemetry Collector metadata" \
+      '.otelcol.artifacts["linux-x86_64"].filename = "otelcol-contrib.tar.gz"'
+    assert_release_manifest_rejected \
+      "an insecure OpenTelemetry Collector URL" \
+      '.otelcol.artifacts["linux-x86_64"].url = "http://example.invalid/otelcol.tar.gz"'
+    assert_release_manifest_rejected \
+      "an invalid OpenTelemetry Collector checksum" \
+      '.otelcol.artifacts["linux-x86_64"].sha256 = "not-a-sha256"'
+  fi
+
+  # guild is a cnode-only network.
+  NETWORK="guild"
+  if "${validate_function}" >/dev/null 2>&1; then
+    fail "${implementation} accepted an unsupported network"
+  fi
+  NETWORK="mainnet"
+  "${validate_function}" >/dev/null 2>&1 ||
+    fail "${implementation} rejected a mainnet relay deployment"
+  NETWORK="${network}"
+
+  S_ARGS="blmcoxr"
+  if "${parse_function}" >/dev/null 2>&1; then
+    fail "${implementation} accepted cnode-only selective-install flags"
+  fi
+  S_ARGS="w"
+  "${parse_function}" ||
+    fail "${implementation} rejected the common hardware-wallet flag"
+  case "${implementation}" in
+    dingo)
+      [[ "${DINGO_DEPLOY_INSTALL_DEPS}" == "Y" &&
+         "${DINGO_DEPLOY_INSTALL_HWCLI}" == "Y" ]] ||
+        fail "Dingo did not enable hardware-wallet dependencies and installation"
+      ;;
+    amaru)
+      [[ "${AMARU_DEPLOY_INSTALL_DEPS}" == "Y" &&
+         "${AMARU_DEPLOY_INSTALL_HWCLI}" == "Y" ]] ||
+        fail "Amaru did not enable hardware-wallet dependencies and installation"
+      ;;
+  esac
+  S_ARGS=""
+
+  missing_preflight_target="${NODE_PARENT}/${implementation}-missing-preflight"
+  if (
+    NODE_NAME="${implementation}-missing-preflight"
+    NODE_HOME="${missing_preflight_target}"
+    NODE_SERVICE="${implementation}-missing-preflight"
+    eval "$(declare -f dispatcher_source_path |
+      sed '1s/dispatcher_source_path/dispatcher_source_path_original/')"
+    dispatcher_source_path() {
+      if [[ "$1" == "files/node-implementations/${implementation}/release.json" ]]; then
+        return 1
+      fi
+      dispatcher_source_path_original "$@"
+    }
+    "${deploy_function}"
+  ) >/dev/null 2>&1; then
+    fail "${implementation} accepted a snapshot with a missing late payload"
+  fi
+  [[ ! -e "${missing_preflight_target}" ]] ||
+    fail "${implementation} mutated its target before snapshot preflight completed"
+
+  PAYLOAD_READY_MARKED="N"
+  "${deploy_function}" 2> "${test_root}/deploy.err" || {
+    cat "${test_root}/deploy.err" >&2
+    fail "${implementation} deployment failed"
+  }
+  if [[ "${network}" == "mainnet" ]]; then
+    grep -F "is still under heavy development. Try it on preview or preprod first; running it on mainnet is at your own responsibility." \
+      "${test_root}/deploy.err" >/dev/null ||
+      fail "${implementation} did not print the mainnet notice"
+    if [[ "${implementation}" == "dingo" ]]; then
+      grep -F "deployment on mainnet is experimental and relay-only." \
+        "${test_root}/deploy.err" >/dev/null ||
+        fail "${implementation} did not say a mainnet deployment is relay-only"
+    else
+      grep -F "Amaru deployment and block production on mainnet are experimental." \
+        "${test_root}/deploy.err" >/dev/null ||
+        fail "Amaru did not say block production on mainnet is experimental"
+    fi
+  elif grep -F "heavy development" "${test_root}/deploy.err" >/dev/null; then
+    fail "${implementation} printed the mainnet notice on ${network}"
+  fi
+  [[ "${PAYLOAD_READY_MARKED}" == "Y" ]] ||
+    fail "${implementation} did not mark its scripts and configuration ready"
+
+  launcher="${NODE_HOME}/scripts/${implementation}.sh"
+  resolved_node_home="$(cd "${NODE_HOME}" && pwd -P)"
+  config_env="${NODE_HOME}/scripts/${implementation}.env"
+  service_name="${NODE_SERVICE}.service"
+
+  [[ "${NODE_PORT}" == "${default_port}" ]] ||
+    fail "${implementation} selected unexpected default port ${NODE_PORT}"
+  [[ -x "${launcher}" ]] || fail "launcher is not executable: ${launcher}"
+  assert_file "${config_env}"
+  assert_file "${NODE_HOME}/files/${implementation}-release.json"
+  assert_file "${NODE_HOME}/scripts/adapters/${implementation}.adapter"
+  assert_file "${NODE_HOME}/scripts/env"
+  assert_file "${NODE_HOME}/scripts/lib/deployment.library"
+  assert_file "${NODE_HOME}/scripts/lib/env.library"
+  assert_file "${NODE_HOME}/scripts/lib/node-api.library"
+  assert_file "${NODE_HOME}/scripts/lib/systemd.library"
+  [[ -x "${NODE_HOME}/scripts/gLiveView.sh" ]] ||
+    fail "gLiveView is not executable: ${NODE_HOME}/scripts/gLiveView.sh"
+  [[ -x "${NODE_HOME}/scripts/cntools/cntools_main.sh" ]] ||
+    fail "CNTools main entrypoint is not executable for ${implementation}"
+  assert_not_exists "${NODE_HOME}/scripts/cntools/cntools.sh"
+  assert_not_exists "${NODE_HOME}/scripts/cntools/cntools_gum.sh"
+  assert_file "${NODE_HOME}/scripts/cntools/VERSION"
+  assert_file "${NODE_HOME}/scripts/cntools/core/startup.sh"
+  assert_file "${NODE_HOME}/scripts/cntools/core/log.sh"
+  assert_not_exists "${NODE_HOME}/scripts/cntools/core/ui.sh"
+  assert_file "${NODE_HOME}/scripts/cntools/core/menu.sh"
+  assert_file "${NODE_HOME}/scripts/cntools/core/action.sh"
+  assert_file "${NODE_HOME}/scripts/cntools/core/gum.sh"
+  assert_file "${NODE_HOME}/scripts/cntools/core/health.sh"
+  assert_file "${NODE_HOME}/scripts/cntools/core/theme.sh"
+  assert_file "${NODE_HOME}/scripts/cntools/core/update.sh"
+  assert_file "${NODE_HOME}/scripts/cntools/lib/number.sh"
+  assert_file "${NODE_HOME}/scripts/cntools/lib/update.sh"
+  assert_file "${NODE_HOME}/scripts/cntools/modules/root/module.json"
+  assert_file "${NODE_HOME}/scripts/cntools/modules/root/update/module.json"
+  assert_file "${NODE_HOME}/scripts/cntools/modules/root/update/check/action.sh"
+  assert_file "${NODE_HOME}/scripts/cntools/modules/root/update/view-changes/action.sh"
+  assert_file "${NODE_HOME}/scripts/cntools/modules/root/update/install/action.sh"
+  [[ -x "${NODE_HOME}/scripts/cntools.sh" ]] ||
+    fail "CNTools launcher is not executable for ${implementation}"
+  cmp -s \
+    "${REPO_ROOT}/scripts/common-helper-scripts/cntools.sh" \
+    "${NODE_HOME}/scripts/cntools.sh" ||
+    fail "${implementation} did not install the exact CNTools launcher"
+  if (( BASH_VERSINFO[0] > 4 ||
+        (BASH_VERSINFO[0] == 4 && BASH_VERSINFO[1] >= 4) )); then
+    cntools_version="$(< "${NODE_HOME}/scripts/cntools/VERSION")"
+    [[ "$("${NODE_HOME}/scripts/cntools.sh" -v)" = "${cntools_version}" ]] ||
+      fail "${implementation} CNTools launcher did not report the installed version"
+  fi
+  assert_not_exists "${NODE_HOME}/scripts/cntools.library"
+  assert_not_exists "${NODE_HOME}/scripts/.env_branch"
+  assert_not_exists "${NODE_HOME}/scripts/.node_implementation"
+
+  runtime_targets=(
+    "${NODE_HOME}/scripts/lib/deployment.library"
+    "${NODE_HOME}/scripts/lib/env.library"
+    "${NODE_HOME}/scripts/lib/node-api.library"
+    "${NODE_HOME}/scripts/lib/systemd.library"
+    "${NODE_HOME}/scripts/adapters/${implementation}.adapter"
+    "${NODE_HOME}/scripts/env"
+  )
+  runtime_bundle_snapshot() {
+    local target
+    for target in "${runtime_targets[@]}"; do
+      sha256sum "${target}"
+    done
+  }
+  assert_no_runtime_staging() {
+    if find "${NODE_HOME}/scripts" \
+      \( -name '.common-runtime-install.*' -o \
+         -name '.*.commit.*' -o \
+         -name '.*.restore.*' \) \
+      -print -quit | grep -q .; then
+      fail "${implementation} left common runtime transaction files"
+    fi
+  }
+
+  # Keep one installed member intentionally different. A later fetch or
+  # validation failure must occur before the first replacement.
+  runtime_mutation="${runtime_targets[0]}"
+  printf '# retained-local-generation\n' >> "${runtime_mutation}"
+  runtime_before="$(runtime_bundle_snapshot)"
+  runtime_failure_path="scripts/common-helper-scripts/lib/node-api.library"
+  RUNTIME_FAILURE_MODE="fetch"
+  case "${implementation}" in
+    dingo)
+      eval "$(declare -f dingo_deploy_fetch |
+        sed '1s/dingo_deploy_fetch/dingo_deploy_fetch_original/')"
+      dingo_deploy_fetch() {
+        if [[ "${RUNTIME_FAILURE_MODE}" == "fetch" &&
+              "$1" == "${runtime_failure_path}" ]]; then
+          return 1
+        fi
+        dingo_deploy_fetch_original "$@" || return 1
+        if [[ "${RUNTIME_FAILURE_MODE}" == "validation" &&
+              "$1" == "${runtime_failure_path}" ]]; then
+          printf '\nif (\n' >> "$2"
+        fi
+      }
+      ;;
+    amaru)
+      eval "$(declare -f amaru_deploy_fetch |
+        sed '1s/amaru_deploy_fetch/amaru_deploy_fetch_original/')"
+      amaru_deploy_fetch() {
+        if [[ "${RUNTIME_FAILURE_MODE}" == "fetch" &&
+              "$1" == "${runtime_failure_path}" ]]; then
+          return 1
+        fi
+        amaru_deploy_fetch_original "$@" || return 1
+        if [[ "${RUNTIME_FAILURE_MODE}" == "validation" &&
+              "$1" == "${runtime_failure_path}" ]]; then
+          printf '\nif (\n' >> "$2"
+        fi
+      }
+      ;;
+  esac
+
+  if "${runtime_bundle_function}" \
+    "${implementation}" "${runtime_fetch_function}" N >/dev/null 2>&1; then
+    fail "${implementation} runtime transaction ignored a fetch failure"
+  fi
+  runtime_after="$(runtime_bundle_snapshot)"
+  [[ "${runtime_after}" == "${runtime_before}" ]] ||
+    fail "${implementation} fetch failure changed an installed runtime member"
+  assert_no_runtime_staging
+
+  RUNTIME_FAILURE_MODE="validation"
+  if "${runtime_bundle_function}" \
+    "${implementation}" "${runtime_fetch_function}" N >/dev/null 2>&1; then
+    fail "${implementation} runtime transaction ignored a validation failure"
+  fi
+  runtime_after="$(runtime_bundle_snapshot)"
+  [[ "${runtime_after}" == "${runtime_before}" ]] ||
+    fail "${implementation} validation failure changed an installed runtime member"
+  assert_no_runtime_staging
+
+  # Make every member differ, fail the third commit exactly once, and verify
+  # that the first two replacements are rolled back to the same generation.
+  for runtime_mutation in "${runtime_targets[@]}"; do
+    printf '# rollback-generation-%s\n' "${implementation}" >> "${runtime_mutation}"
+  done
+  runtime_before="$(runtime_bundle_snapshot)"
+  RUNTIME_FAILURE_MODE="none"
+  runtime_mv_fail_target="${runtime_targets[2]}"
+  runtime_mv_fail_sentinel="${test_root}/runtime-mv-failed"
+  mv() {
+    local destination=""
+    local argument
+    for argument in "$@"; do
+      destination="${argument}"
+    done
+    if [[ "${destination}" == "${runtime_mv_fail_target}" &&
+          ! -e "${runtime_mv_fail_sentinel}" ]]; then
+      : > "${runtime_mv_fail_sentinel}"
+      return 1
+    fi
+    command mv "$@"
+  }
+  if "${runtime_bundle_function}" \
+    "${implementation}" "${runtime_fetch_function}" N >/dev/null 2>&1; then
+    fail "${implementation} runtime transaction ignored a commit failure"
+  fi
+  unset -f mv
+  [[ -f "${runtime_mv_fail_sentinel}" ]] ||
+    fail "${implementation} runtime commit failure was not injected"
+  runtime_after="$(runtime_bundle_snapshot)"
+  [[ "${runtime_after}" == "${runtime_before}" ]] ||
+    fail "${implementation} commit failure left mixed runtime generations"
+  assert_no_runtime_staging
+
+  case "${implementation}" in
+    dingo)
+      unset -f dingo_deploy_fetch
+      eval "$(declare -f dingo_deploy_fetch_original |
+        sed '1s/dingo_deploy_fetch_original/dingo_deploy_fetch/')"
+      unset -f dingo_deploy_fetch_original
+      ;;
+    amaru)
+      unset -f amaru_deploy_fetch
+      eval "$(declare -f amaru_deploy_fetch_original |
+        sed '1s/amaru_deploy_fetch_original/amaru_deploy_fetch/')"
+      unset -f amaru_deploy_fetch_original
+      ;;
+  esac
+  "${runtime_bundle_function}" \
+    "${implementation}" "${runtime_fetch_function}" N
+
+  # A normal refresh keeps operator content above env's template boundary.
+  runtime_env_tmp="$(mktemp "${NODE_HOME}/scripts/.env-header-test.XXXXXX")"
+  awk '
+    /^# Do NOT modify code below/ && !inserted {
+      print "# ALT_RUNTIME_HEADER_PRESERVED=Y"
+      inserted=1
+    }
+    { print }
+  ' "${NODE_HOME}/scripts/env" > "${runtime_env_tmp}"
+  command mv -f -- "${runtime_env_tmp}" "${NODE_HOME}/scripts/env"
+  "${runtime_bundle_function}" \
+    "${implementation}" "${runtime_fetch_function}" N
+  grep -q '^# ALT_RUNTIME_HEADER_PRESERVED=Y$' "${NODE_HOME}/scripts/env" ||
+    fail "${implementation} runtime refresh discarded the common env header"
+  assert_no_runtime_staging
+
+  if [[ "${implementation}" == "amaru" ]]; then
+    jq -e \
+      --arg implementation "${implementation}" \
+      --arg version "${expected_version}" \
+      '.implementation == $implementation and
+       .version == $version and
+       .github == "pragma-org/amaru" and
+       (.assets | keys == ["linux-aarch64", "linux-x86_64"]) and
+       (.companions | keys == ["cardano-cli"]) and
+       (.companions["cardano-cli"].version | type == "string" and length > 0) and
+       (.companions["cardano-cli"].artifacts |
+         keys == ["linux-aarch64", "linux-x86_64"]) and
+       (.otelcol.version | type == "string" and length > 0) and
+       (.otelcol.artifacts | keys == ["linux-aarch64", "linux-x86_64"]) and
+       (keys == ["assets", "companions", "github", "implementation", "otelcol", "schemaVersion", "version"])' \
+      "${NODE_HOME}/files/${implementation}-release.json" >/dev/null
+  else
+    jq -e \
+      --arg implementation "${implementation}" \
+      --arg version "${expected_version}" \
+      '.implementation == $implementation and
+       .version == $version and
+       .github == "blinklabs-io/dingo" and
+       (.assets | keys == ["linux-aarch64", "linux-x86_64"]) and
+       (.companions | keys == ["cardano-cli"]) and
+       (.companions["cardano-cli"].version | type == "string" and length > 0) and
+       (.companions["cardano-cli"].artifacts |
+         keys == ["linux-aarch64", "linux-x86_64"]) and
+       (keys == ["assets", "companions", "github", "implementation", "schemaVersion", "version"])' \
+      "${NODE_HOME}/files/${implementation}-release.json" >/dev/null
+  fi
+  "${release_validator}" "${NODE_HOME}/files/${implementation}-release.json" ||
+    fail "${implementation} installed invalid release metadata"
+
+  release_path="${NODE_HOME}/files/${implementation}-release.json"
+
+  # Rolling node releases select the most recently published non-draft entry,
+  # including prereleases, and require one exact asset with a GitHub digest.
+  local resolver_fixture="${test_root}/${implementation}-release-api.json"
+  local resolver_valid="${resolver_fixture}.valid"
+  local resolver_capture="${test_root}/${implementation}-release-api-url"
+  local resolver_repository
+  local resolver_asset
+  local resolver_version="99.1-test"
+  local resolver_tag="v${resolver_version}"
+  local resolver_url
+  local resolver_digest="cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+  local resolved_variable
+
+  resolver_repository="$(jq -er '.github' "${release_path}")"
+  case "${implementation}" in
+    dingo) resolver_asset="dingo-${resolver_tag}-linux-amd64.tar.gz" ;;
+    amaru) resolver_asset="amaru-${resolver_version}-linux-x86_64.tar.gz" ;;
+  esac
+  resolver_url="https://github.com/${resolver_repository}/releases/download/${resolver_tag}/${resolver_asset}"
+  jq -n \
+    --arg tag "${resolver_tag}" \
+    --arg asset "${resolver_asset}" \
+    --arg url "${resolver_url}" \
+    --arg digest "sha256:${resolver_digest}" '
+    [
+      {
+        tag_name: "v100.0-draft",
+        draft: true,
+        prerelease: false,
+        published_at: "2030-01-01T00:00:00Z",
+        assets: []
+      },
+      {
+        tag_name: "v1.0-noncurrent",
+        draft: false,
+        prerelease: false,
+        published_at: "2025-01-01T00:00:00Z",
+        assets: []
+      },
+      {
+        tag_name: $tag,
+        draft: false,
+        prerelease: true,
+        published_at: "2029-01-01T00:00:00Z",
+        assets: [{
+          name: $asset,
+          state: "uploaded",
+          size: 123,
+          browser_download_url: $url,
+          digest: $digest
+        }]
+      }
+    ]
+  ' > "${resolver_fixture}"
+  cp -- "${resolver_fixture}" "${resolver_valid}"
+
+  curl() {
+    local output=""
+    local argument=""
+    local -a arguments=("$@")
+    local index
+    for ((index = 0; index < ${#arguments[@]}; index++)); do
+      if [[ "${arguments[index]}" == "--output" ]]; then
+        output="${arguments[index + 1]}"
+      fi
+      [[ "${arguments[index]}" == https://api.github.com/* ]] &&
+        argument="${arguments[index]}"
+    done
+    [[ -n "${output}" && -n "${argument}" ]] || return 1
+    printf '%s\n' "${argument}" > "${resolver_capture}"
+    cp -- "${resolver_fixture}" "${output}"
+  }
+  "${binary_resolver_function}" "${release_path}" "linux-x86_64"
+  resolved_variable="$(printf '%s' "${implementation}" | tr '[:lower:]' '[:upper:]')_RESOLVED_VERSION"
+  [[ "${!resolved_variable}" == "${resolver_version}" ]] ||
+    fail "${implementation} rolling resolver selected the wrong published release"
+  resolved_variable="$(printf '%s' "${implementation}" | tr '[:lower:]' '[:upper:]')_RESOLVED_PRERELEASE"
+  [[ "${!resolved_variable}" == "true" ]] ||
+    fail "${implementation} rolling resolver excluded the newest prerelease"
+  grep -Fx \
+    "https://api.github.com/repos/${resolver_repository}/releases?per_page=100" \
+    "${resolver_capture}" >/dev/null ||
+    fail "${implementation} rolling resolver used the wrong GitHub endpoint"
+
+  assert_release_resolution_rejected() {
+    local context="$1"
+    local filter="$2"
+    jq "${filter}" "${resolver_valid}" > "${resolver_fixture}"
+    if "${binary_resolver_function}" \
+      "${release_path}" "linux-x86_64" >/dev/null 2>&1; then
+      fail "${implementation} rolling resolver accepted ${context}"
+    fi
+  }
+  assert_release_resolution_rejected \
+    "an asset without a digest" '.[2].assets[0].digest = null'
+  assert_release_resolution_rejected \
+    "two matching assets" '.[2].assets += [.[2].assets[0]]'
+  assert_release_resolution_rejected \
+    "a cross-repository asset URL" \
+    '.[2].assets[0].browser_download_url = "https://github.com/example/wrong/releases/download/v99.1-test/\(.[2].assets[0].name)"'
+  assert_release_resolution_rejected \
+    "an asset with zero bytes" '.[2].assets[0].size = 0'
+  assert_release_resolution_rejected \
+    "a matching asset only on a non-current release" \
+    '.[1].assets = (
+       .[2].assets |
+       map(.browser_download_url |=
+         gsub("/v99[.]1-test/"; "/v1.0-noncurrent/"))
+     ) |
+     .[2].assets = []'
+  curl() {
+    fail "profile attempted network access: $*"
+  }
+
+  if [[ "${implementation}" == "dingo" ]]; then
+    local archive_root="${test_root}/dingo-archive"
+    local archive_file="${test_root}/dingo-test.tar.gz"
+    local archive_sha
+    local cli_root="${test_root}/cardano-cli-archive"
+    local cli_file="${test_root}/cardano-cli-test.tar.gz"
+    local cli_sha
+    local cli_version
+    local cli_test_url="https://not-used.invalid/cardano-cli-dingo.tar.gz"
+    local release_backup="${test_root}/dingo-release.json"
+    local release_tmp="${test_root}/dingo-release.tmp.json"
+    local binary_status
+
+    mkdir -p "${archive_root}" "${cli_root}"
+    printf '%s\n' \
+      '#!/usr/bin/env bash' \
+      'case "${1:-}" in' \
+      "  version) printf 'dingo %s\\n' '${resolver_version}' ;;" \
+      'esac' \
+      > "${archive_root}/dingo"
+    chmod 0644 "${archive_root}/dingo"
+    tar -czf "${archive_file}" -C "${archive_root}" dingo
+    archive_sha="$(sha256sum "${archive_file}" | awk '{print $1}')"
+    cli_version="$(jq -er '.companions["cardano-cli"].version' "${release_path}")"
+    printf '%s\n' \
+      '#!/usr/bin/env bash' \
+      'case "${1:-}" in' \
+      "  version) printf 'cardano-cli %s - linux-x86_64\\n' '${cli_version}' ;;" \
+      'esac' \
+      > "${cli_root}/cardano-cli-x86_64-linux"
+    chmod 0644 "${cli_root}/cardano-cli-x86_64-linux"
+    tar -czf "${cli_file}" -C "${cli_root}" cardano-cli-x86_64-linux
+    cli_sha="$(sha256sum "${cli_file}" | awk '{print $1}')"
+    cp -- "${release_path}" "${release_backup}"
+
+    jq \
+      --arg cli_url "${cli_test_url}" \
+      --arg cli_sha "${cli_sha}" \
+      '.companions["cardano-cli"].artifacts["linux-x86_64"] = {
+        url: $cli_url,
+        sha256: $cli_sha
+      }' \
+      "${release_path}" > "${release_tmp}"
+    command mv -f -- "${release_tmp}" "${release_path}"
+
+    jq -n \
+      --arg tag "${resolver_tag}" \
+      --arg asset "${resolver_asset}" \
+      --arg url "${resolver_url}" \
+      --arg digest "sha256:${archive_sha}" '
+      [{
+        tag_name: $tag,
+        draft: false,
+        prerelease: true,
+        published_at: "2029-01-01T00:00:00Z",
+        assets: [{
+          name: $asset,
+          state: "uploaded",
+          size: 123,
+          browser_download_url: $url,
+          digest: $digest
+        }]
+      }]
+    ' > "${resolver_fixture}"
+    DINGO_TEST_ARCHIVE="${archive_file}"
+    DINGO_TEST_CLI_ARCHIVE="${cli_file}"
+    curl() {
+      local output=""
+      local request_url=""
+      while [[ $# -gt 0 ]]; do
+        case "$1" in
+          --output)
+            output="$2"
+            shift 2
+            ;;
+          https://*)
+            request_url="$1"
+            shift
+            ;;
+          *) shift ;;
+        esac
+      done
+      [[ -n "${output}" && -n "${request_url}" ]] || return 1
+      case "${request_url}" in
+        https://api.github.com/*)
+          cp -- "${resolver_fixture}" "${output}"
+          ;;
+        "${resolver_url}")
+          cp -- "${DINGO_TEST_ARCHIVE}" "${output}"
+          ;;
+        "${cli_test_url}")
+          cp -- "${DINGO_TEST_CLI_ARCHIVE}" "${output}"
+          ;;
+        *)
+          fail "Dingo installer requested an unexpected URL: ${request_url}"
+          ;;
+      esac
+    }
+    sha256sum() {
+      local expected_checksum
+      local checksum_file
+      local actual_checksum
+      if [[ "${1:-}" == "--check" && "${2:-}" == "--status" ]]; then
+        read -r expected_checksum checksum_file
+        actual_checksum="$(command sha256sum "${checksum_file}" | awk '{print $1}')"
+        [[ "${actual_checksum}" == "${expected_checksum}" ]]
+      else
+        command sha256sum "$@"
+      fi
+    }
+
+    jq '.[0].assets[0].digest = ("sha256:" + ("0" * 64))' \
+      "${resolver_fixture}" > "${resolver_fixture}.invalid"
+    command mv -f -- "${resolver_fixture}.invalid" "${resolver_fixture}"
+    set +e
+    dingo_deploy_install_binary >/dev/null 2>&1
+    binary_status=$?
+    set -e
+    [[ "${binary_status}" -ne 0 ]] ||
+      fail "Dingo binary install ignored a checksum mismatch"
+    assert_not_exists "${NODE_HOME}/bin/dingo"
+    assert_not_exists "${NODE_HOME}/bin/cardano-cli"
+
+    jq --arg digest "sha256:${archive_sha}" \
+      '.[0].assets[0].digest = $digest' \
+      "${resolver_fixture}" > "${resolver_fixture}.valid"
+    command mv -f -- "${resolver_fixture}.valid" "${resolver_fixture}"
+    dingo_deploy_install_binary >/dev/null
+    [[ -x "${NODE_HOME}/bin/dingo" ]] ||
+      fail "Dingo installer did not make its archive member executable"
+    [[ -x "${NODE_HOME}/bin/cardano-cli" ]] ||
+      fail "Dingo installer did not install its isolated cardano-cli companion"
+    "${NODE_HOME}/bin/dingo" version | grep -F "${resolver_version}" >/dev/null
+    "${NODE_HOME}/bin/cardano-cli" version |
+      grep -F "${cli_version}" >/dev/null
+    command mv -f -- "${release_backup}" "${release_path}"
+    unset -f sha256sum
+    curl() {
+      fail "profile attempted network access: $*"
+    }
+  elif [[ "${implementation}" == "amaru" ]]; then
+    local archive_root="${test_root}/amaru-archive"
+    local archive_file="${test_root}/amaru-test.tar.gz"
+    local archive_sha
+    local cli_root="${test_root}/cardano-cli-archive"
+    local cli_file="${test_root}/cardano-cli-test.tar.gz"
+    local cli_sha
+    local cli_version
+    local cli_test_url="https://not-used.invalid/cardano-cli-amaru.tar.gz"
+    local collector_root="${test_root}/otelcol-archive"
+    local collector_file="${test_root}/otelcol-test.tar.gz"
+    local collector_sha
+    local collector_version
+    local collector_test_url="https://not-used.invalid/collector-upstream-name.tar.gz"
+    local release_backup="${test_root}/amaru-release.json"
+    local release_tmp="${test_root}/amaru-release.tmp.json"
+    local binary_status
+
+    mkdir -p "${archive_root}/amaru-test/bin" "${cli_root}"
+    printf '%s\n' \
+      '#!/usr/bin/env bash' \
+      "printf 'amaru %s\\n' '${resolver_version}'" \
+      > "${archive_root}/amaru-test/bin/amaru"
+    chmod 0644 "${archive_root}/amaru-test/bin/amaru"
+    tar -czf "${archive_file}" -C "${archive_root}" amaru-test
+    archive_sha="$(sha256sum "${archive_file}" | awk '{print $1}')"
+    cli_version="$(jq -er '.companions["cardano-cli"].version' "${release_path}")"
+    printf '%s\n' \
+      '#!/usr/bin/env bash' \
+      'case "${1:-}" in' \
+      "  version) printf 'cardano-cli %s - linux-x86_64\\n' '${cli_version}' ;;" \
+      'esac' \
+      > "${cli_root}/cardano-cli-x86_64-linux"
+    chmod 0644 "${cli_root}/cardano-cli-x86_64-linux"
+    tar -czf "${cli_file}" -C "${cli_root}" cardano-cli-x86_64-linux
+    cli_sha="$(sha256sum "${cli_file}" | awk '{print $1}')"
+    collector_version="$(jq -er '.otelcol.version' "${release_path}")"
+    mkdir -p "${collector_root}"
+    printf '%s\n' \
+      '#!/usr/bin/env bash' \
+      'case "${1:-}" in' \
+      "  --version) printf 'otelcol-contrib version %s\\n' '${collector_version}' ;;" \
+      '  validate) exit 0 ;;' \
+      'esac' \
+      > "${collector_root}/otelcol-contrib"
+    chmod 0644 "${collector_root}/otelcol-contrib"
+    tar -czf "${collector_file}" -C "${collector_root}" otelcol-contrib
+    collector_sha="$(sha256sum "${collector_file}" | awk '{print $1}')"
+    cp -- "${release_path}" "${release_backup}"
+
+    jq \
+      --arg cli_url "${cli_test_url}" \
+      --arg cli_sha "${cli_sha}" \
+      --arg collector_url "${collector_test_url}" \
+      --arg collector_sha "${collector_sha}" \
+      '.companions["cardano-cli"].artifacts["linux-x86_64"] = {
+         url: $cli_url,
+         sha256: $cli_sha
+       } |
+       .otelcol.artifacts["linux-x86_64"] = {
+         url: $collector_url,
+         sha256: $collector_sha
+       }' \
+      "${release_path}" > "${release_tmp}"
+    command mv -f -- "${release_tmp}" "${release_path}"
+
+    jq -n \
+      --arg tag "${resolver_tag}" \
+      --arg asset "${resolver_asset}" \
+      --arg url "${resolver_url}" \
+      --arg digest "sha256:${archive_sha}" '
+      [{
+        tag_name: $tag,
+        draft: false,
+        prerelease: true,
+        published_at: "2029-01-01T00:00:00Z",
+        assets: [{
+          name: $asset,
+          state: "uploaded",
+          size: 123,
+          browser_download_url: $url,
+          digest: $digest
+        }]
+      }]
+    ' > "${resolver_fixture}"
+    AMARU_TEST_ARCHIVE="${archive_file}"
+    AMARU_TEST_CLI_ARCHIVE="${cli_file}"
+    AMARU_TEST_COLLECTOR_ARCHIVE="${collector_file}"
+    curl() {
+      local output=""
+      local request_url=""
+      while [[ $# -gt 0 ]]; do
+        case "$1" in
+          --output)
+            output="$2"
+            shift 2
+            ;;
+          https://*)
+            request_url="$1"
+            shift
+            ;;
+          *) shift ;;
+        esac
+      done
+      [[ -n "${output}" && -n "${request_url}" ]] || return 1
+      case "${request_url}" in
+        https://api.github.com/*)
+          cp -- "${resolver_fixture}" "${output}"
+          ;;
+        "${resolver_url}")
+          cp -- "${AMARU_TEST_ARCHIVE}" "${output}"
+          ;;
+        "${cli_test_url}")
+          cp -- "${AMARU_TEST_CLI_ARCHIVE}" "${output}"
+          ;;
+        "${collector_test_url}")
+          cp -- "${AMARU_TEST_COLLECTOR_ARCHIVE}" "${output}"
+          ;;
+        *)
+          fail "Amaru installer requested an unexpected URL: ${request_url}"
+          ;;
+      esac
+    }
+    sha256sum() {
+      local expected_checksum
+      local checksum_file
+      local actual_checksum
+      if [[ "${1:-}" == "--check" && "${2:-}" == "--status" ]]; then
+        read -r expected_checksum checksum_file
+        actual_checksum="$(command sha256sum "${checksum_file}" | awk '{print $1}')"
+        [[ "${actual_checksum}" == "${expected_checksum}" ]]
+      else
+        command sha256sum "$@"
+      fi
+    }
+
+    jq '.[0].assets[0].digest = ("sha256:" + ("0" * 64))' \
+      "${resolver_fixture}" > "${resolver_fixture}.invalid"
+    command mv -f -- "${resolver_fixture}.invalid" "${resolver_fixture}"
+    set +e
+    amaru_deploy_install_binary >/dev/null 2>&1
+    binary_status=$?
+    set -e
+    [[ "${binary_status}" -ne 0 ]] ||
+      fail "Amaru binary install ignored a checksum mismatch"
+    assert_not_exists "${NODE_HOME}/bin/amaru"
+    assert_not_exists "${NODE_HOME}/bin/cardano-cli"
+    assert_not_exists "${NODE_HOME}/bin/otelcol-contrib"
+
+    jq --arg digest "sha256:${archive_sha}" \
+      '.[0].assets[0].digest = $digest' \
+      "${resolver_fixture}" > "${resolver_fixture}.valid"
+    command mv -f -- "${resolver_fixture}.valid" "${resolver_fixture}"
+
+    jq '.companions["cardano-cli"].artifacts["linux-x86_64"].sha256 = ("0" * 64)' \
+      "${release_path}" > "${release_tmp}"
+    command mv -f -- "${release_tmp}" "${release_path}"
+    set +e
+    amaru_deploy_install_binary >/dev/null 2>&1
+    binary_status=$?
+    set -e
+    [[ "${binary_status}" -ne 0 ]] ||
+      fail "Amaru binary install ignored a cardano-cli checksum mismatch"
+    assert_not_exists "${NODE_HOME}/bin/amaru"
+    assert_not_exists "${NODE_HOME}/bin/cardano-cli"
+    assert_not_exists "${NODE_HOME}/bin/otelcol-contrib"
+    jq --arg sha "${cli_sha}" \
+      '.companions["cardano-cli"].artifacts["linux-x86_64"].sha256 = $sha' \
+      "${release_path}" > "${release_tmp}"
+    command mv -f -- "${release_tmp}" "${release_path}"
+
+    amaru_deploy_install_binary >/dev/null
+    [[ -x "${NODE_HOME}/bin/amaru" ]] ||
+      fail "Amaru installer did not make the mode-0644 archive member executable"
+    [[ -x "${NODE_HOME}/bin/cardano-cli" ]] ||
+      fail "Amaru installer did not install its isolated cardano-cli companion"
+    [[ -x "${NODE_HOME}/bin/otelcol-contrib" ]] ||
+      fail "Amaru installer did not install its OpenTelemetry Collector companion"
+    "${NODE_HOME}/bin/amaru" --version | grep -F "${resolver_version}" >/dev/null
+    "${NODE_HOME}/bin/cardano-cli" version |
+      grep -F "${cli_version}" >/dev/null
+    "${NODE_HOME}/bin/otelcol-contrib" --version |
+      grep -F "${collector_version}" >/dev/null
+    command mv -f -- "${release_backup}" "${release_path}"
+    unset -f sha256sum
+    curl() {
+      fail "profile attempted network access: $*"
+    }
+  fi
+  release_checksum="$(sha256sum "${release_path}" | awk '{print $1}')"
+  if (
+    mv() {
+      local destination="${*: -1}"
+      if [[ "${destination}" == "${release_path}" ]]; then
+        return 1
+      fi
+      command mv "$@"
+    }
+    "${install_payloads_function}"
+  ) >/dev/null 2>&1; then
+    fail "${implementation} payload refresh ignored a failed release metadata replacement"
+  fi
+  [[ "$(sha256sum "${release_path}" | awk '{print $1}')" == "${release_checksum}" ]] ||
+    fail "${implementation} release metadata changed after failed replacement"
+  if find "${NODE_HOME}/files" \
+    -name ".${implementation}-release.json.tmp.*" -print -quit | grep -q .; then
+    fail "${implementation} left temporary release metadata after failed replacement"
+  fi
+
+  if [[ "${implementation}" == "amaru" ]]; then
+    # A refresh replaces the leaderlog code and keeps the operator settings
+    # above the template boundary.
+    local leaderlog_script="${NODE_HOME}/scripts/amaru-leaderlog.sh"
+    [[ -x "${leaderlog_script}" ]] ||
+      fail "Amaru deployment did not install an executable leaderlog script"
+    sed -i 's|^#SLEEP_RATE=60 |SLEEP_RATE=30 |' "${leaderlog_script}"
+    printf '# stale-leaderlog-code\n' >> "${leaderlog_script}"
+    "${install_payloads_function}" >/dev/null 2>&1 ||
+      fail "Amaru payload refresh failed"
+    grep -q '^SLEEP_RATE=30 ' "${leaderlog_script}" ||
+      fail "Amaru payload refresh discarded the leaderlog operator settings"
+    if grep -q '^# stale-leaderlog-code$' "${leaderlog_script}"; then
+      fail "Amaru payload refresh kept stale leaderlog code"
+    fi
+    [[ -x "${leaderlog_script}" ]] ||
+      fail "Amaru payload refresh left the leaderlog script without execute permission"
+  fi
+
+  if [[ "${implementation}" == "dingo" ]]; then
+    assert_file "${NODE_HOME}/files/dingo.yaml"
+    grep -F "network: \"${network}\"" "${NODE_HOME}/files/dingo.yaml" >/dev/null
+    grep -F "relayPort: ${default_port}" "${NODE_HOME}/files/dingo.yaml" >/dev/null
+    grep -F 'blockProducer: false' "${NODE_HOME}/files/dingo.yaml" >/dev/null
+    grep -F 'metricsBindAddr: "127.0.0.1"' "${NODE_HOME}/files/dingo.yaml" >/dev/null
+    grep -F 'healthPort: 0' "${NODE_HOME}/files/dingo.yaml" >/dev/null
+    grep -F 'DINGO_STORAGE_MODE="core"' "${config_env}" >/dev/null
+    # Pool settings belong to scripts/env, which CNTools reads too.
+    if grep -Eq '^[[:space:]]*(export[[:space:]]+)?POOL_[A-Z_]*=' "${config_env}"; then
+      fail "Dingo environment template sets pool variables"
+    fi
+    [[ -d "${NODE_HOME}/priv/pool" ]] ||
+      fail "Dingo deployment did not create its pool root"
+    dingo_pool_mode="$(
+      stat -c '%a' "${NODE_HOME}/priv/pool" 2>/dev/null ||
+        stat -f '%Lp' "${NODE_HOME}/priv/pool"
+    )"
+    [[ "${dingo_pool_mode}" == "700" ]] ||
+      fail "Dingo pool root is not mode 0700"
+    assert_rendered_yaml "${NODE_HOME}/files/dingo.yaml" "${default_port}"
+  else
+    assert_not_exists "${NODE_HOME}/chain"
+    assert_not_exists "${NODE_HOME}/ledger"
+    grep -F "AMARU_NETWORK=\"${network}\"" "${config_env}" >/dev/null
+    grep -F "AMARU_PEERS_LISTEN_ON=\"0.0.0.0:${default_port}\"" "${config_env}" >/dev/null
+    grep -F "AMARU_DB_CHAIN=\"${NODE_HOME}/chain\"" "${config_env}" >/dev/null
+    grep -F "AMARU_DB_LEDGER=\"${NODE_HOME}/ledger\"" "${config_env}" >/dev/null
+    grep -F 'AMARU_DB_CHAIN_AUTOMATIC_MIGRATION="true"' "${config_env}" >/dev/null
+    grep -F 'AMARU_LOG_OTLP="metrics"' "${config_env}" >/dev/null
+    grep -F 'AMARU_LOG_JSON="false"' "${config_env}" >/dev/null
+    if grep -Eq '^AMARU_(CHAIN_DIR|LEDGER_DIR|LISTEN_ADDRESS|PEER_ADDRESS|UPSTREAM_PEERS|DOWNSTREAM_PEERS|MAX_EXTRA_LEDGER_SNAPSHOTS|PID_FILE|WITH_JSON_TRACES|WITH_OPEN_TELEMETRY)=' \
+      "${config_env}"; then
+      fail "Amaru config uses deprecated environment variable names"
+    fi
+    grep -F 'OTEL_EXPORTER_OTLP_ENDPOINT="http://127.0.0.1:4317"' \
+      "${config_env}" >/dev/null
+    if grep -q '^OTEL_EXPORTER_OTLP_METRICS_ENDPOINT=' "${config_env}"; then
+      fail "Amaru config retained a signal-specific OTLP metrics endpoint"
+    fi
+    grep -F 'OTEL_METRIC_EXPORT_INTERVAL="2000"' "${config_env}" >/dev/null
+    grep -F 'AMARU_PROMETHEUS_URL="http://127.0.0.1:8889/metrics"' \
+      "${config_env}" >/dev/null
+    # Pool settings belong to scripts/env, which CNTools reads too, and the
+    # launcher derives the operator key paths from the pool folder.
+    if grep -Eq '^[[:space:]]*(export[[:space:]]+)?(POOL_[A-Z_]*|AMARU_OPERATOR_[A-Z_]*)=' "${config_env}"; then
+      fail "Amaru environment template sets pool or operator key variables"
+    fi
+    [[ -d "${NODE_HOME}/priv/pool" ]] ||
+      fail "Amaru deployment did not create its pool root"
+    amaru_pool_mode="$(
+      stat -c '%a' "${NODE_HOME}/priv/pool" 2>/dev/null ||
+        stat -f '%Lp' "${NODE_HOME}/priv/pool"
+    )"
+    [[ "${amaru_pool_mode}" == "700" ]] ||
+      fail "Amaru pool root is not mode 0700"
+    assert_file "${NODE_HOME}/files/otelcol.yaml"
+    assert_otelcol_yaml "${NODE_HOME}/files/otelcol.yaml"
+  fi
+
+  # guild-deploy next-step guidance must reflect existing state. Refreshing an
+  # already bootstrapped deployment with installed units should print no
+  # bootstrap or systemd deployment suggestion.
+  local guidance_output
+  local guidance_unit_dir="${test_root}/guidance-systemd"
+  local guidance_node_unit="${guidance_unit_dir}/${NODE_SERVICE}.service"
+  local guidance_metrics_unit="${guidance_unit_dir}/${NODE_SERVICE}-metrics.service"
+  mkdir -p "${guidance_unit_dir}"
+
+  guidance_output="$(
+    SYSTEMD_UNIT_DIR="${guidance_unit_dir}" "${next_steps_function}"
+  )"
+  grep -F "Bootstrap node state:" <<< "${guidance_output}" >/dev/null ||
+    fail "${implementation} omitted bootstrap guidance for an empty state"
+  grep -F "Deploy the systemd service" <<< "${guidance_output}" >/dev/null ||
+    fail "${implementation} omitted service guidance when units were absent"
+  if grep -Eq 'Monitor the node|CNTools|Mithril|db-sync|Ogmios' \
+    <<< "${guidance_output}"; then
+    fail "${implementation} next-step guidance contains unrelated suggestions"
+  fi
+
+  : > "${guidance_node_unit}"
+  if [[ "${implementation}" == "amaru" ]]; then
+    : > "${guidance_metrics_unit}"
+  fi
+  guidance_output="$(
+    SYSTEMD_UNIT_DIR="${guidance_unit_dir}" "${next_steps_function}"
+  )"
+  grep -F "Bootstrap node state:" <<< "${guidance_output}" >/dev/null ||
+    fail "${implementation} lost bootstrap guidance after service deployment"
+  if grep -F "Deploy the systemd service" <<< "${guidance_output}" >/dev/null; then
+    fail "${implementation} suggested redeploying an installed service"
+  fi
+
+  case "${implementation}" in
+    dingo) : > "${NODE_HOME}/db/.guidance-state" ;;
+    amaru)
+      mkdir "${NODE_HOME}/chain" "${NODE_HOME}/ledger"
+      : > "${NODE_HOME}/chain/CURRENT"
+      : > "${NODE_HOME}/ledger/CURRENT"
+      ;;
+  esac
+  guidance_output="$(
+    SYSTEMD_UNIT_DIR="${guidance_unit_dir}" "${next_steps_function}"
+  )"
+  [[ -z "${guidance_output}" ]] ||
+    fail "${implementation} printed next steps for a ready existing deployment"
+
+  command rm -f -- "${guidance_node_unit}" "${guidance_metrics_unit}"
+  guidance_output="$(
+    SYSTEMD_UNIT_DIR="${guidance_unit_dir}" "${next_steps_function}"
+  )"
+  grep -F "Deploy the systemd service" <<< "${guidance_output}" >/dev/null ||
+    fail "${implementation} omitted service guidance when units were removed"
+  if grep -F "Bootstrap node state:" <<< "${guidance_output}" >/dev/null; then
+    fail "${implementation} suggested bootstrapping existing node state"
+  fi
+  case "${implementation}" in
+    dingo) command rm -f -- "${NODE_HOME}/db/.guidance-state" ;;
+    amaru) command rm -rf -- "${NODE_HOME}/chain" "${NODE_HOME}/ledger" ;;
+  esac
+
+  # Both alternate adapters expose the common monitoring contract used by
+  # gLiveView and populate immutable timing constants for their public network.
+  # shellcheck source=/dev/null
+  . "${NODE_HOME}/scripts/lib/node-api.library"
+  # shellcheck source=/dev/null
+  . "${NODE_HOME}/scripts/adapters/${implementation}.adapter"
+  node_adapter_contract_valid
+  node_adapter_defaults
+  node_adapter_init monitor ||
+    fail "${implementation} adapter rejected the monitor profile"
+  node_has metrics ||
+    fail "${implementation} adapter does not advertise metrics"
+  case "${network}" in
+    mainnet) expected_network_name="Mainnet" expected_epoch_length=432000 ;;
+    preprod) expected_network_name="PreProd" expected_epoch_length=432000 ;;
+    *) expected_network_name="Preview" expected_epoch_length=86400 ;;
+  esac
+  [[ "${NODE_NETWORK_NAME}" == "${expected_network_name}" ]] ||
+    fail "${implementation} adapter selected unexpected network constants"
+  [[ "${EPOCH_LENGTH}" == "${expected_epoch_length}" ]] ||
+    fail "${implementation} adapter selected unexpected epoch length"
+
+  jq -n \
+    --arg implementation "${implementation}" \
+    --arg network "${network}" \
+    --arg service "${NODE_SERVICE}" \
+    --arg target_version "${expected_version}" \
+    '{
+      schemaVersion: 1,
+      deploymentStatus: "deployed",
+      implementation: $implementation,
+      network: $network,
+      branch: "master",
+      repository: "cardano-community/guild-operators",
+      serviceName: $service,
+      nodeVersion: "",
+      targetNodeVersion: $target_version,
+      metricsProvider: (if $implementation == "dingo" then "prometheus" else "otel" end),
+      capabilities: {
+        n2c: ($implementation == "dingo"),
+        localCli: ($implementation == "dingo"),
+        metrics: true,
+        forging: true
+      }
+    }' > "${NODE_HOME}/.deployment.json"
+  valid_deployment_manifest="$(cat "${NODE_HOME}/.deployment.json")"
+
+  if [[ "${implementation}" == "dingo" ]]; then
+    (
+      unset CCLI CNODE_HOME GUILD_ENV_ENTRY_DIR
+      USESYSVARS="N"
+      set +u
+      # shellcheck source=/dev/null
+      . "${NODE_HOME}/scripts/env" offline
+      [[ "${CCLI}" == "${NODE_HOME}/bin/cardano-cli" ]] ||
+        fail "Dingo env did not select its isolated cardano-cli by default"
+      [[ "${PATH%%:*}" == "${NODE_HOME}/bin" ]] ||
+        fail "env did not put the deployment's bin folder first on PATH"
+      if ! node_has local_query || ! node_has local_submit; then
+        fail "Dingo env did not expose local cardano-cli capabilities"
+      fi
+    )
+
+    local custom_cli="${test_root}/bin/custom-cardano-cli"
+    # An explicit CCLI must still satisfy the profile's pinned companion minimum.
+    write_fake_executable "${custom_cli}" "cardano-cli $(jq -r '.companions["cardano-cli"].version' \
+      "${REPO_ROOT}/files/node-implementations/${implementation}/release.json")"
+    (
+      unset CNODE_HOME GUILD_ENV_ENTRY_DIR
+      CCLI="${custom_cli}"
+      USESYSVARS="N"
+      set +u
+      # shellcheck source=/dev/null
+      . "${NODE_HOME}/scripts/env" offline
+      [[ "${CCLI}" == "${custom_cli}" ]] ||
+        fail "Dingo env replaced an explicit CCLI override"
+    )
+  elif [[ "${implementation}" == "amaru" ]]; then
+    (
+      unset CCLI CNODE_HOME GUILD_ENV_ENTRY_DIR
+      USESYSVARS="N"
+      set +u
+      # CNTools intentionally loads only adapter definitions. The installed
+      # CLI is a transaction companion, not an Amaru node-to-client backend.
+      # shellcheck source=/dev/null
+      . "${NODE_HOME}/scripts/env" definitions
+      [[ "${CCLI}" == "${NODE_HOME}/bin/cardano-cli" ]] ||
+        fail "Amaru env did not select its isolated cardano-cli by default"
+      if node_has local_query || node_has local_submit; then
+        fail "Amaru env incorrectly exposed local node CLI capabilities"
+      fi
+    )
+
+    local custom_cli="${test_root}/bin/custom-cardano-cli"
+    # An explicit CCLI must still satisfy the profile's pinned companion minimum.
+    write_fake_executable "${custom_cli}" "cardano-cli $(jq -r '.companions["cardano-cli"].version' \
+      "${REPO_ROOT}/files/node-implementations/${implementation}/release.json")"
+    (
+      unset CNODE_HOME GUILD_ENV_ENTRY_DIR
+      CCLI="${custom_cli}"
+      USESYSVARS="N"
+      set +u
+      # shellcheck source=/dev/null
+      . "${NODE_HOME}/scripts/env" definitions
+      [[ "${CCLI}" == "${custom_cli}" ]] ||
+        fail "Amaru env replaced an explicit CCLI override"
+    )
+  fi
+
+  write_fake_executable \
+    "${NODE_HOME}/bin/${implementation}" \
+    "${implementation} ${expected_version}"
+  "${launcher}" --help >/dev/null
+  "${launcher}" version | grep -F "${expected_version}" >/dev/null
+
+  if [[ "${implementation}" == "dingo" ]]; then
+    local dingo_capture="${test_root}/dingo-role.log"
+    local dingo_pool_dir="${resolved_node_home}/priv/pool/test-pool"
+    local common_env="${NODE_HOME}/scripts/env"
+    printf '%s\n' \
+      '#!/usr/bin/env bash' \
+      'if [[ "${1:-}" == "version" ]]; then' \
+      "  printf '%s\\n' 'dingo ${expected_version}'" \
+      '  exit 0' \
+      'fi' \
+      'printf "%s\n%s\n%s\n%s\n%s\n%s\n%s\n" \
+        "${CARDANO_BLOCK_PRODUCER:-unset}" \
+        "${CARDANO_SHELLEY_KES_KEY:-unset}" \
+        "${CARDANO_SHELLEY_VRF_KEY:-unset}" \
+        "${CARDANO_SHELLEY_OPERATIONAL_CERTIFICATE:-unset}" \
+        "$*" \
+        "${CARDANO_SHELLEY_KES_AGENT_SOCKET:-unset}" \
+        "${SHELLEY_KES_KEY:-unset}" > "${DINGO_ROLE_CAPTURE:?}"' \
+      > "${NODE_HOME}/bin/dingo"
+    chmod 0755 "${NODE_HOME}/bin/dingo"
+
+    DINGO_ROLE_CAPTURE="${dingo_capture}" "${launcher}" run
+    [[ "$(sed -n '1p' "${dingo_capture}")" == "false" ]] ||
+      fail "Dingo without pool credentials did not run as a relay"
+    [[ "$(sed -n '2p' "${dingo_capture}")" == "unset" ]] ||
+      fail "Dingo relay inherited a KES credential path"
+
+    mkdir -p "${dingo_pool_dir}"
+    # Pool settings come from the common env, exactly as CNTools sees them.
+    awk '/^# Do NOT modify code below/ && !added { print "POOL_NAME=\"test-pool\""; added = 1 } { print }' \
+      "${common_env}" > "${common_env}.next"
+    command mv -f -- "${common_env}.next" "${common_env}"
+    [[ "$(
+      set +eu
+      # shellcheck source=/dev/null
+      . "${common_env}" definitions >/dev/null
+      printf '%s' "${POOL_FOLDER}/${POOL_NAME}"
+    )" == "${dingo_pool_dir}" ]] ||
+      fail "Common env did not resolve the Dingo pool folder from POOL_NAME"
+    printf '{}\n' > "${dingo_pool_dir}/hot.skey"
+    printf '{}\n' > "${dingo_pool_dir}/vrf.skey"
+    printf '{}\n' > "${dingo_pool_dir}/op.cert"
+    chmod 0600 "${dingo_pool_dir}/hot.skey" "${dingo_pool_dir}/vrf.skey"
+    chmod 0644 "${dingo_pool_dir}/op.cert"
+
+    if [[ "${network}" == "mainnet" ]]; then
+      # A mainnet deployment is relay-only: any pool key stops startup.
+      local producer_refusal="${test_root}/dingo-mainnet-producer.err"
+      if DINGO_ROLE_CAPTURE="${dingo_capture}" \
+        "${launcher}" run >/dev/null 2> "${producer_refusal}"; then
+        fail "Dingo started with pool keys on mainnet"
+      fi
+      grep -F "Dingo block production is limited to preprod and preview" \
+        "${producer_refusal}" >/dev/null ||
+        fail "Dingo did not explain why it refused pool keys on mainnet"
+      rm -f -- "${dingo_pool_dir}/hot.skey" "${dingo_pool_dir}/vrf.skey"
+      if DINGO_ROLE_CAPTURE="${dingo_capture}" \
+        "${launcher}" run >/dev/null 2>&1; then
+        fail "Dingo started with a single pool key on mainnet"
+      fi
+      DINGO_ROLE_CAPTURE="${dingo_capture}" "${launcher}" bootstrap
+      [[ "$(sed -n '1p' "${dingo_capture}")" == "false" ]] ||
+        fail "Dingo mainnet bootstrap did not suppress block production"
+      rm -f -- "${dingo_pool_dir}/op.cert"
+      DINGO_ROLE_CAPTURE="${dingo_capture}" "${launcher}" run
+      [[ "$(sed -n '1p' "${dingo_capture}")" == "false" ]] ||
+        fail "Dingo mainnet relay did not run as a relay"
+    else
+      DINGO_ROLE_CAPTURE="${dingo_capture}" "${launcher}" run
+      [[ "$(sed -n '1p' "${dingo_capture}")" == "true" ]] ||
+        fail "Dingo with complete pool credentials did not enable production"
+      [[ "$(sed -n '2p' "${dingo_capture}")" == "${dingo_pool_dir}/hot.skey" ]] ||
+        fail "Dingo producer did not receive its KES key path"
+      [[ "$(sed -n '3p' "${dingo_capture}")" == "${dingo_pool_dir}/vrf.skey" ]] ||
+        fail "Dingo producer did not receive its VRF key path"
+      [[ "$(sed -n '4p' "${dingo_capture}")" == "${dingo_pool_dir}/op.cert" ]] ||
+        fail "Dingo producer did not receive its operational certificate path"
+      CARDANO_SHELLEY_KES_AGENT_SOCKET="${test_root}/kes-agent.socket" \
+        SHELLEY_KES_KEY="${test_root}/stray.skey" \
+        DINGO_ROLE_CAPTURE="${dingo_capture}" "${launcher}" run
+      [[ "$(sed -n '6p' "${dingo_capture}")" == "unset" ]] ||
+        fail "Dingo producer inherited a KES agent socket alongside its key file"
+      [[ "$(sed -n '7p' "${dingo_capture}")" == "unset" ]] ||
+        fail "Dingo inherited an unprefixed KES key fallback"
+
+      # Reload signals only a running process that was started as a producer.
+      local reload_systemctl="${test_root}/bin/systemctl-reload"
+      local reload_log="${test_root}/systemctl-reload.log"
+      local reload_proc="${test_root}/proc"
+      local reload_marker="${test_root}/reload.marker"
+      local reload_pid
+      printf '%s\n' \
+        '#!/usr/bin/env bash' \
+        'printf "%s\n" "$*" >> "${SYSTEMCTL_LOG:?}"' \
+        '[[ "${1:-}" != "show" ]] || printf "%s\n" "${RELOAD_MAIN_PID:?}"' \
+        > "${reload_systemctl}"
+      chmod 0755 "${reload_systemctl}"
+      : > "${reload_log}"
+      # The stand-in main process records SIGHUP instead of exiting on it.
+      "${BASH}" -c 'trap "printf hup > \"$1\"; exit 0" HUP; for _ in $(seq 300); do sleep 0.1; done' \
+        _ "${reload_marker}" </dev/null >/dev/null 2>&1 &
+      reload_pid=$!
+      mkdir -p "${reload_proc}/${reload_pid}"
+      printf 'HOME=/home/test\0CARDANO_BLOCK_PRODUCER=false\0' \
+        > "${reload_proc}/${reload_pid}/environ"
+      if SYSTEMCTL_BIN="${reload_systemctl}" SYSTEMCTL_LOG="${reload_log}" \
+        RELOAD_MAIN_PID="${reload_pid}" SUDO="N" DINGO_PROCFS_ROOT="${reload_proc}" \
+        "${launcher}" reload >/dev/null 2>&1; then
+        fail "Dingo reload accepted a service running as a relay"
+      fi
+      sleep 0.3
+      if [[ -e "${reload_marker}" ]] || grep -q '^kill' "${reload_log}"; then
+        fail "Dingo reload signalled a relay, which would stop it"
+      fi
+      printf 'HOME=/home/test\0CARDANO_BLOCK_PRODUCER=true\0' \
+        > "${reload_proc}/${reload_pid}/environ"
+      SYSTEMCTL_BIN="${reload_systemctl}" SYSTEMCTL_LOG="${reload_log}" \
+        RELOAD_MAIN_PID="${reload_pid}" SUDO="N" DINGO_PROCFS_ROOT="${reload_proc}" \
+        "${launcher}" reload >/dev/null
+      for _ in $(seq 50); do
+        [[ -e "${reload_marker}" ]] && break
+        sleep 0.1
+      done
+      [[ "$(cat "${reload_marker}" 2>/dev/null)" == "hup" ]] ||
+        fail "Dingo reload did not send SIGHUP to the producer's main process"
+      wait "${reload_pid}" 2>/dev/null || true
+
+      rm -f -- "${dingo_pool_dir}/op.cert"
+      if DINGO_ROLE_CAPTURE="${dingo_capture}" \
+        "${launcher}" run >/dev/null 2>&1; then
+        fail "Dingo accepted a partial block-producer credential set"
+      fi
+      DINGO_ROLE_CAPTURE="${dingo_capture}" "${launcher}" bootstrap
+      [[ "$(sed -n '1p' "${dingo_capture}")" == "false" ]] ||
+        fail "Dingo bootstrap did not suppress block production"
+      [[ "$(sed -n '5p' "${dingo_capture}")" == *"sync --mithril" ]] ||
+        fail "Dingo bootstrap did not invoke Mithril sync"
+      printf '{}\n' > "${dingo_pool_dir}/op.cert"
+      chmod 0644 "${dingo_pool_dir}/op.cert"
+
+      # Without a scripts/env value, a caller export is honored, as in CNTools.
+      awk '$0 != "POOL_NAME=\"test-pool\""' "${common_env}" > "${common_env}.next"
+      command mv -f -- "${common_env}.next" "${common_env}"
+      DINGO_ROLE_CAPTURE="${dingo_capture}" "${launcher}" run
+      [[ "$(sed -n '1p' "${dingo_capture}")" == "false" ]] ||
+        fail "Dingo kept producing after POOL_NAME was removed from scripts/env"
+      POOL_NAME="test-pool" DINGO_ROLE_CAPTURE="${dingo_capture}" "${launcher}" run
+      [[ "$(sed -n '2p' "${dingo_capture}")" == "${dingo_pool_dir}/hot.skey" ]] ||
+        fail "Dingo ignored an exported POOL_NAME that CNTools would use"
+      awk '/^# Do NOT modify code below/ && !added { print "POOL_NAME=\"test-pool\""; added = 1 } { print }' \
+        "${common_env}" > "${common_env}.next"
+      command mv -f -- "${common_env}.next" "${common_env}"
+    fi
+  elif [[ "${implementation}" == "amaru" ]]; then
+    local state_root="${test_root}/container-state"
+    local state_capture="${test_root}/amaru-state.log"
+    local telemetry_capture="${test_root}/amaru-telemetry.log"
+    printf '%s\n' \
+      '#!/usr/bin/env bash' \
+      'case "${2:-}" in' \
+      '  bootstrap)' \
+      '    printf "%s\n%s\n%s\n" "${AMARU_DB_CHAIN}" "${AMARU_DB_LEDGER}" "${AMARU_WITH_OPEN_TELEMETRY:-unset}" > "${AMARU_STATE_CAPTURE}"' \
+      '    ;;' \
+      '  run)' \
+      '    printf "%s\n" "${AMARU_LOG_OTLP:-unset}" > "${AMARU_TELEMETRY_CAPTURE}"' \
+      '    ;;' \
+      'esac' \
+      > "${NODE_HOME}/bin/amaru"
+    chmod 0755 "${NODE_HOME}/bin/amaru"
+    AMARU_STATE_ROOT="${state_root}" \
+      AMARU_STATE_CAPTURE="${state_capture}" \
+      "${launcher}" bootstrap
+    [[ -d "${state_root}" ]] ||
+      fail "Amaru state parent override was not created"
+    assert_not_exists "${state_root}/chain"
+    assert_not_exists "${state_root}/ledger"
+    captured_state_path="$(sed -n '1p' "${state_capture}")"
+    [[ "${captured_state_path}" == "${state_root}/chain" ]] ||
+      fail "Amaru chain state override was not passed to the binary"
+    captured_state_path="$(sed -n '2p' "${state_capture}")"
+    [[ "${captured_state_path}" == "${state_root}/ledger" ]] ||
+      fail "Amaru ledger state override was not passed to the binary"
+    [[ "$(sed -n '3p' "${state_capture}")" == "false" ]] ||
+      fail "Amaru bootstrap did not suppress OpenTelemetry export"
+    # Amaru accepts empty state directories, so only content marks a
+    # bootstrapped node.
+    mkdir -p "${state_root}/chain" "${state_root}/ledger"
+    if AMARU_STATE_ROOT="${state_root}" "${launcher}" run >/dev/null 2>&1; then
+      fail "Amaru run accepted empty state directories as bootstrapped"
+    fi
+    touch "${state_root}/chain/CURRENT" "${state_root}/ledger/CURRENT"
+    AMARU_STATE_ROOT="${state_root}" \
+      AMARU_TELEMETRY_CAPTURE="${telemetry_capture}" \
+      "${launcher}" run
+    [[ "$(sed -n '1p' "${telemetry_capture}")" == "metrics" ]] ||
+      fail "Amaru run did not restore configured OpenTelemetry export"
+    if AMARU_STATE_ROOT="/" "${launcher}" bootstrap >/dev/null 2>&1; then
+      fail "Amaru launcher accepted / as its state root"
+    fi
+
+    local amaru_capture="${test_root}/amaru-role.log"
+    local amaru_role_err="${test_root}/amaru-role.err"
+    local amaru_pool_dir="${resolved_node_home}/priv/pool/test-pool"
+    local common_env="${NODE_HOME}/scripts/env"
+    printf '%s\n' \
+      '#!/usr/bin/env bash' \
+      'printf "%s\n%s\n%s\n%s\n" \
+        "${AMARU_OPERATOR_KES:-unset}" \
+        "${AMARU_OPERATOR_VRF:-unset}" \
+        "${AMARU_OPERATOR_CERT:-unset}" \
+        "$*" > "${AMARU_ROLE_CAPTURE:?}"' \
+      > "${NODE_HOME}/bin/amaru"
+    chmod 0755 "${NODE_HOME}/bin/amaru"
+    amaru_role_launch() {
+      AMARU_STATE_ROOT="${state_root}" AMARU_ROLE_CAPTURE="${amaru_capture}" \
+        "${launcher}" "$@"
+    }
+
+    amaru_role_launch run
+    [[ "$(sed -n '1p' "${amaru_capture}")" == "unset" ]] ||
+      fail "Amaru without pool credentials received a KES key path"
+    [[ "$(sed -n '2p' "${amaru_capture}")" == "unset" ]] ||
+      fail "Amaru without pool credentials received a VRF key path"
+    [[ "$(sed -n '3p' "${amaru_capture}")" == "unset" ]] ||
+      fail "Amaru without pool credentials received an operational certificate path"
+    [[ "$(sed -n '4p' "${amaru_capture}")" == "node run" ]] ||
+      fail "Amaru run did not invoke node run"
+
+    # Key variables do not belong in amaru.env: the launcher drops them and
+    # says so, instead of letting them select the role.
+    printf 'AMARU_OPERATOR_KES="%s"\n' "${test_root}/stray.skey" >> "${config_env}"
+    amaru_role_launch run 2> "${amaru_role_err}"
+    [[ "$(sed -n '1p' "${amaru_capture}")" == "unset" ]] ||
+      fail "Amaru relay inherited a KES key path from amaru.env"
+    grep -F "ignoring AMARU_OPERATOR_KES from the environment" \
+      "${amaru_role_err}" >/dev/null ||
+      fail "Amaru did not report the operator variable it dropped"
+    awk '$0 !~ /^AMARU_OPERATOR_KES=/' "${config_env}" > "${config_env}.next"
+    command mv -f -- "${config_env}.next" "${config_env}"
+
+    mkdir -p "${amaru_pool_dir}"
+    # Pool settings come from the common env, exactly as CNTools sees them.
+    awk '/^# Do NOT modify code below/ && !added { print "POOL_NAME=\"test-pool\""; added = 1 } { print }' \
+      "${common_env}" > "${common_env}.next"
+    command mv -f -- "${common_env}.next" "${common_env}"
+    [[ "$(
+      set +eu
+      # shellcheck source=/dev/null
+      . "${common_env}" definitions >/dev/null
+      printf '%s' "${POOL_FOLDER}/${POOL_NAME}"
+    )" == "${amaru_pool_dir}" ]] ||
+      fail "Common env did not resolve the Amaru pool folder from POOL_NAME"
+    printf '{}\n' > "${amaru_pool_dir}/hot.skey"
+    printf '{}\n' > "${amaru_pool_dir}/vrf.skey"
+    printf '{}\n' > "${amaru_pool_dir}/op.cert"
+    chmod 0600 "${amaru_pool_dir}/hot.skey" "${amaru_pool_dir}/vrf.skey"
+    chmod 0644 "${amaru_pool_dir}/op.cert"
+
+    # Amaru forges on every supported network, mainnet included.
+    amaru_role_launch run 2> "${amaru_role_err}"
+    [[ "$(sed -n '1p' "${amaru_capture}")" == "${amaru_pool_dir}/hot.skey" ]] ||
+      fail "Amaru producer did not receive its KES key path"
+    [[ "$(sed -n '2p' "${amaru_capture}")" == "${amaru_pool_dir}/vrf.skey" ]] ||
+      fail "Amaru producer did not receive its VRF key path"
+    [[ "$(sed -n '3p' "${amaru_capture}")" == "${amaru_pool_dir}/op.cert" ]] ||
+      fail "Amaru producer did not receive its operational certificate path"
+    [[ ! -s "${amaru_role_err}" ]] ||
+      fail "Amaru producer start printed an unexpected message"
+    AMARU_OPERATOR_KES="${test_root}/stray.skey" \
+      AMARU_OPERATOR_VRF="${test_root}/stray-vrf.skey" \
+      AMARU_OPERATOR_CERT="${test_root}/stray.cert" \
+      amaru_role_launch run 2>/dev/null
+    [[ "$(sed -n '1p' "${amaru_capture}")" == "${amaru_pool_dir}/hot.skey" &&
+       "$(sed -n '2p' "${amaru_capture}")" == "${amaru_pool_dir}/vrf.skey" &&
+       "$(sed -n '3p' "${amaru_capture}")" == "${amaru_pool_dir}/op.cert" ]] ||
+      fail "Amaru producer kept inherited operator paths over the pool folder"
+
+    # Signing keys readable by group or others stop the start.
+    chmod 0640 "${amaru_pool_dir}/hot.skey"
+    if amaru_role_launch run >/dev/null 2> "${amaru_role_err}"; then
+      fail "Amaru accepted a group-readable KES signing key"
+    fi
+    grep -F "KES signing key must be owned by uid" "${amaru_role_err}" >/dev/null ||
+      fail "Amaru did not explain why it refused the KES signing key"
+    chmod 0600 "${amaru_pool_dir}/hot.skey"
+    chmod 0604 "${amaru_pool_dir}/vrf.skey"
+    if amaru_role_launch run >/dev/null 2> "${amaru_role_err}"; then
+      fail "Amaru accepted a world-readable VRF signing key"
+    fi
+    grep -F "VRF signing key must be owned by uid" "${amaru_role_err}" >/dev/null ||
+      fail "Amaru did not explain why it refused the VRF signing key"
+    chmod 0600 "${amaru_pool_dir}/vrf.skey"
+
+    rm -f -- "${amaru_pool_dir}/op.cert"
+    : > "${amaru_capture}"
+    if amaru_role_launch run >/dev/null 2> "${amaru_role_err}"; then
+      fail "Amaru accepted a partial block-producer credential set"
+    fi
+    grep -F "incomplete Amaru block-producer credential set" \
+      "${amaru_role_err}" >/dev/null ||
+      fail "Amaru did not explain the partial credential set"
+    grep -F "${amaru_pool_dir}/op.cert" "${amaru_role_err}" >/dev/null ||
+      fail "Amaru did not name the missing credential file"
+    [[ ! -s "${amaru_capture}" ]] ||
+      fail "Amaru started its binary with a partial credential set"
+    # Snapshot import never forges, whatever the pool folder holds.
+    amaru_role_launch bootstrap
+    [[ "$(sed -n '1p' "${amaru_capture}")" == "unset" ]] ||
+      fail "Amaru bootstrap received a KES key path"
+    [[ "$(sed -n '4p' "${amaru_capture}")" == "node bootstrap" ]] ||
+      fail "Amaru bootstrap did not invoke node bootstrap"
+    printf '{}\n' > "${amaru_pool_dir}/op.cert"
+    chmod 0644 "${amaru_pool_dir}/op.cert"
+    amaru_role_launch bootstrap
+    [[ "$(sed -n '1p' "${amaru_capture}")" == "unset" &&
+       "$(sed -n '2p' "${amaru_capture}")" == "unset" &&
+       "$(sed -n '3p' "${amaru_capture}")" == "unset" ]] ||
+      fail "Amaru bootstrap did not suppress block production"
+
+    # Without a scripts/env value, a caller export is honored, as in CNTools.
+    awk '$0 != "POOL_NAME=\"test-pool\""' "${common_env}" > "${common_env}.next"
+    command mv -f -- "${common_env}.next" "${common_env}"
+    amaru_role_launch run
+    [[ "$(sed -n '1p' "${amaru_capture}")" == "unset" ]] ||
+      fail "Amaru kept producing after POOL_NAME was removed from scripts/env"
+    POOL_NAME="test-pool" amaru_role_launch run
+    [[ "$(sed -n '1p' "${amaru_capture}")" == "${amaru_pool_dir}/hot.skey" ]] ||
+      fail "Amaru ignored an exported POOL_NAME that CNTools would use"
+    awk '/^# Do NOT modify code below/ && !added { print "POOL_NAME=\"test-pool\""; added = 1 } { print }' \
+      "${common_env}" > "${common_env}.next"
+    command mv -f -- "${common_env}.next" "${common_env}"
+    write_fake_executable \
+      "${NODE_HOME}/bin/${implementation}" \
+      "${implementation} ${expected_version}"
+  fi
+
+  fake_systemctl="${test_root}/bin/systemctl"
+  systemctl_log="${test_root}/systemctl.log"
+  unit_dir="${test_root}/systemd"
+  unit_file="${unit_dir}/${service_name}"
+  metrics_unit_file="${unit_dir}/${NODE_SERVICE}-metrics.service"
+  mkdir -p "${unit_dir}"
+  : > "${systemctl_log}"
+  write_fake_systemctl "${fake_systemctl}"
+
+  assert_launcher_rejects_manifest() {
+    local context="$1"
+    if SYSTEMD_UNIT_DIR="${unit_dir}" \
+      SYSTEMCTL_BIN="${fake_systemctl}" \
+      SYSTEMCTL_LOG="${systemctl_log}" \
+      SUDO="N" \
+      "${launcher}" status >/dev/null 2>&1; then
+      fail "${implementation} launcher accepted ${context} deployment metadata"
+    fi
+  }
+
+  jq '.schemaVersion = 2' <<< "${valid_deployment_manifest}" \
+    > "${NODE_HOME}/.deployment.json"
+  assert_launcher_rejects_manifest "an unsupported manifest schema"
+  jq '.deploymentStatus = "deploying"' <<< "${valid_deployment_manifest}" \
+    > "${NODE_HOME}/.deployment.json"
+  assert_launcher_rejects_manifest "unfinished"
+
+  for manifest_corruption in metrics-provider capability-value extra-capability; do
+    case "${manifest_corruption}" in
+      metrics-provider)
+        jq '.metricsProvider = "corrupt-provider"' \
+          <<< "${valid_deployment_manifest}" > "${NODE_HOME}/.deployment.json"
+        ;;
+      capability-value)
+        if [[ "${implementation}" == "dingo" ]]; then
+          jq '.capabilities.localCli = false' \
+            <<< "${valid_deployment_manifest}" > "${NODE_HOME}/.deployment.json"
+        else
+          jq '.capabilities.localCli = true' \
+            <<< "${valid_deployment_manifest}" > "${NODE_HOME}/.deployment.json"
+        fi
+        ;;
+      extra-capability)
+        jq '.capabilities.unverified = true' \
+          <<< "${valid_deployment_manifest}" > "${NODE_HOME}/.deployment.json"
+        ;;
+    esac
+    assert_launcher_rejects_manifest "semantic ${manifest_corruption} corruption"
+    if (
+      unset GUILD_NODE_IMPLEMENTATION_OVERRIDE GUILD_NODE_NETWORK_OVERRIDE
+      unset GUILD_NODE_SERVICE_OVERRIDE GUILD_REPOSITORY_ACCOUNT_OVERRIDE
+      USESYSVARS="N"
+      set +u
+      # shellcheck source=/dev/null
+      . "${NODE_HOME}/scripts/env" definitions
+    ) >/dev/null 2>&1; then
+      fail "common env accepted ${implementation} semantic ${manifest_corruption} corruption"
+    fi
+  done
+  if [[ "${implementation}" == "amaru" ]]; then
+    # A deployment made before Amaru block production has forging=false in
+    # its manifest and keeps working until guild-deploy.sh runs again.
+    jq '.capabilities.forging = false' \
+      <<< "${valid_deployment_manifest}" > "${NODE_HOME}/.deployment.json"
+    SYSTEMD_UNIT_DIR="${unit_dir}" \
+      SYSTEMCTL_BIN="${fake_systemctl}" \
+      SYSTEMCTL_LOG="${systemctl_log}" \
+      SUDO="N" \
+      "${launcher}" status >/dev/null 2>&1 ||
+      fail "amaru launcher rejected a manifest written before block production"
+    (
+      unset GUILD_NODE_IMPLEMENTATION_OVERRIDE GUILD_NODE_NETWORK_OVERRIDE
+      unset GUILD_NODE_SERVICE_OVERRIDE GUILD_REPOSITORY_ACCOUNT_OVERRIDE
+      USESYSVARS="N"
+      set +u
+      # shellcheck source=/dev/null
+      . "${NODE_HOME}/scripts/env" definitions
+    ) >/dev/null 2>&1 ||
+      fail "common env rejected an Amaru manifest written before block production"
+  fi
+  printf '%s\n' "${valid_deployment_manifest}" > "${NODE_HOME}/.deployment.json"
+
+  assert_common_env_rejects_override() {
+    local override_name="$1"
+    local override_value="$2"
+    if (
+      unset GUILD_NODE_IMPLEMENTATION_OVERRIDE GUILD_NODE_NETWORK_OVERRIDE
+      unset GUILD_NODE_SERVICE_OVERRIDE GUILD_REPOSITORY_ACCOUNT_OVERRIDE
+      export "${override_name}=${override_value}"
+      USESYSVARS="N"
+      set +u
+      # shellcheck source=/dev/null
+      . "${NODE_HOME}/scripts/env" definitions
+    ) >/dev/null 2>&1; then
+      fail "common env accepted conflicting ${override_name} for ${implementation}"
+    fi
+  }
+
+  assert_common_env_rejects_override GUILD_NODE_IMPLEMENTATION_OVERRIDE cnode
+  assert_common_env_rejects_override GUILD_NODE_NETWORK_OVERRIDE "${conflicting_network}"
+  assert_common_env_rejects_override GUILD_NODE_SERVICE_OVERRIDE wrong-service
+  assert_common_env_rejects_override GUILD_REPOSITORY_ACCOUNT_OVERRIDE wrong-account
+
+  rm -f -- "${NODE_HOME}/.deployment.json"
+  "${launcher}" --help >/dev/null
+  assert_launcher_rejects_manifest "a missing"
+  if SYSTEMD_UNIT_DIR="${unit_dir}" \
+    SYSTEMCTL_BIN="${fake_systemctl}" \
+    SYSTEMCTL_LOG="${systemctl_log}" \
+    SUDO="N" \
+    "${launcher}" remove >/dev/null 2>&1; then
+    fail "${implementation} launcher allowed removal without a deployment manifest"
+  fi
+  if (
+    unset GUILD_NODE_IMPLEMENTATION_OVERRIDE GUILD_NODE_NETWORK_OVERRIDE
+    unset GUILD_NODE_SERVICE_OVERRIDE GUILD_REPOSITORY_ACCOUNT_OVERRIDE
+    export GUILD_NODE_IMPLEMENTATION_OVERRIDE="${implementation}"
+    export GUILD_NODE_NETWORK_OVERRIDE="${network}"
+    export GUILD_NODE_SERVICE_OVERRIDE="${NODE_SERVICE}"
+    export GUILD_REPOSITORY_ACCOUNT_OVERRIDE="test-account"
+    USESYSVARS="N"
+    set +u
+    # shellcheck source=/dev/null
+    . "${NODE_HOME}/scripts/env" definitions
+  ) >/dev/null 2>&1; then
+    fail "common env accepted ${implementation} without a deployment manifest"
+  fi
+
+  ln -s "${NODE_HOME}/missing-deployment-target.json" \
+    "${NODE_HOME}/.deployment.json"
+  if (
+    unset GUILD_NODE_IMPLEMENTATION_OVERRIDE GUILD_NODE_NETWORK_OVERRIDE
+    unset GUILD_NODE_SERVICE_OVERRIDE GUILD_REPOSITORY_ACCOUNT_OVERRIDE
+    USESYSVARS="N"
+    set +u
+    # shellcheck source=/dev/null
+    . "${NODE_HOME}/scripts/env" definitions
+  ) >/dev/null 2>&1; then
+    fail "common env accepted a dangling deployment manifest symlink"
+  fi
+  rm -f -- "${NODE_HOME}/.deployment.json"
+
+  printf '%s\n' "${valid_deployment_manifest}" \
+    > "${test_root}/linked-deployment.json"
+  ln -s "${test_root}/linked-deployment.json" "${NODE_HOME}/.deployment.json"
+  if (
+    unset GUILD_NODE_IMPLEMENTATION_OVERRIDE GUILD_NODE_NETWORK_OVERRIDE
+    unset GUILD_NODE_SERVICE_OVERRIDE GUILD_REPOSITORY_ACCOUNT_OVERRIDE
+    USESYSVARS="N"
+    set +u
+    # shellcheck source=/dev/null
+    . "${NODE_HOME}/scripts/env" definitions
+  ) >/dev/null 2>&1; then
+    fail "common env accepted a symlinked deployment manifest"
+  fi
+  rm -f -- "${NODE_HOME}/.deployment.json" \
+    "${test_root}/linked-deployment.json"
+
+  printf '%s\n' "${valid_deployment_manifest}" > "${NODE_HOME}/.deployment.json"
+
+  SYSTEMD_UNIT_DIR="${unit_dir}" \
+    SYSTEMCTL_BIN="${fake_systemctl}" \
+    SYSTEMCTL_LOG="${systemctl_log}" \
+    SUDO="N" \
+    "${launcher}" install
+
+  assert_file "${unit_file}"
+  grep -F "WorkingDirectory=${resolved_node_home}" "${unit_file}" >/dev/null
+  grep -E "ExecStart=.*/scripts/${implementation}\\.sh run$" "${unit_file}" >/dev/null
+  grep -F "ReadWritePaths=${resolved_node_home}" "${unit_file}" >/dev/null
+  if [[ "${implementation}" == "amaru" ]]; then
+    grep -F 'Restart=always' "${unit_file}" >/dev/null
+    grep -F "Description=Guild Operators Amaru experimental node (${network})" \
+      "${unit_file}" >/dev/null
+    assert_file "${metrics_unit_file}"
+    grep -F "Wants=network-online.target time-sync.target ${NODE_SERVICE}-metrics.service" \
+      "${unit_file}" >/dev/null
+    grep -F "After=network-online.target time-sync.target ${NODE_SERVICE}-metrics.service" \
+      "${unit_file}" >/dev/null
+    grep -F "ExecStart=${resolved_node_home}/bin/otelcol-contrib --config=${resolved_node_home}/files/otelcol.yaml" \
+      "${metrics_unit_file}" >/dev/null
+    grep -F "ReadOnlyPaths=${resolved_node_home}/files/otelcol.yaml" \
+      "${metrics_unit_file}" >/dev/null
+    grep -F 'Restart=on-failure' "${metrics_unit_file}" >/dev/null
+    grep -Fx "enable ${NODE_SERVICE}-metrics.service ${service_name}" \
+      "${systemctl_log}" >/dev/null
+  else
+    grep -F 'Restart=on-failure' "${unit_file}" >/dev/null
+    grep -F "Description=Guild Operators Dingo experimental node (${network})" \
+      "${unit_file}" >/dev/null
+    grep -F 'UMask=0027' "${unit_file}" >/dev/null
+    assert_not_exists "${metrics_unit_file}"
+    grep -Fx "enable ${service_name}" "${systemctl_log}" >/dev/null
+  fi
+  if grep -Eq '^start ' "${systemctl_log}"; then
+    fail "${implementation} service install started the service"
+  fi
+
+  printf '%s\n' \
+    'GUILD_NODE_HOME="/tmp/wrong-node-home"' \
+    'GUILD_NODE_SERVICE="wrong-service"' \
+    'GUILD_NODE_IMPLEMENTATION="cnode"' \
+    >> "${config_env}"
+  if [[ "${implementation}" == "dingo" ]]; then
+    printf 'CARDANO_NETWORK="%s"\n' "${conflicting_network}" >> "${config_env}"
+  else
+    printf 'AMARU_NETWORK="%s"\n' "${conflicting_network}" >> "${config_env}"
+  fi
+
+  : > "${systemctl_log}"
+  SYSTEMD_UNIT_DIR="${unit_dir}" \
+    SYSTEMCTL_BIN="${fake_systemctl}" \
+    SYSTEMCTL_LOG="${systemctl_log}" \
+    SUDO="N" \
+    "${launcher}" status
+  if [[ "${implementation}" == "amaru" ]]; then
+    grep -Fx -- "--no-pager status ${service_name} ${NODE_SERVICE}-metrics.service" \
+      "${systemctl_log}" >/dev/null
+    for lifecycle_action in start restart stop; do
+      SYSTEMD_UNIT_DIR="${unit_dir}" \
+        SYSTEMCTL_BIN="${fake_systemctl}" \
+        SYSTEMCTL_LOG="${systemctl_log}" \
+        SUDO="N" \
+        "${launcher}" "${lifecycle_action}"
+      grep -Fx \
+        "${lifecycle_action} ${NODE_SERVICE}-metrics.service ${service_name}" \
+        "${systemctl_log}" >/dev/null
+    done
+  else
+    grep -Fx -- "--no-pager status ${service_name}" "${systemctl_log}" >/dev/null
+  fi
+  if grep -Fq "wrong-service" "${systemctl_log}"; then
+    fail "${implementation} lifecycle command trusted conflicting env identity"
+  fi
+  if SYSTEMD_UNIT_DIR="${unit_dir}" \
+    SYSTEMCTL_BIN="${fake_systemctl}" \
+    SYSTEMCTL_LOG="${systemctl_log}" \
+    SUDO="N" \
+    "${launcher}" install >/dev/null 2>&1; then
+    fail "${implementation} install accepted env identity conflicting with the manifest"
+  fi
+
+  rm -f -- "${config_env}" "${NODE_HOME}/bin/${implementation}"
+  [[ "${implementation}" == "dingo" ]] &&
+    rm -f -- "${NODE_HOME}/files/dingo.yaml"
+
+  SYSTEMD_UNIT_DIR="${unit_dir}" \
+    SYSTEMCTL_BIN="${fake_systemctl}" \
+    SYSTEMCTL_LOG="${systemctl_log}" \
+    SUDO="N" \
+    "${launcher}" status
+  if [[ "${implementation}" == "amaru" ]]; then
+    grep -Fx -- "--no-pager status ${service_name} ${NODE_SERVICE}-metrics.service" \
+      "${systemctl_log}" >/dev/null
+  else
+    grep -Fx -- "--no-pager status ${service_name}" "${systemctl_log}" >/dev/null
+  fi
+
+  SYSTEMD_UNIT_DIR="${unit_dir}" \
+    SYSTEMCTL_BIN="${fake_systemctl}" \
+    SYSTEMCTL_LOG="${systemctl_log}" \
+    SUDO="N" \
+    "${launcher}" remove
+
+  assert_not_exists "${unit_file}"
+  assert_not_exists "${metrics_unit_file}"
+  grep -Fx "disable --now ${service_name}" "${systemctl_log}" >/dev/null
+  if [[ "${implementation}" == "amaru" ]]; then
+    grep -Fx "disable --now ${NODE_SERVICE}-metrics.service" \
+      "${systemctl_log}" >/dev/null
+  fi
+)
+
+assert_openssl3_deployment_contract cnode
+assert_openssl3_deployment_contract dingo
+assert_openssl3_deployment_contract amaru
+run_alternate_profile_test dingo preview 3001
+run_alternate_profile_test dingo mainnet 3001
+run_alternate_profile_test amaru preprod 3000
+run_alternate_profile_test amaru mainnet 3000
+
+printf 'alternate deployment tests passed\n'

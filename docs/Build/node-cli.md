@@ -2,11 +2,37 @@
     Unless there is a very particular reason you want to compile (eg: running on non-popular OS flavor), you DO NOT "need" to build node binaries - `guild-deploy.sh` already provides an option to download pre-compiled binaries.
     Ensure the [Pre-Requisites](../basics.md#pre-requisites) are in place before you proceed.
 
+!!! note "cnode implementation"
+    This page describes the `cnode` profile: Intersect's `cardano-node` and
+    `cardano-cli`. It remains the default when `guild-deploy.sh -i` is omitted.
+    See the [cnode deployment profile](cnode.md) for its repository layout,
+    release metadata, and deployment contract. Dingo and Amaru use separate
+    deployment, bootstrap, and launcher instructions in the
+    [node implementation guide](node-implementations.md).
+
 ### Build Instructions
 
-#### Clone the repository
+#### Prepare the build environment
 
-Execute the below to clone the cardano-node repository to `$HOME/git` folder on your system:
+The cnode `b` and `l` deployment flags install the manifest-selected Haskell
+toolchain, C build dependencies, and libsodium source dependency:
+
+```bash
+/opt/cardano/cnode/scripts/guild-deploy.sh -s bl
+```
+
+Run the copy of your existing cnode deployment, which knows its network and
+target. Source builds still require the upstream project prerequisites;
+review the selected release notes before building.
+
+When `b` replaces an installed Cabal release, for example 3.12.1.0 with
+3.16.1.0, the next build compiles every Haskell dependency again once. Allow
+for the extra build time and disk space. Cabal keeps the packages built by the
+previous release in its store until you remove them.
+
+#### Clone the cardano-node repository
+
+Clone the cardano-node repository into `$HOME/git`:
 
 ``` bash
 cd ~/git
@@ -16,36 +42,62 @@ cd cardano-node
 
 #### Build Cardano Node
 
-You can use the instructions below to build the latest release of [cardano-node](https://github.com/intersectmbo/cardano-node). We recommend sticking to versions listed [here](https://github.com/cardano-community/guild-operators/tree/master/files/docker/node/release-versions) instead, as these are what scripts were tested against.
+You can use the instructions below to build [cardano-node](https://github.com/intersectmbo/cardano-node).
+Use the version pinned in the
+[cnode release manifest](https://github.com/cardano-community/guild-operators/blob/master/files/node-implementations/cnode/release.json),
+as this is what the deployment scripts verify and test.
 
 ``` bash
-git fetch --tags --recurse-submodules --all
-git pull
-git checkout $(curl -sLf https://api.github.com/repos/intersectmbo/cardano-node/releases/latest | jq -r .tag_name)
+git fetch --tags --force --prune origin
+git checkout --detach "$(
+  curl -sLf https://raw.githubusercontent.com/cardano-community/guild-operators/master/files/node-implementations/cnode/release.json |
+    jq -er '.version'
+)"
 
-# Use `-l` argument if you'd like to use system libsodium instead of IOG fork of libsodium while compiling
-$CNODE_HOME/scripts/cabal-build-all.sh
+cabal update
+cabal build exe:cardano-node exe:cardano-submit-api \
+  --disable-tests --disable-profiling
+mkdir -p "$CNODE_HOME/bin"
+install -m 0755 "$(cabal list-bin exe:cardano-node)" \
+  "$CNODE_HOME/bin/cardano-node"
+install -m 0755 "$(cabal list-bin exe:cardano-submit-api)" \
+  "$CNODE_HOME/bin/cardano-submit-api"
 ```
 
 #### Build Cardano CLI
 
-You can use the instructions below to build the latest release of [cardano-cli](https://github.com/intersectmbo/cardano-cli). We recommend sticking to versions listed [here](https://github.com/cardano-community/guild-operators/tree/master/files/docker/node/release-versions) instead, as these are what scripts were tested against.
+The guild scripts and CNTools use one cardano-cli release on every network and
+node type: the companion pinned as `companions["cardano-cli"]` in the
+[cnode release manifest](https://github.com/cardano-community/guild-operators/blob/master/files/node-implementations/cnode/release.json).
+CNTools reads only that release's output formats and refuses any other version.
+The cardano-cli in a cardano-node checkout's dependency plan is an older
+release, so build the pinned one from the cardano-cli repository:
 
 ``` bash
-git fetch --tags --recurse-submodules --all
-git pull
-git checkout $(curl -sLf https://api.github.com/repos/intersectmbo/cardano-cli/releases/latest | jq -r .tag_name)
+cd ~/git
+git clone https://github.com/intersectmbo/cardano-cli
+cd cardano-cli
+git checkout --detach "cardano-cli-$(
+  curl -sLf https://raw.githubusercontent.com/cardano-community/guild-operators/master/files/node-implementations/cnode/release.json |
+    jq -er '.companions["cardano-cli"].version'
+)"
 
-# Use `-l` argument if you'd like to use system libsodium instead of IOG fork of libsodium while compiling
-$CNODE_HOME/scripts/cabal-build-all.sh
+cabal update
+cabal build exe:cardano-cli --disable-tests --disable-profiling
+install -m 0755 "$(cabal list-bin exe:cardano-cli)" "$CNODE_HOME/bin/cardano-cli"
 ```
 
-The above would copy the binaries built into `~/.local/bin` folder.
+`cabal-build-all.sh` builds cardano-node and cardano-submit-api in a
+cardano-node checkout, and cardano-cli when it runs in a cardano-cli checkout.
+The pre-merge source-build test builds both and checks that the installed
+cardano-cli reports the pinned version.
 
 #### Download pre-compiled Binary from Node release
 
-While certain folks might want to build the node themselves (could be due to OS/arch compatibility, trust factor or customisations), for most it might not make sense to build the node locally.
-Instead, you can download the binaries using [cardano-node release notes](https://github.com/intersectmbo/cardano-node/releases), where-in you can find the download links for every version. This is already taken care of by `guild-deploy.sh` if you used the option to download binaries (you can always re-run with specific arguments if unsure).
+Most operators should use `guild-deploy.sh -i cnode -s d`, which selects,
+downloads, and verifies the release-manifest artifacts. The
+[cardano-node release notes](https://github.com/intersectmbo/cardano-node/releases)
+also publish upstream binaries for manual review.
 
 ### Verify
 
@@ -62,11 +114,14 @@ cardano-node version
 
 #### Update port number or pool name for relative paths
 
-Before you go ahead with starting your node, you may want to update values for `CNODE_PORT` in `$CNODE_HOME/scripts/env`. Note that it is imperative for operational relays and pools to ensure that the port mentioned is opened via firewall to the destination your node is supposed to connect from. Update your network/firewall configuration accordingly. Future executions of `guild-deploy.sh` will preserve and not overwrite these values (or atleast back up if forced to overwrite).
+Before starting the node, review `CNODE_PORT` and `POOL_NAME` in
+`$CNODE_HOME/scripts/env`. Allow the node-to-node port only from the networks
+that should reach it. Normal deployments preserve script user variables;
+`-s s` archives and replaces the scripts and their user-variable sections.
 
 ```bash
-CNODEBIN="${HOME}/.local/bin/cardano-node"
-CCLI="${HOME}/.local/bin/cardano-cli"
+CNODEBIN="${CNODE_HOME}/bin/cardano-node"
+CCLI="${CNODE_HOME}/bin/cardano-cli"
 CNODE_PORT=6000
 POOL_NAME="GUILD"
 ```
@@ -76,7 +131,7 @@ POOL_NAME="GUILD"
 
 #### Start the node
 
-To test starting the node in interactive mode, we will make use of pre-built script `cnode.sh`. This script automatically determines whether to start the node as a relay or block producer (if the required pool keys are present in the `$CNODE_HOME/priv/pool/<POOL_NAME>` as mentioned above). If the `<MITHRIL_DOWNLOAD>` variable is set to 'Y' it will download the latest snapshot from a Mithril aggregator to speed up the blockchain synchronization. The script contains a user-defined variable `CPU_CORES` which determines the number of CPU cores the node will use upon start-up:
+To test starting the node in interactive mode, we will make use of pre-built script `cnode.sh`. This script automatically determines whether to start the node as a relay or block producer (if the required pool keys are present in the `$CNODE_HOME/priv/pool/<POOL_NAME>` as mentioned above). If the `MITHRIL_DOWNLOAD` variable is set to 'Y' it will download the latest snapshot from a Mithril aggregator to speed up the blockchain synchronization. The script contains a user-defined variable `CPU_CORES` which determines the number of CPU cores the node will use upon start-up:
 
 ```bash
 ######################################
@@ -94,89 +149,70 @@ cd "${CNODE_HOME}"/scripts
 ./cnode.sh
 ```
 
+To install the node's systemd unit, use `./cnode.sh -d` or the explicit
+`./cnode.sh systemd install` form. The same script owns
+`systemd remove` and `systemd status`; the former central
+`deploy-as-systemd.sh` script has been removed. The unit is named after the
+top-level folder, for example `cnode.service` for `/opt/cardano/cnode`.
+
+`./cnode.sh systemd reload` sends SIGHUP to the running unit. cardano-node then
+re-reads its topology file and, on a block producer, its KES key, VRF key and
+operational certificate, so a KES rotation needs no restart. The keys are
+re-read from the paths the node was started with: a node started as a relay
+(without pool keys) needs a restart to become a block producer. The command
+refuses a unit that is not deployed or not running, and waits for a node that
+is still starting, for example during a Mithril download, because SIGHUP would
+end that startup.
+
 You should see logs flooding your screen (dont worry, that is expected) - and perhaps also include warn/errors to connect to some peers depending on your topology and remote peer status. If the node is running for few mins (i.e. you do not get returned to prompt), Press Ctrl-C to exit node and return to console.
 
 #### Modify the node's config files
 
-Now that you've tested the basic node operation, you might want to customise your config files (assuming you are in top-level folder , i.e. `cd "${CNODE_HOME}"`) :
+The deployed `${CNODE_HOME}/files/config.json` contains the network-specific
+genesis paths, tracing, logging, mempool, and Prometheus settings. Start with
+the template installed for the selected network; do not copy a mainnet config
+onto preprod, preview, or Guild. The current templates do not define a
+`PeerSharing` config key.
 
-1. files/config.json :
-This file contains the logging configurations (tracers of to tune logging, paths for other genesis config files, address/ports on which the prometheus backend will listen, etc). Unless running more than one node on same machine (not recommended), you should be alright to use most of this file as-is. You might - however - want to double-check `PeerSharing` in this file, if using a relay node where you'd like connecting peers (marked as `"advertise": "true"` in topology.json) to be shared , you may turn this setting to `true`.
+`${CNODE_HOME}/files/topology.json` defines P2P peer selection:
 
-2. files/topology.json :
-This file tells your node how to connect to other nodes (especially initially to start synching). You would want to update this file as below:
+- `localRoots[].accessPoints` lists peers for persistent connections, such as
+  the operator's block producer and relays.
+- `hotValency` is the target number of active connections from that local-root
+  group. `warmValency`, when present, is the target number of warm peers.
+- `trustable` marks a local-root group the node may sync from without other
+  peers confirming it.
+- `publicRoots` contains additional manually managed public peers.
+- `advertise` controls whether peers in that group may be shared. Keep it
+  `false` on a block producer.
+- `useLedgerAfterSlot` is the absolute slot after which the node takes peers
+  from the ledger it has synced. `-1` disables ledger peers; it does not
+  disable P2P networking.
+- `peerSnapshotFile` names the peer snapshot next to the topology: the largest
+  pools and their relays at a recent slot, which a syncing node uses until its
+  own ledger reaches `useLedgerAfterSlot`.
 
-    * Update the `localRoots` > `accessPoints` section to include your local nodes that you want persistent connection against (eg: this could be your BP and own relay nodes) against definition where `trustable` is set to `true`.
-    * If you want specific peers to be advertised on the network for discovery, you may set `advertise` to `true` for that peer group. You do NOT want to do that on BP
-    * You'd want to update `localRoots` > `valency` (`valency` is the same as `hotValency`, not yet replaced since the example in cardano-node-wiki repo still suggests `valency`) to number of connections from your localRoots that you always want to keep active connection to for that node.
-    * [Optional] - you can add/remove nodes from `publicRoots` section as well as `localRoots` > `accessPoints` as desired, tho defaults populated should work fine. On mainnet, we did add a few additional nodes to help add more redundancy for initial sync.
-    * `useLedgerAfterSlot` tells the node to establish networking with nodes from defined peers to sync the node initially until reaching an absolute slot number, after which - it can start attempting to connect to peers registered as pool relays on the network. You may want this number to be relatively recent (eg: not have it 50 epochs old).
-    * You can read further about topology file configuration [here](https://github.com/input-output-hk/cardano-node-wiki/blob/main/docs/getting-started/understanding-config-files.md#the-p2p-topologyjson-file)
+Every network except Guild runs Ouroboros Genesis (`"ConsensusMode":
+"GenesisMode"` in `config.json`). A syncing node does not trust one set of
+bootstrap peers: it connects to many of the largest pools from the peer
+snapshot and compares their chains. The public bootstrap peers are being shut
+down, so the templates no longer list `bootstrapPeers`. Every refresh with
+`guild-deploy.sh` replaces `peer-snapshot.json` (and `checkpoints.json` on
+mainnet and preview), so keep the installed `peerSnapshotFile`. The
+`useLedgerAfterSlot` of a topology that reads the snapshot can stay as it is:
+each new snapshot is from a later slot. A topology from before the switch is
+moved over with `guild-deploy.sh -s u`; see
+[Moving to Ouroboros Genesis](../upgrade.md#genesis-mode).
 
-!!! important
-    On BP, You'd want to set `useLedgerAfterSlot` to `-1` for your Block Producing (Core) node - thereby, telling your Core node to remain in non-P2P mode, and ensure `PeerSharing` is to `false`.
+For a relay, keep the installed peer snapshot, ledger and public peer settings
+and replace the placeholder trusted `localRoots` with the operator's own nodes.
+Keep each group's `hotValency` no greater than its number of access points.
 
-The resultant topology file on a relay could look something like below:
-
-``` json
-{
-  "bootstrapPeers": [
-    {
-      "address": "backbone.cardano.iog.io",
-      "port": 3001
-    },
-    {
-      "address": "backbone.mainnet.emurgornd.com",
-      "port": 3001
-    },
-    {
-      "address": "backbone.mainnet.cardanofoundation.org",
-      "port": 3001
-    }
-  ],
-  "localRoots": [
-    {
-      "accessPoints": [
-        {"address": "xx.xx.xx.xx", "port": 6000 , "description": "Core"},
-        {"address": "zz.zz.zz.zz", "port": 6000 , "description": "Relay2"}
-      ],
-      "advertise": false,
-      "trustable": true,
-      "hotValency": 2
-    },
-    {
-      "accessPoints": [
-        {"address": "208.118.69.126",                   "port": 3003, "pool": "PSB",    "location": "NA/CA/Edmonton" },
-        {"address": "node-dus.poolunder.com",           "port": 6900, "pool": "UNDR",   "location": "EU/DE/Dusseldorf" },
-        {"address": "node-syd.poolunder.com",           "port": 6900, "pool": "UNDR",   "location": "OC/AU/Sydney" },
-        {"address": "148.72.153.168",                   "port": 16000, "pool": "AAA",   "location": "NA/US/StLouis" },
-        {"address": "154.26.154.254",                   "port": 16000, "pool": "AAA",   "location": "OC/AU" },
-        {"address": "relay1-pub.ahlnet.nu",             "port": 2111, "pool": "AHL",    "location": "EU/SE/Malmo" },
-        {"address": "relay2-pub.ahlnet.nu",             "port": 2111, "pool": "AHL",    "location": "EU/SE/Malmo" },
-        {"address": "relay1.clio.one",                  "port": 6010, "pool": "CLIO",   "location": "EU/IT/Milan" },
-        {"address": "relay2.clio.one",                  "port": 6010, "pool": "CLIO",   "location": "EU/IT/Bozlano" }
-      ],
-      "advertise": false,
-      "trustable": false,
-      "hotValency": 5,
-      "warmValency": 10
-    }
-  ],
-  "publicRoots": [
-    {
-      "accessPoints": [],
-      "advertise": false
-    }
-  ],
-  "useLedgerAfterSlot": 128908821
-}
-```
-
-Similarly, a typical topology file on a Core could look something like below:
+For a block producer, a minimal topology containing only its relays can look
+like this:
 
 ``` json
 {
-  "bootstrapPeers": [],
   "localRoots": [
     {
       "accessPoints": [
@@ -198,9 +234,22 @@ Similarly, a typical topology file on a Core could look something like below:
 }
 ```
 
-Once above two files are updated, since you modified the file manually - there is always a chance of human errors (eg: missing comma/quotes). Thus, we would recommend you to start the node interactively once again before proceeding.
+This keeps the block producer on its own relays while disabling public and
+ledger peers. It remains a P2P topology. In GenesisMode such a node syncs only
+when every local root is `trustable` and peer sharing is off, which it is by
+default for a node started with pool keys. `cnode.sh` marks every local root
+of this layout trustable before the node starts, and keeps a backup of the
+topology when it does.
+
+For the complete schema and operational guidance, see the
+[official P2P networking documentation](https://docs.cardano.org/about-cardano/explore-more/cardano-network/p2p-networking).
+
+After editing either JSON file, validate its syntax and start the node
+interactively before installing or restarting the service:
 
 ```bash
+jq empty "${CNODE_HOME}/files/config.json" \
+  "${CNODE_HOME}/files/topology.json"
 cd "${CNODE_HOME}"/scripts
 ./cnode.sh
 ```
@@ -210,9 +259,16 @@ As before, ensure you do not have any critical errors in the console. To stop th
 #### Start the submit-api
 
 !!! note
-    An average pool operator may not require `cardano-submit-api` at all. Please verify if it is required for your use as mentioned [here](../build.md#components). If - however - you do run submit-api for accepting sizeable transaction load, you would want to override the default MEMPOOL_BYTES by uncommenting it in cnode.sh.
+    An average pool operator may not require `cardano-submit-api` at all.
+    Verify whether it is required for your use as described
+    [here](../build.md#components). Node mempool capacity is configured by
+    `MempoolCapacityBytesOverride` in `${CNODE_HOME}/files/config.json`, not in
+    `cnode.sh`; test any change against the pinned node release.
 
-`cardano-submit-api` is one of the binaries built as part of `cardano-node` repository and allows you to submit transactions over a Web API. To run this service interactively, you can use the pre-built script below (`submitapi.sh`). Make sure to update `submitapi.sh` script to change listen IP or Port that you'd want to make this service available on.
+`cardano-submit-api` is built from the cardano-node repository and allows
+transactions to be submitted over an HTTP API. To run it interactively, use
+`submitapi.sh`. Its user variables control the listen address, API port, and
+metrics port.
 
 ```bash
 cd $CNODE_HOME/scripts
@@ -225,28 +281,31 @@ To stop the process, hit Ctrl-C
 
 The preferred way to run the node (and submit-api) is through a service manager like systemd. This section explains how to setup a systemd service file.
 
-**1. Deploy as a systemd service**  
+**1. Deploy as a systemd service**
+
 Execute the below command to deploy your node as a systemd service (from the respective scripts folder):
 ```bash
 cd $CNODE_HOME/scripts
 ./cnode.sh -d
-# Deploying cnode.service as systemd service..
+# Deploying cnode as systemd service..
 # cnode.service deployed successfully!!
 
 ./submitapi.sh -d
-# Deploying cnode-submit-api.service as systemd service..
-# cnode-submit-api deployed successfully!!
+# Deploying cnode-submit-api as systemd service..
+# cnode-submit-api.service deployed successfully!!
 
 ```
 
-**2. Start the service**  
-Run below commands to enable automatic start of service on startup and start it.
+**2. Start the service**
+
+Installation already enables the units for startup. Start them explicitly
+after validating configuration:
 ``` bash
 sudo systemctl start cnode.service
 sudo systemctl start cnode-submit-api.service
 ```
 
-**3. Check status and stop/start commands** 
+**3. Check status and stop/start commands**
 Replace `status` with `stop`/`start`/`restart` depending on what action to take.
 ``` bash
 sudo systemctl status cnode.service

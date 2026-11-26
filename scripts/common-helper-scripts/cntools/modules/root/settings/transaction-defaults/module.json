@@ -1,0 +1,14 @@
+{
+  "kind": "action",
+  "label": "Transaction Defaults",
+  "description": "Configure coin selection, change and transaction expiry",
+  "libs": [
+    "number.sh"
+  ],
+  "order": 10,
+  "modes": [
+    "local",
+    "light",
+    "offline"
+  ]
+}

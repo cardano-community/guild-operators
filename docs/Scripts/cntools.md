@@ -1,172 +1,363 @@
-!!! important
+# CNTools
 
-    - Ensure the [Pre-Requisites](../basics.md#pre-requisites) are in place before you proceed.
-    - The active testers for this script use Fedora/CentOS/RHEL/Ubuntu operating systems, other OS may require customisations.
-    - The tool uses the folder structure defined [here](../basics.md#folder-structure). Everyone is free to customise, but while doing so beware that you may introduce changes that may not be tested during updates.
-    - Always use Preview/Preprod/Guild network first to familiarise, read the warning/messages in full, maintain your keys/backups with passwords (no one other than yourself can retrieve the funds if you make an accident), before performing actions on mainnet.
+CNTools is a terminal application for managing Cardano wallets, stake pools,
+transactions, governance and native assets. Searchable menus, guided questions
+and responsive tables keep everyday actions consistent.
 
-Koios CNTools is like a swiss army knife for pool operators to simplify typical operations regarding their wallet keys and pool management. Please note that this tool only aims to simplify usual tasks for its users, but it should **NOT** act as an excuse to skip understanding how to manually work through things or basics of Linux operations. The skills highlighted on the [home page](../index.md) are paramount for a stake pool operator, and so is the understanding of configuration files and network. Please ensure you've read and understood the disclaimers **before** proceeding.
+## Installation and startup
 
-Visit the [Changelog](../Scripts/cntools-changelog.md) section to see progress and current release.
+Use [Guild Deploy](../basics.md) to install CNTools and the companion tools for
+your deployment. CNTools uses the `env` file in your deployment's scripts
+directory for its network, paths, local node connection and Koios settings.
 
-#### Overview
-The tool consist of three files.  
+Start CNTools from that directory:
 
-- `cntools.sh` - the main script to launch cntools.
-- `cntools.library` - internal script with helper functions.
-
-In addition to the above files, there is also a dependency on the common [`env`](../Scripts/env.md) file. CNTools connects to your node through the configuration in the `env` file located in the same directory as the script. Customize `env` and `cntools.sh` files to your needs.
-
-Additionally, CNTools can integrate and enable optional functionalities based on external components:
-
-- `cncli.sh` is a companion script with optional functionalities to run on the core node (block producer) such as monitoring created blocks, calculating leader schedules and block validation.
-- `logMonitor.sh` is another companion script meant to be run together with the `cncli.sh` script to give a more complete picture.
-
-See [CNCLI](../Scripts/cncli.md) and [Log Monitor](../Scripts/logmonitor.md) sections for more details.
-
-Koios CNTools can operate in following modes:
-
-- Online - The default mode using either a local node or Koios API to query the blockchain.
-  - Local `-n` - The local node is used to query the blockchain for needed data. This is the default mode when you start CNTools without parameters.
-  - Light `-l` - Koios query layer is used and removes the need for a local node deployment. This mode is both quicker and lighter on resources but comes with a third party dependency.
-- Hybrid - When running in online mode, this option can be used in menus to create offline transaction files that can be passed to Offline CNTools to sign.
-- Offline `-o` - Launches CNTools with a limited set of features. This mode **does not require access to cardano-node or access to an internet connection**. It is mainly used to create Wallet/Pool and access `Transaction >> Sign` to sign an offline transaction file created in Hybrid mode.
-- Advanced `-a` - Exposes a new `Advanced` menu, which allows users to manage (create/mint/burn) new assets.
-
-In addition to above mentioned runtime arguments to launch CNTools in different modes, it can also be persisted by editing User Variables section within `cntools.sh` script.
-
-#### Download and Update
-The update functionality is provided from within CNTools. In case of breaking changes, please follow the prompts post-upgrade. If stuck, it's always best to re-run the latest `guild-deploy.sh` before proceeding.
-
-!!! info ""
-    If you have not updated in a while, it is possible that you might come from a release with breaking changes. If so, please be sure to check out the [upgrade](../upgrade.md) instructions.
-
-#### Navigation
-The scripts menu supports both arrow key navigation and shortcut key selection. The character within the square brackets is the shortcut to press for quick navigation. For other selections like wallet and pool menu that don't contain shortcuts, there is a third way to navigate. Key pressed is compared to the first character of the menu option and if there is a match the selection jumps to this location. A handy way to quickly navigate a large menu. 
-
-#### Hardware Wallet
-CNTools includes hardware wallet support since version `7.0.0` through Vacuumlabs `cardano-hw-cli` application. Initialize and update firmware/app on the device to the latest version before usage following the manufacturer instructions.
-
-To enable hardware support run `guild-deploy.sh -s w`. This downloads and installs Vacuumlabs `cardano-hw-cli` including `udev` configuration. When a new version of Vacuumlabs `cardano-hw-cli` is released, run `guild-deploy.sh -s w` again to update. For additional runtime options, run `guild-deploy.sh -h`.
-
-=== "Ledger"
-
-    - Supported devices: Nano S / Nano X  
-    - Make sure the latest cardano app is installed on the device.
-
-=== "Trezor"
-
-    - Supported devices: Model T  
-    - Make sure the latest firmware is installed on the device. In addition to this, install `Trezor Bridge` for your system before trying to use your Trezor device in CNTools. You can find the latest version of the bridge at https://wallet.trezor.io/#/bridge
-
-#### Offline Workflow
-
-CNTools can be run in online and offline mode. At a very high level, for working with offline devices, remember that you need to use CNTools in an online node to generate a staging transaction for the desired type of transaction, and then move the staging transaction to an offline node to sign (authorize) using the signing keys on your offline node - and then bring back the signed transaction to the online node for submission to the chain. 
-
-For the offline workflow, all the wallet and pool keys should be kept on the offline node. The backup function in CNTools has an option to create a backup without private keys (sensitive signing keys) to be transferred to online node. All other files are included in the backup to be transferred to the online node. 
-
-Keys excluded from backup when created without private keys:
-**Wallet** - `payment.skey`, `stake.skey`
-**Pool**   - `cold.skey`
-
-Note that setting up an offline server requires good SysOps background (you need to be aware of how to set up your server with offline mirror repository, how to transfer files across and be fairly familiar with the disk layout presented in the documentation). The `guild-deploy.sh` in its current state is not expected to run on an offline machine. Essentially, you simply need the `cardano-cli`, `bech32`, `cardano-address` binaries in your `$PATH`, OS level dependency packages [`jq`, `coreutils`, `pkgconfig`, `gcc-c++` and `bc` ], and perhaps a copy from your online `cnode` directory (to ensure you have the right `genesis`/`config` files on your offline server). We strongly recommend you to familiarise yourself with the workflow on the preview / preprod / guild networks first, before attempting on mainnet.
-
-Example workflow for creating a wallet and pool:
-
-``` mermaid
-
-sequenceDiagram
-    Note over Offline: Create/Import a wallet
-    Note over Offline: Create a new pool
-    Note over Offline: Rotate KES keys to generate op.cert
-    Note over Offline: Create a backup w/o private keys
-    Offline->>Online: Transfer backup to online node
-    Note over Online: Fund the wallet base address with enough Ada
-    Note over Online: Register wallet using ' Wallet » Register ' in hybrid mode
-    Online->>Offline: Transfer built tx file back to offline node
-    Note over Offline: Use ' Transaction >> Sign ' with payment.skey from wallet to sign transaction
-    Offline->>Online: Transfer signed tx back to online node
-    Note over Online: Use ' Transaction >> Submit ' to send signed transaction to blockchain
-    Note over Online: Register pool in hybrid mode
-    loop
-        Offline-->Online: Repeat steps to sign and submit built pool registration transaction
-    end
-    Note over Online: Verify that pool was successfully registered with ' Pool » Show '
-
+```bash
+./cntools.sh
 ```
 
-=== "Online mode"
+CNTools requires Bash 4.4 or newer, Charm Gum 2.0.2, a UTF-8 terminal and the
+common Linux tools provided by Guild Deploy's prerequisite installation.
+If Gum is missing or has a different version, interactive startup offers to
+install it. Declining leaves CNTools closed. Install Gum before entering
+offline mode, where CNTools says so instead of offering a download. Individual actions check their
+companion tools when needed and explain missing prerequisites.
 
-    To start CNTools in Online (advanced) Mode, execute the script from the `$CNODE_HOME/scripts/` directory:
-    ```
-    cd $CNODE_HOME/scripts
-    ./cntools.sh -a
-    ```
+fzf 0.75.0 is optional. With it, menus open an item as soon as you type its
+highlighted letters; see [Navigation and display](#navigation-and-display).
+On Linux x86_64 and arm64, interactive startup offers to install it next to
+Gum. A "no" is remembered until CNTools pins a newer fzf, and
+**Settings → Navigation** can install it later. CNTools uses only that
+version, and leaves out your own `FZF_DEFAULT_OPTS` so the menus look the same
+for everyone.
 
-    You should get a screen that looks something like this:
+Use the deployed companion versions supplied by Guild Deploy. Hardware actions
+require `cardano-hw-cli`, which Guild Deploy can install with `-s w`.
+Some specialist actions also need Cardano Signer, Catalyst Toolbox,
+`cardano-address` or `token-metadata-creator`.
 
-    ```
-    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-     >> Koios CNTools vX.X.X - Guild - CONNECTED <<
-    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-     Main Menu    Telegram Announcement / Support channel: t.me/CardanoKoios/9759
-    
-     ) Wallet      - create, show, remove and protect wallets
-     ) Funds       - send, withdraw and delegate
-     ) Pool        - pool creation and management
-     ) Transaction - Sign and Submit a cold transaction (hybrid/offline mode)
-     ) Blocks      - show core node leader schedule & block production statistics
-     ) Backup      - backup & restore of wallet/pool/config
-     ) Advanced    - Developer and advanced features: metadata, multi-assets, ...
-     ) Refresh     - reload home screen content
-    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-                                                      Epoch 276 - 3d 19:08:27 until next
-     What would you like to do?                                         Node Sync: 12 :)
-    
-      [w] Wallet
-      [f] Funds
-      [p] Pool
-      [t] Transaction
-      [b] Blocks
-      [u] Update
-      [z] Backup & Restore
-      [a] Advanced
-      [r] Refresh
-      [q] Quit
-    ```
+```text
+Usage: cntools.sh [-n|-l|-o] [-a] [-u] [-b BRANCH] [-v] [-h]
 
-=== "Offline mode"
+  -n          Local node mode (default)
+  -l          Light mode using Koios
+  -o          Offline mode
+  -a          Show advanced features
+  -u          Skip the automatic update-availability check
+  -b BRANCH   Redeploy from this Guild branch, then exit
+  -v          Print the CNTools version
+  -h          Show help
+```
 
-    To start CNTools in Offline Mode, execute the script from the `$CNODE_HOME/scripts/` directory using the `-o` flag:
-    ```
-    cd $CNODE_HOME/scripts
-    ./cntools.sh -o
-    ```
-    
-    The main menu header should let you know that node is started in offline mode:
-    ```
-    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-     >> Koios CNTools vX.X.X - Guild - OFFLINE <<
-    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-     Main Menu    Telegram Announcement / Support channel: t.me/CardanoKoios/9759
-    
-     ) Wallet      - create, show, remove and protect wallets
-     ) Funds       - send, withdraw and delegate
-     ) Pool        - pool creation and management
-     ) Transaction - Sign and Submit a cold transaction (hybrid/offline mode)
-    
-     ) Backup      - backup & restore of wallet/pool/config
-    
-     ) Refresh     - reload home screen content
-    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-                                                      Epoch 276 - 3d 19:03:46 until next
-     What would you like to do?
-    
-      [w] Wallet
-      [f] Funds
-      [p] Pool
-      [t] Transaction
-      [z] Backup & Restore
-      [r] Refresh
-      [q] Quit
-    ```
+## Choosing a mode
+
+| Mode | What it does |
+| --- | --- |
+| Local | Prefers the configured local node for supported queries, transaction construction and submission. Enabled Koios access supplies metadata and API-only features, and can provide a fallback where supported. |
+| Light | Uses Koios for blockchain queries and submission. Key generation and transaction signing still happen locally. |
+| Offline | Makes no node or network queries. Supports local key and file operations, inspection of saved artifacts and signing previously built transaction packages. |
+
+cnode provides the full local-node workflow. Dingo's local operations depend on
+its configured compatible CLI/socket. Amaru has no compatible local query
+socket; use light mode for its online CNTools workflows. Availability of a
+menu does not make an unavailable backend or companion tool optional.
+
+Local node queries wait up to `QUERY_TIMEOUT` seconds (default 180; set it in
+`env`). On mainnet, address balance queries scan the whole UTxO set and can
+take a minute or more; light mode answers wallet views much faster.
+**Wallet → List** therefore asks before fetching balances in local mode, and
+fetches them directly in light mode, where the Send wallet picker also shows
+each wallet's ADA balance.
+
+Building a normal transaction requires current chain data, even when you plan
+to sign it offline. An unavailable node does not stop CNTools from opening.
+The root header shows best-effort epoch, tip and sync-gap information, refreshed
+when returning to the root menu. Offline mode hides that health section.
+
+## Navigation and display
+
+The header shows CNTools version, current menu path, mode, backend and network.
+Check the network before performing any transaction.
+
+The start of each menu row's name is highlighted: the part no other row in
+that menu shares, usually the first letter. Type it, or the row's number, and
+the row opens at once. Back, Home, Go to and Quit work the same way with
+**B**, **H**, **G** and **Q**. The arrow keys and Enter also work, and Escape
+or Left goes back a menu. **Settings → Navigation** offers three styles:
+
+- **Hotkeys**, the default: the highlighted letters or the number open the row.
+- **Hotkeys with Enter**: the same keys narrow the list, and Enter opens the row.
+- **Filter**: typing keeps the rows that contain the text, in menu order, and
+  Enter opens the selected one.
+
+Both hotkey styles need fzf 0.75.0 and use the Filter style until it is
+installed. Lists inside actions always filter this way. A list that picks a wallet, pool, policy, asset, proposal or transaction says
+above it what the choice is for, such as "Wallet that pays the transaction fee
+for this pool update".
+Use the displayed Back, Home and Quit choices to navigate. When only one wallet
+or pool suits an action, CNTools selects it instead of asking; Wallet →
+Permanently Remove always asks. When no wallet suits an action, CNTools says
+why and returns to the menu. Escape first leaves the filter input. Cancelling
+returns straight to the menu without a further prompt; inside a review's
+**Change …** step, Escape keeps the current value and returns to the review.
+Warnings stay on screen until you reach the next prompt, even when the screen
+is redrawn in between.
+
+Every menu has **Go to**: type `00` and press Enter. Type a saved shortcut
+and press Enter to jump straight to its menu or action, or type part of a name
+to search every menu and action. A search with one match opens it directly,
+and Enter alone lists everything. The jump does what Enter on that row would
+do and leaves you in the menu that holds it, so Back and Home work as usual.
+Escape returns to the menu you came from. See [Shortcuts](#shortcuts).
+
+Tables expand to the available terminal width and wrap long addresses only
+when needed. Numbers use US formatting: commas for thousands and a period for
+decimals. Numeric prompts accept values with or without valid comma grouping.
+Dates follow `BLOCKLOG_TZ` in `env`, defaulting to UTC.
+
+ADA and token amounts drop the trailing zeros of their decimals, so 340 ADA
+reads `340 ADA` and 340.05 ADA reads `340.05 ADA`. **Settings → Decimals**
+switches to full precision (`340.000000 ADA`) and back. Tokens use the
+decimals registered for them (Token Registry or CIP-68), fetched through
+Koios; a Token Registry or CIP-68 entry without a decimals field means none.
+A fungible token whose decimals are unknown, because Koios has no such entry
+or was not asked, shows its smallest-unit quantity marked **decimals
+unknown**. NFTs are whole and show no decimals.
+
+## Available actions
+
+| Menu | Main tasks |
+| --- | --- |
+| Wallet | Create CLI/mnemonic wallets, import mnemonic/hardware wallets, inspect balances and history, register or de-register stake addresses, protect keys and remove wallets. |
+| Funds | Send ADA/assets, delegate stake, withdraw rewards and collect UTxOs. |
+| Pool | Create/import pools, inspect state, register/modify/retire, rotate KES keys, protect keys and manage Calidus credentials. |
+| Vote | Manage DRep keys, registration and delegation, browse proposals, cast DRep votes and manage Catalyst registration/QR/snapshot checks. |
+| Transaction | Review and sign portable packages, or submit completed packages and supported external signed transactions. |
+| Restore & Backup | Create full or public-only backups and restore without overwriting existing folders. |
+| Blocks | Read block-production summaries and epoch details from the configured blocklog (CNCLI on cardano-node, `amaru-leaderlog.sh` on Amaru). |
+| Settings | Choose the Quick or Detailed flow style, set transaction defaults, save Go to shortcuts, choose how menus answer typing, show amounts trimmed or with full precision and, with `-a`, choose a theme. |
+| Update | Check availability, read changes and refresh the deployment through Guild Deploy. |
+| Advanced (`-a`) | Manage native assets and policies, create multisig identities, clear asset metadata cache and explicitly delete private keys. |
+
+See [Common Tasks](cntools-common.md) for practical workflows and safety notes.
+
+## The shared transaction flow
+
+Transaction actions show their important effects, recipients or certificates,
+any metadata, and a compact transaction-information table. This includes the
+fee, expiry and applied input/change policies. Required signers are available
+from the review menu. Technical transaction data goes to the log rather than
+a raw JSON dump on the normal screen.
+
+Choose a workflow:
+
+1. **Create, sign and submit** — complete the transaction online.
+2. **Create and sign** — save a signed package without submitting.
+3. **Create unsigned package** — save it for signing elsewhere.
+
+If signing fails (a disconnected or locked device, the app not open, a
+rejection on the device), CNTools shows why and offers **Retry signing**,
+**Save unsigned package** or **Cancel**; the reviewed transaction is kept.
+
+If the required signing keys are unavailable or protected, unsigned export
+remains available when the required public material exists, and the review
+says why. Encrypted keys name the Decrypt action that lets you sign here. Multisig actions
+ask which participants will sign; the selected witnesses must all be collected.
+
+In the Quick flow style, transactions start as **Create, sign and submit**
+(or **Create unsigned package** when the signing keys are unavailable) with
+the default expiry from Settings (at least 1 day for an unsigned package,
+which is signed elsewhere); change either with **Change workflow** or
+**Change expiry** in the review. When the workflow becomes an unsigned package
+in Quick, a shorter default expiry is extended to 1 day and the review says
+so; an expiry you chose yourself is kept. Detailed asks for the workflow and
+expiry first. Without usable signing keys the unsigned package is the only
+workflow, so neither style asks, and the review says why.
+
+In both styles, approving the review submits without a second question; only
+irreversible effects such as a pool retirement or a token burn ask again
+(default No).
+
+Every creating action offers an expiry, including **No expiry**. The standard
+choices include 30 minutes, 2 hours and 1 day (for offline signing); a custom
+expiry is at least 60 seconds.
+No expiry does not remove a native script's mandatory time bounds. Changing
+expiry, recipients or transaction effects requires a new build and signatures.
+
+Fees use the final transaction and required witnesses. The review also shows
+deposits, refunds and minimum-ADA adjustments where applicable. CNTools rechecks
+relevant chain state before signing, and again before submitting when signing
+took longer than 30 seconds (a device or another system); changes can require
+rebuilding.
+
+Saved packages are reported under
+`${NODE_HOME}/scripts/cntools/.transactions/`. Keep them until the operation is
+resolved. Packages contain public transaction and signer information, not private
+keys, but may still contain sensitive addresses, messages or metadata.
+
+Accepted submission does not prove block inclusion. When Koios is available,
+CNTools monitors inclusion every five seconds; Detailed asks first. The result shows the
+transaction ID and elapsed time until Koios observes it in a block. Indexing
+can lag: if submission or monitoring is uncertain, check the reported ID before
+creating a replacement transaction.
+
+## Settings
+
+### Flow style
+
+On first start, CNTools asks whether to use the **Quick** or **Detailed**
+flow style and saves the answer. Change it any time in
+**Settings → Flow Style**.
+
+- **Quick** uses sensible defaults instead of asking. Transactions follow the
+  shortened flow above, summary confirmations such as "Lock the files of this
+  pool?" are skipped, and optional lookups such as pool details or asset names
+  are fetched directly. Defaults that matter can still be changed: wallets start
+  at account and key index 0 with **Change account and key index** at the
+  plan step, and reviews offer options such as **Change scope**,
+  **Change stake setup** or **Change metadata**.
+- **Detailed** asks every question.
+
+Both styles keep warnings and safety confirmations, such as self-sends,
+retiring pools, pool retirement and burn submission, deletions, restores, key
+decryption, KES rotation and cold-key signing. Creating new key material (a
+wallet, pool, policy, DRep or Catalyst key) asks in both styles and names the
+wallet or object. For encryption, entering the passphrase is the
+confirmation; Escape cancels. Warnings shown before a step Quick confirms
+automatically are repeated on the next screen.
+
+In both styles, CNTools selects the only suitable wallet, pool, policy,
+local DRep or saved transaction package instead of showing a one-item list,
+and skips questions with only one possible answer.
+
+### Transaction defaults
+
+**Settings → Transaction Defaults** persists your preferences between sessions:
+
+Each setting shows an explanation before its choices. **Cancel** returns to the
+settings overview without changing or saving anything. Numeric editors go
+straight to the input: Escape cancels, an empty input keeps the current value
+and an invalid number asks again.
+
+- **Coin selection:** Balanced prefers simpler ADA-only inputs and avoids
+  unnecessary native assets; Fewest inputs prioritizes fewer inputs.
+- **Token fragmentation:** optionally limits distinct assets per change output
+  so future transfers need not consume one large token bundle.
+- **ADA-only UTxO management:** optionally maintains useful ADA-only change
+  outputs. It accounts for outputs already left in the wallet, can keep a
+  5 ADA collateral candidate, and splits remaining change by configured
+  percentages. Minimum-ADA and output-count limits still apply.
+- **Send change address:** optionally asks whether change should use the base
+  or payment-only address when the wallet supports both. Otherwise, the primary
+  address is used.
+- **Default expiry:** sets the starting expiry preference for creating actions.
+
+Settings are saved in `.state/transaction-settings.json`. If two CNTools
+sessions change settings, each save keeps the other session's changes. A
+settings file CNTools cannot read (for example after a hand edit) is moved
+aside as `transaction-settings.json.invalid-<time>` and the main menu says so;
+defaults apply until you set them again.
+
+Token fragmentation and ADA-only management are disabled by default. Without
+ADA-only management, change only needs the protocol minimum ADA, and token
+change that would exceed the value-size limit is still split across outputs.
+These settings shape change from a transaction, not a background wallet
+maintenance job. Use **Funds → Collect UTxOs** for explicit consolidation.
+The transaction review shows what the settings actually produced.
+
+Start with `-a` and open **Settings → Appearance** to choose **Default**,
+inspired by Koios, or **Hydra After Dark**, a navy/cyan Cardano-inspired theme.
+The choice persists. A non-empty `NO_COLOR` environment variable disables
+color output.
+
+### Shortcuts
+
+A shortcut is a code of 1 to 4 letters or digits, such as `pr` or `w1`, for one
+menu or action. Manage them in **Settings → Shortcuts**:
+
+- **Add a shortcut** lists every menu and action. Pick one and type its code.
+  Each entry has one code, and a code already in use moves to the new entry
+  only after you confirm.
+- **Change a code**, **Remove a shortcut** and **Remove all shortcuts** manage
+  the saved ones.
+
+To use one, type `00`, Enter, the code and Enter in any menu. Shortcuts work
+from menus, not inside an action's own prompts. If the target can't run right
+now, for example in a mode it doesn't support, its menu opens and says why.
+Shortcuts to Advanced entries work when CNTools starts with `-a`, and the list
+marks a shortcut whose target no longer exists.
+
+Shortcuts are saved in `.state/shortcuts.json`. A file CNTools cannot read is
+left unchanged; **Start again with no shortcuts** moves it aside as
+`shortcuts.json.invalid-<time>`.
+
+## Stored data and privacy
+
+Wallet, pool and policy folders follow `WALLET_FOLDER`, `POOL_FOLDER` and
+`ASSET_FOLDER` in `env`. Their defaults are beneath `${NODE_HOME}/priv/`.
+Theme, flow style, navigation, transaction preferences and shortcuts live beneath
+`${NODE_HOME}/scripts/cntools/.state/` and are preserved by script deployments.
+Backups, saved transactions and asset-registry exports have their own reported
+locations.
+
+Temporary transaction bodies, signing snapshots and witnesses are created in
+private `.cntools-transaction-action.*` workspaces beneath `TMP_DIR`. If it is
+not configured in `env`, CNTools uses `/tmp/<deployment-name>`. These workspaces
+are cleaned when the action finishes or is cancelled. `TMP_DIR` must belong to
+you and must not be writable by group or others. The Guild scripts create it
+that way, even under umask 0002, and repair `/tmp/<deployment-name>` if it is
+group writable. Any other existing `TMP_DIR` is left as it is, and CNTools
+shows the `chmod go-w` command to fix it. Saved unsigned or signed packages
+are kept separately under `${NODE_HOME}/scripts/cntools/.transactions/`;
+their paths are displayed when saved. They survive temporary-file cleanup and
+are preserved by script deployments.
+
+Wallet, pool and policy creation, key protection and certificate operations
+keep their staging and work files in the owner-only `${NODE_HOME}/.cntools/`
+folder, not beside your keys in `priv`. KES rotation and first
+operational-certificate issuance also keep their per-pool lock in
+`.cntools/locks/` and their recovery copies, including the advanced issue
+counter, in `.cntools/recovery/`. Keep that folder until each operation has
+completed and been verified. Only the final rename or link into place touches
+the target folder. If a custom wallet, pool or asset folder is on a different
+filesystem, its brief staging falls back to that folder so publication stays
+atomic.
+
+CNTools can generate missing public keys, addresses and IDs from available
+keys or scripts and reuse them later. It does not silently replace mismatched
+files or decrypt protected keys during inspection.
+
+Asset metadata comes from Koios, including in local mode, and is cached for
+one day beneath `${NODE_HOME}/scripts/cntools/.cache/asset-cache/`.
+**Advanced → Clear asset cache** requests fresh metadata on the next lookup.
+Metadata failures do not remove known holdings. This cache is disposable and
+can be regenerated after a script deployment.
+
+The default log is `${NODE_HOME}/logs/cntools.log`, subject to your configured
+log path. It records user choices, commands, API requests, technical transaction
+details and errors. API entries include replayable requests without revealing
+authentication tokens. Recovery phrases, passphrases and private key contents
+must not be shared. Logs and public packages can reveal financial activity;
+review them before sharing.
+
+## Updates and troubleshooting
+
+The update check does not prevent normal menu use. **Update → Check Again**
+refreshes availability, **View Changes** shows newer changelog entries, and
+**Install Update** runs Guild Deploy for the selected repository branch.
+Anything that would stop the install (a missing deploy script, an invalid
+branch, a log inside the CNTools folder) is reported before the install
+question. An explicit confirmation allows a forced refresh when versions match.
+
+Guild Deploy refreshes the managed scripts and configuration snapshot, not just
+CNTools. Review the target, network and branch first, and back up any locally
+customized configuration. CNTools closes after deployment; restart with
+`./cntools.sh` from the scripts directory.
+
+If a query fails, check the network, `env` connection settings, node health and
+Koios availability. Use `-o` for local/offline work. For a failed action, the
+reported log path contains the diagnostic details; the main menu names it
+after a failed action. Do not replace keys or
+retry an uncertain submission blindly.
+
+Release changes are recorded in the [CNTools changelog](cntools-changelog.md).

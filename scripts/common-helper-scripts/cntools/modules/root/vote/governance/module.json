@@ -1,0 +1,6 @@
+{
+  "kind": "menu",
+  "label": "On-chain Governance",
+  "description": "Inspect governance and manage voting credentials",
+  "order": 10
+}

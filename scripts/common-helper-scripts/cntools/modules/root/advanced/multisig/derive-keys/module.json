@@ -1,0 +1,32 @@
+{
+  "kind": "action",
+  "label": "Derive Keys",
+  "description": "Derive multisignature keys",
+  "order": 20,
+  "modes": [
+    "local",
+    "light",
+    "offline"
+  ],
+  "libs": [
+    "number.sh",
+    "filesystem.sh",
+    "bech32.sh",
+    "presentation.sh",
+    "wallet.sh",
+    "wallet-selection.sh",
+    "table.sh",
+    "wallet-material.sh",
+    "wallet-key.sh",
+    "wallet-address.sh",
+    "wallet-id.sh",
+    "wallet-create.sh",
+    "wallet-mnemonic.sh",
+    "wallet-mnemonic-ui.sh",
+    "wallet-hardware.sh",
+    "transaction.sh",
+    "multisig-key.sh",
+    "multisig-wallet.sh",
+    "multisig-ui.sh"
+  ]
+}

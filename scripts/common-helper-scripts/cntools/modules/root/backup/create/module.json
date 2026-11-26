@@ -1,0 +1,22 @@
+{
+  "kind": "action",
+  "label": "Create Backup",
+  "description": "Create a CNTools backup",
+  "order": 10,
+  "modes": [
+    "local",
+    "light",
+    "offline"
+  ],
+  "libs": [
+    "number.sh",
+    "filesystem.sh",
+    "presentation.sh",
+    "transaction.sh",
+    "table.sh",
+    "key-crypto.sh",
+    "backup-files.sh",
+    "backup.sh",
+    "backup-ui.sh"
+  ]
+}

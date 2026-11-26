@@ -1,13 +1,103 @@
 #### Architecture
 
-The architecture for various components are already described at [docs.cardano.org](https://docs.cardano.org/explore-cardano/cardano-architecture) by CF/IOHK. We will not reinvent the wheel :smile:
+The architecture for the main Cardano components is described in the
+[Cardano architecture documentation](https://docs.cardano.org/about-cardano/explore-more/cardano-architecture).
+
+#### Choosing a node implementation {: #choosing-a-node-implementation}
+
+Guild Operators is now structured as a **node-agnostic deployment framework**.
+The same `guild-deploy.sh` entrypoint handles common arguments, target
+validation, release metadata, `.deployment.json`, shared runtime libraries,
+and the hand-off to an implementation-specific deployment profile. Each node
+keeps its own launcher, configuration, bootstrap process, data layout, and
+systemd service.
+
+Node-agnostic architecture does not mean that every Guild helper works with
+every node. Compatibility is enabled only after a tool's commands, interfaces,
+and metrics have been verified for that implementation. The complete Guild
+operator toolset remains available only with `cnode`; Dingo additionally
+includes experimental CNTools wallet and pool workflows over its compatible
+node-to-client socket. Amaru remains a small deployment that runs as a relay
+or a block producer. All three include the common gLiveView dashboard through
+a normalized, availability-driven metrics interface.
+
+Multiple independent node implementations can improve client diversity and
+let operators explore different languages, architectures, resource trade-offs,
+and interfaces. They still implement the same Cardano protocol, but their
+databases and configuration are not interchangeable. Always give each
+implementation its own deployment target; do not point a new implementation
+at another node's existing data directory.
+
+| Guild selector | Node implementation | Project and team | Current Guild support |
+| --- | --- | --- | --- |
+| `cnode` | [cardano-node](https://github.com/IntersectMBO/cardano-node), written in Haskell | The established Cardano node originated under Input Output Global (IOG). Stewardship of the core repositories has moved to the member-based [Intersect MBO](https://www.intersectmbo.org/news/open-horizons-cardano-migrates-to-intersect). | Default and production option. Relays and block producers on mainnet and testnets, with the established Guild helper suite. |
+| `dingo` | [Dingo](https://github.com/blinklabs-io/dingo), written in Go | Developed by [Blink Labs](https://blinklabs.io/about), a Cardano-focused open-source software team. Upstream describes Dingo as under heavy active development and not ready for production use. | Experimental relays and block producers on `preprod` and `preview`, and relays only on `mainnet`, with runtime hot-key detection, gLiveView over native Prometheus, and CNTools through a separately pinned `cardano-cli`. No mainnet block production or remaining unverified cnode helpers. |
+| `amaru` | [Amaru](https://github.com/pragma-org/amaru), written in Rust | Hosted by the not-for-profit [PRAGMA](https://pragma.io/) open-source association and developed by [contributors from across the Cardano ecosystem](https://amaru.global/about/). Upstream describes Amaru as exploratory, with features still limited or incomplete. | Experimental rolling-release relay or block producer on `mainnet`, `preprod` and `preview`, with gLiveView through a managed, host-safe form of Amaru's reference OpenTelemetry-to-Prometheus bridge. No socket-dependent cnode helpers. |
+
+##### cnode / cardano-node
+
+`cnode` is the Guild profile and launcher name for the `cardano-node`
+executable. It is the mature choice for an existing stake-pool deployment,
+mainnet, block production, or use of the broader Guild toolset such as CNTools,
+CNCLI, Mithril helpers, db-sync, and Ogmios. It supports
+`mainnet`, `preprod`, `preview`, the Guild development network, and the
+[`dijkstra` and `musashi` testnets](Build/cnode.md#dijkstra-and-musashi-testnets). Omitting
+`-i` selects `cnode`, preserving the familiar deployment path and behavior.
+
+##### Dingo
+
+Dingo is an independent Go implementation from Blink Labs. Its upstream
+project includes node-to-client connectivity, Prometheus metrics, several
+storage and API options, and a built-in Mithril bootstrap client. The Guild
+profile exposes conservative core storage for relays and testnet block
+producers. As with cnode, a complete configured pool hot-key set selects
+producer mode at runtime; without it Dingo runs as a relay. On mainnet the
+profile runs Dingo only as a relay. Choose Dingo when you specifically want to
+test the Go implementation, its interoperability, or block production on a
+supported testnet. The profile includes gLiveView and
+CNTools. Dingo deliberately uses the standard `cardano-cli` interface rather
+than a Dingo-specific CLI; Guild pins that companion independently and
+installs it in the deployment's own `bin` folder. CNTools selects
+it automatically unless `CCLI` is set explicitly in the common `env`.
+
+##### Amaru
+
+Amaru is an independent Rust implementation developed under PRAGMA. Its goals
+include client diversity, a modular architecture, and exploring different
+resource-usage trade-offs from the established Haskell node. The current Guild
+profile bootstraps from Amaru snapshots, runs as a relay or a block producer,
+and does not provide a cardano-node-compatible local socket. The profile
+enables Amaru's OpenTelemetry integration and deploys a loopback-only, minimal
+form of Amaru's reference Prometheus bridge for gLiveView. It also installs an
+isolated, pinned `cardano-cli` companion for CNTools key and transaction work;
+queries and submissions still use Koios because that CLI cannot provide Amaru
+with a local socket. Choose Amaru when you specifically want to evaluate the
+Rust implementation on a supported testnet.
+
+!!! tip "Which implementation should I choose?"
+    - Choose **cnode** for mainnet, block production, an existing stake pool,
+      or the full Guild Operators experience.
+    - Choose **Dingo** to evaluate the Go node as an experimental relay, or as
+      a block producer on a testnet. Try it on a testnet first.
+    - Choose **Amaru** to evaluate the Rust node as an experimental relay or
+      block producer, on a testnet first.
+    - If you are unsure, omit `-i`; the safe default is **cnode**.
+
+For the precise deployment contract, layouts, and current compatibility
+matrix, see the [node implementation architecture
+guide](Build/node-implementations.md) and the implementation-specific
+[cnode](Build/cnode.md), [Dingo](Build/dingo.md), and
+[Amaru](Build/amaru.md) pages.
 
 #### Manual Software Pre-Requirements
 
 
 While we do not intend to hand out step-by-step instructions, the tools are often misused as a shortcut to avoid ensuring base skillsets mentioned on home page. Some of the common gotchas that we often find SPOs to miss out on:
 
-- It is imperative that pools operate with highly accurate system time, in order to propogate blocks to network in a timely manner and avoid penalties to own (or at times other competing) blocks. Please refer to sample guidance [here ](https://ubuntu.com/server/docs/network-ntp) for details - the precise steps may depend on your OS.
+- It is imperative that pools operate with highly accurate system time, in
+  order to propagate blocks to the network promptly. See Ubuntu's
+  [time-synchronization guidance](https://ubuntu.com/server/docs/network-ntp);
+  the exact setup depends on your operating system.
 - Ensure your Firewall rules at Network as well as OS level are updated according to the usage of your system, you'd want to whitelist the rules that you really need to open to world (eg: You might need node and SSH ports to be open to relays and perhaps home workstation on core, while open node to internet on relays, depending on your topology and configuration that you run).
 - Update your SSH Configuration to prevent password-based logon.
 - Ensure that you use offline workflow, you should never require to have your offline keys on online nodes. The tools provide you backup/restore functionality to only pass online keys to online nodes.
@@ -20,87 +110,264 @@ While we do not intend to hand out step-by-step instructions, the tools are ofte
 ##### Set up OS packages, folder structure and fetch files from repo {: #os-prereqs}
 
 The pre-requisites for Linux systems are automated to be executed as a single script. This script uses opt-in election of what you'd like the script to do. The defaults without any arguments will only update static part of script contents for you.
-To download the pre-requisites scripts, execute the below:
+
+The first deployment runs `guild-deploy.sh` straight from GitHub, without
+saving a copy. Check that it runs and read its options:
 
 ```bash
-mkdir "$HOME/tmp";cd "$HOME/tmp"
-# Install curl
-# CentOS / RedHat - sudo dnf -y install curl
-# Ubuntu / Debian - sudo apt -y install curl
-curl -sS -o guild-deploy.sh https://raw.githubusercontent.com/cardano-community/guild-operators/master/scripts/cnode-helper-scripts/guild-deploy.sh
-chmod 755 guild-deploy.sh
+# Install curl and git first
+# CentOS / RedHat - sudo dnf -y install curl git
+# Ubuntu / Debian - sudo apt -y install curl git
+bash <(curl -sSfL https://raw.githubusercontent.com/cardano-community/guild-operators/master/scripts/cnode-helper-scripts/guild-deploy.sh) -h
 ```
+
+The deployment installs its own copy as
+`${NODE_HOME}/scripts/guild-deploy.sh`, for example
+`/opt/cardano/cnode/scripts/guild-deploy.sh`. Run that copy for every later
+refresh or upgrade: it knows the deployment's target, keeps your settings in
+its user-variable block, and updates itself on each run.
+
+!!! tip "Reading the script first"
+    To read it before it runs, download it to `/tmp`, which is cleared on the
+    next reboot, and run that file instead:
+
+    ```bash
+    curl -sSfL -o /tmp/guild-deploy.sh https://raw.githubusercontent.com/cardano-community/guild-operators/master/scripts/cnode-helper-scripts/guild-deploy.sh
+    less /tmp/guild-deploy.sh
+    bash /tmp/guild-deploy.sh -h
+    ```
 
 !!! info "Important !!"
-    Please familiarise with the syntax of `guild-deploy.sh` before proceeding (using -h as below). The exact parameters you want to run with is dependent on your, below are only sample instructions
+    Please familiarise yourself with `guild-deploy.sh -h` before proceeding.
+    The commands below are examples; choose arguments appropriate for your
+    implementation, network, and target.
 
-The usage syntax can be checked using `./guild-deploy.sh -h` , sample output below:
+The bootstrap URL intentionally remains under `scripts/cnode-helper-scripts`.
+That stable path preserves the existing download and upgrade workflow, but the
+downloaded dispatcher itself is node-agnostic. It prepares one temporary
+shallow Git checkout of the selected account and branch, then runs that
+checkout's dispatcher and reads every Guild-owned deployment file from it, so
+the copy you start only has to begin the run.
+Tracked files must still match the selected commit, and the chosen profile
+validates all required payloads before changing the node target. The temporary
+checkout is removed when deployment finishes or fails. Release APIs and
+third-party binary downloads remain separate because they are not files in
+Guild Operators.
+Fallback to `master` happens only after Git confirms that the selected branch
+or tag is absent. A historical branch that predates this snapshot protocol
+must be run with the matching historical `guild-deploy.sh` from that branch.
+
+The usage syntax can be checked with `-h`, as above, or with
+`${NODE_HOME}/scripts/guild-deploy.sh -h` on a deployment. The same entrypoint
+dispatches to the selected node implementation:
 
 ``` bash
+Usage: guild-deploy.sh [-g account] [-i <cnode|dingo|amaru>] [-n <network>] \
+                       [-p path] [-t name] [-b branch] [-s flags]
 
-Usage: guild-deploy.sh [-n <mainnet|guild|preprod|preview>] [-p path] [-t <name>] [-b <branch>] [-u] [-s [p][b][l][m][d][c][o][w][x][f][s]]
-Set up dependencies for building/using common tools across cardano ecosystem.
-The script will always update dynamic content from existing scripts retaining existing user variables
-
--n    Connect to specified network instead of mainnet network (Default: connect to cardano mainnet network) eg: -n guild
--p    Parent folder path underneath which the top-level folder will be created (Default: /opt/cardano)
--t    Alternate name for top level folder - only alpha-numeric chars allowed (Default: cnode)
--b    Use alternate branch of scripts to download - only recommended for testing/development (Default: master)
--u    Skip update check for script itself
--s    Selective Install, only deploy specific components as below:
-  p   Install common pre-requisite OS-level Dependencies for most tools on this repo (Default: skip)
-  b   Install OS level dependencies for tools required while building cardano-node/cardano-db-sync components (Default: skip)
-  l   Build and Install libsodium fork from IO repositories (Default: skip)
-  m   Download latest (released) binaries for mithril-signer, mithril-client (Default: skip)
-  d   Download latest (released) binaries for bech32, cardano-address, cardano-node, cardano-cli, cardano-db-sync and cardano-submit-api (Default: skip)
-  c   Download latest (released) binaries for CNCLI (Default: skip)
-  o   Download latest (released) binaries for Ogmios (Default: skip)
-  w   Download latest (released) binaries for Cardano Hardware CLI (Default: skip)
-  x   Download latest (released) binaries for Cardano Signer binary (Default: skip)
-  f   Force overwrite config files (backups of existing ones will be created) (Default: skip)
-  s   Force overwrite entire content [including user variables] of scripts (Default: skip)
-
+-g    GitHub account that owns the Guild Operators repository
+      (default: stored deployment account, then cardano-community)
+-i    Node implementation (default: cnode)
+-n    Network. cnode defaults to mainnet; alternate profiles require an
+      explicit supported network on initial deployment (an existing manifest
+      restores it on later runs)
+-p    Parent folder (default: /opt/cardano)
+-t    Top-level folder and service name (default: selected implementation)
+      Without -p and -t, the copy installed as <target>/scripts/guild-deploy.sh
+      defaults to its own <target> and implementation
+-b    Guild Operators branch (default: stored deployment branch, then master)
+-s    Selective install flags. All implementations:
+        p  runtime OS prerequisites
+        d  selected node implementation binaries
+        f  force configuration overwrite (backups are kept)
+        u  update the kept configuration in place for this release (backups are kept)
+        s  force helper-script overwrite
+        w  cardano-hw-cli and host device rules
+      cnode only (dingo and amaru reject these):
+        b  Haskell build toolchain (GHCup, GHC, Cabal, secp256k1, blst)
+        l  libsodium fork for source builds
+        m  Mithril signer and client
+        c  CNCLI
+        o  Ogmios
+        x  Cardano Signer
+        r  openBlockPerf
 ```
 
-1. If you receive an error for `glibc`, it would likely be due to the build mismatch between pre-compiled binary and your OS, which is not uncommon. You may need to compile cncli manually on your OS as per instructions [here](https://github.com/cardano-community/cncli/blob/develop/INSTALL.md#compile-from-source) - make sure to copy the output binary to `"${HOME}/.local/bin"` folder.
+Dingo and Amaru reject the cnode-only choices instead of silently installing
+incompatible software. See
+[Node implementation deployment architecture](Build/node-implementations.md)
+and the implementation-specific
+[cnode](Build/cnode.md), [Dingo](Build/dingo.md), and
+[Amaru](Build/amaru.md) guides.
+
+Package-manager output is compact by default. The deployment shows transaction
+totals, packages that were installed or updated, and any notices or warnings,
+while hiding repository-download and unpacking progress. If a package command
+fails, compact diagnostics and the last output lines are printed with the
+original exit status; the full private log is retained at the reported path.
+To see the package manager's unfiltered output during troubleshooting, set
+`PACKAGE_MANAGER_OUTPUT=verbose` in the `guild-deploy.sh` user-variable block
+or for one invocation:
+
+```bash
+PACKAGE_MANAGER_OUTPUT=verbose /opt/cardano/amaru/scripts/guild-deploy.sh -s p
+```
+
+!!! warning "Alternate implementations are experimental"
+    Both can be deployed as mainnet relays, but try them on a testnet first;
+    running them on mainnet is at your own responsibility. Dingo block
+    production is available only for experimental evaluation on `preprod` and
+    `preview`; never place mainnet or real-funds pool keys in a Dingo
+    deployment. Amaru block production is experimental on every network:
+    prove it with a testnet pool before you trust it with other pool keys.
+
+- For cnode, a `glibc` error while installing CNCLI usually means that the
+  precompiled binary is incompatible with the host OS. Compile CNCLI using its
+  [upstream instructions](https://github.com/cardano-community/cncli/blob/develop/INSTALL.md#compile-from-source)
+  and copy the resulting binary to `"${NODE_HOME}/bin"`.
 
 A typical example install to install most components but not overwrite static part of existing files for preview network would be:
 
 ``` bash
-./guild-deploy.sh -b master -n preview -t cnode -s pdlcowx
+bash <(curl -sSfL https://raw.githubusercontent.com/cardano-community/guild-operators/master/scripts/cnode-helper-scripts/guild-deploy.sh) \
+  -n preview -s pdlcowx
 . "${HOME}/.bashrc"
 ```
 
-If instead of download, you'd want to build the components yourself, you could use:
+The cnode `b` flag prepares the build toolchain; it does not compile or install
+cardano-node by itself. To build instead of using `-s d`, first deploy the
+toolchain and scripts, then follow the
+[cardano-node and cardano-cli build guide](Build/node-cli.md):
 
 ``` bash
-./guild-deploy.sh -b master -n preview -t cnode -s pblcowx
+bash <(curl -sSfL https://raw.githubusercontent.com/cardano-community/guild-operators/master/scripts/cnode-helper-scripts/guild-deploy.sh) \
+  -n preview -s pbl
 . "${HOME}/.bashrc"
 ```
 
-Lastly, if you'd want to update your scripts but not install any additional dependencies, you may simply run:
+Lastly, if you'd want to update your scripts but not install any additional dependencies, run the deployment's own copy:
 
 ``` bash
-./guild-deploy.sh -b master -n preview -t cnode
+/opt/cardano/cnode/scripts/guild-deploy.sh
 ```
+
+Experimental relay examples are:
+
+```bash
+GUILD_DEPLOY=https://raw.githubusercontent.com/cardano-community/guild-operators/master/scripts/cnode-helper-scripts/guild-deploy.sh
+bash <(curl -sSfL "${GUILD_DEPLOY}") -i dingo -n preview -s pd
+bash <(curl -sSfL "${GUILD_DEPLOY}") -i amaru -n preprod -s pd
+```
+
+Each deployment installs its binaries in its own `${NODE_HOME}/bin`, so
+deployments of the same OS user can't affect each other. Guild scripts and
+services find them without any `PATH` change. To use a deployment's binaries for
+commands typed by hand, run `source ${NODE_HOME}/scripts/activate` in that shell
+(see [Several deployments under one user](#several-deployments)).
+cnode keeps its reviewed static node release, while
+`-s d` resolves the newest published non-draft Dingo or Amaru release,
+including prereleases, and verifies its GitHub-published asset digest. For
+Dingo the same selection installs its separately pinned and
+checksum-verified CLI companion. Every successful
+target also contains `.deployment.json`, which records the implementation,
+network, Guild repository, branch and exact source revision, service name,
+installed and targeted versions, and declared capabilities. Re-running the
+dispatcher restores those values from the manifest. An explicit
+`G_ACCOUNT` user-variable/environment override or `-b` branch selects a new
+update source; an explicit network must match the existing deployment and
+cannot convert the target.
+For Dingo and Amaru, `-n` is therefore required only on the initial
+deployment; it may be omitted when updating a target with a valid manifest.
+
+Each deployment also installs its own copy of the dispatcher at
+`<target>/scripts/guild-deploy.sh`. Run without `-p` and `-t`, that copy
+updates the deployment it is installed in instead of the default
+`/opt/cardano/<implementation>`, so the manifest supplies the implementation,
+network, branch, and repository account:
+
+```bash
+/opt/cardano/preview/scripts/guild-deploy.sh -s d
+```
+
+`-p`, `-t`, or `NODE_PARENT`/`NODE_NAME` in its user-variable block or
+environment select a target as usual, and `-i` naming a different
+implementation falls back to that implementation's default target.
+
+Deployment paths are intentionally limited to shell- and systemd-safe
+characters. A target is locked for the full deployment, so a simultaneous
+deployment, helper runtime refresh, or `-b` branch change against the same
+folder is rejected.
+
+##### Several deployments under one user {: #several-deployments}
+
+One OS user can run several deployments, such as a preprod relay next to a
+Dijkstra node. Deploy each one with its own `-t` name and ports. Guild scripts
+and services use their own deployment's binaries, socket and network without
+any setup.
+
+Commands you type yourself use one deployment per shell. To choose which,
+source that deployment's `activate` script:
+
+``` bash
+source /opt/cardano/cnode/scripts/activate
+cardano-cli latest query tip
+```
+
+It prints what the shell now uses, for example
+`This shell now uses cnode on preprod: /opt/cardano/cnode/bin`, and sets:
+
+| Variable | Value |
+| --- | --- |
+| `PATH` | The deployment's `bin` folder first, so `cardano-cli`, `cncli` and the other tools are the deployment's own versions |
+| `CARDANO_NODE_SOCKET_PATH` | `SOCKET` from the deployment's `env` file, or the socket in its `sockets` folder. Amaru has no socket for `cardano-cli`, so the variable is cleared |
+| `CARDANO_NODE_NETWORK_ID` | `mainnet` or the testnet's magic, such as `1` for preprod, so `cardano-cli` needs no `--mainnet` or `--testnet-magic` |
+| `GUILD_ACTIVE_HOME` | The deployment's folder, for example to show in your shell prompt |
+
+To switch, source the other deployment's copy. It removes the first
+deployment's `bin` folder from `PATH` before it adds its own, and replaces the
+socket and network:
+
+``` bash
+source /opt/cardano/dijkstra/scripts/activate
+cardano-cli latest query tip
+```
+
+The choice lasts until the shell closes, and other shells don't change. There
+is no command to undo it, so open a new shell instead. If you run a single
+deployment, you can add the `source` line to `~/.bashrc` so every new shell
+uses it. Run the script with `source`: run as a program, it can't change your
+shell, so it stops with a message.
 
 ##### Folder structure
 
-Running the script above will create the folder structure as per below, for your reference. You do NOT require `CNODE_HOME` to be set on shell level as scripts will derive the parent folder and assign it at runtime, the addition in `~/.bashrc` is only for your ease to switch to right folder:
+Running the cnode profile creates the structure below. You do not require
+`CNODE_HOME` to be set at shell level because scripts derive their deployment
+root. The entry in `~/.bashrc` is only a convenience.
 
 
     /opt/cardano/cnode            # Top-Level Folder
+    ├── .deployment.json          # Guild deployment identity and branch
     ├── ...
+    ├── bin                       # Every binary this deployment runs
     ├── files                     # Config, genesis and topology files
+    │   ├── cnode-release.json    # cnode node, tool, and build manifest
     │   ├── ...
     │   ├── byron-genesis.json    # Byron Genesis file referenced in config.json
     │   ├── shelley-genesis.json  # Genesis file referenced in config.json
     │   ├── alonzo-genesis.json    # Alonzo Genesis file referenced in config.json
+    │   ├── conway-genesis.json    # Conway Genesis file referenced in config.json
     │   ├── config.json           # Config file used by cardano-node
+    │   ├── peer-snapshot.json    # Largest pools' relays a syncing node starts from (GenesisMode networks)
+    │   ├── checkpoints.json      # Known early blocks, mainnet and preview
     │   └── topology.json         # Map of chain for cardano-node to boot from
     ├── db                        # DB Store for cardano-node
     ├── guild-db                  # DB Store for guild-specific tools and additions (eg: cncli, cardano-db-sync's schema)
     ├── logs                      # Logs for cardano-node
-    ├── priv                      # Folder to store your keys (permission: 600)
-    ├── scripts                   # Scripts to start and interact with cardano-node
+    ├── priv                      # Restricted folder for operational keys
+    ├── scripts                   # Node launcher, common tools, libraries and cnode adapter
     └── sockets                   # Socket files created by cardano-node
+
+Dingo and Amaru retain the same top-level concepts where they apply, while
+using implementation-specific configuration and state directories. Their
+complete layouts are documented in the [Dingo](Build/dingo.md) and
+[Amaru](Build/amaru.md) guides.

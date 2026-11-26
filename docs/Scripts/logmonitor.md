@@ -1,18 +1,34 @@
 !!! info "Reminder !!"
     Ensure the [Pre-Requisites](../basics.md#pre-requisites) are in place before you proceed.
 
-`logMonitor.sh` is a general purpose JSON log monitoring script for traces created by `cardano-node`. Currently, it looks for traces related to leader slots and block creation but other uses could be added in the future. 
+!!! warning "Currently disabled and cnode-only"
+    `logMonitor.sh` has not been updated for the current `cardano-node`
+    tracing format. It exits without monitoring logs, and
+    `logMonitor.sh systemd install` deliberately refuses to install a service
+    that cannot run. Dingo and Amaru deployments do not install this helper.
+
+`logMonitor.sh` is a legacy JSON log monitor for traces produced by
+`cardano-node`. Its disabled parser looked for leader-slot and block-creation
+events.
 
 ##### Block traces
-For the core node (block producer) the `logMonitor.sh` script can be run to monitor the JSON log file created by `cardano-node` for traces related to leader slots and block creation.   
+Historically, a core node (block producer) could run `logMonitor.sh` against
+the JSON log produced by `cardano-node` to find leader-slot and block-creation
+traces. That parser is not usable with current tracing.
 
-For optimal coverage, it's best run together with [CNCLI](../Scripts/cncli.md) scripts as they provide different functionalities. Together, they create a complete picture of blocks assigned, created, validated or invalidated due to node issues. 
+When supported, Log Monitor complemented [CNCLI](cncli.md); CNCLI blocklog does
+not require Log Monitor and remains usable while this helper is disabled.
 
 ##### Installation
-The script is best run as a background process. This can be accomplished in many ways but the preferred method is to run it as a systemd service. A terminal multiplexer like tmux or screen could also be used but not covered here.
 
-Use the `deploy-as-systemd.sh` script to create a systemd unit file (deployed together with [CNCLI](../Scripts/cncli.md)).
-Log output is handled by journald. `journalctl -f -u cnode-logmonitor.service` can be used to check service output (follow mode). Other logging configurations are not covered here.  
+New installation is disabled until the tracing parser is updated. The script still owns the old unit name so stale installations can be inspected and safely removed:
+
+``` bash
+$CNODE_HOME/scripts/logMonitor.sh systemd status
+$CNODE_HOME/scripts/logMonitor.sh systemd remove
+```
+
+The owned unit is `${CNODE_VNAME}-logmonitor.service` (`cnode-logmonitor.service` with the default prefix). No central systemd deployment script is required.
 
 ##### View Blocklog
 Best viewed in CNTools or gLiveView. See [CNCLI](../Scripts/cncli.md) for example output.

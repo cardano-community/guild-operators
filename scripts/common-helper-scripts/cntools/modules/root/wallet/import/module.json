@@ -1,0 +1,6 @@
+{
+  "kind": "menu",
+  "label": "Import",
+  "description": "Import an existing wallet",
+  "order": 20
+}

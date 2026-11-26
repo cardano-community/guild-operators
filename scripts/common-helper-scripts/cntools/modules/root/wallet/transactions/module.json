@@ -1,0 +1,35 @@
+{
+  "kind": "action",
+  "label": "Transaction List",
+  "description": "Browse wallet transactions through Koios",
+  "order": 100,
+  "modes": [
+    "local",
+    "light"
+  ],
+  "requiresKoios": true,
+  "libs": [
+    "number.sh",
+    "bech32.sh",
+    "drep-id.sh",
+    "address-credential.sh",
+    "presentation.sh",
+    "wallet.sh",
+    "wallet-material.sh",
+    "wallet-key.sh",
+    "wallet-address.sh",
+    "wallet-id.sh",
+    "asset.sh",
+    "asset-cache.sh",
+    "wallet-query-transport.sh",
+    "wallet-query-local.sh",
+    "asset-metadata.sh",
+    "wallet-query-koios.sh",
+    "asset-view.sh",
+    "wallet-query.sh",
+    "table.sh",
+    "wallet-history.sh",
+    "transaction-detail-ui.sh",
+    "wallet-history-ui.sh"
+  ]
+}

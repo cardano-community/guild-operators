@@ -1,0 +1,30 @@
+{
+  "kind": "action",
+  "label": "Create Policy",
+  "description": "Create a native asset minting policy",
+  "order": 10,
+  "modes": [
+    "local",
+    "light",
+    "offline"
+  ],
+  "libs": [
+    "number.sh",
+    "filesystem.sh",
+    "bech32.sh",
+    "presentation.sh",
+    "wallet.sh",
+    "wallet-query-transport.sh",
+    "wallet-query-local.sh",
+    "asset-metadata.sh",
+    "wallet-query-koios.sh",
+    "asset-view.sh",
+    "wallet-query.sh",
+    "wallet-key.sh",
+    "transaction.sh",
+    "table.sh",
+    "policy-files.sh",
+    "policy.sh",
+    "policy-ui.sh"
+  ]
+}

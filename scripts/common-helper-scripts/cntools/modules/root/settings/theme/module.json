@@ -1,0 +1,12 @@
+{
+  "kind": "action",
+  "label": "Appearance",
+  "description": "Select and persist the CNTools color theme",
+  "order": 20,
+  "advanced": true,
+  "modes": [
+    "local",
+    "light",
+    "offline"
+  ]
+}

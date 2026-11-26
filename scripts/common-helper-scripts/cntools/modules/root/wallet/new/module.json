@@ -1,0 +1,6 @@
+{
+  "kind": "menu",
+  "label": "New",
+  "description": "Create a new wallet",
+  "order": 10
+}

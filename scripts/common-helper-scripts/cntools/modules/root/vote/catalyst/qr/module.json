@@ -1,0 +1,27 @@
+{
+  "kind": "action",
+  "label": "Display QR",
+  "description": "Display the Catalyst voting QR code",
+  "order": 20,
+  "modes": [
+    "local",
+    "light",
+    "offline"
+  ],
+  "libs": [
+    "number.sh",
+    "filesystem.sh",
+    "bech32.sh",
+    "presentation.sh",
+    "wallet.sh",
+    "wallet-material.sh",
+    "wallet-key.sh",
+    "transaction.sh",
+    "table.sh",
+    "drep-id.sh",
+    "catalyst-key.sh",
+    "catalyst-qr.sh",
+    "catalyst-ui.sh",
+    "wallet-selection.sh"
+  ]
+}
