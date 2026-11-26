@@ -25,7 +25,6 @@
         - Changelog: Scripts/cntools-changelog.md
         - Log Monitor: Scripts/logmonitor.md
       - gLiveView: Scripts/gliveview.md
-      - Topology Updater: Scripts/topologyupdater.md
     - CNCLI: Scripts/cncli.md
     - Mithril:
       - Overview: Mithril/mithril-overview.md

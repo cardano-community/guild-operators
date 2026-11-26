@@ -189,6 +189,8 @@ if grep -Eq \
 fi
 [[ ! -e "${ROOT_DIR}/scripts/common-helper-scripts/cntools.library" ]] ||
   fail "retired legacy cntools.library still exists"
+[[ ! -e "${ROOT_DIR}/scripts/cnode-helper-scripts/topologyUpdater.sh" ]] ||
+  fail "retired topologyUpdater.sh still exists"
 [[ -x "${ROOT_DIR}/scripts/common-helper-scripts/cntools.sh" ]] ||
   fail "public CNTools launcher is missing or not executable"
 bash -n "${ROOT_DIR}/scripts/common-helper-scripts/cntools.sh" ||
@@ -303,6 +305,9 @@ for profile in \
     fail "$(basename "${profile}") does not install the public CNTools launcher"
   if grep -q 'common-helper-scripts/cntools[.]library' "${profile}"; then
     fail "$(basename "${profile}") still deploys cntools.library"
+  fi
+  if grep -Eq 'updateWithCustomConfig "topologyUpdater[.]sh"|cnode-helper-scripts/topologyUpdater[.]sh' "${profile}"; then
+    fail "$(basename "${profile}") still deploys topologyUpdater.sh"
   fi
   tree_line="$(grep -n 'dispatcher_install_cntools_tree' "${profile}" | tail -1 | cut -d: -f1)"
   launcher_line="$(grep -n 'dispatcher_install_cntools_launcher' "${profile}" | tail -1 | cut -d: -f1)"

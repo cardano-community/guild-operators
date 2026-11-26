@@ -89,13 +89,6 @@ native Prometheus; Amaru uses a managed, host-safe form of its upstream
 OpenTelemetry-to-Prometheus bridge. See the
 [gLiveView guide](Scripts/gliveview.md).
 
-##### Topology Updater
-
-A legacy node-to-node discovery solution created before Cardano P2P was
-available. It is retained only for operators maintaining an existing non-P2P
-cnode deployment and is deprecated for new deployments. You can read more
-about it [here](Scripts/topologyupdater.md).
-
 ##### Koios/gRest
 
 A full-featured local query layer node to explore blockchain data (via dbsync) using standardised pre-built queries served via API as per standard from [Koios](https://koios.rest) - for which user can opt to participate in elastic query layer. The Guild deployment is currently `cnode`-only. You can read more about build steps [here](Build/grest.md) and reference API endpoints [here](https://api.koios.rest)

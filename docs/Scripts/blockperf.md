@@ -26,7 +26,7 @@ The historical implementation also sent this data to the TopologyUpdater
 server so contributing relays could compare propagation performance. No data
 is collected or sent while BlockPerf is disabled.
 
-There is no connection or constraint between the TopologyUpdater Relay subscription and the BlockPerf analysis. BlockPerf is even designed to work outside the cnTools suite. 
+BlockPerf is designed to work outside the CNTools suite.
 
 The results of these data are a good basis to make optimizations and to evaluate which changes were useful or might by required to improve the performance compared to other relay nodes.
 

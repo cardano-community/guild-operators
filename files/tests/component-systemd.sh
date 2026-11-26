@@ -35,8 +35,7 @@ for component in \
   logMonitor.sh \
   mithril-signer.sh \
   ogmios.sh \
-  submitapi.sh \
-  topologyUpdater.sh; do
+  submitapi.sh; do
   cp "${REPO_ROOT}/scripts/cnode-helper-scripts/${component}" "${SCRIPT_ROOT}/${component}"
 done
 cp "${REPO_ROOT}/scripts/cnode-helper-scripts/mithril.library" \
@@ -90,7 +89,6 @@ export SYSTEMD_UNIT_DIR="${UNIT_ROOT}"
   exit 1
 }
 "${BASH}" "${SCRIPT_ROOT}/cncli.sh" systemd install all
-"${BASH}" "${SCRIPT_ROOT}/topologyUpdater.sh" -d
 
 # The former orchestrator/library generated this unit without referencing the
 # launcher path. Its historical description is the migration signature.
@@ -106,12 +104,7 @@ for expected in \
   cnode-cncli-leaderlog.service \
   cnode-cncli-validate.service \
   cnode-cncli-ptsendtip.service \
-  cnode-cncli-ptsendslots.service \
-  cnode-tu-push.service \
-  cnode-tu-push.timer \
-  cnode-tu-fetch.service \
-  cnode-tu-restart.service \
-  cnode-tu-restart.timer; do
+  cnode-cncli-ptsendslots.service; do
   [[ -f "${UNIT_ROOT}/${expected}" ]] || {
     printf 'FAIL: systemd install alias did not create %s\n' "${expected}" >&2
     exit 1
@@ -156,7 +149,6 @@ done
 "${BASH}" "${SCRIPT_ROOT}/submitapi.sh" systemd remove
 "${BASH}" "${SCRIPT_ROOT}/ogmios.sh" systemd remove
 "${BASH}" "${SCRIPT_ROOT}/cncli.sh" systemd remove all
-"${BASH}" "${SCRIPT_ROOT}/topologyUpdater.sh" systemd remove
 "${BASH}" "${SCRIPT_ROOT}/mithril-signer.sh" systemd remove
 [[ ! -e "${UNIT_ROOT}/cnode-mithril-signer.service" ]] ||
   fail "legacy Mithril signer unit was not migrated by component ownership"
@@ -173,11 +165,6 @@ for expected in \
   cnode-cncli-validate.service \
   cnode-cncli-ptsendtip.service \
   cnode-cncli-ptsendslots.service \
-  cnode-tu-push.service \
-  cnode-tu-push.timer \
-  cnode-tu-fetch.service \
-  cnode-tu-restart.service \
-  cnode-tu-restart.timer \
   cnode-mithril-signer.service \
   cnode-tu-blockperf.service \
   cnode-logmonitor.service; do

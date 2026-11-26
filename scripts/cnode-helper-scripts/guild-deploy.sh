@@ -3559,6 +3559,9 @@ guild_deploy_main() {
     if [[ -n "$(dispatcher_layout_private_items)" ]]; then
       BINARY_LAYOUT_ACTION+=" Remove group and other write access under ${NODE_HOME}/priv, which CNTools requires."
     fi
+    if [[ "${NODE_IMPLEMENTATION}" = "cnode" && -e "${NODE_HOME}/scripts/topologyUpdater.sh" ]]; then
+      BINARY_LAYOUT_ACTION+=" Archive the retired topologyUpdater.sh and remove its systemd units, if installed."
+    fi
     dispatcher_binary_layout_print
     printf "\n  Check only: nothing was changed.\n\n"
     return 0

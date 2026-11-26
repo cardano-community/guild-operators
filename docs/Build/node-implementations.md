@@ -342,14 +342,14 @@ existing operators can still replace or remove them safely.
 | Dingo | `dingo.sh -d` or `dingo.sh install`; also `remove` and `status` |
 | Amaru node and metrics bridge | `amaru.sh -d` or `amaru.sh install`; lifecycle commands manage both units |
 | CNCLI operational units | `cncli.sh -d [scope]` or `cncli.sh systemd install\|remove\|status [scope]` |
-| Topology Updater units | `topologyUpdater.sh -d` or `topologyUpdater.sh systemd install [restart-seconds]`; lifecycle via `topologyUpdater.sh systemd remove\|status` |
 
 Installation enables units but does not start the node. Bootstrap and inspect
 an alternate implementation before starting it explicitly.
 
-Topology Updater predates Cardano P2P and is deprecated. Its service ownership
-was moved for consistency and cleanup only; new P2P deployments should not
-install it. Disabled BlockPerf and Log Monitor scripts can remove or inspect
+Topology Updater predates Cardano P2P and has been removed. A cnode refresh
+archives `topologyUpdater.sh` and removes its `cnode-tu-push`, `cnode-tu-fetch`
+and `cnode-tu-restart` units, because the restart timer would otherwise keep
+restarting the node every day. Disabled BlockPerf and Log Monitor scripts can remove or inspect
 stale units, but refuse to install a service that cannot run with current
 tracing.
 

@@ -34,7 +34,7 @@ individual helper updates.
 
 The old `${CNODE_HOME}/scripts/.env_branch` file is no longer used. Branch
 selection is stored in `${NODE_HOME}/.deployment.json`. Passing `-b` to
-gLiveView, CNTools, Topology Updater, setup-grest, or the deployment dispatcher
+gLiveView, CNTools, setup-grest, or the deployment dispatcher
 updates that manifest while preserving its other fields.
 
 An existing manifest is authoritative and must be valid schema version 1 with

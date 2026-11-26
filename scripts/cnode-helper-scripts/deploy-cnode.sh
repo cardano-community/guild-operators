@@ -156,7 +156,6 @@ cnode_deploy_preflight_snapshot() {
     scripts/cnode-helper-scripts/cnode.sh
     scripts/cnode-helper-scripts/dbsync.sh
     scripts/common-helper-scripts/gLiveView.sh
-    scripts/cnode-helper-scripts/topologyUpdater.sh
     scripts/cnode-helper-scripts/logMonitor.sh
     scripts/cnode-helper-scripts/ogmios.sh
     scripts/cnode-helper-scripts/submitapi.sh
@@ -1921,6 +1920,42 @@ retire_legacy_systemd_orchestrator() {
   log_info "Archived retired deploy-as-systemd.sh as ${archived_script}."
 }
 
+# Topology Updater predates P2P and is no longer shipped. Archive an installed
+# copy and remove its units: the restart timer would keep restarting the node
+# every day, and the other units fail without the script.
+retire_topology_updater() {
+  local legacy_script="${NODE_HOME}/scripts/topologyUpdater.sh"
+  local unit_dir="${SYSTEMD_UNIT_DIR:-/etc/systemd/system}"
+  local archived_script unit
+  local -a units=()
+
+  if [[ -n "${NODE_SERVICE:-}" ]]; then
+    for unit in push.service push.timer fetch.service restart.service restart.timer; do
+      unit="${NODE_SERVICE}-tu-${unit}"
+      [[ -e "${unit_dir}/${unit}" || -L "${unit_dir}/${unit}" ]] && units+=("${unit}")
+    done
+  fi
+  if [[ ${#units[@]} -gt 0 ]]; then
+    if (
+      # shellcheck source=/dev/null
+      . "${NODE_HOME}/scripts/lib/systemd.library" &&
+        systemd_remove_units --owner-token "${legacy_script}" \
+          --legacy-token "Topology Updater" "${units[@]}"
+    ); then
+      log_info "Removed the retired Topology Updater units: ${units[*]}."
+    else
+      log_warn "Could not remove every Topology Updater unit, and its restart timer restarts the node. Run: sudo systemctl disable --now ${units[*]}, delete them from ${unit_dir}, then sudo systemctl daemon-reload."
+    fi
+  fi
+
+  [[ -e "${legacy_script}" || -L "${legacy_script}" ]] || return 0
+  archived_script="${NODE_HOME}/scripts/archive/topologyUpdater.sh_deprecated_$(date +%s).$$"
+  if ! mv -f -- "${legacy_script}" "${archived_script}"; then
+    err_exit "Could not archive the retired topologyUpdater.sh."
+  fi
+  log_info "Archived retired topologyUpdater.sh as ${archived_script}."
+}
+
 cnode_deploy_fetch_network_config() {
   local remote_name="$1"
   local destination="$2"
@@ -2103,7 +2138,6 @@ populate_cnode() {
   updateWithCustomConfig "cnode.sh"
   updateWithCustomConfig "dbsync.sh"
   updateWithCustomConfig "gLiveView.sh" "common-helper-scripts"
-  updateWithCustomConfig "topologyUpdater.sh"
   updateWithCustomConfig "logMonitor.sh"
   updateWithCustomConfig "ogmios.sh"
   updateWithCustomConfig "submitapi.sh"
@@ -2116,6 +2150,7 @@ populate_cnode() {
   # All former orchestrator-owned units now have component-local lifecycle
   # commands. Retire an installed legacy copy only after those scripts refresh.
   retire_legacy_systemd_orchestrator
+  retire_topology_updater
 
   find "${NODE_HOME}/scripts" \
     -path "${NODE_HOME}/scripts/cntools" -prune -o \

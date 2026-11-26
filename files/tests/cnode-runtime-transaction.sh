@@ -1237,6 +1237,69 @@ run_legacy_orchestrator_retirement_test() (
     fail "archived deploy-as-systemd.sh did not preserve its content"
 )
 
+# A refresh archives topologyUpdater.sh and removes its units, which the old
+# deploy-as-systemd.sh wrote without an ownership marker. A same-name unit
+# without the Topology Updater signature is left alone and reported.
+run_topology_updater_retirement_test() (
+  local node_root="${TEST_ROOT}/topology-updater-retirement"
+  local legacy_script="${node_root}/scripts/topologyUpdater.sh"
+  local output="${TEST_ROOT}/topology-updater-retirement.out"
+  local archived_script unit
+
+  mkdir -p "${node_root}/scripts/archive" "${node_root}/scripts/lib" "${node_root}/units"
+  cp "${REPO_ROOT}/scripts/common-helper-scripts/lib/systemd.library" "${node_root}/scripts/lib/"
+  printf '%s\n' '#!/usr/bin/env bash' '# retired topology updater fixture' > "${legacy_script}"
+  for unit in push.service push.timer fetch.service restart.service restart.timer; do
+    printf '%s\n' '[Unit]' "Description=Cardano Node - Topology Updater - ${unit}" \
+      > "${node_root}/units/cnode-tu-${unit}"
+  done
+  printf '%s\n' '[Unit]' 'Description=Operator timer' > "${node_root}/units/cnode-tu-restart.timer"
+  printf '%s\n' '[Unit]' 'Description=BlockPerf' > "${node_root}/units/cnode-tu-blockperf.service"
+  printf '%s\n' '#!/usr/bin/env bash' 'printf "%s\n" "$*" >> "${SYSTEMCTL_LOG}"' > "${node_root}/systemctl"
+  chmod 755 "${node_root}/systemctl"
+
+  NODE_HOME="${node_root}"
+  NODE_SERVICE="cnode"
+  SYSTEMD_UNIT_DIR="${node_root}/units"
+  SYSTEMCTL_BIN="${node_root}/systemctl"
+  SYSTEMCTL_LOG="${node_root}/systemctl.log"
+  SUDO="N"
+  export SYSTEMCTL_LOG
+
+  retire_topology_updater > "${output}" 2>&1
+
+  [[ ! -e "${legacy_script}" ]] ||
+    fail "retired topologyUpdater.sh remained in the active scripts folder"
+  archived_script="$(
+    find "${node_root}/scripts/archive" -type f \
+      -name 'topologyUpdater.sh_deprecated_*' -print -quit
+  )"
+  [[ -n "${archived_script}" ]] ||
+    fail "retired topologyUpdater.sh was not archived"
+  grep -q '^# retired topology updater fixture$' "${archived_script}" ||
+    fail "archived topologyUpdater.sh did not preserve its content"
+  for unit in push.service push.timer fetch.service restart.service; do
+    [[ ! -e "${node_root}/units/cnode-tu-${unit}" ]] ||
+      fail "Topology Updater unit cnode-tu-${unit} was not removed"
+    grep -qx "disable --now cnode-tu-${unit}" "${SYSTEMCTL_LOG}" ||
+      fail "Topology Updater unit cnode-tu-${unit} was not stopped and disabled"
+  done
+  grep -qx 'daemon-reload' "${SYSTEMCTL_LOG}" ||
+    fail "systemd was not reloaded after removing Topology Updater units"
+  [[ -f "${node_root}/units/cnode-tu-restart.timer" ]] ||
+    fail "a timer without the Topology Updater signature was removed"
+  [[ -f "${node_root}/units/cnode-tu-blockperf.service" ]] ||
+    fail "the BlockPerf unit was removed with Topology Updater"
+  grep -q 'Could not remove every Topology Updater unit' "${output}" ||
+    fail "a Topology Updater unit left in place was not reported"
+
+  rm -f "${node_root}/units/cnode-tu-restart.timer" "${SYSTEMCTL_LOG}"
+  retire_topology_updater > "${output}" 2>&1 ||
+    fail "retiring Topology Updater twice failed"
+  [[ ! -e "${SYSTEMCTL_LOG}" ]] ||
+    fail "a second retirement touched systemd without Topology Updater units"
+)
+
 run_profile_state_test
 run_initial_port_seed_test
 run_release_metadata_test
@@ -1250,5 +1313,6 @@ run_transaction_tests
 run_custom_script_snapshot_test
 run_install_order_test
 run_legacy_orchestrator_retirement_test
+run_topology_updater_retirement_test
 
 printf 'cnode runtime transaction tests passed\n'

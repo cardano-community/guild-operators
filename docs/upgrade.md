@@ -201,6 +201,13 @@ mv /opt/cardano/cnode/bin /opt/cardano/cnode/bin.disabled
     the old orchestrator are recognized by their component-specific command or
     description during migration.
 
+    Topology Updater predates Cardano P2P and has been removed. A cnode
+    refresh archives `topologyUpdater.sh` into `scripts/archive` and removes
+    its `cnode-tu-push`, `cnode-tu-fetch` and `cnode-tu-restart` units, because
+    the restart timer would otherwise keep restarting the node every day. If a
+    unit can't be removed, the run says so and shows the commands to remove it
+    by hand.
+
 !!! danger "Current cnode logging configuration"
     The current Guild cnode configurations use the tracing infrastructure
     introduced in cardano-node 10.4.x rather than the former legacy logging
