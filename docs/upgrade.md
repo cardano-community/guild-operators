@@ -5,24 +5,12 @@ release: CNTools 13, binaries in `~/.local/bin` and services set up by
 more detail, and [Later upgrades](#later-upgrades) covers refreshes once you are
 on the new layout.
 
-!!! danger "Older scripts stop working until you upgrade"
-    Older helper scripts check for updates when they start, and exit when they
-    can't find the old file paths. Once this release is on `master`, on a
-    deployment that hasn't been upgraded:
-
-    - gLiveView, CNTools, the Mithril helper scripts and older copies of
-      `blockPerf.sh` and `topologyUpdater.sh` exit at startup
-    - CNCLI services fail at their next restart, because their units don't skip
-      the check
-    - the node, db-sync, the submit API and Ogmios keep running and restarting,
-      as they have no update check
-
-    Upgrade as below to fix this. To keep the old scripts working until you can,
-    set this in the deployment's `scripts/env`:
-
-    ``` bash
-    UPDATE_CHECK="N"
-    ```
+!!! warning "Not upgraded yet? Accept the `env` update"
+    Older helper scripts check for updates when they start. On a deployment
+    that hasn't been upgraded, gLiveView, CNTools and the other scripts ask to
+    update `env` once this release is out. Answer yes: the scripts keep working
+    as before and show a notice with the upgrade command, but get no more
+    updates. See [Deployments not upgraded yet](#not-upgraded).
 
 ### Upgrading from master {: #from-master}
 
@@ -174,9 +162,10 @@ same user needs them.
 
 #### Going back {: #unintended}
 
-This release keeps no copies of files at their old paths. To return to the old
-layout, take `guild-deploy.sh` from the tag of the release you came from and
-pass the same tag with `-b`. Don't mix scripts from the old and new layouts.
+An upgraded deployment keeps no copies of files at their old paths. To return
+to the old layout, take `guild-deploy.sh` from the tag of the release you came
+from and pass the same tag with `-b`. Don't mix scripts from the old and new
+layouts.
 Available tags are listed
 [on GitHub](https://github.com/cardano-community/guild-operators/tags). Check
 the node release notes before you start an older node on a database a newer one
@@ -184,6 +173,40 @@ has used.
 
 If a refresh replaced a file you wanted to keep, the previous copy is in
 `/opt/cardano/cnode/scripts/archive`.
+
+### Deployments not upgraded yet {: #not-upgraded}
+
+Older scripts look for their updates in `scripts/cnode-helper-scripts/` on
+their branch. This release keeps a few files there only for them:
+
+- `env` is the last `env` of the earlier layout with two additions. The update
+  checks of the other scripts compare them with the last release of that layout
+  (commit `149eb495` on `master`) instead of the branch, and a notice says how
+  to upgrade. `env` itself and the Koios scripts in `grest-helper-scripts` still
+  follow the branch.
+- `gLiveView.sh`, `cntools.sh` and `cntools.library` only put back the copy you
+  had, as below.
+
+On such a deployment:
+
+- gLiveView, CNTools and the other scripts ask
+  `env script update(s) detected, do you want to download the latest version?`.
+  Answer yes. Your settings in `env` are kept and the previous copy goes to
+  `scripts/archive`. The scripts then run as before and print the notice, which
+  waits for a key once a day on a terminal.
+- If you answer no, gLiveView and CNTools offer gLiveView 2.0 or CNTools 14,
+  which need the new layout. Answering yes to that prints the notice, puts your
+  current copy back from `scripts/archive` and starts it. Answering no starts
+  your current copy. Either way you are asked again at the next start.
+- CNCLI, blockPerf and the Mithril scripts can still take the new version of
+  themselves, when you let them or when `BATCH_AUTO_UPDATE=Y` is set. They then
+  put the previous copy back from `scripts/archive` and run it.
+- The node, db-sync, the submit API, Ogmios and the CNCLI services keep running.
+- Topology Updater, which this release removes, stops at its update check until
+  `env` has been updated.
+
+`UPDATE_CHECK="N"` in `scripts/env` turns the update checks off, and the notice
+with them.
 
 ### Moving to Ouroboros Genesis {: #genesis-mode}
 

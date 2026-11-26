@@ -3,6 +3,13 @@
 A place for node operators to contribute deployment, management, and monitoring
 tools to the Cardano ecosystem.
 
+> [!IMPORTANT]
+> **Running a deployment made before CNTools 14** (scripts from
+> `cnode-helper-scripts`, binaries in `~/.local/bin`)? Follow the
+> [upgrade guide](https://cardano-community.github.io/guild-operators/upgrade/#from-master).
+> Until you upgrade, accept the `env` update your scripts offer: they keep
+> working, but get no more updates.
+
 ## Documentation and guides
 
 The [Guild Operators documentation](https://cardano-community.github.io/guild-operators)
