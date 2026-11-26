@@ -220,6 +220,10 @@ contains "${TEST_DIR}/out" "grest rc=0" "the grest check failed"
 if grep -q 'update(s) detected' "${TEST_DIR}/out"; then fail "the bridge env offered an update"; fi
 contains "${CURL_LOG}" "${LEGACY_REF}/scripts/cnode-helper-scripts/cncli.sh" "cncli.sh was not compared with the last release"
 contains "${CURL_LOG}" "alpha/scripts/grest-helper-scripts/grest-poll.sh" "grest-poll.sh no longer follows the branch"
+# shellcheck disable=SC2016
+update_shell 'echo "URL_DOCS=${URL_DOCS}"'
+contains "${TEST_DIR}/out" "URL_DOCS=https://raw.githubusercontent.com/cardano-community/guild-operators/${LEGACY_REF}/docs/Scripts" \
+  "CNTools 13 would show the changelog of the new layout"
 same "${DEPLOY}/scripts/grest-poll.sh" "${REPO_ROOT}/scripts/grest-helper-scripts/grest-poll.sh" "grest-poll.sh was not installed from the branch"
 
 # --- Declining env and accepting gLiveView 2.0 puts the earlier copy back -----

@@ -212,7 +212,8 @@ legacyLayoutNotice() {
     "  bash <(curl -sSfL https://raw.githubusercontent.com/${G_ACCOUNT}/guild-operators/${BRANCH}/scripts/cnode-helper-scripts/guild-deploy.sh) ${deploy_args}" \
     ""
   [[ -t 0 && -t 1 ]] || return 0
-  stamp="${TMP_DIR:-/tmp}/.legacy_notice"
+  # One stamp for every script of the deployment (CNTools changes TMP_DIR before its update check).
+  stamp="/tmp/.guild-legacy-notice-${CNODE_VNAME:-cnode}-$(id -u)"
   today="$(date +%F)"
   [[ "$(cat "${stamp}" 2>/dev/null)" = "${today}" ]] && return 0
   echo "${today}" > "${stamp}" 2>/dev/null
@@ -938,6 +939,7 @@ set_default_vars() {
   # Last commit of master with this layout, before the CNTools 14 release.
   [[ -z ${GUILD_LEGACY_REF} ]] && GUILD_LEGACY_REF="149eb49572f0e7388753bd31775e460d11721fce"
   URL_LEGACY_RAW="https://raw.githubusercontent.com/${G_ACCOUNT}/guild-operators/${GUILD_LEGACY_REF}"
+  URL_DOCS="${URL_LEGACY_RAW}/docs/Scripts" # CNTools 13 shows its own changelog, not that of CNTools 14
   # <<< legacy-bridge
   export LC_ALL=C.UTF-8
   # special mapping of coreutils gdate to date for MacOS
