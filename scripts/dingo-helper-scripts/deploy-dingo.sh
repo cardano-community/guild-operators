@@ -298,7 +298,27 @@ dingo_deploy_prepare_layout() {
     "${NODE_HOME}/scripts/lib" || return 1
   dingo_deploy_privileged chmod 0700 \
     "${NODE_HOME}/priv" "${NODE_HOME}/priv/pool" || return 1
+  dingo_deploy_protect_socket_folder || return 1
   dingo_deploy_ok "Dingo node layout" "${NODE_HOME}"
+}
+
+# Since 0.94, Dingo refuses to open its socket in a folder that group or other
+# users can write to; 0.94.1 accepts one with the sticky bit. mkdir leaves the
+# folder as the umask makes it: group-writable under 0002, the default for
+# Ubuntu users, when sudo keeps that umask or there is no sudo, as on GitHub's
+# runners. Take that write access away, which also repairs a folder an earlier
+# deployment made. A sticky folder stays as it is: someone set it on purpose.
+dingo_deploy_protect_socket_folder() {
+  local sockets="${NODE_HOME}/sockets"
+
+  [[ -k "${sockets}" ]] && return 0
+  [[ -n "$(find "${sockets}" -prune \( -perm -0020 -o -perm -0002 \) -print)" ]] ||
+    return 0
+  dingo_deploy_privileged chmod go-w "${sockets}" || {
+    dingo_deploy_fail "Could not remove group and other write access from ${sockets}"
+    return 1
+  }
+  dingo_deploy_info "Removed group and other write access from ${sockets}, which Dingo requires"
 }
 
 dingo_deploy_install_code_payload() {

@@ -1904,6 +1904,10 @@ setup_folder() {
 
   $sudo mkdir -p "${NODE_HOME}"/files "${NODE_HOME}"/db "${NODE_HOME}"/guild-db "${NODE_HOME}"/logs "${NODE_HOME}"/scripts "${NODE_HOME}"/scripts/adapters "${NODE_HOME}"/scripts/archive "${NODE_HOME}"/scripts/lib "${NODE_HOME}"/sockets "${NODE_HOME}"/priv "${NODE_HOME}"/bin "${MITHRIL_HOME}"/data-stores
   $sudo chown -R "$U_ID":"$G_ID" "${NODE_HOME}" 2>/dev/null
+  # Under a umask of 0002 mkdir can make sockets group-writable, and then anyone
+  # in the group could replace the node socket.
+  $sudo chmod go-w "${NODE_HOME}"/sockets ||
+    err_exit "Could not remove group and other write access from ${NODE_HOME}/sockets."
   log_ok "Folder structure ready" "${NODE_HOME}"
 
 }
