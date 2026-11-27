@@ -23,6 +23,7 @@ and this adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Pool List and Show check the pool's Calidus registration through Koios and say whether the local Calidus key is the registered one, a different key is registered, or none is.
 - DRep keys and multisig identities, registration/update/retirement, voting delegation, proposal browsing and voting; Catalyst registration, QR and snapshot verification.
 - Native asset policy creation/protection, minting/burning and Token Registry metadata preparation; verified backups, no-overwrite restoration and block-history views.
+- Blocks → Epoch tells an epoch whose leader schedule is not calculated yet from one that was assigned no slots, names the latest calculated epoch, and says when nothing was stored for an earlier epoch, instead of reporting "No scheduled blocks" for all of them.
 - Privacy-aware command/API logging, snapshot-based deployment and integrated updates, including forced refresh of the current version.
 
 ## [13.5.7] - 2026-06-28

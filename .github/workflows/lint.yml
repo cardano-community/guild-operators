@@ -66,6 +66,8 @@ jobs:
       run: bash files/tests/cntools-pickers.sh
     - name: CNTools KES reload hint tests
       run: bash files/tests/cntools-kes-reload-hint.sh
+    - name: CNTools Blocks tests
+      run: bash files/tests/cntools-blocks.sh
     - name: CNTools KES period tests
       run: bash files/tests/cntools-kes-period.sh
     - name: CNTools fzf picker tests

@@ -78,6 +78,37 @@ cntools_blocks_epoch_rows() {
     | select($results=="Y" or .[0]!="Pending validation") | map(tostring) | join("\u001f")' <<< "${snapshot}")
 }
 
+# The Scheduled slots row of an epoch: a count once its leader schedule is
+# calculated, else that it is not calculated or was never recorded.
+cntools_blocks_schedule_rows() {
+  local total="$1" schedule="$2" latest="$3" note=''
+  [[ -z "${latest}" ]] || note=" · latest calculated is epoch $(cntools_number_format "${latest}")"
+  case "${schedule}" in
+    pending) cntools_table_pair 'Scheduled slots' "Not calculated${note}" warning ;;
+    missing) cntools_table_pair 'Scheduled slots' "Not recorded${note}" warning ;;
+    *) cntools_blocks_number_pair 'Scheduled slots' "${total}" ;;
+  esac
+}
+
+# Why an epoch has no slots to list: none were assigned, its schedule is not
+# calculated, or nothing was recorded for it.
+cntools_blocks_schedule_note() {
+  local epoch="$1" schedule="$2" latest="$3" shown='' latest_shown=''
+  shown="$(cntools_number_format "${epoch}")"
+  [[ -z "${latest}" ]] || latest_shown="$(cntools_number_format "${latest}")"
+  case "${schedule}" in
+    empty) cntools_ui_render_status info "The leader schedule of epoch ${shown} is calculated: no slots were assigned to this pool." ;;
+    pending)
+      if [[ -n "${latest_shown}" ]]; then
+        cntools_ui_render_status warn "The leader schedule of epoch ${shown} is not calculated. The latest calculated epoch is ${latest_shown}; an epoch's schedule can be calculated only near the end of the epoch before it."
+      else
+        cntools_ui_render_status warn "No leader schedule is calculated yet. The leader schedule service calculates it: cncli.sh leaderlog on cardano-node, amaru-leaderlog.sh on Amaru."
+      fi ;;
+    missing) cntools_ui_render_status warn "No leader schedule was recorded for epoch ${shown}, while the block log has schedules up to epoch ${latest_shown}. The leader schedule service may not have run for it." ;;
+    *) cntools_ui_render_status info 'No scheduled blocks recorded for this epoch.' ;;
+  esac
+}
+
 # Battle and timing rows of a record from its block details. Times are in
 # milliseconds after the start of each block's own slot, as this node saw them.
 CNTOOLS_BLOCKS_DETAIL_JQ='
@@ -149,6 +180,7 @@ cntools_blocks_help() {
   cntools_ui_action_begin 'Status guide' '/ Blocks / Status guide'
   {
     cntools_table_pair Source 'Local block log · last recorded validation state'
+    cntools_table_pair 'Scheduled slots' 'Leader slots. Not calculated: after the latest calculated epoch. Not recorded: none was stored.'
     cntools_table_pair Leader 'Scheduled slot; may be in the future or awaiting validation.' accent
     cntools_table_pair 'Block results' 'Recorded by the validate service: cncli.sh on cardano-node, amaru-leaderlog.sh on Amaru.'
     cntools_table_pair Adopted 'Created locally; includes blocks later confirmed.' success
@@ -202,16 +234,17 @@ cntools_blocks_load() {
 # choose=Y (the Epoch action) also offers another epoch from the menu.
 cntools_blocks_epoch_view() {
   local epoch="$1" choose="${2:-N}" page=0 total=0 index=0 last=0 choice='' record='' number='' requested='' status=0
-  local snapshot='' stats=''
+  local snapshot='' stats='' schedule='' latest=''
   local -a options=()
   cntools_blocks_load Epoch "${epoch}" || return $?
   snapshot="${CNTOOLS_BLOCKLOG_DATA}"; stats="${CNTOOLS_BLOCKLOG_EPOCH_STATS}"
+  schedule="${CNTOOLS_BLOCKLOG_EPOCH_SCHEDULE}"; latest="${CNTOOLS_BLOCKLOG_LATEST_EPOCH}"
   while true; do
     total="$(jq 'length' <<< "${snapshot}")" || return 1
     cntools_ui_action_begin Epoch '/ Blocks / Epoch'
     {
       cntools_blocks_number_pair Epoch "${epoch}"
-      cntools_blocks_number_pair 'Scheduled slots' "${total}"
+      cntools_blocks_schedule_rows "${total}" "${schedule}" "${latest}"
       cntools_blocks_epoch_rows "${snapshot}" "${stats}"
       if (( total > 0 )); then
         cntools_table_pair Showing "$(cntools_number_format "$((page*5+1))")–$(cntools_number_format "$((page*5+5 <= total ? page*5+5 : total))") of $(cntools_number_format "${total}")"
@@ -224,7 +257,7 @@ cntools_blocks_epoch_view() {
       record="$(jq -c ".[${index}]" <<< "${snapshot}")" || return 1
       cntools_blocks_record_rows "${record}" N | cntools_table_render "$(cntools_number_format "$((index+1))") · Slot $(cntools_number_format "$(jq -r '.slot' <<< "${record}")")" || return 1
     done
-    (( total > 0 )) || cntools_ui_render_status info 'No scheduled blocks recorded for this epoch.'
+    (( total > 0 )) || cntools_blocks_schedule_note "${epoch}" "${schedule}" "${latest}"
     options=()
     (( last >= total )) || options+=('Next page')
     (( page == 0 )) || options+=('Previous page')
@@ -236,14 +269,18 @@ cntools_blocks_epoch_view() {
     case "${choice}" in
       'Next page') page=$((page+1)) ;;
       'Previous page') page=$((page-1)) ;;
-      Refresh) cntools_blocks_load Epoch "${epoch}" || continue; snapshot="${CNTOOLS_BLOCKLOG_DATA}"; stats="${CNTOOLS_BLOCKLOG_EPOCH_STATS}"; page=0 ;;
+      Refresh)
+        cntools_blocks_load Epoch "${epoch}" || continue
+        snapshot="${CNTOOLS_BLOCKLOG_DATA}"; stats="${CNTOOLS_BLOCKLOG_EPOCH_STATS}"; page=0
+        schedule="${CNTOOLS_BLOCKLOG_EPOCH_SCHEDULE}"; latest="${CNTOOLS_BLOCKLOG_LATEST_EPOCH}" ;;
       'Choose epoch')
         requested="${epoch}"; status=0
         cntools_blocks_prompt_in_view requested 'Epoch' "${epoch}" 0 999999999 || status=$?
         ((status != 130)) || return 130
         ((status == 0)) || continue
         cntools_blocks_load Epoch "${requested}" || continue # Keeps the current epoch.
-        epoch="${requested}"; snapshot="${CNTOOLS_BLOCKLOG_DATA}"; stats="${CNTOOLS_BLOCKLOG_EPOCH_STATS}"; page=0 ;;
+        epoch="${requested}"; snapshot="${CNTOOLS_BLOCKLOG_DATA}"; stats="${CNTOOLS_BLOCKLOG_EPOCH_STATS}"; page=0
+        schedule="${CNTOOLS_BLOCKLOG_EPOCH_SCHEDULE}"; latest="${CNTOOLS_BLOCKLOG_LATEST_EPOCH}" ;;
       'Status guide') cntools_blocks_help || return 1 ;;
       'Show block details')
         status=0; cntools_blocks_prompt_in_view number 'Block number in this list' "$((page*5+1))" 1 "${total}" || status=$?

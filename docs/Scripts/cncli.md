@@ -214,6 +214,8 @@ that later.
     Open CNTools and select `[b] Blocks` to open the block viewer.  
     Either select `Epoch` and enter the epoch you want to see a detailed view for or choose `Summary` to display blocks for last x epochs.
 
+    `Epoch` opens the latest epoch with a calculated leader schedule, which is the next epoch once `leaderlog` has calculated it. For an epoch without slots it says why: the schedule was calculated and assigned no slots, it is not calculated (the epoch is after the latest calculated one), or no schedule was stored for it.
+
     If the node was elected to create blocks in the selected epoch it could look something like this:
     
     === "Summary"

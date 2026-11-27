@@ -68,6 +68,8 @@ jobs:
       run: bash files/tests/cntools-pickers.sh
     - name: Test CNTools KES reload hint
       run: bash files/tests/cntools-kes-reload-hint.sh
+    - name: Test CNTools Blocks tells an uncalculated epoch from one without slots
+      run: bash files/tests/cntools-blocks.sh
     - name: Test CNTools KES period without a genesis file
       run: bash files/tests/cntools-kes-period.sh
     - name: Test CNTools hotkey menus and the fzf picker
