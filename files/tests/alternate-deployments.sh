@@ -1236,6 +1236,33 @@ run_alternate_profile_test() (
     )"
     [[ "${dingo_pool_mode}" == "700" ]] ||
       fail "Dingo pool root is not mode 0700"
+    # Since 0.94, Dingo refuses a socket folder that group or other users can
+    # write to, unless it has the sticky bit (issue 1937).
+    dingo_folder_mode() {
+      stat -c '%a' "$1" 2>/dev/null || stat -f '%Lp' "$1"
+    }
+    dingo_umask_target="${NODE_PARENT}/dingo-umask"
+    (
+      umask 0002
+      NODE_HOME="${dingo_umask_target}"
+      dingo_deploy_prepare_layout
+    ) >/dev/null || fail "Dingo layout failed under umask 0002"
+    [[ "$(dingo_folder_mode "${dingo_umask_target}/sockets")" == "755" ]] ||
+      fail "Dingo left its socket folder writable by the group under umask 0002"
+    for dingo_unsafe_mode in 0775 0777; do
+      chmod "${dingo_unsafe_mode}" "${NODE_HOME}/sockets"
+      dingo_deploy_prepare_layout >/dev/null ||
+        fail "Dingo layout refresh failed with socket folder mode ${dingo_unsafe_mode}"
+      [[ "$(dingo_folder_mode "${NODE_HOME}/sockets")" == "755" ]] ||
+        fail "Dingo did not repair socket folder mode ${dingo_unsafe_mode}"
+    done
+    chmod 1775 "${NODE_HOME}/sockets"
+    dingo_deploy_prepare_layout >/dev/null ||
+      fail "Dingo layout refresh failed with a sticky socket folder"
+    [[ -k "${NODE_HOME}/sockets" &&
+       "$(dingo_folder_mode "${NODE_HOME}/sockets")" == *775 ]] ||
+      fail "Dingo changed a sticky socket folder"
+    chmod 0755 "${NODE_HOME}/sockets"
     assert_rendered_yaml "${NODE_HOME}/files/dingo.yaml" "${default_port}"
   else
     assert_not_exists "${NODE_HOME}/chain"
