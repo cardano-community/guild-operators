@@ -1,0 +1,7 @@
+{% extends "base.html" %}
+
+{#- Banner on every page. Used when mkdocs.yml sets theme.custom_dir to this folder. -#}
+{% block announce %}
+  Running a deployment made before CNTools 14? Follow the
+  <a href="{{ 'upgrade/#from-master' | url }}">upgrade guide</a>.
+{% endblock %}

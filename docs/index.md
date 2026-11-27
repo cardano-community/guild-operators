@@ -1,4 +1,10 @@
 
+!!! warning "Running a deployment made before CNTools 14?"
+    Deployments with binaries in `~/.local/bin` and services from
+    `deploy-as-systemd.sh` use the earlier layout. Follow the
+    [upgrade guide](upgrade.md#from-master). Until you upgrade, accept the `env`
+    update your scripts offer: they keep working, but get no more updates.
+
 Guild Operators provides community-maintained deployment, management, and
 monitoring tools for Cardano node operators. `cardano-node` (`cnode`) remains
 the default implementation. Experimental Dingo and Amaru relays and block

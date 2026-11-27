@@ -21,7 +21,7 @@ jobs:
       with:
         scandir: "./scripts"
         severity: "warning"
-        additional_files: "./scripts/common-helper-scripts/env, ./scripts/cnode-helper-scripts/mithril.library"
+        additional_files: "./scripts/common-helper-scripts/env, ./scripts/cnode-helper-scripts/mithril.library, ./scripts/cnode-helper-scripts/env, ./scripts/cnode-helper-scripts/cntools.library"
     - name: Deployment dispatcher tests
       run: bash files/tests/guild-deploy-dispatcher.sh
     - name: Alternate deployment tests
@@ -78,6 +78,8 @@ jobs:
       run: bash files/tests/cntools-amount-precision.sh
     - name: CNTools nameref scan
       run: bash files/tests/cntools-nameref.sh
+    - name: Legacy update bridge tests
+      run: bash files/tests/legacy-update-bridge.sh
   jsonlint:
     name: JSON and YAML Check
     runs-on: ubuntu-latest
