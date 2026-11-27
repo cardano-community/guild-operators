@@ -65,6 +65,11 @@ current node tracing format.
 
 The prefix comes from `CNODE_VNAME` and defaults to `cnode`. The CNCLI metrics exporter is intentionally separate from these five operational units; continue to manage it with `cncli.sh metrics deploy`.
 
+These services query Koios with curl and, for `ptsendtip` and `ptsendslots`,
+PoolTool from the `cncli` binary. Behind an HTTP forward proxy, variables
+exported in `~/.bashrc` don't reach them on Debian and Ubuntu: see
+[Running behind a forward proxy](../Appendix/forward-proxy.md#shell-and-services).
+
 #### Configuration
 You can override the values in the script at the User Variables section shown below. **POOL_ID**, **POOL_VRF_SKEY** and **POOL_VRF_VKEY** should automatically be detected if `POOL_NAME` is set in the common `env` file and can be left commented. **PT_API_KEY** and **POOL_TICKER** need to be set in the script if PoolTool `sendtip`/`sendslots` are to be used before starting the services. For the rest of the commented values, if the defaults do not provide the right values, uncomment and make adjustments.
 

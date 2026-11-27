@@ -158,6 +158,12 @@ provide the Nginx sidecar address, normally `127.0.0.1`. The command also asks
 whether to expose signer metrics. On an upstream-supported testnet naive
 deployment, answer `n` when asked whether a relay endpoint is used.
 
+With a relay endpoint, the signer sends its aggregator traffic to the relay and
+ignores `https_proxy` and the other proxy variables. If the block producer
+otherwise reaches the internet through a forward proxy of your own, or the
+client has to download snapshots through one, see
+[Running behind a forward proxy](../Appendix/forward-proxy.md#mithril).
+
 Install the component-owned systemd unit, then start it:
 
 ```bash

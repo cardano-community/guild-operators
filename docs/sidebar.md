@@ -39,6 +39,7 @@
     - Security: docker/security.md
   - Appendix:
     - Sample Postgres Setup: Appendix/postgres.md
+    - Running behind a forward proxy: Appendix/forward-proxy.md
     - Legacy cnode monitoring bootstrap: Appendix/monitoring.md
     - Historical archives:
       - ITN Byron wallet recovery: Appendix/RecoverByronWallet.md

@@ -46,6 +46,10 @@ bypasses the entrypoint does not start either the node or its collector.
 - `--name`: assign a stable container name.
 - `--hostname`: set the hostname visible inside the container.
 
+Behind an HTTP forward proxy, pass the proxy variables at build and run time
+as described in
+[Running behind a forward proxy](../Appendix/forward-proxy.md#containers).
+
 For example, run the default cnode/mainnet image as a relay while persisting
 its database and private directory:
 
