@@ -22,6 +22,7 @@ and this adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - ADA and token amounts drop trailing zeros (340 ADA, 340.05 ADA); Settings → Decimals switches to full precision. Tokens show and take amounts with their Koios-registered decimals in Wallet Show, history, Send and Mint/Burn, a fungible token with unknown decimals is marked as such, and NFTs stay whole.
 - Pool List and Show check the pool's Calidus registration through Koios and say whether the local Calidus key is the registered one, a different key is registered, or none is.
 - DRep keys and multisig identities, registration/update/retirement, voting delegation, proposal browsing and voting; Catalyst registration, QR and snapshot verification.
+- Proposal voting power from Koios includes the default votes: stake delegated to Always abstain and Always no confidence, and pools that did not vote with their reward account delegated to one of them, each with how the ledger counts it for that action. Pool Show says what the pool counts as when it does not vote, from its reward account's DRep delegation.
 - Native asset policy creation/protection, minting/burning and Token Registry metadata preparation; verified backups, no-overwrite restoration and block-history views.
 - Privacy-aware command/API logging, snapshot-based deployment and integrated updates, including forced refresh of the current version.
 

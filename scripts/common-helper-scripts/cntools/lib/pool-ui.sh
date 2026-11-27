@@ -79,7 +79,18 @@ cntools_pool_settings_rows() {
     elif $format == "koios" then
       row("Pledge"; .pledge; "lovelace"), row("Fixed cost"; .fixed_cost; "lovelace"), row("Margin"; (.margin | pct); "percent"),
       row("Effective epoch"; .active_epoch_no; "number"), row("Reward account"; .reward_addr; "stakeaddress"),
-      row("Reward DRep delegation"; .reward_addr_delegated_drep; "identifier"), row("VRF hash"; .vrf_key_hash; "identifier"),
+      row("Reward DRep delegation"; .reward_addr_delegated_drep; "identifier"),
+      # What the ledger counts for the pool on an action it does not vote on
+      # (protocol version 10 and later; cardano-ledger defaultStakePoolVote and
+      # spoAcceptedRatio): the reward account decides, a hard fork is always No.
+      (if type == "object" and has("reward_addr_delegated_drep") then
+        row("Default vote"; (.reward_addr_delegated_drep |
+          if . == "drep_always_abstain" then "Abstain if the pool does not vote · No on a hard fork"
+          elif . == "drep_always_no_confidence" then "Yes on no confidence if the pool does not vote · No on other actions"
+          elif . == null then "No if the pool does not vote"
+          else "No if the pool does not vote · the DRep does not vote for the pool" end); "value")
+       else empty end),
+      row("VRF hash"; .vrf_key_hash; "identifier"),
       row("Pool deposit"; .deposit; "lovelace"), row("Metadata URL"; .meta_url; "identifier"), row("Metadata hash"; .meta_hash; "identifier"),
       row("Active stake"; .active_stake; "lovelace"), row("Live stake"; .live_stake; "lovelace"), row("Live pledge"; .live_pledge; "lovelace"),
       row("Delegators"; .live_delegators; "number"), row("Saturation"; .live_saturation; "percent"), row("Blocks produced"; .block_count; "number")
