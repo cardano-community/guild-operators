@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "implementation": "dingo",
-  "version": "latest",
+  "version": "0.93.0",
   "github": "blinklabs-io/dingo",
   "assets": {
     "linux-x86_64": "^dingo-v[^/]+-linux-amd64\\.tar\\.gz$",
@@ -20,6 +20,16 @@
           "sha256": "442f886e17815ffac611b644726271c54faca8628f8fac93e18d4da3a5b85579"
         }
       }
+    }
+  },
+  "artifacts": {
+    "linux-x86_64": {
+      "url": "https://github.com/blinklabs-io/dingo/releases/download/v0.93.0/dingo-v0.93.0-linux-amd64.tar.gz",
+      "sha256": "c9ea8b2465f36dea1fee7aef0c17dd8714ceaffe1d593c742424028565332547"
+    },
+    "linux-aarch64": {
+      "url": "https://github.com/blinklabs-io/dingo/releases/download/v0.93.0/dingo-v0.93.0-linux-arm64.tar.gz",
+      "sha256": "8ae98dbd2b6bdb0f660137562fcb8f62e4d8f91f69b8d336b1911a5bb4257210"
     }
   }
 }
