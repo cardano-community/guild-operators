@@ -27,7 +27,8 @@ deployment. A later run against an existing, valid `.deployment.json` may omit
 `-n`; the dispatcher restores and validates the recorded network. Alternate
 profiles reject cnode-only selective-install flags. The shared `w` flag
 installs the pinned `cardano-hw-cli` and host device rules for any
-implementation. Dingo and Amaru can select relay or block-producer mode. All
+implementation, and the shared `x` flag installs Cardano Signer. Dingo and
+Amaru can select relay or block-producer mode. All
 three profiles install the CNTools 14 launcher and modular interface skeleton.
 
 ## Dispatcher and implementation profiles
@@ -94,6 +95,13 @@ selected architecture archive and its reported version, installs
 udev rules. Those rules are host-wide, so the last `-s w` deployment on a host
 sets them. Set `GUILD_SKIP_HARDWARE_WALLET_RULES=Y` only when the host manages
 device permissions itself, such as for a containerized deployment.
+Cardano Signer, which CNTools needs for Catalyst (CIP-36) keys and Calidus
+(CIP-88) registrations, is common in the same way. The `-s x` flow reads the
+same manifest, resolves the newest stable `gitmachtl/cardano-signer` release
+from GitHub, refuses one older than its `minimumVersion` (1.24.0), verifies the
+archive against the SHA-256 digest GitHub publishes, and installs
+`cardano-signer` in `${NODE_HOME}/bin` once the staged binary reports that
+release's version.
 
 The dispatcher also gives every implementation the same package-manager
 experience. `PACKAGE_MANAGER_OUTPUT=compact` is the default: successful
@@ -106,7 +114,7 @@ troubleshooting.
 
 Every binary a deployment runs lives in `${NODE_HOME}/bin`, with its normal
 name, so deployments of the same OS user can't affect each other. This includes
-`cardano-hw-cli` and `gum`. Only the build toolchain (GHCup, GHC, Cabal) stays
+`cardano-hw-cli`, `cardano-signer` and `gum`. Only the build toolchain (GHCup, GHC, Cabal) stays
 per user. Guild scripts and services find these binaries without any `PATH`
 change; for commands typed by hand, use
 `source ${NODE_HOME}/scripts/activate` (see

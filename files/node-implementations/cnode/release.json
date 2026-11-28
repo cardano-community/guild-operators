@@ -93,15 +93,6 @@
         "linux-aarch64": "^ogmios-[^/]+-aarch64-linux\\.zip$"
       }
     },
-    "cardano-signer": {
-      "version": "latest",
-      "github": "gitmachtl/cardano-signer",
-      "minimumVersion": "1.24.0",
-      "assets": {
-        "linux-x86_64": "^cardano-signer-[^/]+_linux-x64\\.tar\\.gz$",
-        "linux-aarch64": "^cardano-signer-[^/]+_linux-arm64\\.tar\\.gz$"
-      }
-    },
     "mithril": {
       "version": "latest",
       "github": "IntersectMBO/mithril",

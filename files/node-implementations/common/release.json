@@ -14,6 +14,15 @@
           "sha256": "b980200f7c96c2c950ea6f0a79ed81280afd1c037ee3d71c4b8855a4ffad686b"
         }
       }
+    },
+    "cardano-signer": {
+      "version": "latest",
+      "github": "gitmachtl/cardano-signer",
+      "minimumVersion": "1.24.0",
+      "assets": {
+        "linux-x86_64": "^cardano-signer-[^/]+_linux-x64\\.tar\\.gz$",
+        "linux-aarch64": "^cardano-signer-[^/]+_linux-arm64\\.tar\\.gz$"
+      }
     }
   },
   "supportArtifacts": {

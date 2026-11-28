@@ -32,9 +32,11 @@ version, and leaves out your own `FZF_DEFAULT_OPTS` so the menus look the same
 for everyone.
 
 Use the deployed companion versions supplied by Guild Deploy. Hardware actions
-require `cardano-hw-cli`, which Guild Deploy can install with `-s w`.
-Some specialist actions also need Cardano Signer, Catalyst Toolbox,
-`cardano-address` or `token-metadata-creator`.
+require `cardano-hw-cli`, which Guild Deploy can install with `-s w`. The
+Catalyst and Calidus actions need Cardano Signer 1.24.0 or newer, which Guild
+Deploy installs with `-s x` on every node implementation. Some specialist
+actions also need Catalyst Toolbox, `cardano-address` or
+`token-metadata-creator`.
 
 ```text
 Usage: cntools.sh [-n|-l|-o] [-a] [-u] [-b BRANCH] [-v] [-h]

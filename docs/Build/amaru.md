@@ -42,8 +42,9 @@ The supported selective-install flags are:
 | `s` | Force helper-script replacement; this replaces common `env` user-variable settings |
 | `u` | Update an existing Amaru environment config in place for this release, retaining a backup |
 | `w` | Install the pinned Cardano Hardware CLI and host device rules |
+| `x` | Install the newest Cardano Signer release, 1.24.0 or newer, for the CNTools Catalyst and Calidus actions |
 
-The cnode-specific flags `b`, `l`, `m`, `c`, `o`, `x`, and `r` are
+The cnode-specific flags `b`, `l`, `m`, `c`, `o`, and `r` are
 rejected. With no `-s` value, the profile refreshes scripts, common libraries,
 the release manifest, and missing configuration while preserving an existing
 Amaru environment file. Select `-s u` to bring that file up to this release in
@@ -633,7 +634,9 @@ Mithril helpers, db-sync, Ogmios, and other socket-dependent cnode tools
 remain undeployed. CNTools 14 is available through
 the stable `scripts/cntools.sh` launcher. Use `cntools.sh -l` for Koios-backed
 online actions or `cntools.sh -o` for offline key and signing workflows; Amaru
-does not provide a compatible local query socket. See the
+does not provide a compatible local query socket. Guild Deploy `-s w` installs
+the hardware-wallet CLI and `-s x` installs Cardano Signer, which the Catalyst
+and Calidus actions use. See the
 [CNTools guide](../Scripts/cntools.md) for available actions and requirements.
 
 If the node is running but gLiveView reports that metrics are unavailable,
