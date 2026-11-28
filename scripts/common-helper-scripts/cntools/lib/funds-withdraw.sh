@@ -1,12 +1,35 @@
 #!/usr/bin/env bash
-# Full reward withdrawal to the same wallet. No certificates or delegation changes.
+# Full reward withdrawal to the wallet that pays the fee: the stake wallet, or
+# a funding wallet (lib/stake-funding.sh). No certificates or delegation changes.
 # shellcheck disable=SC2034
 
 CNTOOLS_WITHDRAW_REWARDS="0"
 CNTOOLS_WITHDRAW_FEE="0"
 CNTOOLS_WITHDRAW_EXPIRY=""
 CNTOOLS_WITHDRAW_BACKEND=""
+# Where the fee is paid from and the rewards and change go.
+CNTOOLS_WITHDRAW_FUND_BASE=""
+CNTOOLS_WITHDRAW_FUND_PAYMENT=""
 declare -ag CNTOOLS_WITHDRAW_INPUTS=()
+
+cntools_withdraw_funded_externally() {
+  declare -F cntools_stake_funding_external >/dev/null && cntools_stake_funding_external
+}
+
+# The payer's addresses: the stake wallet's own, or the funding wallet's.
+# CNTOOLS_STAKE_CAN_SIGN follows the payer.
+cntools_withdraw_funding_apply() {
+  if cntools_withdraw_funded_externally; then
+    CNTOOLS_WITHDRAW_FUND_BASE="${CNTOOLS_STAKE_FUNDING_BASE_ADDRESS}" CNTOOLS_WITHDRAW_FUND_PAYMENT="${CNTOOLS_STAKE_FUNDING_PAYMENT_ADDRESS}"
+  else
+    CNTOOLS_WITHDRAW_FUND_BASE="${CNTOOLS_STAKE_BASE_ADDRESS}" CNTOOLS_WITHDRAW_FUND_PAYMENT="${CNTOOLS_STAKE_PAYMENT_ADDRESS}"
+  fi
+  if [[ "${CNTOOLS_STAKE_WALLET_TYPE}" == MultiSig ]]; then
+    cntools_multisig_stake_can_sign_into CNTOOLS_STAKE_CAN_SIGN
+  elif declare -F cntools_stake_funding_can_sign_into >/dev/null; then
+    cntools_stake_funding_can_sign_into CNTOOLS_STAKE_CAN_SIGN "${CNTOOLS_STAKE_STAKE_SOURCE}" "${CNTOOLS_STAKE_PAYMENT_SOURCE}"
+  fi
+}
 
 cntools_withdraw_fail() {
   cntools_transaction_set_error "${1:-Reward withdrawal failed.}"
@@ -52,11 +75,14 @@ cntools_withdraw_query_stake() {
 }
 
 # Withdrawals price no reference scripts, so their UTxOs stay untouched.
-# Rewards are checked even for a wallet without UTxOs: 4 = nothing to
-# withdraw; 5 = rewards, but no UTxO to pay the fee (both outcomes).
+# Rewards are checked even for a wallet without UTxOs, and a stake-only wallet
+# (no address to spend from): 4 = nothing to withdraw; 5 = rewards, but no
+# UTxO to pay the fee; 9 = too little to pay it; 10 = a funding wallet must pay.
 cntools_withdraw_collect() {
-  local wc_status=0
-  cntools_funding_collect "${CNTOOLS_STAKE_BASE_ADDRESS}" "${CNTOOLS_STAKE_PAYMENT_ADDRESS}" &&
+  local wc_status=0 wc_payer="${CNTOOLS_STAKE_WALLET}"
+  cntools_withdraw_funding_apply
+  ! cntools_withdraw_funded_externally || wc_payer="${CNTOOLS_STAKE_FUNDING_WALLET}"
+  cntools_funding_collect "${CNTOOLS_WITHDRAW_FUND_BASE}" "${CNTOOLS_WITHDRAW_FUND_PAYMENT}" &&
     cntools_funding_exclude_reference_scripts || wc_status=$?
   if (( wc_status != 0 )); then
     [[ "${CNTOOLS_FUNDING_EMPTY:-N}" == Y && -n "${CNTOOLS_FUNDING_BACKEND}" ]] || return 1
@@ -64,11 +90,13 @@ cntools_withdraw_collect() {
   CNTOOLS_WITHDRAW_BACKEND="${CNTOOLS_FUNDING_BACKEND}"
   cntools_withdraw_query_stake || return $?
   CNTOOLS_WITHDRAW_REWARDS="${CNTOOLS_WALLET_REWARD_LOVELACE}"
+  [[ -n "${CNTOOLS_WITHDRAW_FUND_BASE}" ]] || return 10
   if (( wc_status != 0 )); then
-    cntools_withdraw_fail "${CNTOOLS_STAKE_WALLET} has $(cntools_number_format_lovelace "${CNTOOLS_WITHDRAW_REWARDS}") in rewards, but no spendable UTxO to pay the withdrawal fee. Send at least 2 ADA to it first."
+    cntools_withdraw_fail "${wc_payer} has no spendable UTxO to pay the fee for withdrawing $(cntools_number_format_lovelace "${CNTOOLS_WITHDRAW_REWARDS}") in rewards."
     return 5
   fi
-  cntools_transaction_log TRANSACTION "Withdrawal rewards=${CNTOOLS_WITHDRAW_REWARDS} backend=${CNTOOLS_WITHDRAW_BACKEND} account=${CNTOOLS_STAKE_REWARD_ADDRESS}"
+  cntools_withdraw_select || return 9
+  cntools_transaction_log TRANSACTION "Withdrawal rewards=${CNTOOLS_WITHDRAW_REWARDS} backend=${CNTOOLS_WITHDRAW_BACKEND} account=${CNTOOLS_STAKE_REWARD_ADDRESS} payer=${wc_payer}"
 }
 
 cntools_withdraw_select() {
@@ -82,7 +110,7 @@ cntools_withdraw_select() {
     }
     status=0
     cntools_change_plan_stake withdraw "${CNTOOLS_WITHDRAW_REWARDS}" "${reserve}" \
-      "${CNTOOLS_FUNDING_PROTOCOL}" "${CNTOOLS_STAKE_BASE_ADDRESS}" || status=$?
+      "${CNTOOLS_FUNDING_PROTOCOL}" "${CNTOOLS_WITHDRAW_FUND_BASE}" || status=$?
     (( status != 0 )) || return 0
     (( status == 3 )) || break
     cntools_uint_add_into required "${CNTOOLS_COIN_SELECTED_LOVELACE}" "${CNTOOLS_CHANGE_REQUIRED_EXTRA}" || return 1
@@ -91,11 +119,20 @@ cntools_withdraw_select() {
 }
 
 cntools_withdraw_plan() {
-  local group="" summary="" policy=""
-  cntools_transaction_plan_reset 'Withdraw rewards' \
-    "Withdraw all claimable rewards for ${CNTOOLS_STAKE_WALLET} to its base address; registration and delegation remain unchanged." exact || return 1
+  local group="" summary="" policy="" description=''
+  description="Withdraw all claimable rewards for ${CNTOOLS_STAKE_WALLET} to its base address; registration and delegation remain unchanged."
+  if cntools_withdraw_funded_externally; then
+    cntools_stake_funding_fit_into description \
+      "Withdraw all claimable rewards for ${CNTOOLS_STAKE_WALLET} to ${CNTOOLS_STAKE_FUNDING_WALLET}'s base address; ${CNTOOLS_STAKE_FUNDING_WALLET} pays the fee. Registration and delegation remain unchanged."
+  fi
+  cntools_transaction_plan_reset 'Withdraw rewards' "${description}" exact || return 1
   if [[ "${CNTOOLS_STAKE_WALLET_TYPE}" == MultiSig ]]; then
     cntools_multisig_stake_plan CNTOOLS_WITHDRAW_EXPIRY "${CNTOOLS_FUNDING_SLOT}" withdrawal || return 1
+    ! cntools_withdraw_funded_externally || cntools_stake_funding_plan_payer || return 1
+  elif cntools_withdraw_funded_externally; then
+    cntools_stake_funding_plan_key_signers withdrawal "${CNTOOLS_STAKE_WALLET} stake" "${CNTOOLS_STAKE_STAKE_VKEY}" \
+      "${CNTOOLS_STAKE_STAKE_SOURCE}" "${CNTOOLS_STAKE_STAKE_CREDENTIAL}" "${CNTOOLS_STAKE_WALLET_TYPE}" || return 1
+    cntools_transaction_plan_set_validity "" "${CNTOOLS_WITHDRAW_EXPIRY}" || return 1
   else
     [[ "${CNTOOLS_STAKE_WALLET_TYPE}" != Hardware ]] || group=withdraw-wallet
     cntools_transaction_plan_add_signer "${CNTOOLS_STAKE_WALLET} payment" spending \
@@ -110,9 +147,10 @@ cntools_withdraw_plan() {
   fi
   policy="$(cntools_change_policy_json)" || return 1
   summary="$(jq -cn --arg wallet "${CNTOOLS_STAKE_WALLET}" --arg rewards "${CNTOOLS_WITHDRAW_REWARDS}" \
-    --arg address "${CNTOOLS_STAKE_REWARD_ADDRESS}" --arg destination "${CNTOOLS_STAKE_BASE_ADDRESS}" \
+    --arg address "${CNTOOLS_STAKE_REWARD_ADDRESS}" --arg destination "${CNTOOLS_WITHDRAW_FUND_BASE}" \
     --arg source "${CNTOOLS_WITHDRAW_BACKEND}" --argjson policy "${policy}" \
     '{action:"withdraw-rewards",wallet:$wallet,rewardsLovelace:$rewards,rewardAccount:$address,returnAddress:$destination,dataSource:$source,transactionPolicy:$policy}')" || return 1
+  ! cntools_withdraw_funded_externally || cntools_stake_funding_summary_into summary "${summary}" || return 1
   cntools_transaction_plan_set_summary "${summary}" || return 1
   cntools_transaction_log REVIEW "Withdrawal intent summary=${summary}"
 }
@@ -122,7 +160,7 @@ cntools_withdraw_prepare_balanced_body() {
   local -a arguments=()
   status=0
   cntools_change_plan_stake withdraw "${CNTOOLS_WITHDRAW_REWARDS}" "${CNTOOLS_WITHDRAW_FEE}" \
-    "${CNTOOLS_FUNDING_PROTOCOL}" "${CNTOOLS_STAKE_BASE_ADDRESS}" || status=$?
+    "${CNTOOLS_FUNDING_PROTOCOL}" "${CNTOOLS_WITHDRAW_FUND_BASE}" || status=$?
   if (( status == 3 )); then
     cntools_withdraw_select "${CNTOOLS_WITHDRAW_FEE}" || return 1
     CNTOOLS_WITHDRAW_INPUTS=("${CNTOOLS_COIN_SELECTED_REFS[@]}")
@@ -133,14 +171,15 @@ cntools_withdraw_prepare_balanced_body() {
   arguments=()
   for input in "${CNTOOLS_WITHDRAW_INPUTS[@]}"; do
     arguments+=(--tx-in "${input}")
-    [[ "${CNTOOLS_STAKE_WALLET_TYPE}" != MultiSig ]] || arguments+=(--tx-in-script-file "${CNTOOLS_MULTISIG_SPEND_SCRIPT}")
+    [[ "${CNTOOLS_STAKE_WALLET_TYPE}" != MultiSig ]] || cntools_withdraw_funded_externally ||
+      arguments+=(--tx-in-script-file "${CNTOOLS_MULTISIG_SPEND_SCRIPT}")
   done
   for output in "${CNTOOLS_CHANGE_OUTPUTS[@]}"; do
     cntools_withdraw_validate_output "${output}" || return 1
     arguments+=(--tx-out "${output}")
   done
-  cntools_withdraw_validate_output "${CNTOOLS_STAKE_BASE_ADDRESS}+${CNTOOLS_CHANGE_RESIDUAL_LOVELACE}" || return 1
-  arguments+=(--tx-out "${CNTOOLS_STAKE_BASE_ADDRESS}+${CNTOOLS_CHANGE_RESIDUAL_LOVELACE}"
+  cntools_withdraw_validate_output "${CNTOOLS_WITHDRAW_FUND_BASE}+${CNTOOLS_CHANGE_RESIDUAL_LOVELACE}" || return 1
+  arguments+=(--tx-out "${CNTOOLS_WITHDRAW_FUND_BASE}+${CNTOOLS_CHANGE_RESIDUAL_LOVELACE}"
     --withdrawal "${CNTOOLS_STAKE_REWARD_ADDRESS}+${CNTOOLS_WITHDRAW_REWARDS}")
   [[ "${CNTOOLS_STAKE_WALLET_TYPE}" != MultiSig ]] || arguments+=(--withdrawal-script-file "${CNTOOLS_MULTISIG_STAKE_SCRIPT}")
   output_count=$(("${#CNTOOLS_CHANGE_OUTPUTS[@]}"+1))
@@ -161,7 +200,7 @@ cntools_withdraw_validate_balanced_body() {
     cntools_withdraw_fail 'The final fee does not match the withdrawal plan.'; return 1;
   }
   jq -e --arg stake "${CNTOOLS_STAKE_REWARD_ADDRESS}" --arg amount "${CNTOOLS_WITHDRAW_REWARDS} Lovelace" \
-    --arg destination "${CNTOOLS_STAKE_BASE_ADDRESS}" '
+    --arg destination "${CNTOOLS_WITHDRAW_FUND_BASE}" '
     (.withdrawals | length == 1) and .withdrawals[0].address == $stake and
     .withdrawals[0].amount == $amount and
     (.certificates == null or .certificates == []) and
@@ -204,7 +243,7 @@ cntools_withdraw_current_build_into() {
 
 cntools_withdraw_recheck() {
   local input="" expected="${CNTOOLS_WITHDRAW_REWARDS}"
-  cntools_funding_collect "${CNTOOLS_STAKE_BASE_ADDRESS}" "${CNTOOLS_STAKE_PAYMENT_ADDRESS}" || return 1
+  cntools_funding_collect "${CNTOOLS_WITHDRAW_FUND_BASE}" "${CNTOOLS_WITHDRAW_FUND_PAYMENT}" || return 1
   CNTOOLS_WITHDRAW_BACKEND="${CNTOOLS_FUNDING_BACKEND}"
   cntools_withdraw_query_stake || return 1
   [[ "${CNTOOLS_WALLET_REWARD_LOVELACE}" == "${expected}" ]] || {

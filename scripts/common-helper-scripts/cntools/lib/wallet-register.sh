@@ -223,6 +223,31 @@ cntools_wallet_register_prepare_wallet() {
     source_name="CNTOOLS_STAKE_${field}"
     printf -v "CNTOOLS_WALLET_REGISTER_${field}" '%s' "${!source_name}"
   done
+  # A newly chosen wallet pays for itself until it cannot.
+  ! declare -F cntools_stake_funding_reset >/dev/null || cntools_stake_funding_reset
+}
+
+# 0 when a funding wallet pays for this stake operation (lib/stake-funding.sh).
+cntools_wallet_register_funded_externally() {
+  [[ "${CNTOOLS_WALLET_REGISTER_OPERATION}" =~ ^(register|deregister|delegate|vote-delegate)$ ]] &&
+    declare -F cntools_stake_funding_external >/dev/null && cntools_stake_funding_external
+}
+
+# The payer's addresses and payment key become the ones the build spends from
+# and returns change to: the stake wallet's own, or the funding wallet's (it
+# also receives a refunded deposit). CAN_SIGN follows the payer.
+cntools_wallet_register_funding_apply() {
+  local field='' source_name='' prefix=CNTOOLS_STAKE_
+  cntools_wallet_register_funded_externally && prefix=CNTOOLS_STAKE_FUNDING_
+  for field in BASE_ADDRESS PAYMENT_ADDRESS PAYMENT_VKEY PAYMENT_SOURCE PAYMENT_CREDENTIAL; do
+    source_name="${prefix}${field}"
+    printf -v "CNTOOLS_WALLET_REGISTER_${field}" '%s' "${!source_name}"
+  done
+  if [[ "${CNTOOLS_WALLET_REGISTER_WALLET_TYPE}" == MultiSig ]]; then
+    cntools_multisig_stake_can_sign_into CNTOOLS_WALLET_REGISTER_CAN_SIGN
+  elif declare -F cntools_stake_funding_can_sign_into >/dev/null; then
+    cntools_stake_funding_can_sign_into CNTOOLS_WALLET_REGISTER_CAN_SIGN "${CNTOOLS_STAKE_STAKE_SOURCE}" "${CNTOOLS_STAKE_PAYMENT_SOURCE}"
+  fi
 }
 
 cntools_wallet_register_protocol_validate() {
@@ -535,6 +560,8 @@ cntools_wallet_register_collect_local() {
   elif [[ "${CNTOOLS_WALLET_REGISTER_OPERATION}" == delegate && "${CNTOOLS_DELEGATE_REGISTER}" == N ]]; then
     CNTOOLS_WALLET_REGISTER_DEPOSIT=0
   fi
+  # A stake-only wallet has nothing to spend until a funding wallet pays.
+  [[ -n "${CNTOOLS_WALLET_REGISTER_BASE_ADDRESS}" ]] || return 10
   cntools_wallet_register_utxos_local || return 1
   cntools_wallet_register_funding_validate || return $?
   cntools_wallet_register_select_inputs || return $?
@@ -565,6 +592,8 @@ cntools_wallet_register_collect_koios() {
   elif [[ "${CNTOOLS_WALLET_REGISTER_OPERATION}" == delegate && "${CNTOOLS_DELEGATE_REGISTER}" == N ]]; then
     CNTOOLS_WALLET_REGISTER_DEPOSIT=0
   fi
+  # A stake-only wallet has nothing to spend until a funding wallet pays.
+  [[ -n "${CNTOOLS_WALLET_REGISTER_BASE_ADDRESS}" ]] || return 10
   cntools_wallet_register_utxos_koios || return 1
   cntools_wallet_register_funding_validate || return $?
   cntools_wallet_register_select_inputs || return $?
@@ -590,7 +619,7 @@ cntools_wallet_register_collect() {
       status=$?
     fi
     case "${status}" in
-      4|5|6|7|8|9) return "${status}" ;;
+      4|5|6|7|8|9|10) return "${status}" ;;
     esac
     if [[ "${CNTOOLS_KOIOS_ENABLED:-N}" == "Y" ]]; then
       cntools_wallet_register_log WARN \
@@ -704,7 +733,18 @@ cntools_wallet_register_plan_create() {
   fi
 
   [[ "${CNTOOLS_WALLET_REGISTER_BACKEND}" =~ ^(local|koios)$ ]] || return 2
-  if [[ "${CNTOOLS_WALLET_REGISTER_OPERATION}" == "register" ]]; then
+  if cntools_wallet_register_funded_externally; then
+    case "${CNTOOLS_WALLET_REGISTER_OPERATION}" in
+      register) intent_description="Register ${CNTOOLS_WALLET_REGISTER_WALLET}'s stake credential. ${CNTOOLS_STAKE_FUNDING_WALLET} pays the deposit and fee and gets all change." ;;
+      deregister) intent_description="De-register ${CNTOOLS_WALLET_REGISTER_WALLET}'s stake credential. ${CNTOOLS_STAKE_FUNDING_WALLET} pays the fee and gets the deposit refund and all change." ;;
+      delegate) intent_description="Delegate ${CNTOOLS_WALLET_REGISTER_WALLET}'s stake to ${CNTOOLS_DELEGATE_POOL_ID}; voting delegation is unchanged. ${CNTOOLS_STAKE_FUNDING_WALLET} pays and gets all change." ;;
+      vote-delegate)
+        intent_description="Delegate ${CNTOOLS_WALLET_REGISTER_WALLET}'s voting power to ${CNTOOLS_VOTE_TARGET}; pool delegation is unchanged. ${CNTOOLS_STAKE_FUNDING_WALLET} pays and gets all change."
+        [[ "${CNTOOLS_VOTE_REGISTER}" != Y ]] || intent_description+=' Includes approved first stake registration and its deposit.' ;;
+      *) return 2 ;;
+    esac
+    cntools_stake_funding_fit_into intent_description "${intent_description}"
+  elif [[ "${CNTOOLS_WALLET_REGISTER_OPERATION}" == "register" ]]; then
     intent_description="Register ${CNTOOLS_WALLET_REGISTER_WALLET}'s stake credential and return all change to its base address."
   elif [[ "${CNTOOLS_WALLET_REGISTER_OPERATION}" == "deregister" ]]; then
     intent_description="De-register ${CNTOOLS_WALLET_REGISTER_WALLET}'s stake credential, refund its stake deposit, and return all change to its base address."
@@ -723,6 +763,11 @@ cntools_wallet_register_plan_create() {
   cntools_transaction_plan_set_validity "" "${CNTOOLS_WALLET_REGISTER_EXPIRY}" || return 1
   if [[ "${CNTOOLS_WALLET_REGISTER_WALLET_TYPE}" == MultiSig ]]; then
     cntools_multisig_stake_plan CNTOOLS_WALLET_REGISTER_EXPIRY "${CNTOOLS_MULTISIG_STAKE_SLOT}" certificate || return 1
+    ! cntools_wallet_register_funded_externally || cntools_stake_funding_plan_payer || return 1
+  elif cntools_wallet_register_funded_externally; then
+    cntools_stake_funding_plan_key_signers certificate "${CNTOOLS_WALLET_REGISTER_WALLET} stake key" \
+      "${CNTOOLS_WALLET_REGISTER_STAKE_VKEY}" "${CNTOOLS_WALLET_REGISTER_STAKE_SOURCE}" \
+      "${CNTOOLS_WALLET_REGISTER_STAKE_CREDENTIAL}" "${CNTOOLS_WALLET_REGISTER_WALLET_TYPE}" || return 1
   else
     if [[ "${CNTOOLS_WALLET_REGISTER_WALLET_TYPE}" == "Hardware" ]]; then
       payment_group="wallet-stake"
@@ -811,6 +856,7 @@ cntools_wallet_register_plan_create() {
     summary="$(jq -c --arg target "${CNTOOLS_VOTE_TARGET}" --arg kind "${CNTOOLS_VOTE_KIND}" \
       --arg previous "${CNTOOLS_VOTE_CURRENT}" '. + {drepId:$target, drepType:$kind, previousDrep:$previous}' <<< "${summary}")" || return 1
   fi
+  ! cntools_wallet_register_funded_externally || cntools_stake_funding_summary_into summary "${summary}" || return 1
   cntools_transaction_plan_set_summary "${summary}"
 }
 
@@ -844,7 +890,8 @@ cntools_wallet_register_prepare_balanced_body() {
   arguments=()
   for input in "${CNTOOLS_WALLET_REGISTER_INPUTS[@]}"; do
     arguments+=(--tx-in "${input}")
-    [[ "${CNTOOLS_WALLET_REGISTER_WALLET_TYPE}" != MultiSig ]] || arguments+=(--tx-in-script-file "${CNTOOLS_MULTISIG_SPEND_SCRIPT}")
+    [[ "${CNTOOLS_WALLET_REGISTER_WALLET_TYPE}" != MultiSig ]] || cntools_wallet_register_funded_externally ||
+      arguments+=(--tx-in-script-file "${CNTOOLS_MULTISIG_SPEND_SCRIPT}")
   done
   # Charges belong on the output side; refunds belong on the input side.
   # Refund the recorded stake/DRep deposit, not today's protocol deposit.

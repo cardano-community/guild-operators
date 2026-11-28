@@ -6,6 +6,13 @@ All notable CNTools release changes are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [14.1.0] - Unreleased
+#### Added
+- Stake actions paid by another wallet (#512): Wallet → Register and Unregister, Funds → Delegate and Withdraw Rewards, and Vote → On-chain Governance → Delegate work for a stake-only wallet, one whose payment keys were removed or a MultiSig wallet with a stake script but no payment script. A funding wallet pays the fee and any stake deposit and receives the change, withdrawn rewards and refunded deposit. It is asked for only when the stake wallet cannot pay; a funding wallet that cannot cover the fee and deposit is named with the amounts and another one offered. The review shows the stake wallet and the funding wallet separately and offers Change funding wallet. A hardware wallet pays only for a hardware stake wallet on the same Ledger, signed in one device session; the combinations cardano-hw-cli cannot sign are not offered.
+#### Changed
+- Proposal voting power from Koios includes the default votes: stake delegated to Always abstain and Always no confidence, and pools that did not vote with their reward account delegated to one of them, each with how the ledger counts it for that action. Pool Show says what the pool counts as when it does not vote, from its reward account's DRep delegation.
+- Blocks → Epoch tells an epoch whose leader schedule is not calculated yet from one that was assigned no slots, names the latest calculated epoch, and says when nothing was stored for an earlier epoch, instead of reporting "No scheduled blocks" for all of them.
+
 ## [14.0.0] - Unreleased
 #### Changed
 - Complete Bash rewrite with a stable launcher, modular menus and focused libraries loaded on demand, retaining the CNTools name and wallet layout.
@@ -22,9 +29,7 @@ and this adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - ADA and token amounts drop trailing zeros (340 ADA, 340.05 ADA); Settings → Decimals switches to full precision. Tokens show and take amounts with their Koios-registered decimals in Wallet Show, history, Send and Mint/Burn, a fungible token with unknown decimals is marked as such, and NFTs stay whole.
 - Pool List and Show check the pool's Calidus registration through Koios and say whether the local Calidus key is the registered one, a different key is registered, or none is.
 - DRep keys and multisig identities, registration/update/retirement, voting delegation, proposal browsing and voting; Catalyst registration, QR and snapshot verification.
-- Proposal voting power from Koios includes the default votes: stake delegated to Always abstain and Always no confidence, and pools that did not vote with their reward account delegated to one of them, each with how the ledger counts it for that action. Pool Show says what the pool counts as when it does not vote, from its reward account's DRep delegation.
 - Native asset policy creation/protection, minting/burning and Token Registry metadata preparation; verified backups, no-overwrite restoration and block-history views.
-- Blocks → Epoch tells an epoch whose leader schedule is not calculated yet from one that was assigned no slots, names the latest calculated epoch, and says when nothing was stored for an earlier epoch, instead of reporting "No scheduled blocks" for all of them.
 - Privacy-aware command/API logging, snapshot-based deployment and integrated updates, including forced refresh of the current version.
 
 ## [13.5.7] - 2026-06-28

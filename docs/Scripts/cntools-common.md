@@ -171,6 +171,47 @@ first if needed. The transaction refunds the deposit recorded for that stake
 credential and ends its delegation. Rewards earned but not yet credited are
 forfeited, even if the visible reward balance is zero.
 
+Both work for a stake-only wallet too, with another wallet paying: see
+[Pay for a stake action from another wallet](#pay-for-a-stake-action-from-another-wallet).
+
+### Pay for a stake action from another wallet
+
+A wallet whose payment keys were removed, a **stake-only** wallet (stake keys,
+or a MultiSig stake script, but no payment key or payment script), can still
+register and de-register its stake address, delegate its stake and its vote,
+and withdraw its rewards. Another wallet, the **funding wallet**, pays the fee
+and any stake deposit. Wallet pickers mark such wallets **Stake only**.
+
+The stake wallet pays for itself when it can. A funding wallet is asked for
+only when the stake wallet has no payment key, no spendable UTxOs, or too
+little for the fee and any deposit. Its funds are checked right away: a wallet
+that cannot cover them is named with the amounts and another one is offered
+while one is left (the last one is used at once). The review shows the
+**Stake wallet** and the **Funding wallet** separately and offers **Change
+funding wallet**, also when the stake wallet pays for itself. Escape there
+keeps the reviewed funding; a wallet that cannot pay is named and the reviewed
+one kept. A wallet with a payment key can be chosen to pay for itself again.
+
+The funding wallet receives all change: withdrawn rewards and a refunded stake
+deposit go to its base address, the review's **Return address**. The stake key
+signs the certificate or withdrawal and the funding wallet's payment key pays.
+An encrypted key in either wallet is named with **Wallet → Decrypt**, and
+missing keys use the offline package route.
+
+Which wallets can pay depends on what cardano-hw-cli can sign: a Ledger must
+hold the stake key of every certificate and withdrawal it signs, and cannot
+sign with a payment key in a transaction that uses script credentials.
+Wallets that cannot pay are not offered.
+
+| Stake wallet | Funding wallet | Can pay |
+|---|---|---|
+| CLI or mnemonic | CLI or mnemonic | Yes |
+| Hardware | CLI or mnemonic | Yes; the Ledger signs only the stake key |
+| Hardware | Hardware | Only on the same Ledger: both sign in one device session, and a different device stops at signing with a public key mismatch |
+| CLI, mnemonic or MultiSig | Hardware | No |
+| MultiSig | CLI or mnemonic | Yes; the stake script's participants sign, and the payment script, if any, takes no part |
+| Any | MultiSig | No |
+
 ### Remove a wallet
 
 **Wallet → Permanently Remove** checks available funds, stake registration and
@@ -261,14 +302,17 @@ the review to pick another pool without restarting.
 
 Review the pool, any deposit and fee. Delegation does not transfer the wallet's
 ADA to the pool or withdraw rewards. Voting/DRep delegation is separate and
-must be set where required before reward withdrawal.
+must be set where required before reward withdrawal. A stake-only wallet
+delegates with another wallet paying: see
+[Pay for a stake action from another wallet](#pay-for-a-stake-action-from-another-wallet).
 
 ### Withdraw rewards
 
 **Funds → Withdraw Rewards** returns claimable rewards to the wallet while
 leaving registration and delegations unchanged. Rewards are checked first; the
-fee then needs at least one eligible funding UTxO, and CNTools explains when
-that is missing.
+fee then needs at least one eligible funding UTxO. When the wallet has none,
+or no payment key, a funding wallet pays the fee and receives the rewards: see
+[Pay for a stake action from another wallet](#pay-for-a-stake-action-from-another-wallet).
 
 From protocol 10, the end of the Conway bootstrap phase, and in the Dijkstra
 era, withdrawals require a voting delegation. Set it first through
@@ -648,7 +692,9 @@ another target. The review notes the target's status only when the DRep is
 inactive or its activity is unknown; delegating to an inactive DRep asks first
 (with a local node, activity comes from Koios when enabled). Registering your
 own DRep does not automatically delegate your stake to it. Pool delegation
-remains separate.
+remains separate. A stake-only wallet delegates its vote with another wallet
+paying: see
+[Pay for a stake action from another wallet](#pay-for-a-stake-action-from-another-wallet).
 
 ### Browse proposals and vote
 
