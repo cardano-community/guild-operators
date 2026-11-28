@@ -45,8 +45,10 @@
 #POOL_NAME=""
 #ASSET_FOLDER="${NODE_HOME}/priv/asset"
 #MITHRIL_DOWNLOAD="N"
-#MITHRIL_HOME="${NODE_HOME}/mithril"
-#MITHRIL_SIGNER_ENABLED="N"
+#MITHRIL_HOME="${NODE_HOME}/mithril"                    # Folder with the Mithril signer's mithril.env
+#MITHRIL_SIGNER_ENABLED="N"                             # Y shows the Mithril signer's metrics in gLiveView (mithril-signer.sh sets it when the metrics are enabled)
+#MITHRIL_SIGNER_HOST=""                                 # gLiveView: host of the signer's metrics when it runs on another host or pod (default: METRICS_SERVER_IP from mithril.env; 0.0.0.0 reads the loopback)
+#MITHRIL_SIGNER_PORT=""                                 # gLiveView: port of the signer's metrics (default: METRICS_SERVER_PORT from mithril.env, else 9090)
 #STRICT_VERSION_CHECK="Y"
 
 ######################################

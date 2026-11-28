@@ -58,7 +58,8 @@ glv_load "${GLIVEVIEW}" ui_colour_256 ui_colour ui_theme ui_put ui_gap ui_putw u
   ui_fmt_int ui_fmt_duration ui_box_top ui_panel glv_is_int glv_role_badge glv_identity_lines glv_rail \
   glv_rail_slim glv_title_update glv_data_init glv_data_stamp glv_data_event glv_notice glv_notices_sweep \
   glv_notices_tally glv_notices_seen glv_notices_ackable glv_notices_acknowledge glv_notices_save \
-  glv_notices_load glv_data_pending glv_notices_check glv_notices_node glv_launch_text glv_fmt_span \
+  glv_notices_load glv_data_pending glv_notices_check glv_notices_node glv_mithril_enabled glv_notices_mithril \
+  glv_launch_text glv_fmt_span \
   glv_notice_colour glv_pulse_now glv_event_colour \
   glv_attention glv_kes_colour glv_opcert_text glv_pool_vital glv_binary_state glv_binary_pin \
   glv_main_begin glv_main_room glv_main_add glv_page_window glv_view_notices glv_key_notices

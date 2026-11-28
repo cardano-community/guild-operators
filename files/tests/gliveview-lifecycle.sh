@@ -65,7 +65,7 @@ glv_load() {
 glv_load "${GLIVEVIEW}" ui_colour_256 ui_colour ui_theme ui_put ui_gap ui_putw ui_endl ui_scale ui_fmt_int \
   ui_fmt_tenths ui_fmt_duration ui_bar ui_box_top ui_panel glv_is_int glv_data_init glv_data_stamp glv_data_event \
   glv_notice glv_notices_sweep glv_notices_tally glv_notices_seen glv_notices_load glv_notices_check \
-  glv_notices_node glv_launch_text glv_fmt_span glv_kes_colour glv_opcert_text glv_pool_vital \
+  glv_notices_node glv_mithril_enabled glv_notices_mithril glv_launch_text glv_fmt_span glv_kes_colour glv_opcert_text glv_pool_vital \
   glv_binary_state glv_binary_pin glv_event_colour glv_process_start glv_data_service glv_data_last_error \
   glv_launch_summary glv_launch_reset glv_launch_phase glv_launch_progress glv_launch_chunk glv_launch_line \
   glv_launch_read glv_launch_event glv_launch_events glv_data_launch glv_launch_shown glv_launch_has_tip glv_data_stage glv_data_stage_events \

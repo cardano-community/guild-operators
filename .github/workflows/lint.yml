@@ -44,6 +44,8 @@ jobs:
       run: bash files/tests/gliveview-peer-analysis.sh
     - name: gLiveView pool data tests
       run: bash files/tests/gliveview-pool.sh
+    - name: gLiveView Mithril signer tests
+      run: bash files/tests/gliveview-mithril.sh
     - name: Dingo metrics adapter tests
       run: bash files/tests/dingo-metrics.sh
     - name: Amaru metrics adapter tests
