@@ -101,7 +101,7 @@ cntools_voting_stats_collect() {
     (.[0] | to_entries | all(.[];
       if (.key | endswith("_pct")) then (.value == null or (.value | type == "number" and . >= 0 and . <= 100))
       elif (.key | endswith("_power")) then (.value == null or (.value | type == "string" and test("^[0-9]+$")))
-      elif (.key | endswith("_cast")) then (.value == null or (.value | type == "number" and floor == . and . >= 0))
+      elif (.key | endswith("_cast") or endswith("_assigned")) then (.value == null or (.value | type == "number" and floor == . and . >= 0))
       else true end)))' "${response}" >/dev/null; then
     cntools_transaction_log WARN "Invalid voting-power statistics ignored proposal=${id}"; return 0
   fi
@@ -146,6 +146,42 @@ cntools_voting_thresholds() {
     end'
 }
 
+# Stake that votes by default, from Koios proposal_voting_summary: for "drep"
+# the stake delegated to Always abstain and Always no confidence, for "pool"
+# the pools that did not vote and whose reward account is delegated to one of
+# them. How the ledger counts it after the Conway bootstrap phase (protocol
+# version 10 and later; Ratify.hs spoAcceptedRatio and dRepAcceptedRatio):
+# Always abstain is left out like an abstain vote, except that a pool that did
+# not vote counts as No on a hard fork; Always no confidence counts as Yes on
+# a no-confidence action and as No on any other. A row only for a field Koios
+# returned.
+cntools_voting_default_rows() {
+  local data="$1" type='' bucket='' count='' power='' value='' counted='' label=''
+  type="$(jq -r '.type // ""' <<< "$2")"
+  for bucket in always_abstain always_no_confidence; do
+    count=''
+    if [[ "$3" == drep ]]; then
+      power="$(jq -r --arg key "drep_${bucket}_vote_power" '.[$key] // ""' <<< "${data}")"
+    else
+      count="$(jq -r --arg key "pool_passive_${bucket}_votes_assigned" '.[$key] // ""' <<< "${data}")"
+      power="$(jq -r --arg key "pool_passive_${bucket}_vote_power" '.[$key] // ""' <<< "${data}")"
+    fi
+    [[ -n "${count}" || -n "${power}" ]] || continue
+    case "${bucket}:${type}" in
+      always_abstain:HardForkInitiation) [[ "$3" == drep ]] && counted=Abstain || counted=No ;;
+      always_abstain:*) counted=Abstain ;;
+      always_no_confidence:NoConfidence) counted=Yes ;;
+      *) counted=No ;;
+    esac
+    value=''
+    [[ -z "${count}" ]] || value="$(cntools_number_format "${count}") $([[ "${count}" == 1 ]] && printf pool || printf pools) not voted"
+    [[ -z "${power}" ]] || value+="${value:+ · }$(cntools_number_format_lovelace "${power}") voting power"
+    [[ "${bucket}" == always_abstain ]] && label='Always abstain' || label='Always no confidence'
+    [[ "$3" == drep ]] && label="DRep · ${label}" || label="SPO · Passive ${label,}"
+    cntools_table_pair "${label}" "${value} · counted as ${counted}" number
+  done
+}
+
 # Pairs for one proposal. "page" leaves out the facts a list page shows once
 # (snapshot source/epoch, threshold and quorum sources, missing statistics).
 cntools_voting_stats_rows() {
@@ -173,6 +209,7 @@ cntools_voting_stats_rows() {
         [[ -z "${percentage}" ]] || value+=" · $(cntools_number_format "${percentage}") %"
         [[ -z "${value}" ]] || cntools_table_pair "${role} · ${vote^}" "${value}" number
       done
+      [[ "${prefix}" == committee ]] || cntools_voting_default_rows "${data}" "${record}" "${prefix}"
     done
   elif [[ "${mode}" != page ]]; then
     cntools_table_pair 'Voting power' 'Unavailable · vote counts are not voting power' muted
