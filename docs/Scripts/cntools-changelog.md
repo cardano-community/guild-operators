@@ -6,6 +6,10 @@ All notable CNTools release changes are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [14.1.0] - Unreleased
+#### Added
+- Stake actions paid by another wallet (#512): Wallet → Register and Unregister, Funds → Delegate and Withdraw Rewards, and Vote → On-chain Governance → Delegate work for a stake-only wallet, one whose payment keys were removed or a MultiSig wallet with a stake script but no payment script. A funding wallet pays the fee and any stake deposit and receives the change, withdrawn rewards and refunded deposit. It is asked for only when the stake wallet cannot pay; a funding wallet that cannot cover the fee and deposit is named with the amounts and another one offered. The review shows the stake wallet and the funding wallet separately and offers Change funding wallet. A hardware wallet pays only for a hardware stake wallet on the same Ledger, signed in one device session; the combinations cardano-hw-cli cannot sign are not offered.
+
 ## [14.0.0] - Unreleased
 #### Changed
 - Complete Bash rewrite with a stable launcher, modular menus and focused libraries loaded on demand, retaining the CNTools name and wallet layout.

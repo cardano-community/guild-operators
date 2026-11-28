@@ -12,14 +12,16 @@ cntools_withdraw_render() {
     cntools_uint_subtract_into net "${CNTOOLS_WITHDRAW_REWARDS}" "${CNTOOLS_WITHDRAW_FEE}" || return 1
   else
     effect='Fee paid from wallet'
+    ! cntools_withdraw_funded_externally || effect='Fee paid by funding wallet'
     cntools_uint_subtract_into net "${CNTOOLS_WITHDRAW_FEE}" "${CNTOOLS_WITHDRAW_REWARDS}" || return 1
   fi
   cntools_ui_render_detail 'Transaction information' || return 1
   {
     printf 'Property\tValue\n'
-    cntools_transaction_ui_styled_row Wallet "${CNTOOLS_STAKE_WALLET}" identifier
+    if cntools_withdraw_funded_externally; then cntools_stake_funding_render_rows "${CNTOOLS_STAKE_WALLET}"
+    else cntools_transaction_ui_styled_row Wallet "${CNTOOLS_STAKE_WALLET}" identifier; fi
     cntools_transaction_ui_styled_row 'Reward account' "${CNTOOLS_STAKE_REWARD_ADDRESS}" address
-    cntools_transaction_ui_styled_row 'Return address' "${CNTOOLS_STAKE_BASE_ADDRESS}" address
+    cntools_transaction_ui_styled_row 'Return address' "${CNTOOLS_WITHDRAW_FUND_BASE}" address
     cntools_transaction_ui_styled_row Rewards "$(cntools_number_format_lovelace "${CNTOOLS_WITHDRAW_REWARDS}")" number
     cntools_transaction_ui_styled_row Fee "$(cntools_number_format_lovelace "${CNTOOLS_WITHDRAW_FEE}")" number
     cntools_transaction_ui_styled_row "${effect}" "$(cntools_number_format_lovelace "${net}")" number
@@ -28,7 +30,8 @@ cntools_withdraw_render() {
     cntools_transaction_ui_styled_row Expires "${expiry_label}" number
   } | cntools_ui_table --separator $'\t' --widths "${widths}" || return 1
   cntools_ui_render_status info 'Registration and delegation stay unchanged.'
-  if [[ "${effect}" == 'Fee paid from wallet' ]]; then
+  ! cntools_withdraw_funded_externally || cntools_stake_funding_hardware_notice "${CNTOOLS_STAKE_WALLET_TYPE}" "${CNTOOLS_STAKE_WALLET}"
+  if [[ "${effect}" != 'Net rewards after fee' ]]; then
     cntools_ui_render_status warn 'The fee exceeds the rewards. Continuing reduces the wallet balance.'
   fi
 }
@@ -72,35 +75,75 @@ cntools_withdraw_signers_rebuild_into() {
   cntools_ui_render_status warn "The new signers could not be built, so the previous ones are kept. ${wsr_reason}"
 }
 
-# Says why only an unsigned package is offered when the wallet's keys are encrypted.
+# Says why only an unsigned package is offered when the keys are encrypted:
+# the payer's payment key and the stake wallet's stake key.
 cntools_withdraw_unsigned_reason() {
+  local -a wur_keys=()
   [[ "${CNTOOLS_STAKE_CAN_SIGN}" != Y && "${CNTOOLS_STAKE_WALLET_TYPE:-}" != MultiSig ]] || return 0
-  cntools_transaction_ui_encrypted_reason_set 'Wallet → Decrypt' \
-    "${CNTOOLS_STAKE_DIRECTORY}/${CNTOOLS_WALLET_PAY_SKEY_FILENAME}" \
-    "${CNTOOLS_STAKE_DIRECTORY}/${CNTOOLS_WALLET_STAKE_SKEY_FILENAME}" || true
+  cntools_stake_funding_encrypted_keys_into wur_keys "${CNTOOLS_STAKE_DIRECTORY}" "${CNTOOLS_WALLET_STAKE_SKEY_FILENAME}"
+  cntools_transaction_ui_encrypted_reason_set 'Wallet → Decrypt' "${wur_keys[@]}" || true
+}
+
+# Review 'Change funding wallet': checks the new payer's funds and rewards,
+# follows a changed CAN_SIGN with the workflow, and rebuilds. A failed rebuild
+# restores the reviewed funding and rebuilds that. 1: unchanged.
+# Usage: cntools_withdraw_change_funding_into STAGED WORKFLOW LIFETIME PURPOSE
+cntools_withdraw_change_funding_into() {
+  local wcf_target="$1" wcf_purpose="$4" wcf_status=0 wcf_reason=''
+  local wcf_was="${CNTOOLS_STAKE_CAN_SIGN}" wcf_saved_workflow="${!2}" wcf_saved_lifetime="${!3}"
+  cntools_withdraw_begin
+  cntools_stake_funding_change "${CNTOOLS_STAKE_DIRECTORY}" "${CNTOOLS_STAKE_WALLET}" "${CNTOOLS_STAKE_WALLET_TYPE}" \
+    "${wcf_purpose}" 'the fee' cntools_withdraw_begin cntools_withdraw_collect || return $?
+  cntools_stake_funding_workflow_into "$2" "${wcf_was}" "${CNTOOLS_STAKE_CAN_SIGN}" "$3" || wcf_status=$?
+  if (( wcf_status == 0 )); then
+    cntools_transaction_clear_error
+    cntools_ui_spin_function 'Building the withdrawal…' cntools_withdraw_current_build_into "${wcf_target}" "${!3}" && return 0
+    wcf_reason="${CNTOOLS_TRANSACTION_ERROR:-The withdrawal could not be rebuilt.}"
+  else
+    wcf_reason='The workflow could not be chosen again.'
+  fi
+  cntools_stake_funding_restore
+  printf -v "$2" '%s' "${wcf_saved_workflow}"
+  printf -v "$3" '%s' "${wcf_saved_lifetime}"
+  CNTOOLS_TRANSACTION_UI_NOTICE=''
+  cntools_transaction_clear_error
+  cntools_ui_spin_function 'Restoring the previous withdrawal…' \
+    cntools_withdraw_refresh_build_into "${wcf_target}" "${wcf_saved_lifetime}" || return 2
+  [[ "${CNTOOLS_STAKE_WALLET_TYPE}" != MultiSig ]] || CNTOOLS_STAKE_CAN_SIGN="${wcf_was}"
+  cntools_transaction_log CHOICE 'Withdrawal funding rebuild failed; previous funding kept'
+  CNTOOLS_TRANSACTION_UI_NOTICE="The withdrawal with the new funding wallet could not be built, so the previous one is kept. ${wcf_reason}"
 }
 
 cntools_withdraw_workflow() {
   local selected="" workflow="" staged="" signed="" saved="" proceed=""
-  local backend="" signed_body="" txid="" lifetime=1800 status=0 previous="" asked=N
-  local -a review_options=('Change expiry' 'Change workflow')
+  local backend="" signed_body="" txid="" lifetime=1800 status=0 previous="" asked=N fallback_status=0 funding_purpose=''
+  local -a review_options=('Change expiry' 'Change workflow' 'Change funding wallet')
   CNTOOLS_WITHDRAW_RESULT_SHOWN=N; CNTOOLS_WITHDRAW_SAVED_PACKAGE=""
+  # A funding wallet from an earlier action never carries over.
+  cntools_stake_funding_reset
   cntools_withdraw_begin
   cntools_transaction_require_cli || return 2
   cntools_wallet_catalog_build || return 2
-  cntools_wallet_choose selected 'Wallet whose rewards to withdraw · it receives them and pays the fee' Cancel withdraw || return $?
+  cntools_wallet_choose selected 'Wallet whose rewards to withdraw · it receives them and pays the fee, or a funding wallet does' Cancel withdraw || return $?
   cntools_stake_prepare_wallet "${CNTOOLS_WALLET_PATHS[selected]}" "${CNTOOLS_WALLET_NAMES[selected]}" || return 2
   [[ "${CNTOOLS_STAKE_WALLET_TYPE:-}" != Hardware ]] || cntools_transaction_require_hwcli || return 2
+  funding_purpose="Wallet that pays the fee for ${CNTOOLS_STAKE_WALLET}'s reward withdrawal · it receives the rewards and the change"
   # Check rewards first: a wallet with nothing to withdraw asks nothing more,
-  # not even for its multisig signers.
+  # not even for its multisig signers or a funding wallet.
   cntools_ui_spin_function 'Checking rewards and spendable funds…' cntools_withdraw_collect || status=$?
-  if (( status == 4 || status == 5 )); then
+  # The wallet cannot pay (10: no payment key; 5/9: no or too few funds):
+  # another wallet pays the fee and receives the rewards and the change.
+  if (( status == 5 || status == 9 || status == 10 )); then
+    fallback_status="${status}" status=0
+    cntools_stake_funding_choose "${fallback_status}" "${CNTOOLS_STAKE_DIRECTORY}" "${CNTOOLS_STAKE_WALLET}" "${CNTOOLS_STAKE_WALLET_TYPE}" \
+      "${funding_purpose}" 'the fee' 'the rewards and the change' cntools_withdraw_begin cntools_withdraw_collect || status=$?
+    [[ "${status}" != 1 && "${status}" != 130 && "${status}" != 3 ]] || return "${status}"
+    [[ "${status}" == 0 || "${status}" == 4 || -z "${CNTOOLS_STAKE_FUNDING_ERROR}" ]] || CNTOOLS_TRANSACTION_ERROR="${CNTOOLS_STAKE_FUNDING_ERROR}"
+    asked=Y
+  fi
+  if (( status == 4 )); then
     cntools_withdraw_begin
-    if (( status == 4 )); then
-      cntools_ui_render_status info "${CNTOOLS_TRANSACTION_ERROR}"
-    else
-      cntools_ui_render_status warn "${CNTOOLS_TRANSACTION_ERROR}"
-    fi
+    cntools_ui_render_status info "${CNTOOLS_TRANSACTION_ERROR}"
     CNTOOLS_WITHDRAW_RESULT_SHOWN=Y
     return 0
   fi
@@ -143,6 +186,10 @@ cntools_withdraw_workflow() {
         (( status != 1 )) || continue
         (( status == 0 )) || return "${status}"
         cntools_withdraw_signers_rebuild_into staged workflow CNTOOLS_STAKE_CAN_SIGN lifetime || return $? ;;
+      'Change funding wallet')
+        cntools_withdraw_change_funding_into staged workflow lifetime "${funding_purpose}" || status=$?
+        (( status != 1 )) || continue
+        (( status == 0 )) || return "${status}" ;;
       'Change expiry')
         previous="${lifetime}"
         cntools_transaction_ui_expiry_into lifetime || status=$?

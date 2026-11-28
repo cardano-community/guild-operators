@@ -20,7 +20,11 @@ cntools_wallet_register_render_plan() {
   cntools_ui_render_detail 'Transaction information' || return 1
   {
     printf 'Transaction detail\tValue\n'
-    cntools_transaction_ui_styled_row Wallet "${CNTOOLS_WALLET_REGISTER_WALLET}" identifier
+    if cntools_wallet_register_funded_externally; then
+      cntools_stake_funding_render_rows "${CNTOOLS_WALLET_REGISTER_WALLET}"
+    else
+      cntools_transaction_ui_styled_row Wallet "${CNTOOLS_WALLET_REGISTER_WALLET}" identifier
+    fi
     cntools_transaction_ui_styled_row Action "${action}" accent
     if [[ "${CNTOOLS_WALLET_REGISTER_OPERATION}" == gov-vote ]]; then
       cntools_gov_vote_render_rows
@@ -45,6 +49,8 @@ cntools_wallet_register_render_plan() {
     cntools_funding_render_untouched_row
     cntools_transaction_ui_styled_row Expires "${expiry_label}" number
   } | cntools_ui_table --separator $'\t' --widths "${widths}" || return 1
+  ! cntools_wallet_register_funded_externally ||
+    cntools_stake_funding_hardware_notice "${CNTOOLS_WALLET_REGISTER_WALLET_TYPE}" "${CNTOOLS_WALLET_REGISTER_WALLET}"
   if [[ "${CNTOOLS_WALLET_REGISTER_OPERATION}" == deregister ]]; then
     cntools_ui_render_status warn 'De-registering ends stake-pool and DRep delegation. Lingering rewards earned but not yet credited or paid out will be forfeited.'
   fi
@@ -209,6 +215,9 @@ cntools_wallet_register_unsigned_reason() {
   urk_keys=("${CNTOOLS_WALLET_REGISTER_DIRECTORY}/${CNTOOLS_WALLET_PAY_SKEY_FILENAME}")
   if [[ "${CNTOOLS_WALLET_REGISTER_OPERATION}" == drep-* || "${CNTOOLS_WALLET_REGISTER_OPERATION}" == gov-vote ]]; then
     urk_keys+=("${CNTOOLS_WALLET_REGISTER_DIRECTORY}/${CNTOOLS_WALLET_DREP_SKEY_FILENAME:-drep.skey}")
+  elif declare -F cntools_stake_funding_encrypted_keys_into >/dev/null; then
+    # The payer's payment key (a funding wallet's, when one pays) and the stake key.
+    cntools_stake_funding_encrypted_keys_into urk_keys "${CNTOOLS_WALLET_REGISTER_DIRECTORY}" "${CNTOOLS_WALLET_STAKE_SKEY_FILENAME}"
   else
     urk_keys+=("${CNTOOLS_WALLET_REGISTER_DIRECTORY}/${CNTOOLS_WALLET_STAKE_SKEY_FILENAME}")
   fi
@@ -219,6 +228,8 @@ cntools_wallet_register_unsigned_reason() {
 # time locks at the current slot before any target or signer is asked.
 cntools_wallet_register_collect_checked() {
   local wrc_slot=''
+  [[ ! "${CNTOOLS_WALLET_REGISTER_OPERATION}" =~ ^(register|deregister|delegate|vote-delegate)$ ]] ||
+    cntools_wallet_register_funding_apply || return 1
   cntools_wallet_register_collect || return $?
   [[ "${CNTOOLS_WALLET_REGISTER_WALLET_TYPE:-}" == MultiSig && "${CNTOOLS_WALLET_REGISTER_OPERATION}" != drep-* &&
      "${CNTOOLS_WALLET_REGISTER_OPERATION}" != gov-vote ]] || return 0
@@ -235,11 +246,61 @@ cntools_wallet_register_recheck_marked() {
   cntools_transaction_ui_recheck_mark
 }
 
+# What the payer covers (NEED) and receives (GETS), and the funding picker's
+# purpose line, from the checked chain state: a registration in this
+# transaction adds its deposit, a de-registration refunds it to the payer.
+cntools_wallet_register_funding_text_into() {
+  local -n wft_need="$1" wft_gets="$2" wft_purpose="$3"
+  wft_need='the fee' wft_gets='the change'
+  case "${CNTOOLS_WALLET_REGISTER_OPERATION}" in
+    register) wft_need='the stake deposit and the fee' ;;
+    deregister) wft_gets='the change and the refunded stake deposit' ;;
+    delegate) [[ "${CNTOOLS_DELEGATE_REGISTER:-N}" != Y ]] || wft_need='the stake deposit and the fee' ;;
+    vote-delegate) [[ "${CNTOOLS_VOTE_REGISTER:-N}" != Y ]] || wft_need='the stake deposit and the fee' ;;
+  esac
+  wft_purpose="Wallet that pays ${wft_need} for ${CNTOOLS_WALLET_REGISTER_WALLET}'s ${CNTOOLS_WALLET_REGISTER_NOUN} · it receives ${wft_gets}"
+}
+
+# Review 'Change funding wallet': checks the new payer's funds, follows a
+# changed CAN_SIGN with the workflow, and rebuilds. A failed rebuild restores
+# the reviewed funding and rebuilds that. 1: unchanged.
+# Usage: cntools_wallet_register_change_funding_into STAGED WORKFLOW BUILDING
+cntools_wallet_register_change_funding_into() {
+  local wcf_target="$1" wcf_workflow="$2" wcf_building="$3" wcf_status=0 wcf_reason='' wcf_need='' wcf_gets='' wcf_purpose=''
+  local wcf_was="${CNTOOLS_WALLET_REGISTER_CAN_SIGN}" wcf_saved_workflow="${!2}" wcf_saved_lifetime="${CNTOOLS_WALLET_REGISTER_LIFETIME}"
+  cntools_wallet_register_funding_text_into wcf_need wcf_gets wcf_purpose
+  cntools_wallet_register_begin
+  cntools_stake_funding_change "${CNTOOLS_WALLET_REGISTER_DIRECTORY}" "${CNTOOLS_WALLET_REGISTER_WALLET}" \
+    "${CNTOOLS_WALLET_REGISTER_WALLET_TYPE}" "${wcf_purpose}" "${wcf_need}" cntools_wallet_register_begin \
+    cntools_wallet_register_collect_checked || return $?
+  cntools_stake_funding_workflow_into "${wcf_workflow}" "${wcf_was}" "${CNTOOLS_WALLET_REGISTER_CAN_SIGN}" CNTOOLS_WALLET_REGISTER_LIFETIME || wcf_status=$?
+  if (( wcf_status == 0 )); then
+    CNTOOLS_WALLET_REGISTER_ERROR=''; cntools_transaction_clear_error
+    cntools_ui_spin_function "${wcf_building}" cntools_wallet_register_build_package_into "${wcf_target}" && return 0
+    wcf_reason="${CNTOOLS_WALLET_REGISTER_ERROR:-${CNTOOLS_TRANSACTION_ERROR:-The transaction could not be rebuilt.}}"
+  else
+    wcf_reason='The workflow could not be chosen again.'
+  fi
+  cntools_stake_funding_restore
+  printf -v "${wcf_workflow}" '%s' "${wcf_saved_workflow}"
+  CNTOOLS_WALLET_REGISTER_LIFETIME="${wcf_saved_lifetime}" CNTOOLS_TRANSACTION_UI_NOTICE=''
+  cntools_stake_funding_collect 'Restoring the reviewed funding…' cntools_wallet_register_collect_checked || return 2
+  # The reviewed signers stay chosen; CAN_SIGN follows them again.
+  [[ "${CNTOOLS_WALLET_REGISTER_WALLET_TYPE}" != MultiSig ]] || CNTOOLS_WALLET_REGISTER_CAN_SIGN="${wcf_was}"
+  CNTOOLS_WALLET_REGISTER_ERROR=''; cntools_transaction_clear_error
+  cntools_ui_spin_function 'Restoring the reviewed transaction…' cntools_wallet_register_build_package_into "${wcf_target}" || return 2
+  cntools_transaction_log CHOICE "${CNTOOLS_WALLET_REGISTER_TITLE} funding rebuild failed; previous funding kept"
+  CNTOOLS_TRANSACTION_UI_NOTICE="The transaction with the new funding wallet could not be built, so the previous one is kept. ${wcf_reason}"
+}
+
 cntools_wallet_register_workflow() {
   local selected_index="" wallet_directory="" wallet_name="" workflow="" proceed="" choice=""
-  local staged="" signed="" saved="" backend="" signed_body="" txid="" status=0 collecting='Checking stake state and spendable funds…' prefix='stake '
-  local building='' signing='' purpose='Wallet for this transaction · it pays the fee'
+  local staged="" signed="" saved="" backend="" signed_body="" txid="" status=0 collecting='Checking stake state and spendable funds…' prefix='stake ' fallback_status=0
+  local building='' signing='' purpose='Wallet for this transaction · it pays the fee' need='' gets='' funding_purpose='' stake_operation=N
   CNTOOLS_WALLET_REGISTER_RESULT_SHOWN=N
+  [[ ! "${CNTOOLS_WALLET_REGISTER_OPERATION}" =~ ^(register|deregister|delegate|vote-delegate)$ ]] || stake_operation=Y
+  # A funding wallet from an earlier action never carries over.
+  [[ "${stake_operation}" != Y ]] || cntools_stake_funding_reset
   CNTOOLS_WALLET_REGISTER_SAVED_PACKAGE=""
   case "${CNTOOLS_WALLET_REGISTER_OPERATION}" in
     register) collecting='Checking stake registration and spendable funds…' ;;
@@ -251,10 +312,10 @@ cntools_wallet_register_workflow() {
   # What the chosen wallet is for: the deposit and fee are paid from it, and
   # a refunded deposit returns to it.
   case "${CNTOOLS_WALLET_REGISTER_OPERATION}" in
-    register) purpose='Wallet whose stake address to register · it pays the deposit and the fee' ;;
-    deregister) purpose='Wallet whose stake address to de-register · it pays the fee and gets the deposit back' ;;
-    delegate) purpose='Wallet to delegate to a stake pool · it pays the fee and any stake deposit' ;;
-    vote-delegate) purpose='Wallet whose voting power to delegate · it pays the fee and any stake deposit' ;;
+    register) purpose='Wallet whose stake address to register · it pays the deposit and the fee, or a funding wallet does' ;;
+    deregister) purpose='Wallet whose stake address to de-register · it pays the fee and gets the deposit back, or a funding wallet does' ;;
+    delegate) purpose='Wallet to delegate to a stake pool · it pays the fee and any stake deposit, or a funding wallet does' ;;
+    vote-delegate) purpose='Wallet whose voting power to delegate · it pays the fee and any stake deposit, or a funding wallet does' ;;
     drep-register) purpose='Wallet whose DRep key to register · it pays the deposit and the fee' ;;
     drep-update) purpose='Wallet whose DRep registration to update · it pays the fee' ;;
     drep-retire) purpose='Wallet whose DRep to retire · it pays the fee and gets the deposit back' ;;
@@ -281,6 +342,17 @@ cntools_wallet_register_workflow() {
       cntools_ui_spin_function "${collecting}" cntools_wallet_register_collect_checked || status=$?
     fi
     (( status != 0 )) || break
+    # The wallet cannot pay (10: no payment key; 5/9: no or too few funds):
+    # another wallet pays the fee and any deposit and receives the change.
+    if [[ "${stake_operation}" == Y ]] && (( status == 5 || status == 9 || status == 10 )); then
+      cntools_wallet_register_funding_text_into need gets funding_purpose
+      fallback_status="${status}" status=0
+      cntools_stake_funding_choose "${fallback_status}" "${wallet_directory}" "${wallet_name}" "${CNTOOLS_WALLET_REGISTER_WALLET_TYPE}" \
+        "${funding_purpose}" "${need}" "${gets}" cntools_wallet_register_begin cntools_wallet_register_collect_checked || status=$?
+      (( status != 0 )) || break
+      [[ "${status}" != 1 && "${status}" != 130 && "${status}" != 3 ]] || return "${status}"
+      [[ -z "${CNTOOLS_STAKE_FUNDING_ERROR}" ]] || CNTOOLS_WALLET_REGISTER_ERROR="${CNTOOLS_STAKE_FUNDING_ERROR}"
+    fi
     # Rewards block de-registration: say why and pick again while another wallet can.
     if (( status == 8 )) && cntools_wallet_register_other_candidate "${wallet_directory}"; then
       cntools_transaction_log CHOICE "De-register wallet=${wallet_name} has rewards; choosing again"
@@ -318,6 +390,7 @@ cntools_wallet_register_workflow() {
     gov-vote) ! declare -F cntools_gov_vote_change >/dev/null || review_options=('Change vote' "${review_options[@]}") ;;
   esac
   ! cntools_wallet_register_signers_changeable || review_options+=('Change signers')
+  [[ "${stake_operation}" != Y ]] || review_options+=('Change funding wallet')
   while true; do
     cntools_transaction_ui_proceed_into proceed "${workflow}" || return 2
     cntools_transaction_ui_review_into choice "${staged}" "${proceed}" \
@@ -377,6 +450,10 @@ cntools_wallet_register_workflow() {
         (( status != 1 )) || continue
         (( status == 0 )) || return "${status}"
         cntools_wallet_register_signers_rebuild_into staged workflow "${building}" || return $? ;;
+      'Change funding wallet')
+        cntools_wallet_register_change_funding_into staged workflow "${building}" || status=$?
+        (( status != 1 )) || continue
+        (( status == 0 )) || return "${status}" ;;
       *) return 2 ;;
     esac
   done

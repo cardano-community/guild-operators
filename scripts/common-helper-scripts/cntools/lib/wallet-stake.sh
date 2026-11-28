@@ -53,26 +53,40 @@ cntools_stake_prepare_wallet() {
       return 1
       ;;
   esac
+  # A stake-only wallet (its payment keys were removed) has no payment
+  # verification key once its material is prepared: a funding wallet pays
+  # for it (lib/stake-funding.sh), so only its stake identity is read.
+  CNTOOLS_STAKE_HAS_PAYMENT=Y
+  CNTOOLS_STAKE_BASE_ADDRESS="" CNTOOLS_STAKE_PAYMENT_ADDRESS="" CNTOOLS_STAKE_PAYMENT_VKEY="" CNTOOLS_STAKE_PAYMENT_CREDENTIAL=""
+  [[ -e "${wallet_directory}/${CNTOOLS_WALLET_PAY_VKEY_FILENAME}" || -L "${wallet_directory}/${CNTOOLS_WALLET_PAY_VKEY_FILENAME}" ]] ||
+    CNTOOLS_STAKE_HAS_PAYMENT=N
   if ! cntools_wallet_read_address \
-       "${wallet_directory}" base CNTOOLS_STAKE_BASE_ADDRESS ||
-     ! cntools_wallet_read_address \
-       "${wallet_directory}" payment CNTOOLS_STAKE_PAYMENT_ADDRESS ||
-     ! cntools_wallet_read_address \
        "${wallet_directory}" reward CNTOOLS_STAKE_REWARD_ADDRESS; then
+    cntools_transaction_set_error \
+      "The wallet does not have a valid stake address."
+    return 1
+  fi
+  if [[ "${CNTOOLS_STAKE_HAS_PAYMENT}" == Y ]] && {
+       ! cntools_wallet_read_address \
+         "${wallet_directory}" base CNTOOLS_STAKE_BASE_ADDRESS ||
+       ! cntools_wallet_read_address \
+         "${wallet_directory}" payment CNTOOLS_STAKE_PAYMENT_ADDRESS; }; then
     cntools_transaction_set_error \
       "The wallet does not have a valid base, payment, and stake address."
     return 1
   fi
-  CNTOOLS_STAKE_PAYMENT_VKEY="${wallet_directory}/${CNTOOLS_WALLET_PAY_VKEY_FILENAME}"
+  [[ "${CNTOOLS_STAKE_HAS_PAYMENT}" != Y ]] ||
+    CNTOOLS_STAKE_PAYMENT_VKEY="${wallet_directory}/${CNTOOLS_WALLET_PAY_VKEY_FILENAME}"
   CNTOOLS_STAKE_STAKE_VKEY="${wallet_directory}/${CNTOOLS_WALLET_STAKE_VKEY_FILENAME}"
   if ! cntools_wallet_key_validate \
-       "${CNTOOLS_STAKE_PAYMENT_VKEY}" payment any ||
-     ! cntools_wallet_key_validate \
        "${CNTOOLS_STAKE_STAKE_VKEY}" stake any ||
      ! cntools_wallet_id_read_credential \
-       "${wallet_directory}" payment CNTOOLS_STAKE_PAYMENT_CREDENTIAL ||
-     ! cntools_wallet_id_read_credential \
-       "${wallet_directory}" stake CNTOOLS_STAKE_STAKE_CREDENTIAL; then
+       "${wallet_directory}" stake CNTOOLS_STAKE_STAKE_CREDENTIAL ||
+     { [[ "${CNTOOLS_STAKE_HAS_PAYMENT}" == Y ]] && {
+         ! cntools_wallet_key_validate \
+           "${CNTOOLS_STAKE_PAYMENT_VKEY}" payment any ||
+         ! cntools_wallet_id_read_credential \
+           "${wallet_directory}" payment CNTOOLS_STAKE_PAYMENT_CREDENTIAL; }; }; then
     cntools_transaction_set_error \
       "The wallet's public signing identity is incomplete or invalid."
     return 1
@@ -82,30 +96,34 @@ cntools_stake_prepare_wallet() {
   CNTOOLS_STAKE_STAKE_SOURCE=""
   if [[ "${wallet_type}" == "Hardware" ]]; then
     expected_kind="hardware"
-    cntools_stake_source_if_valid_into \
-      CNTOOLS_STAKE_PAYMENT_SOURCE \
-      "${wallet_directory}/${CNTOOLS_WALLET_HW_PAY_SKEY_FILENAME}" \
-      "${expected_kind}"
+    [[ "${CNTOOLS_STAKE_HAS_PAYMENT}" != Y ]] ||
+      cntools_stake_source_if_valid_into \
+        CNTOOLS_STAKE_PAYMENT_SOURCE \
+        "${wallet_directory}/${CNTOOLS_WALLET_HW_PAY_SKEY_FILENAME}" \
+        "${expected_kind}"
     cntools_stake_source_if_valid_into \
       CNTOOLS_STAKE_STAKE_SOURCE \
       "${wallet_directory}/${CNTOOLS_WALLET_HW_STAKE_SKEY_FILENAME}" \
       "${expected_kind}"
-    if [[ -z "${CNTOOLS_STAKE_PAYMENT_SOURCE}" ||
-          -z "${CNTOOLS_STAKE_STAKE_SOURCE}" ]]; then
+    if [[ -z "${CNTOOLS_STAKE_STAKE_SOURCE}" ||
+          ( "${CNTOOLS_STAKE_HAS_PAYMENT}" == Y && -z "${CNTOOLS_STAKE_PAYMENT_SOURCE}" ) ]]; then
       cntools_transaction_set_error \
         "A hardware wallet needs valid payment and stake HWS files to build a hardware-compatible transaction."
       return 1
     fi
   else
-    cntools_stake_source_if_valid_into \
-      CNTOOLS_STAKE_PAYMENT_SOURCE \
-      "${wallet_directory}/${CNTOOLS_WALLET_PAY_SKEY_FILENAME}" cli
+    [[ "${CNTOOLS_STAKE_HAS_PAYMENT}" != Y ]] ||
+      cntools_stake_source_if_valid_into \
+        CNTOOLS_STAKE_PAYMENT_SOURCE \
+        "${wallet_directory}/${CNTOOLS_WALLET_PAY_SKEY_FILENAME}" cli
     cntools_stake_source_if_valid_into \
       CNTOOLS_STAKE_STAKE_SOURCE \
       "${wallet_directory}/${CNTOOLS_WALLET_STAKE_SKEY_FILENAME}" cli
   fi
+  # Whether the wallet's own keys can sign when it pays for itself; a funding
+  # wallet's key is counted when one is chosen.
   CNTOOLS_STAKE_CAN_SIGN="N"
-  if [[ -n "${CNTOOLS_STAKE_PAYMENT_SOURCE}" &&
+  if [[ ( -n "${CNTOOLS_STAKE_PAYMENT_SOURCE}" || "${CNTOOLS_STAKE_HAS_PAYMENT}" != Y ) &&
         -n "${CNTOOLS_STAKE_STAKE_SOURCE}" ]]; then
     CNTOOLS_STAKE_CAN_SIGN="Y"
   fi
@@ -114,7 +132,7 @@ cntools_stake_prepare_wallet() {
   CNTOOLS_STAKE_DIRECTORY="${wallet_directory}"
   cntools_stake_verify_addresses || return 1
   cntools_transaction_log WALLET \
-    "stake wallet prepared wallet=${wallet_name} type=${wallet_type} signing=${CNTOOLS_STAKE_CAN_SIGN}"
+    "stake wallet prepared wallet=${wallet_name} type=${wallet_type} signing=${CNTOOLS_STAKE_CAN_SIGN} payment=${CNTOOLS_STAKE_HAS_PAYMENT}"
 }
 
 cntools_stake_verify_addresses() {
@@ -124,6 +142,7 @@ cntools_stake_verify_addresses() {
   cntools_transaction_temp_file output stake-address-check || return 1
   cntools_transaction_temp_file errors stake-address-errors || return 1
   for role in payment base reward; do
+    [[ "${role}" == reward || "${CNTOOLS_STAKE_HAS_PAYMENT:-Y}" == Y ]] || continue
     case "${role}" in
       payment)
         expected="${CNTOOLS_STAKE_PAYMENT_ADDRESS}"

@@ -21,7 +21,7 @@ cntools_wallet_selection_collect() {
   local context="$1" directory='' address='' payload='' response='' now=0 registered='' rewards='' status='' offset=0 snapshot=''
   local -a addresses=() batch=()
   # "funding" is "send" for actions that cannot spend from a native script.
-  if [[ "${context}" =~ ^(send|funding|funding-software)$ ]]; then
+  if [[ "${context}" =~ ^(send|funding|funding-software|stake-funding|stake-funding-software)$ ]]; then
     # Koios answers every wallet in one batch, so light mode shows balances.
     declare -F cntools_wallet_list_query_koios_funding >/dev/null 2>&1 || return 0
     cntools_wallet_list_query_reset
@@ -107,9 +107,10 @@ cntools_wallet_selection_drep_present() {
 # reason names only causes that were actually checked.
 cntools_wallet_selection_empty_reason_into() {
   local destination="$1" context="$2" reason='' index=0 directory='' stake=0 stake_only=0 scripts=0 hardware=0
-  # stake counts only wallets that meet every stake-action prerequisite the
-  # candidate check applies (payment and stake material, or both scripts), so
-  # "already registered" is never claimed for a wallet that was not eligible.
+  # stake and stake_only count wallets that meet every stake-action
+  # prerequisite the candidate check applies (stake material or a stake
+  # script; a funding wallet pays for a stake-only one), so "already
+  # registered" is never claimed for a wallet that was not eligible.
   for index in "${!CNTOOLS_WALLET_PATHS[@]}"; do
     directory="${CNTOOLS_WALLET_PATHS[index]}"
     case "${CNTOOLS_WALLET_TYPES[index]}" in
@@ -135,10 +136,12 @@ cntools_wallet_selection_empty_reason_into() {
         reason+="$( (( scripts > 0 )) && printf ', and' || printf ':') hardware wallets need the pool cold key on the same Ledger"
       fi
       reason+='. A CLI or mnemonic wallet with a payment key is needed.' ;;
+    stake-funding|stake-funding-software)
+      reason='No wallet can pay for this stake action: a CLI or mnemonic wallet with a payment key is needed'
+      [[ "${context}" != stake-funding ]] || reason+=', or a hardware wallet on the same Ledger'
+      reason+='.' ;;
     register|deregister|withdraw|delegate|vote-delegate)
-      if (( stake == 0 && stake_only > 0 )); then
-        reason='No wallet has both a payment and a stake key (or both scripts); the fee is paid from the same wallet.'
-      elif (( stake == 0 )); then
+      if (( stake + stake_only == 0 )); then
         reason='No wallet has a stake key or stake script.'
       else
         case "${context}" in
@@ -164,21 +167,24 @@ cntools_wallet_selection_empty_reason_into() {
 }
 
 cntools_wallet_selection_candidate_into() {
-  local destination="$1" index="$2" context="$3" directory="${CNTOOLS_WALLET_PATHS[$2]}" address='' candidate_annotation='' registration=''
+  local destination="$1" index="$2" context="$3" directory="${CNTOOLS_WALLET_PATHS[$2]}" address='' candidate_annotation='' registration='' stake_only=N
   [[ -n "${context}" ]] || { printf -v "${destination}" ''; return 0; }
   if [[ "${CNTOOLS_WALLET_TYPES[index]}" == MultiSig ]]; then
     case "${context}" in
       send|collect) ;;
-      funding|funding-software) return 1 ;; # These actions cannot spend from a native script.
+      # These actions cannot spend from a native script.
+      funding|funding-software|stake-funding|stake-funding-software) return 1 ;;
       drep-script-create)
         ! cntools_wallet_selection_drep_present "${directory}" || return 1
         printf -v "${destination}" '%s' ''; return 0 ;;
       drep-register|drep-update|drep-retire|gov-vote|drep-info) cntools_wallet_selection_material "${directory}" drep || return 1 ;;
       register|deregister|delegate|vote-delegate|withdraw)
-        cntools_wallet_file_present "${directory}" "${CNTOOLS_WALLET_STAKE_SCRIPT_FILENAME}" || return 1 ;;
+        cntools_wallet_file_present "${directory}" "${CNTOOLS_WALLET_STAKE_SCRIPT_FILENAME}" || return 1
+        # A stake script alone: a funding wallet pays.
+        cntools_wallet_file_present "${directory}" "${CNTOOLS_WALLET_PAY_SCRIPT_FILENAME}" || stake_only=Y ;;
       *) return 1 ;;
     esac
-    cntools_wallet_file_present "${directory}" "${CNTOOLS_WALLET_PAY_SCRIPT_FILENAME}" || return 1
+    [[ "${stake_only}" == Y ]] || cntools_wallet_file_present "${directory}" "${CNTOOLS_WALLET_PAY_SCRIPT_FILENAME}" || return 1
     candidate_annotation='Native script · participants selected after wallet'
   else
     [[ "${CNTOOLS_WALLET_TYPES[index]}" != Unknown ]] || return 1
@@ -218,10 +224,14 @@ cntools_wallet_selection_candidate_into() {
         [[ ! -L "${directory}/${CNTOOLS_WALLET_DREP_VKEY_FILENAME:-drep.vkey}" && -f "${directory}/${CNTOOLS_WALLET_DREP_VKEY_FILENAME:-drep.vkey}" ]] || return 1
         printf -v "${destination}" '%s' ''; return 0 ;;
     esac
-    cntools_wallet_selection_material "${directory}" payment || return 1
     case "${context}" in
-      register|deregister|delegate|vote-delegate|withdraw|catalyst) cntools_wallet_selection_material "${directory}" stake || return 1 ;;
-      drep-register|drep-update|drep-retire|gov-vote) cntools_wallet_selection_material "${directory}" drep || return 1 ;;
+      register|deregister|delegate|vote-delegate|withdraw)
+        # Stake keys alone (payment keys removed): a funding wallet pays.
+        cntools_wallet_selection_material "${directory}" stake || return 1
+        cntools_wallet_selection_material "${directory}" payment || stake_only=Y ;;
+      catalyst) cntools_wallet_selection_material "${directory}" payment && cntools_wallet_selection_material "${directory}" stake || return 1 ;;
+      drep-register|drep-update|drep-retire|gov-vote) cntools_wallet_selection_material "${directory}" payment && cntools_wallet_selection_material "${directory}" drep || return 1 ;;
+      *) cntools_wallet_selection_material "${directory}" payment || return 1 ;;
     esac
   fi
   if [[ "${context}" =~ ^(register|deregister|delegate|vote-delegate|withdraw)$ ]]; then
@@ -238,12 +248,16 @@ cntools_wallet_selection_candidate_into() {
         [[ "${registration}" == yes ]] && candidate_annotation=Registered || candidate_annotation='Not registered · registration needed'
       fi
     fi
+    [[ "${stake_only}" != Y ]] || candidate_annotation="Stake only · ${candidate_annotation}"
     [[ "${CNTOOLS_WALLET_TYPES[index]}" != MultiSig ]] || candidate_annotation="Native script · ${candidate_annotation}"
   fi
   if [[ "${context}" == funding-software && "${CNTOOLS_WALLET_TYPES[index]}" == Hardware ]]; then
     return 1 # A CLI or public-only pool cold key cannot share a Ledger session.
   fi
-  if [[ "${context}" =~ ^(send|funding|funding-software)$ && "${CNTOOLS_WALLET_LIST_UTXO_LOVELACE[index]:-}" =~ ^[0-9]+$ ]]; then
+  if [[ "${context}" == stake-funding-software && "${CNTOOLS_WALLET_TYPES[index]}" == Hardware ]]; then
+    return 1 # A Ledger must hold the stake key it signs for (lib/stake-funding.sh).
+  fi
+  if [[ "${context}" =~ ^(send|funding|funding-software|stake-funding|stake-funding-software)$ && "${CNTOOLS_WALLET_LIST_UTXO_LOVELACE[index]:-}" =~ ^[0-9]+$ ]]; then
     candidate_annotation="$(cntools_number_format_lovelace "${CNTOOLS_WALLET_LIST_UTXO_LOVELACE[index]}")${candidate_annotation:+ · ${candidate_annotation}}"
   fi
   printf -v "${destination}" '%s' "${candidate_annotation}"

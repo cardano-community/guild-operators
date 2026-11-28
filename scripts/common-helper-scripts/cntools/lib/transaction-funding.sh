@@ -81,6 +81,8 @@ cntools_funding_koios_utxos() {
   fi
 }
 
+# Without an address (a stake-only wallet, before a funding wallet is chosen)
+# only the protocol parameters and tip are read: the wallet is EMPTY.
 cntools_funding_collect() {
   local primary="${1:-}" payment="${2:-${1:-}}" response="" errors=""
   local status=0 index=0 reserve=""
@@ -102,7 +104,7 @@ cntools_funding_collect() {
     cntools_transaction_run_cli "${CNTOOLS_FUNDING_PROTOCOL}" "${errors}" -- \
       "${CNTOOLS_CLI}" latest query protocol-parameters "${network[@]}" \
       --socket-path "${CNTOOLS_SOCKET}" --output-json || status=$?
-    if (( status == 0 )); then
+    if (( status == 0 )) && [[ -n "${primary}" ]]; then
       cntools_transaction_run_cli "${response}" "${errors}" -- \
         "${CNTOOLS_CLI}" latest query utxo "${address_arguments[@]}" "${network[@]}" \
         --socket-path "${CNTOOLS_SOCKET}" --output-json || status=$?
@@ -114,16 +116,22 @@ cntools_funding_collect() {
       cntools_transaction_log_cli_failure "Transaction funding query failed" "${status}" "${errors}" "${response}"
       return 1
     fi
-    cntools_utxo_load_local "${response}" "${primary}" "${payment}" || {
-      cntools_transaction_set_error "${CNTOOLS_UTXO_ERROR}"; return 1;
-    }
+    if [[ -z "${primary}" ]]; then cntools_utxo_reset
+    else
+      cntools_utxo_load_local "${response}" "${primary}" "${payment}" || {
+        cntools_transaction_set_error "${CNTOOLS_UTXO_ERROR}"; return 1;
+      }
+    fi
   elif [[ "${CNTOOLS_KOIOS_ENABLED:-N}" == Y && "${CNTOOLS_KOIOS_API:-}" == https://* ]]; then
     CNTOOLS_FUNDING_BACKEND=koios
     cntools_funding_get "${CNTOOLS_KOIOS_API%/}/cli_protocol_params" "${CNTOOLS_FUNDING_PROTOCOL}" || return 1
-    cntools_funding_koios_utxos "${response}" "${primary}" "${payment}" || return 1
-    cntools_utxo_load_koios "${response}" "${primary}" "${payment}" || {
-      cntools_transaction_set_error "${CNTOOLS_UTXO_ERROR}"; return 1;
-    }
+    if [[ -z "${primary}" ]]; then cntools_utxo_reset
+    else
+      cntools_funding_koios_utxos "${response}" "${primary}" "${payment}" || return 1
+      cntools_utxo_load_koios "${response}" "${primary}" "${payment}" || {
+        cntools_transaction_set_error "${CNTOOLS_UTXO_ERROR}"; return 1;
+      }
+    fi
     cntools_funding_tip_into CNTOOLS_FUNDING_SLOT koios || return 1
   else
     cntools_transaction_set_error "No current chain-data source is available for transaction building."

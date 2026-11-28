@@ -82,6 +82,8 @@ jobs:
       run: bash files/tests/cntools-amount-precision.sh
     - name: Test CNTools default-vote buckets and pool default vote
       run: bash files/tests/cntools-vote-buckets.sh
+    - name: Test CNTools stake actions paid by a funding wallet
+      run: bash files/tests/cntools-stake-funding.sh
     - name: Scan CNTools for nameref collisions
       run: bash files/tests/cntools-nameref.sh
     - name: Test the update bridge for deployments of the earlier layout
