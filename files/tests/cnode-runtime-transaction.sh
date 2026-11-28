@@ -735,6 +735,39 @@ run_common_hardware_wallet_install_test() (
     fail "hardware-rule skip did not explain that device permissions are host-managed"
 )
 
+# cnode's -s x runs the common Cardano Signer installer, and its failure stops
+# the deployment.
+run_cnode_signer_step_test() (
+  set +u
+  local calls="${TEST_ROOT}/cnode-signer.calls"
+
+  NODE_HOME="${TEST_ROOT}/cnode-signer"
+  mkdir -p "${NODE_HOME}/files"
+  S_ARGS="x"
+  cnode_deploy_init_context() { :; }
+  cnode_deploy_parse_flags
+  CNODE_DEPLOY_REFRESH_PAYLOAD="N"
+  cnode_deploy_validate_openssl3() { CNODE_DEPLOY_OPENSSL_BIN="/usr/bin/openssl"; }
+  log_section() { :; }
+  dispatcher_install_cardano_signer() { printf '%s\n' "${ACTIVE_FLAG}" >> "${calls}"; }
+  # A later step shows whether the flow went on.
+  CNODE_DEPLOY_INSTALL_BLOCKPERF="Y"
+  download_blockperf() { printf 'later step\n' >> "${calls}"; }
+
+  cnode_deploy_main_flow >/dev/null
+  assert_eq "$(cat "${calls}")" $'-s x\nlater step' "cnode Cardano Signer step"
+  if declare -F download_cardanosigner >/dev/null; then
+    fail "cnode still has its own Cardano Signer installer"
+  fi
+  : > "${calls}"
+  dispatcher_install_cardano_signer() { return 1; }
+  if (cnode_deploy_main_flow >/dev/null 2>&1); then
+    fail "cnode reported success after a failed Cardano Signer install"
+  fi
+  [[ ! -s "${calls}" ]] ||
+    fail "cnode carried on after a failed Cardano Signer install"
+)
+
 run_managed_installer_policy_test() (
   local node_root="${TEST_ROOT}/managed-installer"
   local manifest="${node_root}/files/cnode-release.json"
@@ -1307,6 +1340,7 @@ run_release_manifest_validation_tests
 run_release_resolver_tests
 run_binary_staging_test
 run_common_hardware_wallet_install_test
+run_cnode_signer_step_test
 run_managed_installer_policy_test
 run_source_checkout_test
 run_transaction_tests

@@ -301,10 +301,14 @@ dispatcher_mainnet_notice() {
   log_warn "${1:-This node} is still under heavy development. Try it on preview or preprod first; running it on mainnet is at your own responsibility."
 }
 
+# Resolve the newest published GitHub release of $2 and its one asset matching
+# the selector $3. Channel $4 is "any" (the default, prereleases included) or
+# "stable" (prereleases skipped).
 dispatcher_resolve_github_release() {
   local component="$1"
   local repository="$2"
   local selector="$3"
+  local channel="${4:-any}"
   local api_url response_file resolved_line expected_url digest
 
   DISPATCHER_RELEASE_TAG=""
@@ -326,6 +330,10 @@ dispatcher_resolve_github_release() {
   [[ -n "${selector}" && "${selector}" != *$'\n'* &&
      "${selector}" != *$'\r'* && "${selector}" != *$'\t'* ]] || {
     err_exit "Invalid release-asset selector configured for ${component}."
+    return 1
+  }
+  [[ "${channel}" == "any" || "${channel}" == "stable" ]] || {
+    err_exit "Unsupported release channel '${channel}' for ${component}."
     return 1
   }
 
@@ -350,12 +358,13 @@ dispatcher_resolve_github_release() {
   fi
 
   if ! resolved_line="$(
-    jq -er --arg selector "${selector}" '
+    jq -er --arg selector "${selector}" --arg channel "${channel}" '
       [
         .[] |
         select(
           .draft == false and
           (.prerelease | type) == "boolean" and
+          ($channel == "any" or .prerelease == false) and
           (.published_at | type) == "string" and
           (.published_at | length) > 0
         )
@@ -461,13 +470,13 @@ dispatcher_usage() {
 	        u  update the kept configuration in place for this release (backups are kept)
 	        s  force helper-script overwrite
 	        w  cardano-hw-cli and host device rules
+	        x  Cardano Signer (newest release, 1.24.0 or newer)
 	      cnode only (dingo and amaru reject these):
 	        b  Haskell build toolchain (GHCup, GHC, Cabal, secp256k1, blst)
 	        l  libsodium fork for source builds
 	        m  Mithril signer and client
 	        c  CNCLI
 	        o  Ogmios
-	        x  Cardano Signer
 	        r  openBlockPerf
 	      Unsupported flags fail explicitly.
 	-h    Show this help
@@ -703,6 +712,21 @@ dispatcher_validate_common_tools_manifest() {
     def artifact_map:
       keys == ["linux-aarch64", "linux-x86_64"] and
       all(.[]; artifact);
+    def anchored_selector:
+      type == "string" and
+      length > 2 and
+      startswith("^") and
+      endswith("$") and
+      (test("[[:cntrl:]]") | not);
+    # Cardano Signer follows its newest stable release from this repository,
+    # no older than minimumVersion. Every other common tool is pinned.
+    def latest_signer:
+      keys == ["assets", "github", "minimumVersion", "version"] and
+      .version == "latest" and
+      .github == "gitmachtl/cardano-signer" and
+      (.minimumVersion | concrete_version) and
+      (.assets | keys == ["linux-aarch64", "linux-x86_64"]) and
+      all(.assets[]; anchored_selector);
     def hardware_wallet_rules:
       keys == ["ledger", "trezor"] and
       (.ledger | artifact) and
@@ -713,11 +737,12 @@ dispatcher_validate_common_tools_manifest() {
     keys == ["schemaVersion", "scope", "supportArtifacts", "tools"] and
     .schemaVersion == 1 and
     .scope == "guild-tools" and
-    (.tools | keys == ["cardano-hw-cli"]) and
+    (.tools | keys == ["cardano-hw-cli", "cardano-signer"]) and
     (.tools["cardano-hw-cli"] |
       keys == ["artifacts", "version"] and
       (.version | concrete_version) and
       (.artifacts | artifact_map)) and
+    (.tools["cardano-signer"] | latest_signer) and
     (.supportArtifacts | keys == ["hardwareWalletRules"]) and
     (.supportArtifacts.hardwareWalletRules | hardware_wallet_rules)
   ' "${manifest}" >/dev/null
@@ -925,6 +950,105 @@ dispatcher_install_cardano_hw_cli() (
   dispatcher_install_hardware_wallet_rules "${manifest}" ||
     err_exit "Could not install hardware-wallet device rules."
   log_ok "Deployed cardano-hw-cli" "${version}"
+)
+
+# Cardano Signer, which CNTools runs for Catalyst (CIP-36) keys and Calidus
+# (CIP-88) registrations: the newest stable GitHub release, no older than the
+# common manifest's minimumVersion. Only the archive's top-level
+# cardano-signer file is extracted; it is staged in ${NODE_HOME}/bin, must
+# report the release's version, and then replaces the installed copy in one
+# rename.
+dispatcher_install_cardano_signer() (
+  local manifest="" architecture="" repository="" selector="" minimum=""
+  local version="" actual_sha="" staging_dir="" archive="" extract_dir=""
+  local member_list="" member="" install_stage="" version_output=""
+  local target="" cabal_copy=""
+
+  for required_command in \
+    awk curl find grep install jq mkdir mktemp mv rm rmdir sha256sum sort \
+    tar timeout tr uname wc; do
+    command -v "${required_command}" >/dev/null 2>&1 ||
+      err_exit "Required command '${required_command}' is missing; re-run with -s p."
+  done
+  manifest="$(dispatcher_common_tools_manifest)" ||
+    err_exit "Common Guild tool metadata is missing from the source snapshot."
+  dispatcher_validate_common_tools_manifest "${manifest}" ||
+    err_exit "Invalid common Guild tool metadata: ${manifest}"
+  architecture="$(dispatcher_common_architecture)" ||
+    err_exit "Unsupported Cardano Signer architecture: $(uname -m)"
+  repository="$(jq -er '.tools["cardano-signer"].github' "${manifest}")" ||
+    err_exit "Could not read the Cardano Signer repository."
+  selector="$(jq -er --arg arch "${architecture}" \
+    '.tools["cardano-signer"].assets[$arch]' "${manifest}")" ||
+    err_exit "No Cardano Signer release asset is defined for ${architecture}."
+  minimum="$(jq -er '.tools["cardano-signer"].minimumVersion' "${manifest}")" ||
+    err_exit "Could not read the minimum Cardano Signer version."
+
+  log_progress "Resolving the newest Cardano Signer release" "${architecture}"
+  dispatcher_resolve_github_release \
+    "cardano-signer" "${repository}" "${selector}" stable ||
+    err_exit "Could not resolve the newest Cardano Signer release."
+  version="${DISPATCHER_RELEASE_VERSION}"
+  # CNTools reads 'cardano-signer X.Y.Z' from --version.
+  [[ "${version}" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] ||
+    err_exit "Cardano Signer release ${DISPATCHER_RELEASE_TAG} has no X.Y.Z version."
+  printf '%s\n%s\n' "${minimum}" "${version}" | LC_ALL=C sort -C -V ||
+    err_exit "The newest Cardano Signer release ${version} is older than the required ${minimum}."
+
+  log_progress "Downloading Cardano Signer" "${version}"
+  staging_dir="$(mktemp -d "${TMPDIR:-/tmp}/guild-cardano-signer.XXXXXX")" ||
+    err_exit "Could not create a private Cardano Signer staging directory."
+  trap '[[ -z "${install_stage}" ]] || rm -rf -- "${install_stage}"; rm -rf -- "${staging_dir}"' EXIT
+  archive="${staging_dir}/cardano-signer.tar.gz"
+  extract_dir="${staging_dir}/extract"
+  mkdir -- "${extract_dir}" ||
+    err_exit "Could not prepare the Cardano Signer extraction directory."
+  curl --fail --silent --show-error --location \
+    --connect-timeout "${CURL_TIMEOUT:-20}" \
+    --max-time "${DOWNLOAD_TIMEOUT:-600}" \
+    "${DISPATCHER_RELEASE_URL}" --output "${archive}" ||
+    err_exit "Could not download Cardano Signer ${version}."
+  actual_sha="$(sha256sum "${archive}" | awk '{print $1}')" ||
+    err_exit "Could not calculate the Cardano Signer archive checksum."
+  [[ "${actual_sha}" == "${DISPATCHER_RELEASE_SHA256}" ]] ||
+    err_exit "Cardano Signer ${version} failed SHA-256 verification."
+
+  member_list="$(tar -tzf "${archive}")" ||
+    err_exit "Could not read the Cardano Signer ${version} archive."
+  member="$(grep -xE '(\./)?cardano-signer' <<< "${member_list}" || true)"
+  [[ -n "${member}" && "${member}" != *$'\n'* ]] ||
+    err_exit "The Cardano Signer ${version} archive has no single top-level cardano-signer file."
+  tar -xzf "${archive}" -C "${extract_dir}" --no-same-owner -- "${member}" ||
+    err_exit "Could not extract Cardano Signer ${version}."
+  [[ -f "${extract_dir}/cardano-signer" && ! -L "${extract_dir}/cardano-signer" &&
+     "$(find "${extract_dir}" -mindepth 1 | wc -l | tr -d '[:space:]')" == "1" ]] ||
+    err_exit "The Cardano Signer ${version} archive entry is not a regular file."
+
+  mkdir -p -- "${NODE_HOME}/bin" ||
+    err_exit "Could not prepare ${NODE_HOME}/bin."
+  target="${NODE_HOME}/bin/cardano-signer"
+  [[ -L "${target}" || ! -d "${target}" ]] ||
+    err_exit "${target} is a directory."
+  install_stage="$(mktemp -d "${NODE_HOME}/bin/.cardano-signer.install.XXXXXX")" ||
+    err_exit "Could not stage Cardano Signer in ${NODE_HOME}/bin."
+  install -m 0755 -- "${extract_dir}/cardano-signer" "${install_stage}/cardano-signer" ||
+    err_exit "Could not stage the Cardano Signer binary."
+  version_output="$(timeout 60 "${install_stage}/cardano-signer" --version 2>/dev/null)" ||
+    err_exit "The staged Cardano Signer ${version} could not be started."
+  [[ "${version_output}" =~ ^cardano-signer[[:space:]]+([0-9]+\.[0-9]+\.[0-9]+)$ &&
+     "${BASH_REMATCH[1]}" == "${version}" ]] ||
+    err_exit "Staged Cardano Signer reported '${version_output:-nothing}', expected 'cardano-signer ${version}'."
+  mv -fT -- "${install_stage}/cardano-signer" "${target}" ||
+    err_exit "Could not install Cardano Signer ${version}."
+  rmdir -- "${install_stage}" && install_stage=""
+
+  # Earlier releases also left a copy in ~/.cabal/bin, which may come first in PATH.
+  cabal_copy="${HOME}/.cabal/bin/cardano-signer"
+  if [[ -L "${cabal_copy}" || -f "${cabal_copy}" ]]; then
+    rm -f -- "${cabal_copy}" ||
+      log_warn "Could not remove the old ${cabal_copy}; remove it so ${target} is used."
+  fi
+  log_ok "Deployed Cardano Signer" "${version}"
 )
 
 dispatcher_validate_cntools_tree() {
@@ -2815,10 +2939,10 @@ dispatcher_layout_check_cnode() {
 dispatcher_layout_select_copies() {
   local want_download="$1"
   local tool="" shared="${HOME}/.local/bin"
-  local -a tools=(cardano-hw-cli gum fzf)
+  local -a tools=(cardano-hw-cli cardano-signer gum fzf)
 
   if [[ "${NODE_IMPLEMENTATION}" = "cnode" ]]; then
-    tools+=(cncli ogmios cardano-signer mithril-signer mithril-client)
+    tools+=(cncli ogmios mithril-signer mithril-client)
     # -s d installs these itself.
     [[ "${want_download}" = "Y" ]] ||
       tools+=(cardano-node cardano-cli cardano-submit-api bech32 cardano-address cardano-db-sync)

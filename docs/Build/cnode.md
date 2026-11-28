@@ -22,8 +22,8 @@ branch, implementation, network, target path, service name, node port, download
 timeouts, and selective flags. `deploy-cnode.sh` is an internal source-only
 profile; it has no editable user-variable section and must not be run directly.
 
-The common flags `p`, `d`, `f`, `s`, `u`, and `w` have the same meaning for every
-implementation:
+The common flags `p`, `d`, `f`, `s`, `u`, `w`, and `x` have the same meaning for
+every implementation:
 
 | Flag | Common action |
 | --- | --- |
@@ -33,6 +33,7 @@ implementation:
 | `s` | Force helper-script replacement, including every script and common `env` user-variable section |
 | `u` | Update the kept topology and node config in place for this release, keeping your own settings; both are backed up |
 | `w` | Install the pinned Cardano Hardware CLI and host device rules |
+| `x` | Install the newest Cardano Signer release, 1.24.0 or newer |
 
 cnode additionally supports:
 
@@ -43,7 +44,6 @@ cnode additionally supports:
 | `m` | Install Mithril signer and client |
 | `c` | Install CNCLI |
 | `o` | Install Ogmios |
-| `x` | Install Cardano Signer |
 | `r` | Install openBlockPerf |
 
 The openBlockPerf installer mode follows the state of
@@ -89,14 +89,14 @@ released cnode software is grouped by how the deployment consumes it:
 | --- | --- | --- |
 | Primary entry | cardano-node, cardano-submit-api, bech32 archive | Concrete `version` and architecture-keyed `artifacts` |
 | `companions` | cardano-cli, cardano-address, cardano-db-sync | Concrete `version` and architecture-keyed `artifacts` |
-| `tools` | CNCLI, Ogmios, Cardano Signer, Mithril, Catalyst Toolbox, GHCup | Concrete artifacts or a `latest` GitHub selector |
+| `tools` | CNCLI, Ogmios, Mithril, Catalyst Toolbox, GHCup | Concrete artifacts or a `latest` GitHub selector |
 | `managedInstallers` | openBlockPerf package and installer | Latest or concrete package version; concrete installer |
 | `build` | GHC, Cabal, libsodium, secp256k1, BLST | Toolchain version strings and immutable source commits |
 
-Cardano Hardware CLI and the Ledger/Trezor rules are node-independent CNTools
-dependencies, so their versions live in the common
-`files/node-implementations/common/release.json` manifest. The executable is still
-installed per deployment.
+Cardano Hardware CLI, the Ledger/Trezor rules and Cardano Signer are
+node-independent CNTools dependencies, so their versions live in the common
+`files/node-implementations/common/release.json` manifest. Each executable is
+still installed per deployment.
 
 ### Concrete and latest versions
 
@@ -152,6 +152,11 @@ The currently tracked tools are:
 | Cardano Signer | Stable | x86_64, aarch64 | 1.24.0 |
 | Mithril | Stable | x86_64, aarch64 | — |
 | openBlockPerf | Stable PyPI package | Python/Linux | — |
+
+Cardano Hardware CLI and Cardano Signer come from the common manifest, so
+Dingo and Amaru deployments install the same releases with `-s w` and `-s x`.
+Cardano Signer follows its newest stable release, never older than the floor
+CNTools needs for its Catalyst (CIP-36) and Calidus (CIP-88) actions.
 
 Catalyst Toolbox remains a pinned x86_64 artifact for a future CNTools action.
 The CNTools 14 interface skeleton does not currently consume it. Its previous

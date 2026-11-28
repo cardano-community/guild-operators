@@ -428,10 +428,29 @@ run_alternate_profile_test() (
     fail "${implementation} rejected a mainnet relay deployment"
   NETWORK="${network}"
 
-  S_ARGS="blmcoxr"
-  if "${parse_function}" >/dev/null 2>&1; then
-    fail "${implementation} accepted cnode-only selective-install flags"
-  fi
+  for cnode_only_flag in b l m c o r; do
+    S_ARGS="${cnode_only_flag}"
+    if "${parse_function}" >/dev/null 2>&1; then
+      fail "${implementation} accepted the cnode-only selective-install flag ${cnode_only_flag}"
+    fi
+  done
+  S_ARGS="x"
+  "${parse_function}" ||
+    fail "${implementation} rejected the common Cardano Signer flag"
+  case "${implementation}" in
+    dingo)
+      [[ "${DINGO_DEPLOY_INSTALL_SIGNER}" == "Y" &&
+         "${DINGO_DEPLOY_INSTALL_DEPS}" == "N" &&
+         "${DINGO_DEPLOY_INSTALL_HWCLI}" == "N" ]] ||
+        fail "Dingo -s x did not select only the Cardano Signer install"
+      ;;
+    amaru)
+      [[ "${AMARU_DEPLOY_INSTALL_SIGNER}" == "Y" &&
+         "${AMARU_DEPLOY_INSTALL_DEPS}" == "N" &&
+         "${AMARU_DEPLOY_INSTALL_HWCLI}" == "N" ]] ||
+        fail "Amaru -s x did not select only the Cardano Signer install"
+      ;;
+  esac
   S_ARGS="w"
   "${parse_function}" ||
     fail "${implementation} rejected the common hardware-wallet flag"
@@ -2087,6 +2106,24 @@ run_alternate_profile_test() (
     grep -Fx "disable --now ${NODE_SERVICE}-metrics.service" \
       "${systemctl_log}" >/dev/null
   fi
+
+  # A -s x refresh runs the common Cardano Signer installer, and its failure
+  # fails the deployment.
+  (
+    S_ARGS="x"
+    signer_calls="${test_root}/signer-calls"
+    dispatcher_install_cardano_signer() { printf 'installed\n' >> "${signer_calls}"; }
+    "${deploy_function}" >/dev/null 2> "${test_root}/signer.err" || {
+      cat "${test_root}/signer.err" >&2
+      fail "${implementation} -s x refresh failed"
+    }
+    [[ "$(cat "${signer_calls}")" == "installed" ]] ||
+      fail "${implementation} -s x did not run the common Cardano Signer installer"
+    dispatcher_install_cardano_signer() { return 1; }
+    if "${deploy_function}" >/dev/null 2>&1; then
+      fail "${implementation} ignored a failed Cardano Signer install"
+    fi
+  ) || exit 1
 )
 
 assert_openssl3_deployment_contract cnode
