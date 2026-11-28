@@ -154,7 +154,7 @@ same user needs them.
 | `deploy-as-systemd.sh` | each script's `-d` or `systemd install\|remove\|status`; see [Services](#services) |
 | CNTools 13 and `cntools.library` | CNTools 14 in `scripts/cntools/`, started with `cntools.sh` |
 | Topology Updater | removed, as P2P finds its own peers; the refresh archives the script and removes its units |
-| `blockPerf.sh` and `logMonitor.sh` | still disabled under the current node tracing; openBlockPerf (`-s r`) instead |
+| `blockPerf.sh` and `logMonitor.sh` | removed, as they could not read the current node tracing; the refresh archives them and removes their units. openBlockPerf (`-s r`) measures block propagation, and `cncli.sh validate` records block results |
 | binaries shared in `~/.local/bin` | each deployment's own `bin` |
 | `POOL_DIR` in `env` | the pool folder is always `${POOL_FOLDER}/${POOL_NAME}` |
 | `scripts/.env_branch` | the branch is stored in `.deployment.json` |

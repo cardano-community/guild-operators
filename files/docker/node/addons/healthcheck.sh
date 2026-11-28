@@ -99,7 +99,6 @@ PROCESS_TO_HEALTHCHECK=(
     ["dbsync.sh"]="check_db_sync"
     ["cnode.sh"]="check_node"
     ["cncli.sh"]="check_cncli"
-    ["logMonitor.sh"]="check_logmonitor"
 )
 
 # FUNCTIONS
@@ -395,51 +394,6 @@ check_tip() {
             return 1
         fi
     fi
-}
-
-# Function to check if logMonitor.sh is running and properly processing logs
-check_logmonitor() {
-    SQLITE=$(which sqlite3)
-    # Check if logMonitor process is running
-    if ! pgrep -f "logMonitor.sh" >/dev/null; then
-        echo "ERROR: logMonitor.sh process is not running"
-        return 1
-    fi
-    # Get the log file that logMonitor is watching from the config file
-    local logfile=""
-    if [[ "${CONFIG##*.}" = "yaml" ]]; then
-        [[ $(grep "scName.*\.json" "${CONFIG}") =~ scName:.\"(.+\.json)\" ]] && logfile="${BASH_REMATCH[1]}"
-    elif [[ "${CONFIG##*.}" = "json" ]]; then
-        logfile=$(jq -r '.setupScribes[] | select (.scFormat == "ScJson") | .scName' "${CONFIG}")
-    fi
-    # Check if the path to the log file is present
-    if [[ -z "${logfile}" ]]; then
-        echo "ERROR: Failed to locate json log file."
-        return 1
-    fi
-    # Check if the node log file is present
-    if [[ ! -f "${logfile}" ]]; then
-        echo "ERROR: Node log file does not exist. ${logfile} "
-        return 1
-    fi
-    # Check if the blocklog database is present
-    if [[ ! -f "${BLOCKLOG_DB}" ]]; then
-        echo "ERROR: Block log database ${BLOCKLOG_DB} does not exist"
-        return 1
-    fi
-    # Verify write access to the blocklog database file
-    if [[ ! -w "${BLOCKLOG_DB}" ]]; then
-        echo "ERROR: No write permission to block log database ${BLOCKLOG_DB}"
-        return 1
-    fi
-    # Verify the database is readable with SQLite
-    if ! timeout 10 "${SQLITE}" "${BLOCKLOG_DB}" ".exit"; then
-        echo "ERROR: Cannot connect to block log database ${BLOCKLOG_DB}"
-        return 1
-    fi
-    # If all checks pass
-    echo "Healthy: logMonitor.sh is running and able to process logs"
-    return 0
 }
 
 # MAIN

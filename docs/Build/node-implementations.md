@@ -349,9 +349,14 @@ an alternate implementation before starting it explicitly.
 Topology Updater predates Cardano P2P and has been removed. A cnode refresh
 archives `topologyUpdater.sh` and removes its `cnode-tu-push`, `cnode-tu-fetch`
 and `cnode-tu-restart` units, because the restart timer would otherwise keep
-restarting the node every day. Disabled BlockPerf and Log Monitor scripts can remove or inspect
-stale units, but refuse to install a service that cannot run with current
-tracing.
+restarting the node every day.
+
+BlockPerf and Log Monitor could not read the current node tracing and have been
+removed too. A cnode refresh archives `blockPerf.sh` and `logMonitor.sh` and
+removes their `cnode-tu-blockperf` and `cnode-logmonitor` units. openBlockPerf
+(`guild-deploy.sh -s r`, see [cnode deployment profile](cnode.md#profile-contract))
+measures block propagation instead, and `cncli.sh validate` records block
+results from the node's journal.
 
 ## Release policy maintenance
 

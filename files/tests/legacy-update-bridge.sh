@@ -13,8 +13,9 @@ SRC="${REPO_ROOT}/scripts/cnode-helper-scripts"
 BRIDGE_ENV="${SRC}/env"
 # sha256 of scripts/cnode-helper-scripts/env at the last master commit of the earlier layout
 MASTER_ENV_SHA256="93cfb0e40d73543bfe4f95fc492230e745d9aecbf8aa82b80bb8fa8e90217c8e"
-GUARDED=(cncli.sh blockPerf.sh mithril-client.sh mithril-signer.sh mithril-relay.sh mithril.library)
-STUBS=(gLiveView.sh cntools.sh cntools.library)
+GUARDED=(cncli.sh mithril-client.sh mithril-signer.sh mithril-relay.sh mithril.library)
+# Kept only for the earlier layout. blockPerf.sh is retired on the current one.
+STUBS=(gLiveView.sh cntools.sh cntools.library blockPerf.sh)
 
 fail() {
   printf 'FAIL: %s\n' "$1" >&2
@@ -58,7 +59,7 @@ for file in "${GUARDED[@]}"; do
 done
 
 # --- New deployments never get the files kept for the earlier layout -----------
-for file in env gLiveView.sh cntools.sh cntools.library; do
+for file in env "${STUBS[@]}"; do
   if grep -q "scripts/cnode-helper-scripts/${file}\$" "${SRC}/deploy-cnode.sh"; then
     fail "deploy-cnode.sh installs scripts/cnode-helper-scripts/${file}, which only exists for the earlier layout"
   fi
@@ -302,6 +303,17 @@ contains "${TEST_DIR}/run.out" "has no earlier copy of it to put back" "the guar
 contains "${TEST_DIR}/run.out" "upgrade/#from-master" "the guard did not point to the upgrade guide"
 same "${DEPLOY}/scripts/cncli.sh" "${SRC}/cncli.sh" "the guard changed cncli.sh without a copy to put back"
 
+# --- The retired blockPerf.sh puts the earlier copy back ------------------------
+# Its update check, still on the earlier env in that run, fetched this stub from
+# the branch and archived the copy it replaced.
+new_deployment
+cp "${SRC}/blockPerf.sh" "${DEPLOY}/scripts/blockPerf.sh"
+mkdir -p "${DEPLOY}/scripts/archive"
+printf '#!/usr/bin/env bash\necho "OLD blockPerf $*"\n' > "${DEPLOY}/scripts/archive/blockPerf.sh_bkp100"
+run_rc 0 ./blockPerf.sh -u -s
+contains "${TEST_DIR}/run.out" "OLD blockPerf -u -s" "the blockPerf.sh stub did not run the earlier copy with -u"
+same "${DEPLOY}/scripts/blockPerf.sh" "${DEPLOY}/scripts/archive/blockPerf.sh_bkp100" "the earlier blockPerf.sh was not put back"
+
 # --- On the current layout the guard does nothing --------------------------------
 rc=0; (cd "${SRC}" && ./gLiveView.sh) > "${TEST_DIR}/run.out" 2>&1 </dev/null || rc=$?
 [[ ${rc} -eq 1 ]] || fail "the gLiveView stub in the repository returned ${rc}"
@@ -312,5 +324,9 @@ printf '#!/usr/bin/env bash\necho restored\n' > "${TEST_DIR}/no-env/archive/gLiv
 rc=0; (cd "${TEST_DIR}/no-env" && ./gLiveView.sh) > "${TEST_DIR}/run.out" 2>&1 </dev/null || rc=$?
 [[ ${rc} -eq 1 ]] || fail "the stub without an env of the earlier layout returned ${rc}"
 same "${TEST_DIR}/no-env/gLiveView.sh" "${SRC}/gLiveView.sh" "the guard acted without an env of the earlier layout"
+
+rc=0; (cd "${SRC}" && ./blockPerf.sh) > "${TEST_DIR}/run.out" 2>&1 </dev/null || rc=$?
+[[ ${rc} -eq 1 ]] || fail "the blockPerf.sh stub in the repository returned ${rc}"
+contains "${TEST_DIR}/run.out" "guild-deploy.sh -s r installs it" "the blockPerf.sh stub did not point to openBlockPerf"
 
 printf 'legacy update bridge tests passed\n'
