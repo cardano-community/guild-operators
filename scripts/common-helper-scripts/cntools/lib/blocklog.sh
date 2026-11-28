@@ -13,6 +13,13 @@ CNTOOLS_BLOCKLOG_HAS_DETAIL=N
 # of this node, so the block log holds the schedule only.
 CNTOOLS_BLOCKLOG_HAS_RESULTS=Y
 CNTOOLS_BLOCKLOG_EPOCH_STATS='{}'
+# The leader schedule of the epoch last read: recorded (it has slots), empty
+# (calculated, no slots assigned), pending (later than every calculated epoch),
+# missing (an earlier epoch nothing was calculated for) or unknown (a block log
+# without epochdata cannot tell an epoch without slots from one never calculated).
+CNTOOLS_BLOCKLOG_EPOCH_SCHEDULE=unknown
+# The latest epoch with a calculated schedule; empty when there is none.
+CNTOOLS_BLOCKLOG_LATEST_EPOCH=''
 
 cntools_blocklog_error() {
   CNTOOLS_BLOCKLOG_ERROR="$1"
@@ -165,6 +172,7 @@ cntools_blocklog_epoch() {
   jq -e 'length <= 100000 and all(.[]; (.status|type)=="string" and
     all(.slot,.block,.slot_in_epoch,.size; type=="number" and .>=0 and .<=9007199254740991 and .==floor))' \
     <<< "${CNTOOLS_BLOCKLOG_DATA}" >/dev/null || { cntools_blocklog_error 'This epoch exceeds the safe display limit or contains malformed block records.'; return 1; }
+  cntools_blocklog_schedule "${epoch}"
   # Ideal blocks and luck are optional: without them the epoch view omits the rows.
   CNTOOLS_BLOCKLOG_EPOCH_STATS='{}'
   [[ "${CNTOOLS_BLOCKLOG_HAS_EPOCHDATA}" == Y ]] || return 0
@@ -174,5 +182,37 @@ cntools_blocklog_epoch() {
      ! jq -e 'type=="object" and all(.ideal,.luck; .==null or (type=="number" and .>=0 and .<=9007199254740991))' \
        <<< "${CNTOOLS_BLOCKLOG_EPOCH_STATS}" >/dev/null; then
     CNTOOLS_BLOCKLOG_EPOCH_STATS='{}'; CNTOOLS_BLOCKLOG_ERROR=''
+  fi
+}
+
+# Sets CNTOOLS_BLOCKLOG_EPOCH_SCHEDULE and CNTOOLS_BLOCKLOG_LATEST_EPOCH for an
+# epoch whose slots are in CNTOOLS_BLOCKLOG_DATA. Both writers of the block log,
+# cncli.sh leaderlog and amaru-leaderlog.sh, store an epochdata row for every
+# epoch they calculate, also for one without slots. A failed read leaves unknown.
+cntools_blocklog_schedule() {
+  local epoch="$1" schedule=''
+  CNTOOLS_BLOCKLOG_EPOCH_SCHEDULE=unknown; CNTOOLS_BLOCKLOG_LATEST_EPOCH=''
+  if [[ "$(jq 'length' <<< "${CNTOOLS_BLOCKLOG_DATA}")" != 0 ]]; then
+    CNTOOLS_BLOCKLOG_EPOCH_SCHEDULE=recorded
+    return 0
+  fi
+  [[ "${CNTOOLS_BLOCKLOG_HAS_EPOCHDATA}" == Y ]] || return 0
+  if ! cntools_blocklog_sql schedule "SELECT json_object(
+      'calculated',EXISTS(SELECT 1 FROM main.epochdata WHERE epoch=${epoch}),
+      'latest',(SELECT max(epoch) FROM (SELECT epoch FROM main.blocklog UNION ALL SELECT epoch FROM main.epochdata)
+        WHERE typeof(epoch)='integer' AND epoch BETWEEN 0 AND 999999999));" ||
+     ! jq -e 'type=="object" and (.calculated|IN(0,1)) and
+       (.latest==null or (.latest|type=="number" and .>=0 and .<=999999999 and .==floor))' \
+       <<< "${schedule}" >/dev/null; then
+    CNTOOLS_BLOCKLOG_ERROR=''
+    return 0
+  fi
+  CNTOOLS_BLOCKLOG_LATEST_EPOCH="$(jq -r '.latest // ""' <<< "${schedule}")"
+  if jq -e '.calculated == 1' <<< "${schedule}" >/dev/null; then
+    CNTOOLS_BLOCKLOG_EPOCH_SCHEDULE=empty
+  elif [[ -z "${CNTOOLS_BLOCKLOG_LATEST_EPOCH}" ]] || (( epoch > CNTOOLS_BLOCKLOG_LATEST_EPOCH )); then
+    CNTOOLS_BLOCKLOG_EPOCH_SCHEDULE=pending
+  else
+    CNTOOLS_BLOCKLOG_EPOCH_SCHEDULE=missing
   fi
 }
