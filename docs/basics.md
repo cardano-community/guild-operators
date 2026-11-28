@@ -189,13 +189,13 @@ Usage: guild-deploy.sh [-g account] [-i <cnode|dingo|amaru>] [-n <network>] \
         u  update the kept configuration in place for this release (backups are kept)
         s  force helper-script overwrite
         w  cardano-hw-cli and host device rules
+        x  Cardano Signer (newest release, 1.24.0 or newer)
       cnode only (dingo and amaru reject these):
         b  Haskell build toolchain (GHCup, GHC, Cabal, secp256k1, blst)
         l  libsodium fork for source builds
         m  Mithril signer and client
         c  CNCLI
         o  Ogmios
-        x  Cardano Signer
         r  openBlockPerf
 ```
 

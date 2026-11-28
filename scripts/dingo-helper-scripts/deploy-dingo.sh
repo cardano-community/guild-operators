@@ -81,13 +81,14 @@ dingo_deploy_parse_flags() {
   DINGO_DEPLOY_INSTALL_DEPS="N"
   DINGO_DEPLOY_INSTALL_BINARY="N"
   DINGO_DEPLOY_INSTALL_HWCLI="N"
+  DINGO_DEPLOY_INSTALL_SIGNER="N"
   DINGO_DEPLOY_FORCE_CONFIG="N"
   DINGO_DEPLOY_FORCE_SCRIPTS="N"
 
   local unsupported="${S_ARGS:-}"
-  unsupported="${unsupported//[pdfsuw]/}"
+  unsupported="${unsupported//[pdfsuwx]/}"
   [[ -z "${unsupported}" ]] || {
-    dingo_deploy_fail "Unsupported Dingo -s flag(s): '${unsupported}'. Allowed: p,d,f,s,u,w; cnode-only b,l,m,c,o,x,r are rejected."
+    dingo_deploy_fail "Unsupported Dingo -s flag(s): '${unsupported}'. Allowed: p,d,f,s,u,w,x; cnode-only b,l,m,c,o,r are rejected."
     return 1
   }
 
@@ -97,6 +98,7 @@ dingo_deploy_parse_flags() {
     DINGO_DEPLOY_INSTALL_DEPS="Y"
     DINGO_DEPLOY_INSTALL_HWCLI="Y"
   fi
+  [[ "${S_ARGS:-}" == *x* ]] && DINGO_DEPLOY_INSTALL_SIGNER="Y"
   [[ "${S_ARGS:-}" == *f* ]] && DINGO_DEPLOY_FORCE_CONFIG="Y"
   # Dingo has no configuration change to make in place in this release.
   [[ "${S_ARGS:-}" != *u* ]] || dingo_deploy_info "-s u: the Dingo configuration needs no update for this release"
@@ -789,6 +791,13 @@ deploy_dingo_profile() {
       return 1
     }
     dispatcher_install_cardano_hw_cli || return 1
+  fi
+  if [[ "${DINGO_DEPLOY_INSTALL_SIGNER}" == "Y" ]]; then
+    declare -F dispatcher_install_cardano_signer >/dev/null 2>&1 || {
+      dingo_deploy_fail "Common Cardano Signer installer is unavailable; refresh guild-deploy.sh"
+      return 1
+    }
+    dispatcher_install_cardano_signer || return 1
   fi
 
   if [[ ! -x "${NODE_HOME}/bin/dingo" ]]; then

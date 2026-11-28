@@ -22,6 +22,10 @@ dispatcher_usage | grep -Eq '(^|[[:space:]])-g([[:space:]]|$)' ||
   fail "dispatcher usage does not advertise the repository account option"
 dispatcher_usage | grep -Eq '^[[:space:]]+w[[:space:]]+cardano-hw-cli' ||
   fail "dispatcher usage does not advertise hardware wallets as a common option"
+dispatcher_usage |
+  sed -n '/All implementations:/,/cnode only/p' |
+  grep -Eq '^[[:space:]]+x[[:space:]]+Cardano Signer' ||
+  fail "dispatcher usage does not advertise Cardano Signer as a common option"
 
 missing_git_error=""
 if missing_git_error="$(
@@ -154,11 +158,45 @@ done
 COMMON_TOOLS_MANIFEST="${REPO_ROOT}/files/node-implementations/common/release.json"
 dispatcher_validate_common_tools_manifest "${COMMON_TOOLS_MANIFEST}" ||
   fail "dispatcher rejected the common Guild tool manifest"
-for common_manifest_corruption in version checksum mutable_ledger extra_tool; do
+for common_manifest_corruption in version checksum mutable_ledger extra_tool \
+  signer_pinned signer_repository signer_minimum signer_no_minimum \
+  signer_unanchored signer_control signer_architecture signer_channel; do
   invalid_manifest="${TMPDIR:-/tmp}/guild-common-tools-invalid.$$.json"
   case "${common_manifest_corruption}" in
     version)
       jq '.tools["cardano-hw-cli"].version = "latest"' \
+        "${COMMON_TOOLS_MANIFEST}" > "${invalid_manifest}"
+      ;;
+    signer_pinned)
+      jq '.tools["cardano-signer"].version = "1.35.0"' \
+        "${COMMON_TOOLS_MANIFEST}" > "${invalid_manifest}"
+      ;;
+    signer_repository)
+      jq '.tools["cardano-signer"].github = "example/cardano-signer"' \
+        "${COMMON_TOOLS_MANIFEST}" > "${invalid_manifest}"
+      ;;
+    signer_minimum)
+      jq '.tools["cardano-signer"].minimumVersion = "latest"' \
+        "${COMMON_TOOLS_MANIFEST}" > "${invalid_manifest}"
+      ;;
+    signer_no_minimum)
+      jq 'del(.tools["cardano-signer"].minimumVersion)' \
+        "${COMMON_TOOLS_MANIFEST}" > "${invalid_manifest}"
+      ;;
+    signer_unanchored)
+      jq '.tools["cardano-signer"].assets["linux-x86_64"] = "cardano-signer"' \
+        "${COMMON_TOOLS_MANIFEST}" > "${invalid_manifest}"
+      ;;
+    signer_control)
+      jq '.tools["cardano-signer"].assets["linux-x86_64"] = "^cardano-signer\n$"' \
+        "${COMMON_TOOLS_MANIFEST}" > "${invalid_manifest}"
+      ;;
+    signer_architecture)
+      jq 'del(.tools["cardano-signer"].assets["linux-aarch64"])' \
+        "${COMMON_TOOLS_MANIFEST}" > "${invalid_manifest}"
+      ;;
+    signer_channel)
+      jq '.tools["cardano-signer"].channel = "any"' \
         "${COMMON_TOOLS_MANIFEST}" > "${invalid_manifest}"
       ;;
     checksum)
@@ -180,6 +218,196 @@ for common_manifest_corruption in version checksum mutable_ledger extra_tool; do
   fi
   rm -f -- "${invalid_manifest}"
 done
+
+# Cardano Signer comes from the newest stable GitHub release in the common
+# manifest. GitHub and the download are stubbed; the archive is a real tarball.
+run_cardano_signer_install_test() (
+  local root="" fixtures="" api_fixture="" request_log="" download_fixture=""
+  local signer_manifest="${COMMON_TOOLS_MANIFEST}" installed=""
+  local release_url="https://github.com/gitmachtl/cardano-signer/releases/download"
+
+  root="$(mktemp -d "${TMPDIR:-/tmp}/guild-signer-test.XXXXXX")"
+  trap 'rm -rf -- "${root}"' EXIT
+  fixtures="${root}/fixtures"
+  api_fixture="${fixtures}/releases.json"
+  request_log="${root}/requests.log"
+  HOME="${root}/home"
+  NODE_HOME="${root}/node"
+  TMPDIR="${root}/tmp"
+  installed="${NODE_HOME}/bin/cardano-signer"
+  mkdir -p "${HOME}/.cabal/bin" "${NODE_HOME}/bin" "${TMPDIR}" "${fixtures}"
+
+  dispatcher_common_tools_manifest() { printf '%s\n' "${signer_manifest}"; }
+  dispatcher_common_architecture() { printf 'linux-x86_64\n'; }
+  log_progress() { :; }
+  log_ok() { :; }
+  curl() {
+    local output="" url="" argument=""
+    while (( $# > 0 )); do
+      argument="$1"
+      shift
+      case "${argument}" in
+        --output) output="$1"; shift ;;
+        --connect-timeout|--max-time|--header) shift ;;
+        https://*) url="${argument}" ;;
+      esac
+    done
+    [[ -n "${output}" && -n "${url}" ]] || return 1
+    printf '%s\n' "${url}" >> "${request_log}"
+    case "${url}" in
+      https://api.github.com/*) cp -- "${api_fixture}" "${output}" ;;
+      "${release_url}"/*) cp -- "${download_fixture}" "${output}" ;;
+      *) return 1 ;;
+    esac
+  }
+
+  # signer_archive <name> <reported version> <plain|dot|extra|symlink|nested>
+  signer_archive() {
+    local name="$1" reported="$2" layout="$3" dir="${fixtures}/$1"
+    local -a members=(cardano-signer)
+    mkdir -p "${dir}"
+    case "${layout}" in
+      symlink)
+        ln -s /bin/true "${dir}/cardano-signer"
+        ;;
+      nested)
+        mkdir -p "${dir}/bin"
+        printf 'not reached\n' > "${dir}/bin/cardano-signer"
+        members=(bin)
+        ;;
+      *)
+        printf '%s\n' '#!/usr/bin/env bash' \
+          "[[ \"\${1:-}\" == --version ]] && printf 'cardano-signer %s\\n' '${reported}'" \
+          > "${dir}/cardano-signer"
+        chmod 0755 "${dir}/cardano-signer"
+        [[ "${layout}" != dot ]] || members=(./cardano-signer)
+        if [[ "${layout}" == extra ]]; then
+          printf 'notes\n' > "${dir}/README.md"
+          members+=(README.md)
+        fi
+        ;;
+    esac
+    tar -czf "${fixtures}/${name}.tar.gz" -C "${dir}" "${members[@]}"
+    printf '%s\n' "${fixtures}/${name}.tar.gz"
+  }
+
+  # signer_releases <archive> <stable tag>: a newer prerelease and draft, the
+  # stable release, and an older one.
+  signer_releases() {
+    local sha="" size=""
+    sha="$(sha256sum "$1" | awk '{print $1}')"
+    size="$(wc -c < "$1" | tr -d '[:space:]')"
+    jq -n --arg tag "$2" --arg sha "sha256:${sha}" --argjson size "${size}" \
+      --arg base "${release_url}" '
+      def asset($tag; $name): {
+        name: $name, state: "uploaded", size: $size, digest: $sha,
+        browser_download_url: "\($base)/\($tag)/\($name)"
+      };
+      ($tag | ltrimstr("v")) as $version |
+      [
+        {tag_name: "v9.0.0", draft: true, prerelease: false,
+         published_at: "2030-01-01T00:00:00Z",
+         assets: [asset("v9.0.0"; "cardano-signer-9.0.0_linux-x64.tar.gz")]},
+        {tag_name: "v8.0.0-rc1", draft: false, prerelease: true,
+         published_at: "2029-01-01T00:00:00Z",
+         assets: [asset("v8.0.0-rc1"; "cardano-signer-8.0.0-rc1_linux-x64.tar.gz")]},
+        {tag_name: $tag, draft: false, prerelease: false,
+         published_at: "2028-01-01T00:00:00Z",
+         assets: [
+           asset($tag; "cardano-signer-\($version)_linux-x64.tar.gz"),
+           asset($tag; "cardano-signer-\($version)_linux-arm64.tar.gz"),
+           asset($tag; "cardano-signer-\($version)_mac-x64.tar.gz")
+         ]},
+        {tag_name: "v1.20.0", draft: false, prerelease: false,
+         published_at: "2020-01-01T00:00:00Z",
+         assets: [asset("v1.20.0"; "cardano-signer-1.20.0_linux-x64.tar.gz")]}
+      ]' > "${api_fixture}"
+  }
+
+  assert_signer_unchanged() {
+    [[ "$("${installed}" --version)" == "cardano-signer 1.35.0" ]] ||
+      fail "a failed Cardano Signer install ($1) changed the installed binary"
+    [[ -z "$(find "${NODE_HOME}/bin" -name '.cardano-signer.install.*' -print -quit)" &&
+       -z "$(find "${TMPDIR}" -mindepth 1 -print -quit)" ]] ||
+      fail "a failed Cardano Signer install ($1) left staging files"
+  }
+
+  assert_signer_rejected() { # $1 = case, $2 = archive, $3 = stable tag
+    download_fixture="$2"
+    signer_releases "$2" "$3"
+    if (dispatcher_install_cardano_signer) >/dev/null 2>&1; then
+      fail "Cardano Signer installer accepted $1"
+    fi
+    assert_signer_unchanged "$1"
+  }
+
+  # Install: the stable release wins over a newer prerelease and draft, and
+  # the old ~/.cabal/bin copy is removed.
+  printf 'old\n' > "${installed}"
+  printf 'old\n' > "${HOME}/.cabal/bin/cardano-signer"
+  download_fixture="$(signer_archive good 1.35.0 plain)"
+  signer_releases "${download_fixture}" v1.35.0
+  dispatcher_install_cardano_signer >/dev/null ||
+    fail "Cardano Signer installer failed on a valid release"
+  [[ "$("${installed}" --version)" == "cardano-signer 1.35.0" ]] ||
+    fail "Cardano Signer installer did not install the newest stable release"
+  [[ "$(stat -c '%a' "${installed}")" == "755" ]] ||
+    fail "Cardano Signer was installed with the wrong mode"
+  [[ ! -e "${HOME}/.cabal/bin/cardano-signer" ]] ||
+    fail "Cardano Signer installer left the old ~/.cabal/bin copy"
+  grep -Fxq "https://api.github.com/repos/gitmachtl/cardano-signer/releases?per_page=100" \
+    "${request_log}" ||
+    fail "Cardano Signer installer asked GitHub the wrong question"
+  grep -Fxq "${release_url}/v1.35.0/cardano-signer-1.35.0_linux-x64.tar.gz" \
+    "${request_log}" ||
+    fail "Cardano Signer installer downloaded the wrong asset"
+  assert_signer_unchanged "valid release"
+
+  # A tarball with ./cardano-signer and other files installs the binary only.
+  download_fixture="$(signer_archive dotted 1.35.0 dot)"
+  signer_releases "${download_fixture}" v1.35.0
+  dispatcher_install_cardano_signer >/dev/null ||
+    fail "Cardano Signer installer rejected ./cardano-signer"
+  download_fixture="$(signer_archive extra 1.35.0 extra)"
+  signer_releases "${download_fixture}" v1.35.0
+  dispatcher_install_cardano_signer >/dev/null ||
+    fail "Cardano Signer installer rejected an archive with other files"
+  [[ ! -e "${NODE_HOME}/bin/README.md" ]] ||
+    fail "Cardano Signer installer extracted more than the binary"
+  assert_signer_unchanged "archive with other files"
+
+  assert_signer_rejected "a binary reporting another version" \
+    "$(signer_archive wrong-version 1.34.0 plain)" v1.35.0
+  assert_signer_rejected "a symbolic link for the binary" \
+    "$(signer_archive symlink 1.35.0 symlink)" v1.35.0
+  assert_signer_rejected "a binary only in a subdirectory" \
+    "$(signer_archive nested 1.35.0 nested)" v1.35.0
+  assert_signer_rejected "a release without an X.Y.Z version" \
+    "$(signer_archive two-part 1.35 plain)" v1.35
+
+  download_fixture="$(signer_archive checksum 1.35.0 plain)"
+  signer_releases "${download_fixture}" v1.35.0
+  jq '.[2].assets[0].digest = "sha256:\("0" * 64)"' "${api_fixture}" > "${api_fixture}.next"
+  mv -f -- "${api_fixture}.next" "${api_fixture}"
+  if (dispatcher_install_cardano_signer) >/dev/null 2>&1; then
+    fail "Cardano Signer installer accepted an archive with the wrong checksum"
+  fi
+  assert_signer_unchanged "wrong checksum"
+
+  signer_manifest="${fixtures}/minimum.json"
+  jq '.tools["cardano-signer"].minimumVersion = "1.36.0"' \
+    "${COMMON_TOOLS_MANIFEST}" > "${signer_manifest}"
+  assert_signer_rejected "a release below the minimum version" \
+    "$(signer_archive below-minimum 1.35.0 plain)" v1.35.0
+  signer_manifest="${COMMON_TOOLS_MANIFEST}"
+
+  rm -f -- "${installed}"
+  mkdir "${installed}"
+  if (dispatcher_install_cardano_signer) >/dev/null 2>&1; then
+    fail "Cardano Signer installer replaced a directory"
+  fi
+)
+run_cardano_signer_install_test
 
 (
   unset CNODE_NAME CNODE_PATH NETWORK BRANCH

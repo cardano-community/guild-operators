@@ -150,13 +150,11 @@ cnode_deploy_preflight_snapshot() {
     scripts/common-helper-scripts/lib/systemd.library
     scripts/cnode-helper-scripts/cnode.adapter
     scripts/common-helper-scripts/env
-    scripts/cnode-helper-scripts/blockPerf.sh
     scripts/cnode-helper-scripts/cabal-build-all.sh
     scripts/cnode-helper-scripts/cncli.sh
     scripts/cnode-helper-scripts/cnode.sh
     scripts/cnode-helper-scripts/dbsync.sh
     scripts/common-helper-scripts/gLiveView.sh
-    scripts/cnode-helper-scripts/logMonitor.sh
     scripts/cnode-helper-scripts/ogmios.sh
     scripts/cnode-helper-scripts/submitapi.sh
     scripts/cnode-helper-scripts/setup_mon.sh
@@ -1018,7 +1016,6 @@ cnode_deploy_validate_release_metadata() {
       (.artifacts | keys == ["linux-aarch64", "linux-x86_64"])
     ) and
     (.tools | keys == [
-      "cardano-signer",
       "catalyst-toolbox",
       "cncli",
       "ghcup",
@@ -1027,7 +1024,6 @@ cnode_deploy_validate_release_metadata() {
     ]) and
     all(.tools[]; tool) and
     (.tools.cncli.minimumVersion | concrete_version) and
-    (.tools["cardano-signer"].minimumVersion | concrete_version) and
     (.managedInstallers | keys == ["openblockperf"]) and
     (.managedInstallers.openblockperf | managed_installer) and
     (.build | keys == ["sourceDependencies", "toolchain"]) and
@@ -1708,37 +1704,6 @@ download_ogmios() {
   log_ok "Deployed Ogmios" "${ogmios_version}"
 }
 
-# Download pre-built cardano-signer binary
-download_cardanosigner() {
-  local architecture signer_version staging_dir
-
-  cnode_deploy_load_release_metadata
-  architecture="$(cnode_deploy_architecture)" ||
-    err_exit "Unsupported cardano-signer architecture: $(uname -m)"
-  log_progress "Resolving Cardano Signer release"
-  cnode_deploy_resolve_tool "cardano-signer" "${architecture}"
-  signer_version="${CNODE_RESOLVED_VERSION}"
-  log_progress "Downloading Cardano Signer" "${signer_version}"
-  staging_dir="$(mktemp -d "${TMPDIR:-/tmp}/guild-cardano-signer.XXXXXX")" ||
-    err_exit "Could not create a private Cardano Signer staging directory."
-  pushd "${staging_dir}" >/dev/null ||
-    err_exit "Could not enter temporary Cardano Signer directory."
-  cnode_deploy_download_resolved_artifact "csigner.tar.gz"
-  tar zxf csigner.tar.gz &>/dev/null ||
-    err_exit "Could not extract the resolved Cardano Signer release."
-  rm -f csigner.tar.gz
-  [[ -f cardano-signer && ! -L cardano-signer ]] ||
-    err_exit "Cardano Signer downloaded but binary(cardano-signer) not found after extracting package!"
-  chmod 0755 cardano-signer ||
-    err_exit "Could not set executable permissions on the staged Cardano Signer binary."
-  mv -f cardano-signer "${NODE_HOME}"/bin/ ||
-    err_exit "Could not install the validated Cardano Signer binary."
-  popd >/dev/null || true
-  rm -rf -- "${staging_dir}"
-  rm -f "${HOME}"/.cabal/bin/cardano-signer # Remove duplicate from $PATH
-  log_ok "Deployed Cardano Signer" "${signer_version}"
-}
-
 # Download and execute openBlockPerf installer
 download_blockperf() {
   local installer_dir blockperf_installer staged_installer
@@ -1960,6 +1925,45 @@ retire_topology_updater() {
   log_info "Archived retired topologyUpdater.sh as ${archived_script}."
 }
 
+# blockPerf.sh and logMonitor.sh could not read the current node tracing and are
+# no longer shipped: openBlockPerf (-s r) measures block propagation, and
+# cncli.sh validate records block results from the node's journal. Archive an
+# installed copy and remove its unit, which fails without the script.
+retire_blockperf_and_logmonitor() {
+  local unit_dir="${SYSTEMD_UNIT_DIR:-/etc/systemd/system}"
+  local script unit legacy_script archived_script
+
+  for script in blockPerf.sh logMonitor.sh; do
+    legacy_script="${NODE_HOME}/scripts/${script}"
+    unit=""
+    if [[ -n "${NODE_SERVICE:-}" ]]; then
+      case "${script}" in
+        blockPerf.sh) unit="${NODE_SERVICE}-tu-blockperf.service" ;;
+        logMonitor.sh) unit="${NODE_SERVICE}-logmonitor.service" ;;
+      esac
+    fi
+    if [[ -n "${unit}" && ( -e "${unit_dir}/${unit}" || -L "${unit_dir}/${unit}" ) ]]; then
+      # Units from either layout start the script by this path.
+      if (
+        # shellcheck source=/dev/null
+        . "${NODE_HOME}/scripts/lib/systemd.library" &&
+          systemd_remove_units --owner-token "${legacy_script}" "${unit}"
+      ); then
+        log_info "Removed the retired ${script} unit ${unit}."
+      else
+        log_warn "Could not remove the retired ${unit}. Run: sudo systemctl disable --now ${unit}, delete it from ${unit_dir}, then sudo systemctl daemon-reload."
+      fi
+    fi
+
+    [[ -e "${legacy_script}" || -L "${legacy_script}" ]] || continue
+    archived_script="${NODE_HOME}/scripts/archive/${script}_deprecated_$(date +%s).$$"
+    if ! mv -f -- "${legacy_script}" "${archived_script}"; then
+      err_exit "Could not archive the retired ${script}."
+    fi
+    log_info "Archived retired ${script} as ${archived_script}."
+  done
+}
+
 cnode_deploy_fetch_network_config() {
   local remote_name="$1"
   local destination="$2"
@@ -2136,13 +2140,11 @@ populate_cnode() {
   updateCommonRuntimeBundle ||
     err_exit "Common runtime bundle validation or installation failed; installed runtime files were left unchanged."
   cnode_deploy_seed_initial_env_port "${cnode_env_preexisted}"
-  updateWithCustomConfig "blockPerf.sh"
   updateWithCustomConfig "cabal-build-all.sh"
   updateWithCustomConfig "cncli.sh"
   updateWithCustomConfig "cnode.sh"
   updateWithCustomConfig "dbsync.sh"
   updateWithCustomConfig "gLiveView.sh" "common-helper-scripts"
-  updateWithCustomConfig "logMonitor.sh"
   updateWithCustomConfig "ogmios.sh"
   updateWithCustomConfig "submitapi.sh"
   updateWithCustomConfig "setup_mon.sh"
@@ -2155,6 +2157,7 @@ populate_cnode() {
   # commands. Retire an installed legacy copy only after those scripts refresh.
   retire_legacy_systemd_orchestrator
   retire_topology_updater
+  retire_blockperf_and_logmonitor
 
   find "${NODE_HOME}/scripts" \
     -path "${NODE_HOME}/scripts/cntools" -prune -o \
@@ -2259,7 +2262,12 @@ cnode_deploy_main_flow() {
       err_exit "Common cardano-hw-cli installer is unavailable."
     run_step "Cardano hardware CLI" "-s w" dispatcher_install_cardano_hw_cli
   fi
-  [[ "${CNODE_DEPLOY_INSTALL_SIGNER}" == "Y" ]] && run_step "Cardano Signer" "-s x" download_cardanosigner
+  if [[ "${CNODE_DEPLOY_INSTALL_SIGNER}" == "Y" ]]; then
+    declare -F dispatcher_install_cardano_signer >/dev/null 2>&1 ||
+      err_exit "Common Cardano Signer installer is unavailable."
+    # The installer reports its own failure.
+    run_step "Cardano Signer" "-s x" dispatcher_install_cardano_signer || exit 1
+  fi
   [[ "${CNODE_DEPLOY_INSTALL_BLOCKPERF}" == "Y" ]] && run_step "openBlockPerf" "-s r" download_blockperf
 }
 

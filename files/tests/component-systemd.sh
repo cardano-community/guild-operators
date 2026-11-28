@@ -28,11 +28,9 @@ cp "${REPO_ROOT}/scripts/cnode-helper-scripts/cnode.adapter" \
   "${SCRIPT_ROOT}/adapters/cnode.adapter"
 
 for component in \
-  blockPerf.sh \
   cncli.sh \
   cnode.sh \
   dbsync.sh \
-  logMonitor.sh \
   mithril-signer.sh \
   ogmios.sh \
   submitapi.sh; do
@@ -125,16 +123,12 @@ for legacy_component in \
   cnode \
   dbsync \
   submitapi \
-  ogmios \
-  blockPerf \
-  logMonitor; do
+  ogmios; do
   case "${legacy_component}" in
     cnode) legacy_unit="cnode.service" ;;
     dbsync) legacy_unit="cnode-dbsync.service" ;;
     submitapi) legacy_unit="cnode-submit-api.service" ;;
     ogmios) legacy_unit="cnode-ogmios.service" ;;
-    blockPerf) legacy_unit="cnode-tu-blockperf.service" ;;
-    logMonitor) legacy_unit="cnode-logmonitor.service" ;;
   esac
   cat > "${UNIT_ROOT}/${legacy_unit}" <<UNIT
 [Unit]
@@ -152,8 +146,6 @@ done
 "${BASH}" "${SCRIPT_ROOT}/mithril-signer.sh" systemd remove
 [[ ! -e "${UNIT_ROOT}/cnode-mithril-signer.service" ]] ||
   fail "legacy Mithril signer unit was not migrated by component ownership"
-"${BASH}" "${SCRIPT_ROOT}/blockPerf.sh" systemd remove
-"${BASH}" "${SCRIPT_ROOT}/logMonitor.sh" systemd remove
 
 for expected in \
   cnode.service \
@@ -165,9 +157,7 @@ for expected in \
   cnode-cncli-validate.service \
   cnode-cncli-ptsendtip.service \
   cnode-cncli-ptsendslots.service \
-  cnode-mithril-signer.service \
-  cnode-tu-blockperf.service \
-  cnode-logmonitor.service; do
+  cnode-mithril-signer.service; do
   grep -Fq "${expected}" "${SYSTEMCTL_LOG}" || {
     printf 'FAIL: systemd management did not address %s\n' "${expected}" >&2
     exit 1

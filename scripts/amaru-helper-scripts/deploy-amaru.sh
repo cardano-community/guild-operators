@@ -81,14 +81,15 @@ amaru_deploy_parse_flags() {
   AMARU_DEPLOY_INSTALL_DEPS="N"
   AMARU_DEPLOY_INSTALL_BINARY="N"
   AMARU_DEPLOY_INSTALL_HWCLI="N"
+  AMARU_DEPLOY_INSTALL_SIGNER="N"
   AMARU_DEPLOY_FORCE_CONFIG="N"
   AMARU_DEPLOY_UPDATE_CONFIG="N"
   AMARU_DEPLOY_FORCE_SCRIPTS="N"
 
   local unsupported="${S_ARGS:-}"
-  unsupported="${unsupported//[pdfsuw]/}"
+  unsupported="${unsupported//[pdfsuwx]/}"
   [[ -z "${unsupported}" ]] || {
-    amaru_deploy_fail "Unsupported Amaru -s flag(s): '${unsupported}'. Allowed: p,d,f,s,u,w; cnode-only b,l,m,c,o,x,r are rejected."
+    amaru_deploy_fail "Unsupported Amaru -s flag(s): '${unsupported}'. Allowed: p,d,f,s,u,w,x; cnode-only b,l,m,c,o,r are rejected."
     return 1
   }
 
@@ -98,6 +99,7 @@ amaru_deploy_parse_flags() {
     AMARU_DEPLOY_INSTALL_DEPS="Y"
     AMARU_DEPLOY_INSTALL_HWCLI="Y"
   fi
+  [[ "${S_ARGS:-}" == *x* ]] && AMARU_DEPLOY_INSTALL_SIGNER="Y"
   [[ "${S_ARGS:-}" == *f* ]] && AMARU_DEPLOY_FORCE_CONFIG="Y"
   [[ "${S_ARGS:-}" == *u* ]] && AMARU_DEPLOY_UPDATE_CONFIG="Y"
   [[ "${S_ARGS:-}" == *s* ]] && AMARU_DEPLOY_FORCE_SCRIPTS="Y"
@@ -877,6 +879,13 @@ deploy_amaru_profile() {
       return 1
     }
     dispatcher_install_cardano_hw_cli || return 1
+  fi
+  if [[ "${AMARU_DEPLOY_INSTALL_SIGNER}" == "Y" ]]; then
+    declare -F dispatcher_install_cardano_signer >/dev/null 2>&1 || {
+      amaru_deploy_fail "Common Cardano Signer installer is unavailable; refresh guild-deploy.sh"
+      return 1
+    }
+    dispatcher_install_cardano_signer || return 1
   fi
 
   if [[ ! -x "${NODE_HOME}/bin/amaru" ]]; then
