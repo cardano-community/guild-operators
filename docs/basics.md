@@ -99,6 +99,12 @@ While we do not intend to hand out step-by-step instructions, the tools are ofte
   [time-synchronization guidance](https://ubuntu.com/server/docs/network-ntp);
   the exact setup depends on your operating system.
 - Ensure your Firewall rules at Network as well as OS level are updated according to the usage of your system, you'd want to whitelist the rules that you really need to open to world (eg: You might need node and SSH ports to be open to relays and perhaps home workstation on core, while open node to internet on relays, depending on your topology and configuration that you run).
+- If the host reaches the internet only through an HTTP forward proxy, such
+  as Squid, set the proxy variables where the shell, the systemd services,
+  `sudo` and the package manager all see them, before you run
+  `guild-deploy.sh`. See
+  [Running behind a forward proxy](Appendix/forward-proxy.md), which also
+  lists the hosts each tool contacts.
 - Update your SSH Configuration to prevent password-based logon.
 - Ensure that you use offline workflow, you should never require to have your offline keys on online nodes. The tools provide you backup/restore functionality to only pass online keys to online nodes.
 
