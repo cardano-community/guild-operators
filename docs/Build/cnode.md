@@ -311,7 +311,7 @@ The overlays pin no cardano-cli: like every other network, both use the
 CLI, which isn't installed, so on Musashi `bech32` and
 `cardano-submit-api` come from cardano-node 11.2.0. No Koios endpoint is configured
 for either network, so CNTools works from the local node unless you set
-`KOIOS_API`. The Mithril helpers and `blockPerf.sh` don't support these networks.
+`KOIOS_API`. The Mithril helpers don't support these networks.
 
 Both networks are in the Dijkstra era (protocol 12). A block producer there can
 register a BLS key with its pool, which places it in the pool set the Leios
