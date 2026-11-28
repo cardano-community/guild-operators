@@ -124,8 +124,15 @@ The current common User Variables section is:
 #MITHRIL_DOWNLOAD="N"
 #MITHRIL_HOME="${NODE_HOME}/mithril"
 #MITHRIL_SIGNER_ENABLED="N"
+#MITHRIL_SIGNER_HOST=""
+#MITHRIL_SIGNER_PORT=""
 #STRICT_VERSION_CHECK="Y"
 ```
+
+`MITHRIL_SIGNER_ENABLED=Y` shows the Mithril signer in gLiveView.
+`MITHRIL_SIGNER_HOST` and `MITHRIL_SIGNER_PORT` say where its metrics are when
+the signer runs on another host or pod; see
+[gLiveView's Mithril signer panel](gliveview.md#mithril-signer).
 
 Leave `CCLI` commented to use the selected adapter's default. Every
 implementation uses `${NODE_HOME}/bin/cardano-cli`; for Amaru that covers key and

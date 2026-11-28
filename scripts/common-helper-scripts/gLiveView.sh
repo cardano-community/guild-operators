@@ -26,7 +26,7 @@
 # Do NOT modify code below           #
 ######################################
 
-GLV_VERSION=v2.0.0
+GLV_VERSION=v2.1.0
 
 PARENT="$(cd "$(dirname "${BASH_SOURCE[0]}")" >/dev/null 2>&1 && pwd -P)"
 
@@ -854,7 +854,7 @@ glv_data_event() {
 # Notices that need the node's metrics stay while it is away, so that a
 # restart does not clear and raise them again. The node's own notice has its
 # "node lost" and "node back" events already.
-GLV_NOTICE_NEEDS_NODE=' alert kes opcert pool peers restart release '
+GLV_NOTICE_NEEDS_NODE=' alert kes opcert pool peers restart release mithril-reg '
 GLV_NOTICE_QUIET=' node '
 
 # glv_notice <id> <error|warning|info> <title> <text> [key]: raises a notice or
@@ -1257,6 +1257,7 @@ glv_notices_check() {
         "release|${D_BIN_PIN}"
     fi
   fi
+  glv_notices_mithril
   glv_notices_sweep
   # An error that comes up while the Notices page is open has been seen.
   (( ${VIEW:-1} != 8 )) || glv_notices_seen
@@ -2970,6 +2971,410 @@ glv_pool_vital() {
   fi
 }
 
+# ── Mithril signer ───────────────────────────────────────────────────────────
+# With MITHRIL_SIGNER_ENABLED=Y the overview, the Production page and the rail
+# show the Mithril signer as its metrics server reports it. The signer may run
+# on this host or on another host or pod: MITHRIL_SIGNER_HOST and
+# MITHRIL_SIGNER_PORT in env say where, and without them the metrics settings
+# in mithril.env, which mithril-signer.sh writes, do. A metrics server that
+# listens on 0.0.0.0 is read on the loopback. The read runs in a background
+# job every 30 seconds, so a signer that does not answer never holds the page
+# up; after a failure the panel keeps the last answer and says how old it is.
+
+MITHRIL_JOB_PID=''
+MITHRIL_STATE=off      # off, waiting, ok, stale, failed, disabled
+MITHRIL_URL=''
+MITHRIL_ENDPOINT=''    # host:port, for the panel's title
+MITHRIL_REMOTE=N       # Y when the metrics are read from another host
+MITHRIL_OFF=N          # Y when mithril.env does not turn the metrics server on
+MITHRIL_NOTE=''        # why the last read failed
+MITHRIL_ASKED_AT=0
+MITHRIL_FETCHED_AT=0
+MITHRIL_FAILED_AT=0
+MITHRIL_FAILS=0        # failed reads in a row
+MITHRIL_POLL=30
+declare -gA MITHRIL_M=()    # metric without its mithril_signer_ prefix -> whole number
+
+glv_mithril_enabled() { [[ "${MITHRIL_SIGNER_ENABLED:-N}" == [Yy]* ]]; }
+
+# glv_mithril_target: where the signer's metrics are. Only the three metrics
+# settings are read from mithril.env; the file is not sourced, because it sets
+# the signer's own NETWORK and CARDANO_NODE_SOCKET_PATH, among others.
+glv_mithril_target() {
+  local file="${MITHRIL_HOME:-${NODE_HOME}/mithril}/mithril.env" line value enabled='' ip='' port='' host
+  local pattern='^[[:space:]]*(export[[:space:]]+)?(ENABLE_METRICS_SERVER|METRICS_SERVER_IP|METRICS_SERVER_PORT)=(.*)$'
+  if [[ -f "${file}" && -r "${file}" ]]; then
+    while IFS= read -r line || [[ -n "${line}" ]]; do
+      [[ "${line}" =~ ${pattern} ]] || continue
+      value="${BASH_REMATCH[3]%$'\r'}"
+      value="${value%%[[:space:]]*}"
+      value=${value#\"}; value=${value%\"}; value=${value#\'}; value=${value%\'}
+      case "${BASH_REMATCH[2]}" in
+        ENABLE_METRICS_SERVER) enabled="${value}" ;;
+        METRICS_SERVER_IP) ip="${value}" ;;
+        METRICS_SERVER_PORT) port="${value}" ;;
+      esac
+    done < "${file}"
+  fi
+  host="${MITHRIL_SIGNER_HOST:-${ip}}"
+  host="${host#http://}"
+  host="${host%%/*}"
+  port="${MITHRIL_SIGNER_PORT:-${port:-9090}}"
+  # An address to listen on everywhere is read on this host's loopback.
+  case "${host}" in
+    ''|0.0.0.0) host=127.0.0.1 ;;
+    '::'|'[::]') host='::1' ;;
+  esac
+  case "${host}" in
+    127.*|localhost|::1|'[::1]') MITHRIL_REMOTE=N ;;
+    *) MITHRIL_REMOTE=Y ;;
+  esac
+  [[ "${host}" != *:* || "${host}" == \[* ]] || host="[${host}]"
+  MITHRIL_ENDPOINT="${host}:${port}"
+  MITHRIL_URL="http://${MITHRIL_ENDPOINT}/metrics"
+  # A signer set up from mithril.env serves metrics only when it says so.
+  MITHRIL_OFF=N
+  if [[ -z "${MITHRIL_SIGNER_HOST:-}" && -f "${file}" && -r "${file}" && "${enabled}" != true ]]; then
+    MITHRIL_OFF=Y
+  fi
+}
+
+# glv_mithril_job_run <url>: one read of the signer's metrics. Prints "ok" and
+# a "m <name> <value>" line for each mithril_signer_ metric, or "fail" and
+# the reason.
+glv_mithril_job_run() {
+  local answer='' code=0 status line reason='' found=N
+  local pattern='^mithril_signer_([a-z0-9_]+)[[:space:]]+([0-9]+)(\.[0-9]*)?([[:space:]]|$)'
+  local -a rows=()
+  answer="$(curl -s --connect-timeout 3 -m 5 -w '\n%{http_code}' "$1" 2>/dev/null)" || code=$?
+  status="${answer##*$'\n'}"
+  answer="${answer%$'\n'*}"
+  case "${code}" in
+    0) [[ "${status}" == 200 ]] || reason="it answers with HTTP status ${status}" ;;
+    3) reason="the address is not valid" ;;
+    6) reason="the host name does not resolve" ;;
+    7) reason="no connection to it" ;;
+    28) reason="no answer within 5 s" ;;
+    52) reason="it closes the connection without an answer" ;;
+    56) reason="the connection was reset" ;;
+    *) reason="curl failed with exit status ${code}" ;;
+  esac
+  if [[ -z "${reason}" ]]; then
+    # Counters and gauges come as floating point numbers.
+    while IFS= read -r line; do
+      [[ "${line}" =~ ${pattern} ]] || continue
+      rows+=("m"$'\t'"${BASH_REMATCH[1]}"$'\t'"${BASH_REMATCH[2]}")
+      found=Y
+    done <<< "${answer}"
+    [[ "${found}" == Y ]] || reason="the answer has no Mithril signer metrics"
+  fi
+  if [[ -n "${reason}" ]]; then
+    printf 'fail\t%s\n' "${reason}"
+    return 0
+  fi
+  printf 'ok\n'
+  printf '%s\n' "${rows[@]}"
+}
+
+glv_mithril_job_start() {
+  local before="${MITHRIL_URL}"
+  glv_mithril_target
+  MITHRIL_ASKED_AT="${D_NOW:-0}"
+  if [[ "${MITHRIL_URL}" != "${before}" ]]; then
+    # The last answer came from another address.
+    MITHRIL_M=(); MITHRIL_FAILS=0; MITHRIL_NOTE=''; MITHRIL_STATE=off
+  fi
+  if [[ "${MITHRIL_OFF}" == Y ]]; then
+    MITHRIL_M=(); MITHRIL_FAILS=0; MITHRIL_STATE=disabled
+    return 0
+  fi
+  [[ "${MITHRIL_STATE}" == ok || "${MITHRIL_STATE}" == stale || "${MITHRIL_STATE}" == failed ]] || MITHRIL_STATE=waiting
+  rm -f -- "${MITHRIL_JOB_FILE}" "${MITHRIL_JOB_FILE}.part"
+  (
+    glv_mithril_job_run "${MITHRIL_URL}" > "${MITHRIL_JOB_FILE}.part" 2>/dev/null
+    mv -f -- "${MITHRIL_JOB_FILE}.part" "${MITHRIL_JOB_FILE}"
+  ) < /dev/null > /dev/null 2>&1 &
+  MITHRIL_JOB_PID=$!
+}
+
+glv_mithril_job_poll() {
+  [[ -n "${MITHRIL_JOB_PID}" ]] || return 0
+  if [[ ! -f "${MITHRIL_JOB_FILE}" ]]; then
+    ! kill -0 "${MITHRIL_JOB_PID}" 2>/dev/null || return 0
+    if [[ ! -f "${MITHRIL_JOB_FILE}" ]]; then
+      MITHRIL_JOB_PID=''
+      glv_mithril_failed "the read stopped before it finished"
+      return 0
+    fi
+  fi
+  glv_mithril_load "${MITHRIL_JOB_FILE}"
+  rm -f -- "${MITHRIL_JOB_FILE}"
+  MITHRIL_JOB_PID=''
+}
+
+# A failed read keeps the last answer, if there is one.
+glv_mithril_failed() {
+  MITHRIL_FAILED_AT="${D_NOW:-0}"
+  MITHRIL_NOTE="$1"
+  MITHRIL_FAILS=$((MITHRIL_FAILS + 1))
+  if [[ "${MITHRIL_STATE}" == ok || "${MITHRIL_STATE}" == stale ]]; then MITHRIL_STATE=stale; else MITHRIL_STATE=failed; fi
+}
+
+# glv_mithril_load <file>: takes in what a read printed. The figures are
+# replaced only by a complete answer.
+glv_mithril_load() {
+  local kind name value result='' reason='the answer could not be read'
+  local -A metrics=()
+  while IFS=$'\t' read -r kind name value; do
+    case "${kind}" in
+      ok) result=ok ;;
+      fail) result=fail; reason="${name}" ;;
+      m) [[ "${name}" =~ ^[a-z0-9_]+$ ]] && glv_is_int "${value}" && metrics["${name}"]="${value}" ;;
+    esac
+  done < "$1"
+  if [[ "${result}" != ok ]]; then
+    glv_mithril_failed "${reason}"
+    return 0
+  fi
+  MITHRIL_M=()
+  for name in "${!metrics[@]}"; do MITHRIL_M["${name}"]="${metrics[${name}]}"; done
+  MITHRIL_STATE=ok
+  MITHRIL_FAILS=0
+  MITHRIL_NOTE=''
+  MITHRIL_FETCHED_AT="${D_NOW:-0}"
+}
+
+# Every second: takes in a finished read, and starts the next one when it is due.
+glv_mithril_tick() {
+  if ! glv_mithril_enabled; then MITHRIL_STATE=off; return 0; fi
+  [[ -z "${MITHRIL_JOB_PID}" ]] || glv_mithril_job_poll
+  [[ -z "${MITHRIL_JOB_PID}" ]] || return 0
+  if [[ "${MITHRIL_STATE}" == off ]] || (( ${D_NOW:-0} - MITHRIL_ASKED_AT >= MITHRIL_POLL )); then
+    glv_mithril_job_start
+  fi
+}
+
+# glv_mithril_answering: whether there are figures to show: an answer, and no
+# more than one read missed since.
+glv_mithril_answering() {
+  [[ "${MITHRIL_STATE}" == ok ]] || { [[ "${MITHRIL_STATE}" == stale ]] && (( MITHRIL_FAILS < 2 )); }
+}
+
+# glv_mithril_epoch <text> <colour> <metric> [short]: the epoch of the
+# signer's last success as a cell value: "epoch 612 ✓" for this epoch, the
+# epoch in amber while the Mithril notice says it is behind, "not yet" without
+# a success since the signer started, and "—" when the signer does not report
+# it. "short" writes "e612".
+glv_mithril_epoch() {
+  local -n _me_text="$1" _me_colour="$2"
+  local _me_value="${MITHRIL_M[$3]:-}" _me_notice=''
+  _me_text='—'
+  _me_colour=C_MUTED
+  glv_is_int "${_me_value}" || return 0
+  case "$3" in
+    signer_registration_success_last_epoch) _me_notice="Mithril not registered" ;;
+    signature_registration_success_last_epoch) _me_notice="Mithril not signing" ;;
+  esac
+  _me_colour=''
+  if (( _me_value == 0 )); then
+    _me_text="not yet"
+    _me_colour=C_MUTED
+  elif [[ "${4:-}" == short ]]; then
+    _me_text="e${_me_value}"
+  else
+    _me_text="epoch ${_me_value}"
+  fi
+  if (( _me_value > 0 )) && glv_is_int "${epochnum:-}" && (( _me_value >= epochnum )); then
+    _me_text+=" ✓"
+    _me_colour=C_OK
+  fi
+  [[ "${N_TITLE[mithril-reg]:-}" != "${_me_notice}" ]] || _me_colour=C_WARN
+}
+
+# glv_mithril_count <text> <success metric> <total metric>: "318 of 320", the
+# total alone when the signer has no count of the successful ones, or "—".
+glv_mithril_count() {
+  local -n _mc_text="$1"
+  local _mc_ok="${MITHRIL_M[$2]:-}" _mc_total="${MITHRIL_M[$3]:-}" _mc_value
+  _mc_text='—'
+  glv_is_int "${_mc_total}" || return 0
+  ui_fmt_int _mc_text "${_mc_total}"
+  glv_is_int "${_mc_ok}" || return 0
+  ui_fmt_int _mc_value "${_mc_ok}"
+  _mc_text="${_mc_value} of ${_mc_text}"
+}
+
+# glv_mithril_status <text> <colour>: the Status cell.
+glv_mithril_status() {
+  local -n _ms_text="$1" _ms_colour="$2"
+  case "${MITHRIL_STATE}" in
+    ok) _ms_text=online; _ms_colour=C_OK ;;
+    stale|failed) _ms_text="not answering"; _ms_colour=C_DANGER ;;
+    disabled) _ms_text="metrics off"; _ms_colour=C_WARN ;;
+    *) _ms_text="asking…"; _ms_colour=C_MUTED ;;
+  esac
+}
+
+# glv_panel_mithril <width> [strip]: the Mithril signer in P_MITHRIL. On the
+# Production page the first row says where the signer stands now and the
+# second counts since it started; a narrow page stacks them in two columns.
+# The strip under Block production on the overview is the first row alone,
+# with the signatures where there is room.
+glv_panel_mithril() {
+  local width="$1" mode="${2:-full}" inner=$(($1 - 4)) right='' text colour value when columns rows
+  local -a now=() counts=() cells=() note=()
+  UI_BASE="${UI_BASE_MAIN}"
+  UI_BODY=()
+  case "${MITHRIL_STATE}" in
+    ok)
+      value=$(( ${D_NOW:-0} - MITHRIL_FETCHED_AT ))
+      if (( value < 5 )); then text="just now"; else glv_fmt_span text "${value}"; text+=" ago"; fi
+      right="${MITHRIL_ENDPOINT} · ${text}" ;;
+    stale)
+      printf -v when '%(%H:%M)T' "${MITHRIL_FETCHED_AT}"
+      right="not answering · data from ${when}" ;;
+    *) right="${MITHRIL_ENDPOINT}" ;;
+  esac
+  rows=1
+  [[ "${mode}" == strip ]] || rows=2
+  if [[ "${MITHRIL_STATE}" == ok || "${MITHRIL_STATE}" == stale ]]; then
+    glv_mithril_status text colour
+    glv_cell now "Status" "${text}" "${colour}"
+    if [[ "${mode}" == strip ]]; then value=short; else value=''; fi
+    glv_mithril_epoch text colour signer_registration_success_last_epoch "${value}"
+    glv_cell now "Registered" "${text}" "${colour}"
+    glv_mithril_epoch text colour signature_registration_success_last_epoch "${value}"
+    glv_cell now "Signed" "${text}" "${colour}"
+    glv_mithril_count text signature_registration_success_since_startup signature_registration_total_since_startup
+    if [[ "${mode}" == strip ]]; then
+      # Four cells need room for "4,812 of 4,830".
+      (( inner < 106 )) || glv_cell now "Signatures" "${text}"
+      cells=("${now[@]}")
+      columns=${#cells[@]}
+    else
+      glv_mithril_count value runtime_cycle_success_since_startup runtime_cycle_total_since_startup
+      glv_cell counts "Cycles" "${value}"
+      glv_mithril_count value signer_registration_success_since_startup signer_registration_total_since_startup
+      glv_cell counts "Registrations" "${value}"
+      glv_cell counts "Signatures" "${text}"
+      if (( inner >= 84 )); then
+        # Three columns filled one column at a time: each pairs a cell of now
+        # with its count.
+        columns=3
+        for value in 0 1 2; do cells+=("${now[value]}" "${counts[value]}"); done
+      else
+        columns=2
+        rows=3
+        cells=("${now[@]}" "${counts[@]}")
+      fi
+    fi
+    (( columns >= 1 )) || columns=1
+    ui_grid cells "${columns}" "${rows}" "${inner}" UI_BODY
+  else
+    glv_mithril_status text colour
+    local -n _mp_colour="${colour}"
+    case "${MITHRIL_STATE}" in
+      disabled) text="Metrics off: mithril.env does not set ENABLE_METRICS_SERVER=true, so the signer serves none." ;;
+      failed)
+        printf -v when '%(%H:%M)T' "${MITHRIL_FAILED_AT}"
+        text="Not answering at ${when}: ${MITHRIL_NOTE}. gLiveView asks again every ${MITHRIL_POLL} s." ;;
+      *) text="Asking the signer at ${MITHRIL_URL} for its metrics…" ;;
+    esac
+    ui_wrap note "${inner}" "${text}"
+    for value in "${note[@]:0:rows}"; do
+      ui_putw "${_mp_colour}" "${inner}" "${value}"
+      ui_endl UI_BODY "${inner}"
+    done
+  fi
+  UI_HELP=mithril
+  ui_panel P_MITHRIL "${width}" $((rows + 2)) "Mithril signer" "${right}"
+}
+
+# glv_mithril_vital <text> <colour>: the rail's Mithril line.
+glv_mithril_vital() {
+  local -n _mv_text="$1" _mv_colour="$2"
+  _mv_text=''
+  _mv_colour="${C_MUTED}"
+  glv_mithril_enabled || return 0
+  if [[ "${MITHRIL_STATE}" == disabled ]]; then
+    _mv_text="metrics off"; _mv_colour="${C_WARN}"
+  elif [[ "${MITHRIL_STATE}" == failed ]] || { [[ "${MITHRIL_STATE}" == stale ]] && (( MITHRIL_FAILS >= 2 )); }; then
+    _mv_text="no metrics"; _mv_colour="${C_DANGER}"
+  elif [[ "${MITHRIL_STATE}" != ok && "${MITHRIL_STATE}" != stale ]]; then
+    _mv_text="asking…"
+  elif [[ -n "${N_TITLE[mithril-reg]:-}" ]]; then
+    _mv_text="${N_TITLE[mithril-reg]#Mithril }"; _mv_colour="${C_WARN}"
+  elif glv_is_int "${epochnum:-}" && [[ "${MITHRIL_M[signature_registration_success_last_epoch]:-}" == "${epochnum}" ]]; then
+    _mv_text="signed e${epochnum}"; _mv_colour="${C_OK}"
+  elif glv_is_int "${epochnum:-}" && [[ "${MITHRIL_M[signer_registration_success_last_epoch]:-}" == "${epochnum}" ]]; then
+    _mv_text="registered"; _mv_colour="${C_OK}"
+  else
+    _mv_text="online"; _mv_colour="${C_OK}"
+  fi
+}
+
+# glv_notices_mithril: the signer's metrics cannot be read, or the signer has
+# not registered or signed in this epoch an hour after it began. Signing is
+# checked only once the signer has tried to sign since it started: one that
+# registered for the first time signs from the second epoch after.
+glv_notices_mithril() {
+  local text unit log cycles reg reg_ok reg_total sig sig_ok sig_total
+  glv_mithril_enabled || return 0
+  unit="${NODE_SERVICE%.service}"
+  unit="${unit:-cnode}-mithril-signer"
+  if [[ "${MITHRIL_REMOTE}" == Y ]]; then
+    log=" The signer's log on its host says why."
+  else
+    log=" Its log says why: journalctl -u ${unit} -n 100"
+  fi
+  if [[ "${MITHRIL_STATE}" == disabled ]]; then
+    glv_notice mithril warning "Mithril metrics off" \
+      "MITHRIL_SIGNER_ENABLED is Y in scripts/env, but mithril.env does not set ENABLE_METRICS_SERVER=true, so the signer serves no metrics. Run mithril-signer.sh -e and enable them, then restart the signer: sudo systemctl restart ${unit}. If the signer runs on another host or pod, set MITHRIL_SIGNER_HOST in scripts/env instead." \
+      "mithril|off"
+    return 0
+  fi
+  if (( MITHRIL_FAILS >= 2 )); then
+    text="gLiveView reads no metrics from the Mithril signer at ${MITHRIL_URL}: ${MITHRIL_NOTE}."
+    if [[ "${MITHRIL_REMOTE}" == Y ]]; then
+      text+=" Check that the signer runs on that host, that its metrics server listens on an address this host reaches (METRICS_SERVER_IP in its mithril.env), and that no firewall blocks the port."
+    else
+      text+=" Check that the signer runs (sudo systemctl status ${unit}) and that mithril.env sets ENABLE_METRICS_SERVER=true. If it runs on another host or pod, set MITHRIL_SIGNER_HOST, and MITHRIL_SIGNER_PORT for another port than 9090, in scripts/env: METRICS_SERVER_IP=0.0.0.0 in mithril.env makes gLiveView read this host's loopback."
+    fi
+    glv_notice mithril warning "No Mithril metrics" "${text}" "mithril|${MITHRIL_URL}"
+    return 0
+  fi
+  glv_mithril_answering && [[ "${D_OK}" == Y ]] || return 0
+  glv_is_int "${epochnum:-}" && glv_is_int "${slot_in_epoch:-}" && glv_is_int "${SLOT_LENGTH:-}" || return 0
+  # The signer registers soon after an epoch begins, once the aggregator opens
+  # the round, and on its first cycles after a start.
+  (( slot_in_epoch * SLOT_LENGTH >= 3600 )) || return 0
+  cycles="${MITHRIL_M[runtime_cycle_total_since_startup]:-}"
+  ! glv_is_int "${cycles}" || (( cycles >= 10 )) || return 0
+  reg="${MITHRIL_M[signer_registration_success_last_epoch]:-}"
+  reg_ok="${MITHRIL_M[signer_registration_success_since_startup]:-}"
+  reg_total="${MITHRIL_M[signer_registration_total_since_startup]:-}"
+  if glv_is_int "${reg}" && (( reg < epochnum )); then
+    if (( reg > 0 )); then
+      text="The Mithril signer has not registered with the aggregator in epoch ${epochnum}; it last registered in epoch ${reg}."
+    else
+      text="The Mithril signer has not registered with the aggregator since it started"
+      ! glv_is_int "${reg_total}" || text+=" (${reg_total} attempts)"
+      text+="."
+    fi
+    text+=" A signer that misses an epoch's registration cannot sign two epochs later.${log}"
+    glv_notice mithril-reg warning "Mithril not registered" "${text}" "mithril-reg|registered|${epochnum}"
+    return 0
+  fi
+  sig="${MITHRIL_M[signature_registration_success_last_epoch]:-}"
+  sig_ok="${MITHRIL_M[signature_registration_success_since_startup]:-0}"
+  sig_total="${MITHRIL_M[signature_registration_total_since_startup]:-0}"
+  glv_is_int "${sig}" && glv_is_int "${sig_total}" && (( sig_total > 0 && sig < epochnum )) || return 0
+  text="The Mithril signer has signed nothing in epoch ${epochnum}"
+  (( sig == 0 )) || text+="; its last signature was in epoch ${sig}"
+  text+=". Since it started, ${sig_ok} of ${sig_total} signature attempts succeeded. A signer signs in an epoch only when it registered two epochs before.${log}"
+  glv_notice mithril-reg warning "Mithril not signing" "${text}" "mithril-reg|signed|${epochnum}"
+}
+
 # What only the page on screen needs.
 glv_data_view() {
   case "${VIEW:-1}" in
@@ -3096,6 +3501,7 @@ glv_data_clock() {
   [[ -z "${PEER_JOB_PID:-}" ]] || glv_peers_job_poll
   [[ -z "${PARAMS_JOB_PID:-}" ]] || glv_params_job_poll
   glv_pool_tick
+  glv_mithril_tick
 
   D_UPTIME=''
   if node_metric_has uptimes && glv_is_int "${uptimes:-}"; then
@@ -3920,6 +4326,8 @@ glv_vitals() {
     glv_pool_vital text colour
     [[ -z "${text}" ]] || glv_vital "${list}" "${colour}" "Pool" "${text}"
   fi
+  glv_mithril_vital text colour
+  [[ -z "${text}" ]] || glv_vital "${list}" "${colour}" "Mithril" "${text}"
   # The host as a whole, then the node process on its own.
   colour="${C_OK}"
   (( D_CPU < 900 )) || colour="${C_WARN}"
@@ -4287,6 +4695,10 @@ glv_view_overview() {
     glv_panel_production "${width}" 4
     glv_main_add P_PROD
   fi
+  if glv_mithril_enabled; then
+    glv_panel_mithril "${width}" strip
+    glv_main_add P_MITHRIL
+  fi
   glv_main_room
   (( GLV_ROOM >= 5 )) || return 0
   if [[ "${LAYOUT}" == wide ]]; then
@@ -4494,6 +4906,10 @@ glv_page_compact() {
       UI_HELP=production
       ui_panel P_PROD "${width}" 4 "Production" ""
       glv_main_add P_PROD
+    fi
+    if glv_mithril_enabled; then
+      glv_panel_mithril "${width}" strip
+      glv_main_add P_MITHRIL
     fi
 
     cells=()
@@ -6108,6 +6524,10 @@ glv_view_production() {
   local -a keys=() epoch=() upcoming=() past=() ordered=()
 
   if [[ "${D_ROLE}" != Core ]]; then
+    if glv_mithril_enabled; then
+      glv_panel_mithril "${width}"
+      glv_main_add P_MITHRIL
+    fi
     glv_main_room
     UI_HELP=production
     glv_note_panel P_A "${width}" "${GLV_ROOM}" "Production" \
@@ -6142,6 +6562,10 @@ glv_view_production() {
   # the epochs come from the block log alone.
   glv_panel_pool "${width}"
   glv_main_add P_POOL
+  if glv_mithril_enabled; then
+    glv_panel_mithril "${width}"
+    glv_main_add P_MITHRIL
+  fi
   [[ "${POOL_STATE}" != ok && "${POOL_STATE}" != stale ]] || history=Y
   glv_main_room
   if [[ "${history}" == Y ]]; then
@@ -6782,9 +7206,9 @@ HELP_ENTRIES=()
 HELP_LINES=()
 HELP_PAGE_NAMES=('' Overview Chain Peers Production System Logs "Node & network")
 # The panels of each page, for the help that is one text for the whole page.
-HELP_PAGE_KEYS=('' "epoch chain propagation peers resources production recent rail"
+HELP_PAGE_KEYS=('' "epoch chain propagation peers resources production mithril recent rail"
   "epoch chain traffic spread recent" "peers connections roundtrip peerlist"
-  "production keys results pool schedule history epochs" "host process custom" "log"
+  "production keys results pool mithril schedule history epochs" "host process custom" "log"
   "node binary startup deployment nodeinfo network params")
 declare -A HELP_TITLE=(
   [epoch]="Epoch" [chain]="Chain" [propagation]="Propagation" [peers]="Peers"
@@ -6795,7 +7219,7 @@ declare -A HELP_TITLE=(
   [host]="Host" [process]="Node process" [custom]="Node's own metrics" [log]="Log"
   [node]="Node" [binary]="Binary" [network]="Network" [deployment]="Deployment" [nodeinfo]="Reported by the node"
   [startup]="Start-up options" [params]="Protocol parameters"
-  [pool]="Pool" [history]="Epoch history" [rail]="Rail · vitals"
+  [pool]="Pool" [history]="Epoch history" [rail]="Rail · vitals" [mithril]="Mithril signer"
 )
 
 # glv_help_mode <rows of the main area>: a drawer needs room above it.
@@ -6926,6 +7350,16 @@ glv_help_rail() {
       "On a block producer with pool data from Koios: the ticker and the pool's saturation. It turns red when the owners delegate less than the pledge, which costs the pool the epoch's rewards, or when the pool has retired, and amber while it retires or is over-saturated." \
       "Ticker and saturation, under 100 %." "${text}" "${level}"
   fi
+  glv_mithril_vital text colour
+  if [[ -n "${text}" ]]; then
+    level=ok
+    [[ "${colour}" != "${C_WARN}" ]] || level=warn
+    [[ "${colour}" != "${C_DANGER}" ]] || level=bad
+    [[ "${colour}" != "${C_MUTED}" ]] || level=''
+    glv_help_add "Mithril" \
+      "With MITHRIL_SIGNER_ENABLED=Y: the Mithril signer as its metrics report it. Green when it has signed or registered in this epoch, amber when it has not an hour after the epoch began or when mithril.env turns its metrics off, red when its metrics do not answer. The Mithril signer panel on the Production page has the details." \
+      "signed e<this epoch>." "${text}" "${level}"
+  fi
   ui_fmt_tenths value "${D_CPU}"
   level=ok
   (( D_CPU < 900 )) || level=warn
@@ -6938,6 +7372,34 @@ glv_help_rail() {
       "Time until the pool's next leader slot, from the leader schedule, and when that is. The bar fills over the last day. Anyone who sees it knows when your pool makes its next block, so keep the screen to yourself." \
       "" "${value}"
   fi
+}
+
+# glv_help_mithril: the Mithril signer panel, on the overview and the
+# Production page.
+glv_help_mithril() {
+  local text colour level
+  [[ -n "${MITHRIL_URL}" ]] || glv_mithril_target
+  glv_help_add "Source" \
+    "The signer's metrics server, read every ${MITHRIL_POLL} s in the background, so a signer that does not answer holds nothing up. MITHRIL_SIGNER_HOST and MITHRIL_SIGNER_PORT in scripts/env say where it is when it runs on another host or pod; without them gLiveView takes METRICS_SERVER_IP and METRICS_SERVER_PORT from mithril.env, and reads an address of 0.0.0.0 on this host's loopback. The title says how old the answer is." \
+    "" "${MITHRIL_URL}"
+  glv_mithril_status text colour
+  case "${colour}" in C_OK) level=ok ;; C_WARN) level=warn ;; C_DANGER) level=bad ;; *) level='' ;; esac
+  glv_help_add "Status" \
+    "Online while the metrics answer. Not answering keeps the last figures and says when they are from. Metrics off: mithril.env does not set ENABLE_METRICS_SERVER=true, so the signer serves none." \
+    "Online." "${text}" "${level}"
+  glv_mithril_epoch text colour signer_registration_success_last_epoch
+  case "${colour}" in C_OK) level=ok ;; C_WARN) level=warn ;; *) level='' ;; esac
+  glv_help_add "Registered" \
+    "The epoch in which the signer last registered its keys with the aggregator, since it started. It registers once in each epoch, soon after the epoch begins, and again on its first cycles after a start. A signer that misses an epoch's registration cannot sign two epochs later." \
+    "This epoch, with a tick. Amber when it has not registered an hour into the epoch." "${text}" "${level}"
+  glv_mithril_epoch text colour signature_registration_success_last_epoch
+  case "${colour}" in C_OK) level=ok ;; C_WARN) level=warn ;; *) level='' ;; esac
+  glv_help_add "Signed" \
+    "The epoch of the signer's last signature, since it started. It signs what the aggregator asks for in every epoch it registered for two epochs before, so one that registered for the first time signs from the second epoch after." \
+    "This epoch, with a tick." "${text}" "${level}"
+  glv_help_add "Cycles · Registrations · Signatures" \
+    "Successful ones against all, since the signer started. It runs a cycle every RUN_INTERVAL of mithril.env, a minute by default. A few that fail, as when the aggregator does not answer, are tried again on the next cycle." \
+    "Close to all."
 }
 
 # glv_help_history_totals <lost> <led> <luck>: over the epochs of the history
@@ -7276,6 +7738,10 @@ glv_help_entries() {
         "Accounts delegating to the pool now, and the blocks it has made since it was registered."
       glv_help_add "Pool ID" \
         "From POOL_ID at the top of gLiveView.sh, or else the pool.id files or cold.vkey in the pool folder. A producer that keeps its cold keys elsewhere needs POOL_ID."
+      ;;
+    mithril)
+      glv_mithril_enabled || return 0
+      glv_help_mithril
       ;;
     history)
       [[ "${D_ROLE}" == Core ]] || return 0
@@ -7681,6 +8147,7 @@ POOL_JOB_FILE="${TMPDIR:-/tmp}/gLiveView.$$.pool"
 HIST_JOB_FILE="${TMPDIR:-/tmp}/gLiveView.$$.history"
 RELOAD_JOB_FILE="${TMPDIR:-/tmp}/gLiveView.$$.reload"
 RELOAD_JOB_PID=''
+MITHRIL_JOB_FILE="${TMPDIR:-/tmp}/gLiveView.$$.mithril"
 glv_peers_geo_load
 
 # ── terminal ─────────────────────────────────────────────────────────────────
@@ -7741,6 +8208,8 @@ glv_cleanup() {
   [[ -z "${HIST_JOB_PID:-}" ]] || kill "${HIST_JOB_PID}" 2>/dev/null || true
   [[ -z "${RELOAD_JOB_PID:-}" ]] || kill "${RELOAD_JOB_PID}" 2>/dev/null || true
   rm -f -- "${RELOAD_JOB_FILE:-/nonexistent}" "${RELOAD_JOB_FILE:-/nonexistent}.part"
+  [[ -z "${MITHRIL_JOB_PID:-}" ]] || kill "${MITHRIL_JOB_PID}" 2>/dev/null || true
+  rm -f -- "${MITHRIL_JOB_FILE:-/nonexistent}" "${MITHRIL_JOB_FILE:-/nonexistent}.part"
   rm -f -- "${POOL_JOB_FILE:-/nonexistent}" "${POOL_JOB_FILE:-/nonexistent}.part" "${POOL_JOB_FILE:-/nonexistent}.head" \
     "${HIST_JOB_FILE:-/nonexistent}" "${HIST_JOB_FILE:-/nonexistent}.part" "${HIST_JOB_FILE:-/nonexistent}.head"
   [[ "${GLV_TITLE_PUSHED}" == N ]] || printf '\e[23;0t'

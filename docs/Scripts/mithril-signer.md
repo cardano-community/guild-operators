@@ -47,6 +47,18 @@ The script uses several environment variables, some of which are:
 - `MITHRIL_HOME`: The Mithril data and environment directory, normally
   `${NODE_HOME}/mithril`.
 
+## gLiveView
+
+When `mithril-signer.sh -e` enables the Prometheus metrics, it asks for the
+address and port of the metrics server (`METRICS_SERVER_IP`, 0.0.0.0 by
+default, and `METRICS_SERVER_PORT`, 9090), and the signer sets
+`MITHRIL_SIGNER_ENABLED=Y` in `env` when it starts, so gLiveView shows its
+[Mithril signer panel](gliveview.md#mithril-signer). gLiveView on the same
+host reads 0.0.0.0 on the loopback. When the signer runs on another host or
+in another pod, set `MITHRIL_SIGNER_ENABLED="Y"`, `MITHRIL_SIGNER_HOST` and,
+for another port than 9090, `MITHRIL_SIGNER_PORT` in the node host's `env`,
+and let the signer's metrics server listen on an address that host reaches.
+
 ## Execution
 
 `-d` is the compatibility alias for `systemd install`. The signer owns

@@ -165,6 +165,7 @@ implementation can expose a different subset.
 | Blocks | How long the last block took to arrive. |
 | KES, Op cert | On a producer: remaining KES periods, and the certificate counters on disk and on chain. |
 | Pool | On a producer with pool data from Koios: the ticker and the pool's saturation. Red with `pledge not met` when the owners delegate less than the pledge, which costs the pool the epoch's rewards, and with `retired`; amber while the pool is retiring or over-saturated. Not shown without an answer from Koios. |
+| Mithril | With `MITHRIL_SIGNER_ENABLED=Y`: the Mithril signer. Green with `signed e612` once it has signed in this epoch, `registered` once it has registered in it, or `online`; amber with `not registered`, `not signing` or `metrics off` while a [Mithril notice](#mithril-signer) is raised; red with `no metrics` when its metrics do not answer. |
 | Host, Node | Processor use of the host, and processor and memory use of the node process. |
 | Next block | On a producer with a leader schedule: the countdown to the next leader slot. This is sensitive operational information; control who can view the terminal. |
 | Notices count | Beside `Notices` in the page list: the notices not acknowledged, in the colour of the worst of them. The slim rail at 80 to 109 columns colours its `!` the same way. |
@@ -340,6 +341,50 @@ epoch history comes from the block log alone. With `ENABLE_KOIOS=N` in `env`,
 or on a network without a Koios service, gLiveView sends no request and the
 panel says why.
 
+### Mithril signer
+
+With `MITHRIL_SIGNER_ENABLED=Y` in `env`, gLiveView shows the Mithril signer as
+its metrics server reports it: a one-row strip under Block production on the
+overview, a panel under Pool on the Production page, and a Mithril line in the
+rail. While the node does not report forging, as when it restarts, the strip
+and the panel stay and take the place of the producer's panels.
+`mithril-signer.sh` sets the variable when it starts the signer with its
+metrics server on; set it yourself on a block producer whose signer runs
+elsewhere.
+
+| Label | Meaning |
+| --- | --- |
+| Status | `online` while the metrics answer; `not answering` keeps the last figures and the title says when they are from; `metrics off` when `mithril.env` does not set `ENABLE_METRICS_SERVER=true`. |
+| Registered | The epoch in which the signer last registered with the aggregator since it started, with ✓ for this epoch. A signer that misses an epoch's registration cannot sign two epochs later. |
+| Signed | The epoch of the signer's last signature since it started, with ✓ for this epoch. A signer that registered for the first time signs from the second epoch after. |
+| Cycles, Registrations, Signatures | Successful ones against all since the signer started. A few failures, such as an aggregator that did not answer, are tried again on the next cycle. |
+
+The overview strip shows Status, Registered and Signed, and Signatures where
+it has room. The panel's title names the address read and how old the answer
+is.
+
+gLiveView reads `http://<host>:<port>/metrics` every 30 seconds in the
+background, so a signer that does not answer never holds the page up:
+
+| Setting | Used for |
+| --- | --- |
+| `MITHRIL_SIGNER_HOST` in `env` | The host or IP address of the signer's metrics server, for a signer on another host or in another pod. Unset, gLiveView takes `METRICS_SERVER_IP` from `${MITHRIL_HOME}/mithril.env`. |
+| `MITHRIL_SIGNER_PORT` in `env` | The port. Unset, gLiveView takes `METRICS_SERVER_PORT` from `mithril.env`, and else 9090, the signer's default. |
+| `METRICS_SERVER_IP=0.0.0.0` | Means listening on every address, so gLiveView reads this host's loopback, 127.0.0.1 (`::` reads `::1`). |
+
+`mithril.env` is read for these settings only; gLiveView does not source it. A
+signer on another host usually has no `mithril.env` on the node's host, and
+`MITHRIL_SIGNER_HOST` with `MITHRIL_SIGNER_PORT` is then all gLiveView needs:
+
+```bash
+MITHRIL_SIGNER_ENABLED="Y"
+MITHRIL_SIGNER_HOST="10.0.0.5"
+MITHRIL_SIGNER_PORT="9090"
+```
+
+The signer's own `METRICS_SERVER_IP` must then be an address the node's host
+reaches, not the loopback, and the port open between the two.
+
 ## Node-specific metrics
 
 ### cardano-node / cnode
@@ -360,8 +405,9 @@ blocklog collection and validation details. Without a blocklog the Production
 page shows the node's process-lifetime `Leader`, `Adopted` and `Invalid`
 counters and no schedule.
 
-gLiveView 2 does not show the Mithril signer section that gLiveView 1 had. The
-Koios pool figures are on the Production page, see
+The Mithril signer section of gLiveView 1 is the [Mithril signer](#mithril-signer)
+panel, and it also reads a signer that runs on another host. The Koios pool
+figures are on the Production page, see
 [Pool and epoch history](#pool-and-epoch-history).
 
 ### Dingo
@@ -573,6 +619,8 @@ gLiveView checks:
 | Disk with the node's home | Warning at 90 %, error at 95 % |
 | The node binary replaced while the node runs: restart to run it | Warning for a new version, info for the same version installed again |
 | A release pin the binary on disk does not meet: `guild-deploy.sh -s d` installs it | Info |
+| No Mithril metrics: with `MITHRIL_SIGNER_ENABLED=Y`, two reads of the signer's metrics in a row failed, with the reason; or `mithril.env` does not turn its metrics server on | Warning |
+| Mithril not registered, or not signing: an hour into the epoch, the signer has not registered in it, or has signed nothing in it although it has tried to sign since it started. Checked once the signer has run ten cycles | Warning |
 
 When a notice comes up or clears, that is an event too, in the notice's
 colour, or green when it clears. The node's own changes are events as well: its
@@ -721,8 +769,9 @@ support it, such as iTerm2, kitty, WezTerm, Windows Terminal and recent tmux,
 show each update in one step. The terminal size is checked on every pass, so
 a resize is followed even where no resize signal arrives, as under `su -c`.
 
-Slow work never blocks the page: peer analysis and the protocol parameters are
-read by background jobs whose results the page picks up when they are ready.
+Slow work never blocks the page: peer analysis, the protocol parameters, the
+pool data from Koios and the Mithril signer's metrics are read by background
+jobs whose results the page picks up when they are ready.
 
 ## Troubleshooting
 
@@ -744,6 +793,12 @@ curl --fail http://127.0.0.1:8889/metrics
 
 # Amaru: inspect both node and collector units
 "${NODE_HOME}/scripts/amaru.sh" status
+```
+
+The Mithril signer's metrics, from the host gLiveView runs on:
+
+```bash
+curl --fail http://127.0.0.1:9090/metrics | grep '^mithril_signer_'
 ```
 
 For Amaru, a healthy node without port 8889 normally means the collector unit
@@ -795,3 +850,4 @@ effect.
 - [Amaru consensus metric definitions](https://github.com/pragma-org/amaru/blob/main/crates/amaru-metrics/src/consensus.rs)
 - [Amaru system metric definitions](https://github.com/pragma-org/amaru/blob/main/crates/amaru-metrics/src/system.rs)
 - [Amaru mempool metric definitions](https://github.com/pragma-org/amaru/blob/main/crates/amaru-metrics/src/mempool.rs)
+- [Mithril signer metric definitions](https://github.com/IntersectMBO/mithril/blob/main/mithril-signer/src/metrics/service.rs)
