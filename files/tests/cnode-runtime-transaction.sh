@@ -735,6 +735,39 @@ run_common_hardware_wallet_install_test() (
     fail "hardware-rule skip did not explain that device permissions are host-managed"
 )
 
+# cnode's -s x runs the common Cardano Signer installer, and its failure stops
+# the deployment.
+run_cnode_signer_step_test() (
+  set +u
+  local calls="${TEST_ROOT}/cnode-signer.calls"
+
+  NODE_HOME="${TEST_ROOT}/cnode-signer"
+  mkdir -p "${NODE_HOME}/files"
+  S_ARGS="x"
+  cnode_deploy_init_context() { :; }
+  cnode_deploy_parse_flags
+  CNODE_DEPLOY_REFRESH_PAYLOAD="N"
+  cnode_deploy_validate_openssl3() { CNODE_DEPLOY_OPENSSL_BIN="/usr/bin/openssl"; }
+  log_section() { :; }
+  dispatcher_install_cardano_signer() { printf '%s\n' "${ACTIVE_FLAG}" >> "${calls}"; }
+  # A later step shows whether the flow went on.
+  CNODE_DEPLOY_INSTALL_BLOCKPERF="Y"
+  download_blockperf() { printf 'later step\n' >> "${calls}"; }
+
+  cnode_deploy_main_flow >/dev/null
+  assert_eq "$(cat "${calls}")" $'-s x\nlater step' "cnode Cardano Signer step"
+  if declare -F download_cardanosigner >/dev/null; then
+    fail "cnode still has its own Cardano Signer installer"
+  fi
+  : > "${calls}"
+  dispatcher_install_cardano_signer() { return 1; }
+  if (cnode_deploy_main_flow >/dev/null 2>&1); then
+    fail "cnode reported success after a failed Cardano Signer install"
+  fi
+  [[ ! -s "${calls}" ]] ||
+    fail "cnode carried on after a failed Cardano Signer install"
+)
+
 run_managed_installer_policy_test() (
   local node_root="${TEST_ROOT}/managed-installer"
   local manifest="${node_root}/files/cnode-release.json"
@@ -1159,20 +1192,20 @@ run_custom_script_snapshot_test() (
 
 run_install_order_test() {
   local deploy_file="${REPO_ROOT}/scripts/cnode-helper-scripts/deploy-cnode.sh"
-  local runtime_line blockperf_line logmonitor_line retirement_line
+  local runtime_line first_component_line last_component_line retirement_line
   local recursive_mode_line cntools_framework_line cntools_launcher_line
 
   runtime_line="$(
     grep -n '^[[:space:]]*updateCommonRuntimeBundle ||' "${deploy_file}" |
       head -1 | cut -d: -f1
   )"
-  blockperf_line="$(
-    grep -n '^[[:space:]]*updateWithCustomConfig "blockPerf.sh"' "${deploy_file}" |
+  first_component_line="$(
+    grep -n '^[[:space:]]*updateWithCustomConfig "' "${deploy_file}" |
       head -1 | cut -d: -f1
   )"
-  logmonitor_line="$(
-    grep -n '^[[:space:]]*updateWithCustomConfig "logMonitor.sh"' "${deploy_file}" |
-      head -1 | cut -d: -f1
+  last_component_line="$(
+    grep -n '^[[:space:]]*updateWithCustomConfig "' "${deploy_file}" |
+      tail -1 | cut -d: -f1
   )"
   retirement_line="$(
     grep -n '^[[:space:]]*retire_legacy_systemd_orchestrator$' "${deploy_file}" |
@@ -1190,19 +1223,22 @@ run_install_order_test() {
     grep -n '^[[:space:]]*dispatcher_install_cntools_launcher ||' "${deploy_file}" |
       head -1 | cut -d: -f1
   )"
-  [[ -n "${runtime_line}" && -n "${blockperf_line}" &&
-     -n "${logmonitor_line}" &&
+  [[ -n "${runtime_line}" && -n "${first_component_line}" &&
+     -n "${last_component_line}" &&
      -n "${retirement_line}" && -n "${recursive_mode_line}" &&
      -n "${cntools_framework_line}" && -n "${cntools_launcher_line}" ]] ||
     fail "could not locate cnode runtime/dependent installation calls"
-  (( runtime_line < blockperf_line )) ||
+  (( runtime_line < first_component_line )) ||
     fail "common runtime is not installed before dependent scripts"
-  (( blockperf_line < retirement_line && logmonitor_line < retirement_line )) ||
+  (( last_component_line < retirement_line )) ||
     fail "legacy systemd orchestrator is retired before every replacement component refreshes"
   (( recursive_mode_line < cntools_framework_line )) ||
     fail "cnode does not exclude modular CNTools from its legacy recursive chmod"
   (( cntools_framework_line < cntools_launcher_line )) ||
     fail "cnode installs the public CNTools launcher before the modular tree"
+  if grep -Eq 'updateWithCustomConfig "(blockPerf|logMonitor)[.]sh"|cnode-helper-scripts/(blockPerf|logMonitor)[.]sh$' "${deploy_file}"; then
+    fail "cnode still installs the retired blockPerf.sh or logMonitor.sh"
+  fi
   if grep -q 'updateWithCustomConfig "env"' "${deploy_file}"; then
     fail "env is still installed outside the common runtime transaction"
   fi
@@ -1300,6 +1336,80 @@ run_topology_updater_retirement_test() (
     fail "a second retirement touched systemd without Topology Updater units"
 )
 
+# A refresh archives the retired blockPerf.sh and logMonitor.sh and removes
+# their units: unmarked ones from the earlier layout and marked ones from this
+# layout, recognized by the script path in ExecStart or the owner line. A
+# same-name unit for another script is left alone and reported.
+run_blockperf_logmonitor_retirement_test() (
+  local node_root="${TEST_ROOT}/blockperf-logmonitor-retirement"
+  local output="${TEST_ROOT}/blockperf-logmonitor-retirement.out"
+  local script archived_script
+
+  mkdir -p "${node_root}/scripts/archive" "${node_root}/scripts/lib" "${node_root}/units"
+  cp "${REPO_ROOT}/scripts/common-helper-scripts/lib/systemd.library" "${node_root}/scripts/lib/"
+  for script in blockPerf.sh logMonitor.sh; do
+    printf '%s\n' '#!/usr/bin/env bash' "# retired ${script} fixture" > "${node_root}/scripts/${script}"
+  done
+  printf '%s\n' '[Unit]' 'Description=Cardano Node - Block Performance' '[Service]' \
+    "ExecStart=/bin/bash -l -c \"exec ${node_root}/scripts/blockPerf.sh -s\"" \
+    > "${node_root}/units/cnode-tu-blockperf.service"
+  printf '%s\n' '[Unit]' 'Description=Operator log monitor' '[Service]' \
+    'ExecStart=/usr/local/bin/my-log-monitor' > "${node_root}/units/cnode-logmonitor.service"
+  printf '%s\n' '#!/usr/bin/env bash' 'printf "%s\n" "$*" >> "${SYSTEMCTL_LOG}"' > "${node_root}/systemctl"
+  chmod 755 "${node_root}/systemctl"
+
+  NODE_HOME="${node_root}"
+  NODE_SERVICE="cnode"
+  SYSTEMD_UNIT_DIR="${node_root}/units"
+  SYSTEMCTL_BIN="${node_root}/systemctl"
+  SYSTEMCTL_LOG="${node_root}/systemctl.log"
+  SUDO="N"
+  export SYSTEMCTL_LOG
+
+  retire_blockperf_and_logmonitor > "${output}" 2>&1
+
+  for script in blockPerf.sh logMonitor.sh; do
+    [[ ! -e "${node_root}/scripts/${script}" ]] ||
+      fail "retired ${script} remained in the active scripts folder"
+    archived_script="$(
+      find "${node_root}/scripts/archive" -type f -name "${script}_deprecated_*" -print -quit
+    )"
+    [[ -n "${archived_script}" ]] || fail "retired ${script} was not archived"
+    grep -q "^# retired ${script} fixture$" "${archived_script}" ||
+      fail "archived ${script} did not preserve its content"
+  done
+  [[ ! -e "${node_root}/units/cnode-tu-blockperf.service" ]] ||
+    fail "the earlier layout's BlockPerf unit was not removed"
+  grep -qx 'disable --now cnode-tu-blockperf.service' "${SYSTEMCTL_LOG}" ||
+    fail "the BlockPerf unit was not stopped and disabled"
+  grep -qx 'daemon-reload' "${SYSTEMCTL_LOG}" ||
+    fail "systemd was not reloaded after removing the BlockPerf unit"
+  [[ -f "${node_root}/units/cnode-logmonitor.service" ]] ||
+    fail "a unit that does not start logMonitor.sh was removed"
+  grep -q 'Could not remove the retired cnode-logmonitor.service' "${output}" ||
+    fail "a logMonitor unit left in place was not reported"
+
+  # A unit this layout wrote carries the owner line instead.
+  rm -f "${SYSTEMCTL_LOG}"
+  local library="${node_root}/scripts/lib/systemd.library" marker owner_prefix
+  marker="$(sed -n 's/^SYSTEMD_GUILD_MARKER="\(.*\)"$/\1/p' "${library}")"
+  owner_prefix="$(sed -n 's/^SYSTEMD_GUILD_OWNER_PREFIX="\(.*\)"$/\1/p' "${library}")"
+  [[ -n "${marker}" && -n "${owner_prefix}" ]] || fail "could not read the managed unit markers"
+  printf '%s\n' '[Unit]' 'Description=Log Monitor' '[Service]' 'ExecStart=/bin/true' \
+    "${marker}" "${owner_prefix} ${node_root}/scripts/logMonitor.sh" \
+    > "${node_root}/units/cnode-logmonitor.service"
+  retire_blockperf_and_logmonitor > "${output}" 2>&1 ||
+    fail "retiring blockPerf.sh and logMonitor.sh twice failed"
+  [[ ! -e "${node_root}/units/cnode-logmonitor.service" ]] ||
+    fail "a logMonitor unit with this layout's owner line was not removed"
+
+  rm -f "${SYSTEMCTL_LOG}"
+  retire_blockperf_and_logmonitor > "${output}" 2>&1 ||
+    fail "retiring blockPerf.sh and logMonitor.sh a third time failed"
+  [[ ! -e "${SYSTEMCTL_LOG}" ]] ||
+    fail "a later retirement touched systemd without retired units"
+)
+
 run_profile_state_test
 run_initial_port_seed_test
 run_release_metadata_test
@@ -1307,6 +1417,7 @@ run_release_manifest_validation_tests
 run_release_resolver_tests
 run_binary_staging_test
 run_common_hardware_wallet_install_test
+run_cnode_signer_step_test
 run_managed_installer_policy_test
 run_source_checkout_test
 run_transaction_tests
@@ -1314,5 +1425,6 @@ run_custom_script_snapshot_test
 run_install_order_test
 run_legacy_orchestrator_retirement_test
 run_topology_updater_retirement_test
+run_blockperf_logmonitor_retirement_test
 
 printf 'cnode runtime transaction tests passed\n'

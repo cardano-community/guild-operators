@@ -23,10 +23,9 @@ include:
 #### Installation
 `cncli.sh` script's main functions, `sync`, `leaderlog`, `validate` and PoolTool `sendslots`/`sendtip` are not meant to be run manually, but instead deployed as systemd services that run in the background to do the block scraping and validation automatically. Additional commands exist for manual execution to initiate the `sqlite` db, filling the blocklog DB with all blocks created by the pool known to the blockchain, migration of old cntoolsBlockCollector JSON blocklog, and re-validation of blocks and leaderlogs. See usage output below for a complete list of available commands.
 
-CNCLI blocklog works without [Log Monitor](logmonitor.md). Log Monitor
-historically provided faster adopted status and detected some invalid blocks,
-but it is currently disabled because its parser has not been updated for the
-current node tracing format.
+`validate` records adopted blocks from the CNCLI DB and invalid ones from the
+node's journal, which the retired Log Monitor used to do from the node's log
+file.
 
 1. Run `guild-deploy.sh -s c` to install the prebuilt CNCLI executable in
    `${NODE_HOME}/bin/cncli`. The selected release comes from

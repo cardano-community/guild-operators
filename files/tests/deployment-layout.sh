@@ -71,6 +71,8 @@ for profile in \
     fail "$(basename "${profile}") bypasses compact package-manager output"
   grep -q 'dispatcher_install_cardano_hw_cli' "${profile}" ||
     fail "$(basename "${profile}") does not expose the common hardware-wallet installer"
+  grep -q 'dispatcher_install_cardano_signer' "${profile}" ||
+    fail "$(basename "${profile}") does not expose the common Cardano Signer installer"
 done
 
 grep -q '^# User Variables' \
@@ -103,6 +105,16 @@ jq -e '
     (.sha256 | test("^[0-9a-f]{64}$")))
 ' "${COMMON_RELEASE}" >/dev/null ||
   fail "Cardano Hardware CLI is not pinned to its reviewed release artifacts"
+# CNTools needs Cardano Signer 1.24.0 or newer on every implementation.
+jq -e '
+  (.tools["cardano-signer"] |
+    .version == "latest" and
+    .github == "gitmachtl/cardano-signer" and
+    (.minimumVersion | split(".") | map(tonumber)) >= [1, 24, 0] and
+    (.assets | keys == ["linux-aarch64", "linux-x86_64"])) and
+  ($cnode[0].tools | has("cardano-signer") | not)
+' --slurpfile cnode "${CNODE_RELEASE}" "${COMMON_RELEASE}" >/dev/null ||
+  fail "Cardano Signer is not a common latest-release tool with a 1.24.0 floor"
 jq -e '
   (
     [

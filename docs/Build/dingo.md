@@ -42,8 +42,9 @@ The supported selective-install flags are:
 | `s` | Force helper-script replacement; this replaces common `env` user-variable settings |
 | `u` | Update kept configuration in place for this release; Dingo has nothing to update in this release |
 | `w` | Install the pinned Cardano Hardware CLI and host device rules |
+| `x` | Install the newest Cardano Signer release, 1.24.0 or newer, for the CNTools Catalyst and Calidus actions |
 
-The cnode-specific flags `b`, `l`, `m`, `c`, `o`, `x`, and `r` are
+The cnode-specific flags `b`, `l`, `m`, `c`, `o`, and `r` are
 rejected instead of silently installing incompatible components. With no
 `-s` value, the profile refreshes scripts, common libraries, the release
 manifest, and missing configuration while preserving existing Dingo config.
@@ -213,8 +214,7 @@ VRF key against ledger state. Guild does not duplicate those protocol checks.
 The pool must already be registered and delegated on the selected testnet to
 have a chance of being elected as slot leader. Keep cold signing keys and the
 operational-certificate counter in a reviewed offline workflow; Dingo support
-does not change that security model. CNTools 14 is currently an interface
-skeleton and does not yet implement these operational workflows.
+does not change that security model.
 
 To rotate the KES key or operational certificate of a running producer,
 replace `hot.skey` and `op.cert` in place and run:
@@ -347,14 +347,17 @@ locations. Dingo logs no per-peer state and its deployment names no static
 peers, so the Conn and Score columns and the Static filter are not
 available.
 
-The Dingo adapter exposes `${NODE_HOME}/bin/cardano-cli` and
-`$NODE_HOME/sockets/dingo.socket` for future CNTools local-mode actions. To use
-a reviewed custom CLI instead, uncomment `CCLI` in `scripts/env`; an explicit
-value is never replaced by the adapter. The current menu actions remain
-placeholders. cnode-only integrations such as CNCLI block logs, Catalyst's
-pinned cnode companion policy, and leader-log tooling are not implied by
-installing CNTools. Hardware-wallet support is node-independent and can be
-installed with Guild Deploy `-s w`.
+CNTools 14 runs on Dingo through the stable `scripts/cntools.sh` launcher. Its
+default local mode uses the `${NODE_HOME}/bin/cardano-cli` and
+`$NODE_HOME/sockets/dingo.socket` that the Dingo adapter exposes; use
+`cntools.sh -l` for Koios-backed online actions or `cntools.sh -o` for offline
+key and signing workflows. To use a reviewed custom CLI instead, uncomment
+`CCLI` in `scripts/env`; an explicit value is never replaced by the adapter.
+cnode-only integrations such as CNCLI block logs, Catalyst's pinned cnode
+companion policy, and leader-log tooling are not implied by installing CNTools.
+The node-independent tools CNTools uses come from Guild Deploy: `-s w` installs
+the hardware-wallet CLI and `-s x` installs Cardano Signer. See the
+[CNTools guide](../Scripts/cntools.md) for available actions and requirements.
 
 Ogmios, db-sync, and standalone Mithril helper scripts remain outside this
 experimental profile. Dingo contains its own Mithril bootstrap client, which
